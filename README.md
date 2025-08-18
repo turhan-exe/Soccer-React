@@ -59,3 +59,14 @@ pnpm run dev
 ```shell
 pnpm run build
 ```
+
+## Firebase Authentication
+
+1. Install dependencies:
+   ```bash
+   pnpm add firebase
+   ```
+2. Copy `.env.example` to `.env.local` and fill in your Firebase project keys.
+3. Wrap your app with `AuthProvider` and use the `useAuth` hook to call `login`,
+   `register`, and `logout`, which connect to Firebase under the hood.
+
