@@ -59,3 +59,13 @@ pnpm run dev
 ```shell
 pnpm run build
 ```
+
+## Firebase Authentication
+
+1. Install dependencies:
+   ```bash
+   pnpm add firebase
+   ```
+2. Copy `.env.example` to `.env.local` and fill in your Firebase project keys.
+3. Use the helpers in `src/services/auth.ts` to sign users up or in.
+
