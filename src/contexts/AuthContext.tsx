@@ -1,11 +1,20 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, {
+  createContext,
+  useContext,
+  useState,
+  ReactNode,
+  useEffect,
+} from 'react';
+import { onAuthStateChanged, updateProfile } from 'firebase/auth';
 import { User } from '@/types';
+import { auth } from '@/firebase';
+import { signIn, signUp, signOutUser } from '@/services/auth';
 
 interface AuthContextType {
   user: User | null;
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string, teamName: string) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
   isLoading: boolean;
 }
 
@@ -27,39 +36,52 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+      if (firebaseUser) {
+        setUser({
+          id: firebaseUser.uid,
+          username:
+            firebaseUser.email?.split('@')[0] || 'Kullanıcı',
+          email: firebaseUser.email || '',
+          teamName: firebaseUser.displayName || 'Takımım',
+          teamLogo: '⚽',
+          connectedAccounts: { google: false, apple: false },
+        });
+      } else {
+        setUser(null);
+      }
+    });
+    return unsubscribe;
+  }, []);
+
   const login = async (email: string, password: string) => {
     setIsLoading(true);
-    // Simulate API call
-    setTimeout(() => {
-      setUser({
-        id: '1',
-        username: 'Menajer',
-        email,
-        teamName: 'Takımım',
-        teamLogo: '⚽',
-        connectedAccounts: { google: false, apple: false }
-      });
+    try {
+      await signIn(email, password);
+    } finally {
       setIsLoading(false);
-    }, 1000);
+    }
   };
 
-  const register = async (email: string, password: string, teamName: string) => {
+  const register = async (
+    email: string,
+    password: string,
+    teamName: string,
+  ) => {
     setIsLoading(true);
-    // Simulate API call
-    setTimeout(() => {
-      setUser({
-        id: '1',
-        username: 'Menajer',
-        email,
-        teamName,
-        teamLogo: '⚽',
-        connectedAccounts: { google: false, apple: false }
-      });
+    try {
+      const cred = await signUp(email, password);
+      if (cred.user) {
+        await updateProfile(cred.user, { displayName: teamName });
+      }
+    } finally {
       setIsLoading(false);
-    }, 1000);
+    }
   };
 
-  const logout = () => {
+  const logout = async () => {
+    await signOutUser();
     setUser(null);
   };
 
