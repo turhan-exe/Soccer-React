@@ -28,7 +28,9 @@ export default function TeamPlanning() {
   const [selectedFormation, setSelectedFormation] = useState(
     formations[0].name
   );
+
   const [draggedPlayerId, setDraggedPlayerId] = useState<string | null>(null);
+
 
   const filteredPlayers = players.filter(player => 
     player.name.toLowerCase().includes(searchTerm.toLowerCase()) &&
@@ -76,6 +78,7 @@ export default function TeamPlanning() {
       return { ...pos, player };
     });
   })();
+
 
   const handlePositionDrop = (targetPosition: Player['position']) => {
     if (!draggedPlayerId) return;
@@ -163,6 +166,7 @@ export default function TeamPlanning() {
             </Select>
           </CardHeader>
           <CardContent>
+
             <div className="bg-green-600 rounded-lg p-4 relative h-96 overflow-hidden">
               <div className="text-white text-center text-sm font-semibold mb-2">
                 {startingEleven.length}/11 oyuncu seçildi
@@ -184,6 +188,7 @@ export default function TeamPlanning() {
                 <text x="50" y="7" textAnchor="middle" fontSize="4" fill="currentColor">Rakip Kale</text>
                 <text x="50" y="97" textAnchor="middle" fontSize="4" fill="currentColor">Bizim Kale</text>
               </svg>
+
               <div className="absolute inset-0">
                 {formationPositions.map(({ player, position, x, y }, idx) => (
                   <div
@@ -194,6 +199,7 @@ export default function TeamPlanning() {
                       top: `${y}%`,
                       transform: 'translate(-50%, -50%)',
                     }}
+
                     onDragOver={e => e.preventDefault()}
                     onDrop={() => handlePositionDrop(position)}
                   >
@@ -203,6 +209,7 @@ export default function TeamPlanning() {
                       onDragStart={() => player && setDraggedPlayerId(player.id)}
                       onDragEnd={() => setDraggedPlayerId(null)}
                     >
+
                       {player ? player.name.split(' ')[0] : position}
                     </div>
                   </div>
