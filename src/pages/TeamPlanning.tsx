@@ -10,6 +10,14 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Search, Save, Eye, Filter } from 'lucide-react';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { formations } from '@/lib/formations';
 
 export default function TeamPlanning() {
   const navigate = useNavigate();
@@ -17,6 +25,10 @@ export default function TeamPlanning() {
   const [players, setPlayers] = useState<Player[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [activeTab, setActiveTab] = useState('starting');
+  const [selectedFormation, setSelectedFormation] = useState(
+    formations[0].name
+  );
+  const [draggedPlayerId, setDraggedPlayerId] = useState<string | null>(null);
 
   const filteredPlayers = players.filter(player => 
     player.name.toLowerCase().includes(searchTerm.toLowerCase()) &&
@@ -50,6 +62,41 @@ export default function TeamPlanning() {
   const startingEleven = players.filter(p => p.squadRole === 'starting');
   const benchPlayers = players.filter(p => p.squadRole === 'bench');
   const reservePlayers = players.filter(p => p.squadRole === 'reserve');
+
+  const currentFormation = formations.find(
+    f => f.name === selectedFormation
+  )!;
+  const formationPositions = (() => {
+    const used = new Set<string>();
+    return currentFormation.positions.map(pos => {
+      const player = startingEleven.find(
+        p => p.position === pos.position && !used.has(p.id)
+      );
+      if (player) used.add(player.id);
+      return { ...pos, player };
+    });
+  })();
+
+  const handlePositionDrop = (targetPosition: Player['position']) => {
+    if (!draggedPlayerId) return;
+    setPlayers(prev => {
+      const draggedIndex = prev.findIndex(p => p.id === draggedPlayerId);
+      if (draggedIndex === -1) return prev;
+      const draggedPlayer = prev[draggedIndex];
+      if (draggedPlayer.position === targetPosition) return prev;
+      const targetIndex = prev.findIndex(
+        p => p.position === targetPosition && p.squadRole === 'starting'
+      );
+      const updated = [...prev];
+      if (targetIndex !== -1) {
+        const targetPlayer = prev[targetIndex];
+        updated[targetIndex] = { ...targetPlayer, position: draggedPlayer.position };
+      }
+      updated[draggedIndex] = { ...draggedPlayer, position: targetPosition };
+      return updated;
+    });
+    setDraggedPlayerId(null);
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 via-emerald-50 to-teal-50 dark:from-green-950 dark:via-emerald-950 dark:to-teal-950">
@@ -97,24 +144,69 @@ export default function TeamPlanning() {
 
         {/* Team Formation Overview */}
         <Card className="mb-6">
-          <CardHeader>
+          <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <CardTitle className="flex items-center gap-2">
               <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-              Formasyon Görünümü (4-4-2)
+              Formasyon Görünümü ({selectedFormation})
             </CardTitle>
+            <Select value={selectedFormation} onValueChange={setSelectedFormation}>
+              <SelectTrigger className="w-40">
+                <SelectValue placeholder="Formasyon" />
+              </SelectTrigger>
+              <SelectContent>
+                {formations.map(f => (
+                  <SelectItem key={f.name} value={f.name}>
+                    {f.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </CardHeader>
           <CardContent>
-            <div className="bg-gradient-to-b from-green-400 to-green-600 rounded-lg p-4 relative h-40">
-              <div className="text-white text-center text-sm font-semibold">
+            <div className="bg-green-600 rounded-lg p-4 relative h-96 overflow-hidden">
+              <div className="text-white text-center text-sm font-semibold mb-2">
                 {startingEleven.length}/11 oyuncu seçildi
               </div>
-              <div className="absolute inset-0 flex items-center justify-center">
-                <div className="grid grid-cols-4 gap-2 text-white text-xs">
-                  <div className="text-center">GK<br/>1</div>
-                  <div className="text-center">DEF<br/>4</div>
-                  <div className="text-center">MID<br/>4</div>
-                  <div className="text-center">ATT<br/>2</div>
-                </div>
+              <svg
+                viewBox="0 0 100 100"
+                className="absolute inset-0 w-full h-full text-white/70"
+                pointerEvents="none"
+              >
+                <rect x="0" y="0" width="100" height="100" fill="none" stroke="currentColor" strokeWidth="2" />
+                <line x1="0" y1="50" x2="100" y2="50" stroke="currentColor" strokeWidth="1" />
+                <circle cx="50" cy="50" r="9" stroke="currentColor" strokeWidth="1" fill="none" />
+                <rect x="16" y="0" width="68" height="16" stroke="currentColor" strokeWidth="1" fill="none" />
+                <rect x="16" y="84" width="68" height="16" stroke="currentColor" strokeWidth="1" fill="none" />
+                <rect x="30" y="0" width="40" height="6" stroke="currentColor" strokeWidth="1" fill="none" />
+                <rect x="30" y="94" width="40" height="6" stroke="currentColor" strokeWidth="1" fill="none" />
+                <circle cx="50" cy="11" r="1.5" fill="currentColor" />
+                <circle cx="50" cy="89" r="1.5" fill="currentColor" />
+                <text x="50" y="7" textAnchor="middle" fontSize="4" fill="currentColor">Rakip Kale</text>
+                <text x="50" y="97" textAnchor="middle" fontSize="4" fill="currentColor">Bizim Kale</text>
+              </svg>
+              <div className="absolute inset-0">
+                {formationPositions.map(({ player, position, x, y }, idx) => (
+                  <div
+                    key={idx}
+                    className="absolute text-xs text-center"
+                    style={{
+                      left: `${x}%`,
+                      top: `${y}%`,
+                      transform: 'translate(-50%, -50%)',
+                    }}
+                    onDragOver={e => e.preventDefault()}
+                    onDrop={() => handlePositionDrop(position)}
+                  >
+                    <div
+                      className="w-12 h-12 rounded-full bg-white/80 flex items-center justify-center cursor-move"
+                      draggable={!!player}
+                      onDragStart={() => player && setDraggedPlayerId(player.id)}
+                      onDragEnd={() => setDraggedPlayerId(null)}
+                    >
+                      {player ? player.name.split(' ')[0] : position}
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           </CardContent>
