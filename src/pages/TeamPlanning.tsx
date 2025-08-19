@@ -1,18 +1,20 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { PlayerCard } from '@/components/ui/player-card';
-import { mockPlayers } from '@/lib/data';
 import { Player } from '@/types';
+import { getTeam, saveTeamPlayers } from '@/services/team';
+import { useAuth } from '@/contexts/AuthContext';
 import { Search, Save, Eye, Filter } from 'lucide-react';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 
 export default function TeamPlanning() {
   const navigate = useNavigate();
-  const [players, setPlayers] = useState<Player[]>(mockPlayers);
+  const { user } = useAuth();
+  const [players, setPlayers] = useState<Player[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [activeTab, setActiveTab] = useState('starting');
 
@@ -22,15 +24,24 @@ export default function TeamPlanning() {
   );
 
   const movePlayer = (playerId: string, newCategory: Player['category']) => {
-    setPlayers(prev => prev.map(player => 
+    setPlayers(prev => prev.map(player =>
       player.id === playerId ? { ...player, category: newCategory } : player
     ));
     toast.success('Oyuncu başarıyla taşındı');
   };
 
   const handleSave = () => {
+    if (!user) return;
+    saveTeamPlayers(user.id, players);
     toast.success('Takım planı kaydedildi!');
   };
+
+  useEffect(() => {
+    if (!user) return;
+    getTeam(user.id).then(team => {
+      if (team) setPlayers(team.players);
+    });
+  }, [user]);
 
   const startingEleven = players.filter(p => p.category === 'starting');
   const benchPlayers = players.filter(p => p.category === 'bench');
