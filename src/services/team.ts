@@ -1,6 +1,7 @@
 import { doc, setDoc, getDoc } from 'firebase/firestore';
 import { db } from '@/firebase';
 import { Player, ClubTeam } from '@/types';
+import { generateRandomName } from '@/lib/names';
 
 const positions: Player['position'][] = ['GK','CB','LB','RB','CM','LM','RM','CAM','LW','RW','ST'];
 
@@ -8,7 +9,7 @@ const randomAttr = () => parseFloat(Math.random().toFixed(3));
 
 const generatePlayer = (id: number): Player => ({
   id: String(id),
-  name: `Player ${id}`,
+  name: generateRandomName(),
   position: positions[Math.floor(Math.random() * positions.length)],
   overall: randomAttr(),
   attributes: {

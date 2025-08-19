@@ -10,6 +10,7 @@ import { User } from '@/types';
 import { auth } from '@/firebase';
 import { signIn, signUp, signOutUser } from '@/services/auth';
 import { createInitialTeam, getTeam } from '@/services/team';
+import { generateRandomName } from '@/lib/names';
 
 interface AuthContextType {
   user: User | null;
@@ -38,23 +39,22 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
-        const teamName = firebaseUser.displayName || 'Takımım';
+        const team = await getTeam(firebaseUser.uid);
+        const teamName = team?.name || firebaseUser.displayName || 'Takımım';
+        const username = team?.manager || firebaseUser.email?.split('@')[0] || 'Kullanıcı';
         setUser({
           id: firebaseUser.uid,
-          username: firebaseUser.email?.split('@')[0] || 'Kullanıcı',
+          username,
           email: firebaseUser.email || '',
           teamName,
           teamLogo: '⚽',
           connectedAccounts: { google: false, apple: false },
         });
-        (async () => {
-          const team = await getTeam(firebaseUser.uid);
-          if (!team) {
-            await createInitialTeam(firebaseUser.uid, teamName, teamName);
-          }
-        })();
+        if (!team) {
+          await createInitialTeam(firebaseUser.uid, teamName, username);
+        }
       } else {
         setUser(null);
       }
@@ -80,8 +80,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     try {
       const cred = await signUp(email, password);
       if (cred.user) {
+        const managerName = generateRandomName();
         await updateProfile(cred.user, { displayName: teamName });
-        await createInitialTeam(cred.user.uid, teamName, teamName);
+        await createInitialTeam(cred.user.uid, teamName, managerName);
       }
     } finally {
       setIsLoading(false);
