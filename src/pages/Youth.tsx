@@ -25,21 +25,33 @@ export default function Youth() {
       const positions: Player['position'][] = ['GK', 'CB', 'LB', 'RB', 'CM', 'LM', 'RM', 'CAM', 'LW', 'RW', 'ST'];
       const names = ['Arda Güler', 'Kenan Yıldız', 'Semih Kılıçsoy', 'Metehan Baltacı', 'Emir Kaplan'];
       
+      const rand = () => Math.random();
       const newPlayer: Player = {
         id: `y${Date.now()}`,
         name: names[Math.floor(Math.random() * names.length)],
         position: positions[Math.floor(Math.random() * positions.length)],
         overall: 0.3 + Math.random() * 0.4, // 0.3-0.7 range for youth
-        stats: {
-          speed: Math.random() * 0.8,
-          shooting: Math.random() * 0.6,
-          passing: Math.random() * 0.7,
-          defending: Math.random() * 0.6,
-          dribbling: Math.random() * 0.8,
-          physical: Math.random() * 0.5
+        attributes: {
+          strength: rand(),
+          acceleration: rand(),
+          topSpeed: rand(),
+          dribbleSpeed: rand(),
+          jump: rand(),
+          tackling: rand(),
+          ballKeeping: rand(),
+          passing: rand(),
+          longBall: rand(),
+          agility: rand(),
+          shooting: rand(),
+          shootPower: rand(),
+          positioning: rand(),
+          reaction: rand(),
+          ballControl: rand(),
         },
         age: 16 + Math.floor(Math.random() * 3), // 16-18 years old
-        category: 'youth'
+        squadRole: 'youth',
+        height: 180,
+        weight: 75,
       };
       
       setPlayers(prev => [...prev, newPlayer]);
