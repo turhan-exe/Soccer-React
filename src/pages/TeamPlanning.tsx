@@ -171,7 +171,7 @@ export default function TeamPlanning() {
               <div className="absolute inset-0">
                 <svg
                   viewBox="0 0 100 100"
-                  className="absolute inset-0 w-full h-full text-white/70"
+                  className="absolute inset-0 w-full h-full text-white/70 rotate-90 origin-center"
                   pointerEvents="none"
                 >
                   <rect x="0" y="0" width="100" height="100" fill="none" stroke="currentColor" strokeWidth="2" />
