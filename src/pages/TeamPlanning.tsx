@@ -168,7 +168,7 @@ export default function TeamPlanning() {
           <CardContent>
 
             <div className="bg-green-600 rounded-lg p-4 relative h-96 overflow-hidden">
-              <div className="absolute inset-0 origin-center rotate-90">
+              <div className="absolute inset-0">
                 <svg
                   viewBox="0 0 100 100"
                   className="absolute inset-0 w-full h-full text-white/70"
@@ -183,8 +183,6 @@ export default function TeamPlanning() {
                   <rect x="30" y="94" width="40" height="6" stroke="currentColor" strokeWidth="1" fill="none" />
                   <circle cx="50" cy="11" r="1.5" fill="currentColor" />
                   <circle cx="50" cy="89" r="1.5" fill="currentColor" />
-                  <text x="50" y="7" textAnchor="middle" fontSize="4" fill="currentColor">Rakip Kale</text>
-                  <text x="50" y="97" textAnchor="middle" fontSize="4" fill="currentColor">Bizim Kale</text>
                 </svg>
 
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
