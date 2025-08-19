@@ -4,33 +4,41 @@ import { Player, ClubTeam } from '@/types';
 
 const positions: Player['position'][] = ['GK','CB','LB','RB','CM','LM','RM','CAM','LW','RW','ST'];
 
-const randomStat = () => parseFloat(Math.random().toFixed(3));
+const randomAttr = () => parseFloat(Math.random().toFixed(3));
 
 const generatePlayer = (id: number): Player => ({
   id: String(id),
   name: `Player ${id}`,
   position: positions[Math.floor(Math.random() * positions.length)],
-  overall: randomStat(),
-  stats: {
-    speed: randomStat(),
-    acceleration: randomStat(),
-    agility: randomStat(),
-    shooting: randomStat(),
-    passing: randomStat(),
-    defending: randomStat(),
-    dribbling: randomStat(),
-    stamina: randomStat(),
-    physical: randomStat(),
+  overall: randomAttr(),
+  attributes: {
+    strength: randomAttr(),
+    acceleration: randomAttr(),
+    topSpeed: randomAttr(),
+    dribbleSpeed: randomAttr(),
+    jump: randomAttr(),
+    tackling: randomAttr(),
+    ballKeeping: randomAttr(),
+    passing: randomAttr(),
+    longBall: randomAttr(),
+    agility: randomAttr(),
+    shooting: randomAttr(),
+    shootPower: randomAttr(),
+    positioning: randomAttr(),
+    reaction: randomAttr(),
+    ballControl: randomAttr(),
   },
   age: Math.floor(Math.random() * 17) + 18,
-  category: 'reserve',
+  height: 180,
+  weight: 75,
+  squadRole: 'reserve',
 });
 
 const generateTeamData = (id: string, name: string, manager: string): ClubTeam => {
   const players: Player[] = Array.from({ length: 30 }, (_, i) => generatePlayer(i + 1));
-  players.slice(0, 11).forEach(p => (p.category = 'starting'));
-  players.slice(11, 22).forEach(p => (p.category = 'bench'));
-  players.slice(22).forEach(p => (p.category = 'reserve'));
+  players.slice(0, 11).forEach(p => (p.squadRole = 'starting'));
+  players.slice(11, 22).forEach(p => (p.squadRole = 'bench'));
+  players.slice(22).forEach(p => (p.squadRole = 'reserve'));
   return {
     id,
     name,
@@ -65,7 +73,7 @@ export const addPlayerToTeam = async (userId: string, player: Player) => {
   if (!team) return;
   const updatedPlayers = [
     ...team.players,
-    { ...player, category: 'reserve' as const },
+    { ...player, squadRole: 'reserve' as const },
   ];
   await setDoc(doc(db, 'teams', userId), { players: updatedPlayers }, { merge: true });
   return updatedPlayers;

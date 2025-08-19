@@ -20,12 +20,12 @@ export default function TeamPlanning() {
 
   const filteredPlayers = players.filter(player => 
     player.name.toLowerCase().includes(searchTerm.toLowerCase()) &&
-    player.category === activeTab
+    player.squadRole === activeTab
   );
 
-  const movePlayer = (playerId: string, newCategory: Player['category']) => {
+  const movePlayer = (playerId: string, newRole: Player['squadRole']) => {
     setPlayers(prev => prev.map(player =>
-      player.id === playerId ? { ...player, category: newCategory } : player
+      player.id === playerId ? { ...player, squadRole: newRole } : player
     ));
     toast.success('Oyuncu başarıyla taşındı');
   };
@@ -47,9 +47,9 @@ export default function TeamPlanning() {
     })();
   }, [user]);
 
-  const startingEleven = players.filter(p => p.category === 'starting');
-  const benchPlayers = players.filter(p => p.category === 'bench');
-  const reservePlayers = players.filter(p => p.category === 'reserve');
+  const startingEleven = players.filter(p => p.squadRole === 'starting');
+  const benchPlayers = players.filter(p => p.squadRole === 'bench');
+  const reservePlayers = players.filter(p => p.squadRole === 'reserve');
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 via-emerald-50 to-teal-50 dark:from-green-950 dark:via-emerald-950 dark:to-teal-950">

@@ -1,22 +1,45 @@
+export type SquadRole = 'starting' | 'bench' | 'reserve';
+
 export interface Player {
   id: string;
   name: string;
-  position: 'GK' | 'CB' | 'LB' | 'RB' | 'CM' | 'LM' | 'RM' | 'CAM' | 'LW' | 'RW' | 'ST';
+  position:
+    | 'GK'
+    | 'CB'
+    | 'LB'
+    | 'RB'
+    | 'CM'
+    | 'LM'
+    | 'RM'
+    | 'CAM'
+    | 'LW'
+    | 'RW'
+    | 'ST';
   overall: number;
-  stats: {
-    speed: number;
+  attributes: {
+    strength: number;
     acceleration: number;
+    topSpeed: number;
+    dribbleSpeed: number;
+    jump: number;
+    tackling: number;
+    ballKeeping: number;
+    passing: number;
+    longBall: number;
     agility: number;
     shooting: number;
-    passing: number;
-    defending: number;
-    dribbling: number;
-    stamina: number;
-    physical: number;
+    shootPower: number;
+    positioning: number;
+    reaction: number;
+    ballControl: number;
   };
   age: number;
-  category: 'starting' | 'bench' | 'reserve' | 'youth';
+  height: number;
+  weight: number;
+  squadRole: SquadRole | 'youth';
   avatar?: string;
+  uniqueId?: string;
+  order?: number;
 }
 
 export interface ClubTeam {
