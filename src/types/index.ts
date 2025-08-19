@@ -83,7 +83,7 @@ export interface Team {
 export interface Training {
   id: string;
   name: string;
-  type: 'speed' | 'shooting' | 'passing' | 'defending' | 'dribbling' | 'physical';
+  type: keyof Player['attributes'];
   description: string;
   duration: number;
 }
