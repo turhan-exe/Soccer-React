@@ -9,6 +9,7 @@ import { onAuthStateChanged, updateProfile } from 'firebase/auth';
 import { User } from '@/types';
 import { auth } from '@/firebase';
 import { signIn, signUp, signOutUser } from '@/services/auth';
+import { createInitialTeam } from '@/services/team';
 
 interface AuthContextType {
   user: User | null;
@@ -74,6 +75,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       const cred = await signUp(email, password);
       if (cred.user) {
         await updateProfile(cred.user, { displayName: teamName });
+        await createInitialTeam(cred.user.uid, teamName, teamName);
       }
     } finally {
       setIsLoading(false);

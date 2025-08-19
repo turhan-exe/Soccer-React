@@ -6,7 +6,7 @@ export const mockPlayers: Player[] = [
     name: 'Mehmet Özkan',
     position: 'GK',
     overall: 0.852,
-    stats: { speed: 0.432, shooting: 0.123, passing: 0.765, defending: 0.891, dribbling: 0.234, physical: 0.789 },
+    stats: { speed: 0.432, acceleration: 0.5, agility: 0.5, shooting: 0.123, passing: 0.765, defending: 0.891, dribbling: 0.234, stamina: 0.5, physical: 0.789 },
     age: 28,
     category: 'starting'
   },
@@ -15,7 +15,7 @@ export const mockPlayers: Player[] = [
     name: 'Ali Yılmaz',
     position: 'CB',
     overall: 0.789,
-    stats: { speed: 0.567, shooting: 0.234, passing: 0.678, defending: 0.912, dribbling: 0.345, physical: 0.823 },
+    stats: { speed: 0.567, acceleration: 0.5, agility: 0.5, shooting: 0.234, passing: 0.678, defending: 0.912, dribbling: 0.345, stamina: 0.5, physical: 0.823 },
     age: 26,
     category: 'starting'
   },
@@ -24,7 +24,7 @@ export const mockPlayers: Player[] = [
     name: 'Can Demir',
     position: 'CB',
     overall: 0.776,
-    stats: { speed: 0.534, shooting: 0.267, passing: 0.689, defending: 0.898, dribbling: 0.312, physical: 0.834 },
+    stats: { speed: 0.534, acceleration: 0.5, agility: 0.5, shooting: 0.267, passing: 0.689, defending: 0.898, dribbling: 0.312, stamina: 0.5, physical: 0.834 },
     age: 24,
     category: 'starting'
   },
@@ -33,7 +33,7 @@ export const mockPlayers: Player[] = [
     name: 'Emre Kara',
     position: 'LB',
     overall: 0.723,
-    stats: { speed: 0.789, shooting: 0.345, passing: 0.712, defending: 0.678, dribbling: 0.567, physical: 0.654 },
+    stats: { speed: 0.789, acceleration: 0.5, agility: 0.5, shooting: 0.345, passing: 0.712, defending: 0.678, dribbling: 0.567, stamina: 0.5, physical: 0.654 },
     age: 25,
     category: 'starting'
   },
@@ -42,7 +42,7 @@ export const mockPlayers: Player[] = [
     name: 'Burak Şen',
     position: 'RB',
     overall: 0.734,
-    stats: { speed: 0.798, shooting: 0.356, passing: 0.723, defending: 0.689, dribbling: 0.578, physical: 0.665 },
+    stats: { speed: 0.798, acceleration: 0.5, agility: 0.5, shooting: 0.356, passing: 0.723, defending: 0.689, dribbling: 0.578, stamina: 0.5, physical: 0.665 },
     age: 27,
     category: 'starting'
   },
@@ -51,7 +51,7 @@ export const mockPlayers: Player[] = [
     name: 'Oğuz Çelik',
     position: 'CM',
     overall: 0.812,
-    stats: { speed: 0.656, shooting: 0.534, passing: 0.887, defending: 0.567, dribbling: 0.723, physical: 0.678 },
+    stats: { speed: 0.656, acceleration: 0.5, agility: 0.5, shooting: 0.534, passing: 0.887, defending: 0.567, dribbling: 0.723, stamina: 0.5, physical: 0.678 },
     age: 24,
     category: 'starting'
   },
@@ -60,7 +60,7 @@ export const mockPlayers: Player[] = [
     name: 'Serkan Aydın',
     position: 'CM',
     overall: 0.798,
-    stats: { speed: 0.645, shooting: 0.523, passing: 0.876, defending: 0.556, dribbling: 0.712, physical: 0.667 },
+    stats: { speed: 0.645, acceleration: 0.5, agility: 0.5, shooting: 0.523, passing: 0.876, defending: 0.556, dribbling: 0.712, stamina: 0.5, physical: 0.667 },
     age: 26,
     category: 'starting'
   },
@@ -69,7 +69,7 @@ export const mockPlayers: Player[] = [
     name: 'Kemal Arslan',
     position: 'LW',
     overall: 0.845,
-    stats: { speed: 0.923, shooting: 0.678, passing: 0.734, defending: 0.234, dribbling: 0.889, physical: 0.567 },
+    stats: { speed: 0.923, acceleration: 0.5, agility: 0.5, shooting: 0.678, passing: 0.734, defending: 0.234, dribbling: 0.889, stamina: 0.5, physical: 0.567 },
     age: 23,
     category: 'starting'
   },
@@ -78,7 +78,7 @@ export const mockPlayers: Player[] = [
     name: 'Hakan Polat',
     position: 'RW',
     overall: 0.834,
-    stats: { speed: 0.912, shooting: 0.667, passing: 0.723, defending: 0.223, dribbling: 0.878, physical: 0.556 },
+    stats: { speed: 0.912, acceleration: 0.5, agility: 0.5, shooting: 0.667, passing: 0.723, defending: 0.223, dribbling: 0.878, stamina: 0.5, physical: 0.556 },
     age: 25,
     category: 'starting'
   },
@@ -87,7 +87,7 @@ export const mockPlayers: Player[] = [
     name: 'Murat Koç',
     position: 'CAM',
     overall: 0.867,
-    stats: { speed: 0.734, shooting: 0.789, passing: 0.923, defending: 0.345, dribbling: 0.845, physical: 0.623 },
+    stats: { speed: 0.734, acceleration: 0.5, agility: 0.5, shooting: 0.789, passing: 0.923, defending: 0.345, dribbling: 0.845, stamina: 0.5, physical: 0.623 },
     age: 27,
     category: 'starting'
   },
@@ -96,7 +96,7 @@ export const mockPlayers: Player[] = [
     name: 'Volkan Tekin',
     position: 'ST',
     overall: 0.889,
-    stats: { speed: 0.823, shooting: 0.945, passing: 0.678, defending: 0.234, dribbling: 0.787, physical: 0.756 },
+    stats: { speed: 0.823, acceleration: 0.5, agility: 0.5, shooting: 0.945, passing: 0.678, defending: 0.234, dribbling: 0.787, stamina: 0.5, physical: 0.756 },
     age: 29,
     category: 'starting'
   },
@@ -106,7 +106,7 @@ export const mockPlayers: Player[] = [
     name: 'Yusuf Balık',
     position: 'GK',
     overall: 0.678,
-    stats: { speed: 0.345, shooting: 0.089, passing: 0.567, defending: 0.723, dribbling: 0.123, physical: 0.634 },
+    stats: { speed: 0.345, acceleration: 0.5, agility: 0.5, shooting: 0.089, passing: 0.567, defending: 0.723, dribbling: 0.123, stamina: 0.5, physical: 0.634 },
     age: 31,
     category: 'bench'
   },
@@ -115,7 +115,7 @@ export const mockPlayers: Player[] = [
     name: 'Fatih Güven',
     position: 'CB',
     overall: 0.634,
-    stats: { speed: 0.456, shooting: 0.167, passing: 0.523, defending: 0.789, dribbling: 0.234, physical: 0.678 },
+    stats: { speed: 0.456, acceleration: 0.5, agility: 0.5, shooting: 0.167, passing: 0.523, defending: 0.789, dribbling: 0.234, stamina: 0.5, physical: 0.678 },
     age: 30,
     category: 'bench'
   },
@@ -124,7 +124,7 @@ export const mockPlayers: Player[] = [
     name: 'Deniz Akın',
     position: 'CM',
     overall: 0.687,
-    stats: { speed: 0.567, shooting: 0.445, passing: 0.734, defending: 0.456, dribbling: 0.612, physical: 0.578 },
+    stats: { speed: 0.567, acceleration: 0.5, agility: 0.5, shooting: 0.445, passing: 0.734, defending: 0.456, dribbling: 0.612, stamina: 0.5, physical: 0.578 },
     age: 28,
     category: 'bench'
   },
@@ -136,7 +136,7 @@ export const youthPlayers: Player[] = [
     name: 'Ahmet Genç',
     position: 'ST',
     overall: 0.567,
-    stats: { speed: 0.712, shooting: 0.634, passing: 0.456, defending: 0.123, dribbling: 0.678, physical: 0.445 },
+    stats: { speed: 0.712, acceleration: 0.5, agility: 0.5, shooting: 0.634, passing: 0.456, defending: 0.123, dribbling: 0.678, stamina: 0.5, physical: 0.445 },
     age: 18,
     category: 'youth'
   },
@@ -145,7 +145,7 @@ export const youthPlayers: Player[] = [
     name: 'Berkay Yeni',
     position: 'CM',
     overall: 0.523,
-    stats: { speed: 0.578, shooting: 0.423, passing: 0.667, defending: 0.445, dribbling: 0.567, physical: 0.456 },
+    stats: { speed: 0.578, acceleration: 0.5, agility: 0.5, shooting: 0.423, passing: 0.667, defending: 0.445, dribbling: 0.567, stamina: 0.5, physical: 0.456 },
     age: 17,
     category: 'youth'
   },

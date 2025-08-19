@@ -5,15 +5,27 @@ export interface Player {
   overall: number;
   stats: {
     speed: number;
+    acceleration: number;
+    agility: number;
     shooting: number;
     passing: number;
     defending: number;
     dribbling: number;
+    stamina: number;
     physical: number;
   };
   age: number;
   category: 'starting' | 'bench' | 'reserve' | 'youth';
   avatar?: string;
+}
+
+export interface ClubTeam {
+  id: string;
+  name: string;
+  manager: string;
+  kitHome: string;
+  kitAway: string;
+  players: Player[];
 }
 
 export interface Match {
