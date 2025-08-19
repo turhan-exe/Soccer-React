@@ -41,9 +41,14 @@ const generateTeamData = (id: string, name: string, manager: string): ClubTeam =
   };
 };
 
-export const createInitialTeam = async (userId: string, teamName: string, manager: string) => {
+export const createInitialTeam = async (
+  userId: string,
+  teamName: string,
+  manager: string,
+): Promise<ClubTeam> => {
   const team = generateTeamData(userId, teamName, manager);
   await setDoc(doc(db, 'teams', userId), team);
+  return team;
 };
 
 export const getTeam = async (userId: string): Promise<ClubTeam | null> => {
