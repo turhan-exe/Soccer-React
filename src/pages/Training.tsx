@@ -19,6 +19,7 @@ export default function TrainingPage() {
   const [selectedTraining, setSelectedTraining] = useState<Training | null>(null);
   const [isTraining, setIsTraining] = useState(false);
   const [timeLeft, setTimeLeft] = useState(0);
+  const [playersLoaded, setPlayersLoaded] = useState(false);
   const intervalRef = useRef<number | null>(null);
 
   useEffect(() => {
@@ -26,13 +27,14 @@ export default function TrainingPage() {
       if (!user) return;
       const team = await getTeam(user.id);
       setPlayers(team?.players || []);
+      setPlayersLoaded(true);
     };
     fetchPlayers();
   }, [user]);
 
   // Restore training session from localStorage if it exists
   useEffect(() => {
-    if (!user) return;
+    if (!user || !playersLoaded) return;
     const sessionStr = localStorage.getItem('activeTraining');
     if (!sessionStr) return;
 
@@ -75,7 +77,7 @@ export default function TrainingPage() {
     } catch (e) {
       localStorage.removeItem('activeTraining');
     }
-  }, [players, user]);
+  }, [players, user, playersLoaded]);
 
   const handleStartTraining = () => {
     if (!selectedPlayer || !selectedTraining || !user) {
