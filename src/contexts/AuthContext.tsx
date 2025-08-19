@@ -9,7 +9,7 @@ import { onAuthStateChanged, updateProfile } from 'firebase/auth';
 import { User } from '@/types';
 import { auth } from '@/firebase';
 import { signIn, signUp, signOutUser } from '@/services/auth';
-import { createInitialTeam } from '@/services/team';
+import { createInitialTeam, getTeam } from '@/services/team';
 
 interface AuthContextType {
   user: User | null;
@@ -40,15 +40,21 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
       if (firebaseUser) {
+        const teamName = firebaseUser.displayName || 'Takımım';
         setUser({
           id: firebaseUser.uid,
-          username:
-            firebaseUser.email?.split('@')[0] || 'Kullanıcı',
+          username: firebaseUser.email?.split('@')[0] || 'Kullanıcı',
           email: firebaseUser.email || '',
-          teamName: firebaseUser.displayName || 'Takımım',
+          teamName,
           teamLogo: '⚽',
           connectedAccounts: { google: false, apple: false },
         });
+        (async () => {
+          const team = await getTeam(firebaseUser.uid);
+          if (!team) {
+            await createInitialTeam(firebaseUser.uid, teamName, teamName);
+          }
+        })();
       } else {
         setUser(null);
       }
