@@ -22,9 +22,12 @@ export default function Auth() {
     }
     try {
       await login(loginForm.email, loginForm.password);
+      
       toast.success('Başarıyla giriş yapıldı!');
+       console.log("login ok:", loginForm.email);
     } catch (error) {
       toast.error('Giriş başarısız');
+      console.error("login error:", error);
     }
   };
 
