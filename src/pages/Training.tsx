@@ -30,16 +30,74 @@ export default function TrainingPage() {
     fetchPlayers();
   }, [user]);
 
-  const TRAINING_DURATION = 5 * 60; // 5 minutes in seconds
+  // Restore training session from localStorage if it exists
+  useEffect(() => {
+    if (!user) return;
+    const sessionStr = localStorage.getItem('activeTraining');
+    if (!sessionStr) return;
+
+    try {
+      const session = JSON.parse(sessionStr);
+      if (session.userId !== user.id) return;
+
+      const player = players.find(p => p.id === session.playerId);
+      const training = trainings.find(t => t.id === session.trainingId);
+      if (!player || !training) {
+        localStorage.removeItem('activeTraining');
+        return;
+      }
+
+      const remaining = Math.round((session.endTime - Date.now()) / 1000);
+
+      if (remaining <= 0) {
+        setSelectedPlayer(player);
+        setSelectedTraining(training);
+        setIsTraining(true);
+        setTimeLeft(0);
+        completeTraining(player, training);
+      } else {
+        setSelectedPlayer(player);
+        setSelectedTraining(training);
+        setIsTraining(true);
+        setTimeLeft(remaining);
+
+        if (intervalRef.current) {
+          clearInterval(intervalRef.current);
+        }
+        intervalRef.current = window.setInterval(() => {
+          setTimeLeft(prev => prev - 1);
+        }, 1000);
+      }
+    } catch (e) {
+      localStorage.removeItem('activeTraining');
+    }
+  }, [players, user]);
 
   const handleStartTraining = () => {
-    if (!selectedPlayer || !selectedTraining) {
+    if (!selectedPlayer || !selectedTraining || !user) {
       toast.error('Lütfen oyuncu ve antrenman seçin');
       return;
     }
 
+    if (localStorage.getItem('activeTraining')) {
+      toast.error('Zaten devam eden bir antrenman var');
+      return;
+    }
+
+    const duration = selectedTraining.duration * 60;
+    const endTime = Date.now() + duration * 1000;
+    localStorage.setItem(
+      'activeTraining',
+      JSON.stringify({
+        userId: user.id,
+        playerId: selectedPlayer.id,
+        trainingId: selectedTraining.id,
+        endTime,
+      })
+    );
+
     setIsTraining(true);
-    setTimeLeft(TRAINING_DURATION);
+    setTimeLeft(duration);
 
     if (intervalRef.current) {
       clearInterval(intervalRef.current);
@@ -63,13 +121,17 @@ export default function TrainingPage() {
     };
   }, []);
 
-  const completeTraining = async () => {
+  const completeTraining = async (playerOverride?: Player, trainingOverride?: Training) => {
     if (intervalRef.current) {
       clearInterval(intervalRef.current);
     }
 
-    if (!selectedPlayer || !selectedTraining || !user) {
+    const player = playerOverride || selectedPlayer;
+    const training = trainingOverride || selectedTraining;
+
+    if (!player || !training || !user) {
       setIsTraining(false);
+      localStorage.removeItem('activeTraining');
       return;
     }
 
@@ -79,31 +141,33 @@ export default function TrainingPage() {
 
     if (successRate > 70) {
       gain = improvement;
-      toast.success(`${selectedPlayer.name} antrenmanı başarıyla tamamladı! +${(gain * 100).toFixed(1)}% gelişim`);
+      toast.success(`${player.name} antrenmanı başarıyla tamamladı! +${(gain * 100).toFixed(1)}% gelişim`);
     } else if (successRate > 40) {
       gain = improvement * 0.5;
-      toast(`${selectedPlayer.name} ortalama bir antrenman yaptı. +${(gain * 100).toFixed(1)}% gelişim`);
+      toast(`${player.name} ortalama bir antrenman yaptı. +${(gain * 100).toFixed(1)}% gelişim`);
     } else {
-      toast.error(`${selectedPlayer.name} antrenmanı tamamlayamadı. Gelişim yok.`);
+      toast.error(`${player.name} antrenmanı tamamlayamadı. Gelişim yok.`);
     }
 
     if (gain > 0) {
       const updatedPlayers = players.map(p => {
-        if (p.id !== selectedPlayer.id) return p;
-        const newAttr = Math.min(p.attributes[selectedTraining.type] + gain, 1);
+        if (p.id !== player.id) return p;
+        const newAttr = Math.min(p.attributes[training.type] + gain, 1);
         return {
           ...p,
-          attributes: { ...p.attributes, [selectedTraining.type]: newAttr },
+          attributes: { ...p.attributes, [training.type]: newAttr },
           overall: Math.min(parseFloat((p.overall + gain / 10).toFixed(3)), 1),
         };
       });
       setPlayers(updatedPlayers);
-      const updatedPlayer = updatedPlayers.find(p => p.id === selectedPlayer.id) || null;
+      const updatedPlayer = updatedPlayers.find(p => p.id === player.id) || null;
       setSelectedPlayer(updatedPlayer);
       await saveTeamPlayers(user.id, updatedPlayers);
     }
 
     setIsTraining(false);
+    setTimeLeft(0);
+    localStorage.removeItem('activeTraining');
   };
 
   const formatTime = (s: number) => {
