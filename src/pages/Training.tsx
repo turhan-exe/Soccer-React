@@ -38,7 +38,11 @@ export default function TrainingPage() {
 
     try {
       const session = JSON.parse(sessionStr);
-      if (session.userId !== user.id) return;
+      if (session.userId !== user.id) {
+        // Remove training sessions that belong to another user
+        localStorage.removeItem('activeTraining');
+        return;
+      }
 
       const player = players.find(p => p.id === session.playerId);
       const training = trainings.find(t => t.id === session.trainingId);
@@ -79,9 +83,18 @@ export default function TrainingPage() {
       return;
     }
 
-    if (localStorage.getItem('activeTraining')) {
-      toast.error('Zaten devam eden bir antrenman var');
-      return;
+    const existingStr = localStorage.getItem('activeTraining');
+    if (existingStr) {
+      try {
+        const existing = JSON.parse(existingStr);
+        if (existing.userId === user.id) {
+          toast.error('Zaten devam eden bir antrenman var');
+          return;
+        }
+      } catch {
+        // ignore parse errors and clear stale data
+      }
+      localStorage.removeItem('activeTraining');
     }
 
     const duration = selectedTraining.duration * 60;
@@ -196,6 +209,29 @@ export default function TrainingPage() {
       </div>
 
       <div className="p-4 space-y-6">
+        {isTraining && selectedPlayer && selectedTraining && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Dumbbell className="h-5 w-5" />
+                Aktif Antrenman
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="font-semibold">{selectedPlayer.name}</p>
+                  <p className="text-sm text-muted-foreground">{selectedTraining.name}</p>
+                </div>
+                <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                  <Clock className="h-4 w-4" />
+                  {formatTime(timeLeft)}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Selection Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {/* Player Selection */}
