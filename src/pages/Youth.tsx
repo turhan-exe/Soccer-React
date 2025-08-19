@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { PlayerCard } from '@/components/ui/player-card';
 import { PlayerCardSkeleton } from '@/components/ui/loading-skeleton';
 import { youthPlayers } from '@/lib/data';
+import { generateRandomName } from '@/lib/names';
 import { Player } from '@/types';
 import { UserPlus, Plus, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
@@ -23,12 +24,11 @@ export default function Youth() {
     // Simulate player generation
     setTimeout(() => {
       const positions: Player['position'][] = ['GK', 'CB', 'LB', 'RB', 'CM', 'LM', 'RM', 'CAM', 'LW', 'RW', 'ST'];
-      const names = ['Arda Güler', 'Kenan Yıldız', 'Semih Kılıçsoy', 'Metehan Baltacı', 'Emir Kaplan'];
       
       const rand = () => Math.random();
       const newPlayer: Player = {
         id: `y${Date.now()}`,
-        name: names[Math.floor(Math.random() * names.length)],
+        name: generateRandomName(),
         position: positions[Math.floor(Math.random() * positions.length)],
         overall: 0.3 + Math.random() * 0.4, // 0.3-0.7 range for youth
         attributes: {
