@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { PlayerCard } from '@/components/ui/player-card';
 import { Player } from '@/types';
-import { getTeam, saveTeamPlayers } from '@/services/team';
+import { getTeam, saveTeamPlayers, createInitialTeam } from '@/services/team';
 import { useAuth } from '@/contexts/AuthContext';
 import { Search, Save, Eye, Filter } from 'lucide-react';
 import { toast } from 'sonner';
@@ -38,9 +38,13 @@ export default function TeamPlanning() {
 
   useEffect(() => {
     if (!user) return;
-    getTeam(user.id).then(team => {
-      if (team) setPlayers(team.players);
-    });
+    (async () => {
+      let team = await getTeam(user.id);
+      if (!team) {
+        team = await createInitialTeam(user.id, user.teamName, user.teamName);
+      }
+      setPlayers(team.players);
+    })();
   }, [user]);
 
   const startingEleven = players.filter(p => p.category === 'starting');
