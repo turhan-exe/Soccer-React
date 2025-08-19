@@ -9,7 +9,7 @@ import { useNavigate } from 'react-router-dom';
 export default function MatchPreview() {
   const navigate = useNavigate();
   const nextMatch = upcomingMatches[0];
-  const startingEleven = mockPlayers.filter(p => p.category === 'starting');
+  const startingEleven = mockPlayers.filter(p => p.squadRole === 'starting');
 
   const handleStartMatch = () => {
     navigate('/match-simulation');

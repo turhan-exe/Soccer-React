@@ -80,7 +80,7 @@ export default function TrainingPage() {
                   <SelectValue placeholder="Antrenman yapacak oyuncuyu seçin" />
                 </SelectTrigger>
                 <SelectContent>
-                  {mockPlayers.filter(p => p.category === 'starting').map(player => (
+                  {mockPlayers.filter(p => p.squadRole === 'starting').map(player => (
                     <SelectItem key={player.id} value={player.id}>
                       {player.name} ({player.position}) - {player.overall.toFixed(3)}
                     </SelectItem>
@@ -139,12 +139,12 @@ export default function TrainingPage() {
                   <p className="text-muted-foreground">{selectedPlayer.position} • {selectedPlayer.age} yaş</p>
                   
                   <div className="grid grid-cols-2 gap-3 mt-4">
-                    <StatBar label="Hız" value={selectedPlayer.stats.speed} />
-                    <StatBar label="Şut" value={selectedPlayer.stats.shooting} />
-                    <StatBar label="Pas" value={selectedPlayer.stats.passing} />
-                    <StatBar label="Savunma" value={selectedPlayer.stats.defending} />
-                    <StatBar label="Dribling" value={selectedPlayer.stats.dribbling} />
-                    <StatBar label="Fizik" value={selectedPlayer.stats.physical} />
+                    <StatBar label="Hız" value={selectedPlayer.attributes.topSpeed} />
+                    <StatBar label="Şut" value={selectedPlayer.attributes.shooting} />
+                    <StatBar label="Pas" value={selectedPlayer.attributes.passing} />
+                    <StatBar label="Savunma" value={selectedPlayer.attributes.tackling} />
+                    <StatBar label="Dribling" value={selectedPlayer.attributes.ballControl} />
+                    <StatBar label="Fizik" value={selectedPlayer.attributes.strength} />
                   </div>
                 </div>
               </div>

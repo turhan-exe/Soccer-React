@@ -80,22 +80,22 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
-                  {player.category !== 'starting' && onMoveToStarting && (
+                  {player.squadRole !== 'starting' && onMoveToStarting && (
                     <DropdownMenuItem onClick={onMoveToStarting}>
                       İlk 11'e Al
                     </DropdownMenuItem>
                   )}
-                  {player.category !== 'bench' && onMoveToBench && (
+                  {player.squadRole !== 'bench' && onMoveToBench && (
                     <DropdownMenuItem onClick={onMoveToBench}>
                       Yedek Kulübesine Al
                     </DropdownMenuItem>
                   )}
-                  {player.category !== 'reserve' && onMoveToReserve && (
+                  {player.squadRole !== 'reserve' && onMoveToReserve && (
                     <DropdownMenuItem onClick={onMoveToReserve}>
                       Rezerve Al
                     </DropdownMenuItem>
                   )}
-                  {player.category === 'youth' && onPromoteToTeam && (
+                  {player.squadRole === 'youth' && onPromoteToTeam && (
                     <DropdownMenuItem onClick={onPromoteToTeam}>
                       Takıma Al
                     </DropdownMenuItem>
@@ -107,10 +107,10 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({
 
           {/* Stats */}
           <div className="space-y-1">
-            <StatBar label="Hız" value={player.stats.speed} />
-            <StatBar label="Şut" value={player.stats.shooting} />
-            <StatBar label="Pas" value={player.stats.passing} />
-            <StatBar label="Savunma" value={player.stats.defending} />
+            <StatBar label="Hız" value={player.attributes.topSpeed} />
+            <StatBar label="Şut" value={player.attributes.shooting} />
+            <StatBar label="Pas" value={player.attributes.passing} />
+            <StatBar label="Savunma" value={player.attributes.tackling} />
           </div>
         </div>
       </div>
