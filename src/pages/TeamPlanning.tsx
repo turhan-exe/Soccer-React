@@ -7,7 +7,7 @@ import { PlayerCard } from '@/components/ui/player-card';
 import { Player } from '@/types';
 import { getTeam, saveTeamPlayers, createInitialTeam } from '@/services/team';
 import { useAuth } from '@/contexts/AuthContext';
-import { Search, Save, Eye, Filter } from 'lucide-react';
+import { Search, Save, Eye, Filter, ArrowRight } from 'lucide-react';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -168,52 +168,55 @@ export default function TeamPlanning() {
           <CardContent>
 
             <div className="bg-green-600 rounded-lg p-4 relative h-96 overflow-hidden">
-              <div className="text-white text-center text-sm font-semibold mb-2">
-                {startingEleven.length}/11 oyuncu seçildi
-              </div>
-              <svg
-                viewBox="0 0 100 100"
-                className="absolute inset-0 w-full h-full text-white/70"
-                pointerEvents="none"
-              >
-                <rect x="0" y="0" width="100" height="100" fill="none" stroke="currentColor" strokeWidth="2" />
-                <line x1="0" y1="50" x2="100" y2="50" stroke="currentColor" strokeWidth="1" />
-                <circle cx="50" cy="50" r="9" stroke="currentColor" strokeWidth="1" fill="none" />
-                <rect x="16" y="0" width="68" height="16" stroke="currentColor" strokeWidth="1" fill="none" />
-                <rect x="16" y="84" width="68" height="16" stroke="currentColor" strokeWidth="1" fill="none" />
-                <rect x="30" y="0" width="40" height="6" stroke="currentColor" strokeWidth="1" fill="none" />
-                <rect x="30" y="94" width="40" height="6" stroke="currentColor" strokeWidth="1" fill="none" />
-                <circle cx="50" cy="11" r="1.5" fill="currentColor" />
-                <circle cx="50" cy="89" r="1.5" fill="currentColor" />
-                <text x="50" y="7" textAnchor="middle" fontSize="4" fill="currentColor">Rakip Kale</text>
-                <text x="50" y="97" textAnchor="middle" fontSize="4" fill="currentColor">Bizim Kale</text>
-              </svg>
+              <div className="absolute inset-0 origin-center rotate-90">
+                <svg
+                  viewBox="0 0 100 100"
+                  className="absolute inset-0 w-full h-full text-white/70"
+                  pointerEvents="none"
+                >
+                  <rect x="0" y="0" width="100" height="100" fill="none" stroke="currentColor" strokeWidth="2" />
+                  <line x1="0" y1="50" x2="100" y2="50" stroke="currentColor" strokeWidth="1" />
+                  <circle cx="50" cy="50" r="9" stroke="currentColor" strokeWidth="1" fill="none" />
+                  <rect x="16" y="0" width="68" height="16" stroke="currentColor" strokeWidth="1" fill="none" />
+                  <rect x="16" y="84" width="68" height="16" stroke="currentColor" strokeWidth="1" fill="none" />
+                  <rect x="30" y="0" width="40" height="6" stroke="currentColor" strokeWidth="1" fill="none" />
+                  <rect x="30" y="94" width="40" height="6" stroke="currentColor" strokeWidth="1" fill="none" />
+                  <circle cx="50" cy="11" r="1.5" fill="currentColor" />
+                  <circle cx="50" cy="89" r="1.5" fill="currentColor" />
+                  <text x="50" y="7" textAnchor="middle" fontSize="4" fill="currentColor">Rakip Kale</text>
+                  <text x="50" y="97" textAnchor="middle" fontSize="4" fill="currentColor">Bizim Kale</text>
+                </svg>
 
-              <div className="absolute inset-0">
-                {formationPositions.map(({ player, position, x, y }, idx) => (
-                  <div
-                    key={idx}
-                    className="absolute text-xs text-center"
-                    style={{
-                      left: `${x}%`,
-                      top: `${y}%`,
-                      transform: 'translate(-50%, -50%)',
-                    }}
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                  <ArrowRight className="w-24 h-24 text-white/20" />
+                </div>
 
-                    onDragOver={e => e.preventDefault()}
-                    onDrop={() => handlePositionDrop(position)}
-                  >
+                <div className="absolute inset-0">
+                  {formationPositions.map(({ player, position, x, y }, idx) => (
                     <div
-                      className="w-12 h-12 rounded-full bg-white/80 flex items-center justify-center cursor-move"
-                      draggable={!!player}
-                      onDragStart={() => player && setDraggedPlayerId(player.id)}
-                      onDragEnd={() => setDraggedPlayerId(null)}
-                    >
+                      key={idx}
+                      className="absolute text-xs text-center"
+                      style={{
+                        left: `${x}%`,
+                        top: `${y}%`,
+                        transform: 'translate(-50%, -50%)',
+                      }}
 
-                      {player ? player.name.split(' ')[0] : position}
+                      onDragOver={e => e.preventDefault()}
+                      onDrop={() => handlePositionDrop(position)}
+                    >
+                      <div
+                        className="w-12 h-12 rounded-full bg-white/80 flex items-center justify-center cursor-move"
+                        draggable={!!player}
+                        onDragStart={() => player && setDraggedPlayerId(player.id)}
+                        onDragEnd={() => setDraggedPlayerId(null)}
+                      >
+
+                        {player ? player.name.split(' ')[0] : position}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
             </div>
           </CardContent>
