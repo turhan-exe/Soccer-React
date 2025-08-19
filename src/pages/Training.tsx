@@ -32,7 +32,7 @@ export default function TrainingPage() {
 
   // Restore training session from localStorage if it exists
   useEffect(() => {
-    if (!user) return;
+    if (!user || players.length === 0) return;
     const sessionStr = localStorage.getItem('activeTraining');
     if (!sessionStr) return;
 
