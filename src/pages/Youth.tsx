@@ -8,9 +8,12 @@ import { Player } from '@/types';
 import { UserPlus, Plus, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '@/contexts/AuthContext';
+import { addPlayerToTeam } from '@/services/team';
 
 export default function Youth() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [players, setPlayers] = useState<Player[]>(youthPlayers);
   const [isGenerating, setIsGenerating] = useState(false);
 
@@ -45,9 +48,10 @@ export default function Youth() {
     }, 2000);
   };
 
-  const promotePlayer = (playerId: string) => {
+  const promotePlayer = async (playerId: string) => {
     const player = players.find(p => p.id === playerId);
-    if (player) {
+    if (player && user) {
+      await addPlayerToTeam(user.id, player);
       setPlayers(prev => prev.filter(p => p.id !== playerId));
       toast.success(`${player.name} takıma transfer edildi!`);
     }

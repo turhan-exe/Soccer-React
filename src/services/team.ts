@@ -59,3 +59,14 @@ export const getTeam = async (userId: string): Promise<ClubTeam | null> => {
 export const saveTeamPlayers = async (userId: string, players: Player[]) => {
   await setDoc(doc(db, 'teams', userId), { players }, { merge: true });
 };
+
+export const addPlayerToTeam = async (userId: string, player: Player) => {
+  const team = await getTeam(userId);
+  if (!team) return;
+  const updatedPlayers = [
+    ...team.players,
+    { ...player, category: 'reserve' as const },
+  ];
+  await setDoc(doc(db, 'teams', userId), { players: updatedPlayers }, { merge: true });
+  return updatedPlayers;
+};
