@@ -7,7 +7,7 @@ import { PlayerCard } from '@/components/ui/player-card';
 import { Player } from '@/types';
 import { getTeam, saveTeamPlayers, createInitialTeam } from '@/services/team';
 import { useAuth } from '@/contexts/AuthContext';
-import { Search, Save, Eye, Filter, ArrowRight } from 'lucide-react';
+import { Search, Save, Eye, Filter, ArrowUp } from 'lucide-react';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -167,11 +167,11 @@ export default function TeamPlanning() {
           </CardHeader>
           <CardContent>
 
-            <div className="bg-green-600 rounded-lg p-4 relative h-96 overflow-hidden">
+            <div className="bg-green-600 rounded-lg p-4 relative w-full max-w-md aspect-[2/3] mx-auto overflow-hidden">
               <div className="absolute inset-0">
                 <svg
                   viewBox="0 0 100 100"
-                  className="absolute inset-0 w-full h-full text-white/70 rotate-90 origin-center"
+                  className="absolute inset-0 w-full h-full text-white/70"
                   pointerEvents="none"
                 >
                   <rect x="0" y="0" width="100" height="100" fill="none" stroke="currentColor" strokeWidth="2" />
@@ -186,7 +186,7 @@ export default function TeamPlanning() {
                 </svg>
 
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                  <ArrowRight className="w-24 h-24 text-white/20" />
+                  <ArrowUp className="w-24 h-24 text-white/20" />
                 </div>
 
                 <div className="absolute inset-0">
