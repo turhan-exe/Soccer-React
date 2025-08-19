@@ -29,6 +29,9 @@ export default function TeamPlanning() {
     formations[0].name
   );
 
+  const [draggedPlayerId, setDraggedPlayerId] = useState<string | null>(null);
+
+
   const filteredPlayers = players.filter(player => 
     player.name.toLowerCase().includes(searchTerm.toLowerCase()) &&
     player.squadRole === activeTab
@@ -75,6 +78,28 @@ export default function TeamPlanning() {
       return { ...pos, player };
     });
   })();
+
+
+  const handlePositionDrop = (targetPosition: Player['position']) => {
+    if (!draggedPlayerId) return;
+    setPlayers(prev => {
+      const draggedIndex = prev.findIndex(p => p.id === draggedPlayerId);
+      if (draggedIndex === -1) return prev;
+      const draggedPlayer = prev[draggedIndex];
+      if (draggedPlayer.position === targetPosition) return prev;
+      const targetIndex = prev.findIndex(
+        p => p.position === targetPosition && p.squadRole === 'starting'
+      );
+      const updated = [...prev];
+      if (targetIndex !== -1) {
+        const targetPlayer = prev[targetIndex];
+        updated[targetIndex] = { ...targetPlayer, position: draggedPlayer.position };
+      }
+      updated[draggedIndex] = { ...draggedPlayer, position: targetPosition };
+      return updated;
+    });
+    setDraggedPlayerId(null);
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 via-emerald-50 to-teal-50 dark:from-green-950 dark:via-emerald-950 dark:to-teal-950">
@@ -141,10 +166,29 @@ export default function TeamPlanning() {
             </Select>
           </CardHeader>
           <CardContent>
-            <div className="bg-gradient-to-b from-green-400 to-green-600 rounded-lg p-4 relative h-96">
+
+            <div className="bg-green-600 rounded-lg p-4 relative h-96 overflow-hidden">
               <div className="text-white text-center text-sm font-semibold mb-2">
                 {startingEleven.length}/11 oyuncu seçildi
               </div>
+              <svg
+                viewBox="0 0 100 100"
+                className="absolute inset-0 w-full h-full text-white/70"
+                pointerEvents="none"
+              >
+                <rect x="0" y="0" width="100" height="100" fill="none" stroke="currentColor" strokeWidth="2" />
+                <line x1="0" y1="50" x2="100" y2="50" stroke="currentColor" strokeWidth="1" />
+                <circle cx="50" cy="50" r="9" stroke="currentColor" strokeWidth="1" fill="none" />
+                <rect x="16" y="0" width="68" height="16" stroke="currentColor" strokeWidth="1" fill="none" />
+                <rect x="16" y="84" width="68" height="16" stroke="currentColor" strokeWidth="1" fill="none" />
+                <rect x="30" y="0" width="40" height="6" stroke="currentColor" strokeWidth="1" fill="none" />
+                <rect x="30" y="94" width="40" height="6" stroke="currentColor" strokeWidth="1" fill="none" />
+                <circle cx="50" cy="11" r="1.5" fill="currentColor" />
+                <circle cx="50" cy="89" r="1.5" fill="currentColor" />
+                <text x="50" y="7" textAnchor="middle" fontSize="4" fill="currentColor">Rakip Kale</text>
+                <text x="50" y="97" textAnchor="middle" fontSize="4" fill="currentColor">Bizim Kale</text>
+              </svg>
+
               <div className="absolute inset-0">
                 {formationPositions.map(({ player, position, x, y }, idx) => (
                   <div
@@ -155,8 +199,17 @@ export default function TeamPlanning() {
                       top: `${y}%`,
                       transform: 'translate(-50%, -50%)',
                     }}
+
+                    onDragOver={e => e.preventDefault()}
+                    onDrop={() => handlePositionDrop(position)}
                   >
-                    <div className="w-12 h-12 rounded-full bg-white/80 flex items-center justify-center">
+                    <div
+                      className="w-12 h-12 rounded-full bg-white/80 flex items-center justify-center cursor-move"
+                      draggable={!!player}
+                      onDragStart={() => player && setDraggedPlayerId(player.id)}
+                      onDragEnd={() => setDraggedPlayerId(null)}
+                    >
+
                       {player ? player.name.split(' ')[0] : position}
                     </div>
                   </div>
