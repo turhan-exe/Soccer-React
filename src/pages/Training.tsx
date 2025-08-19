@@ -1,44 +1,115 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { PlayerCard } from '@/components/ui/player-card';
 import { StatBar } from '@/components/ui/stat-bar';
-import { mockPlayers, trainings } from '@/lib/data';
+import { trainings } from '@/lib/data';
 import { Player, Training } from '@/types';
 import { Dumbbell, Play, TrendingUp, Clock } from 'lucide-react';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '@/contexts/AuthContext';
+import { getTeam, saveTeamPlayers } from '@/services/team';
 
 export default function TrainingPage() {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const [players, setPlayers] = useState<Player[]>([]);
   const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null);
   const [selectedTraining, setSelectedTraining] = useState<Training | null>(null);
   const [isTraining, setIsTraining] = useState(false);
+  const [timeLeft, setTimeLeft] = useState(0);
+  const intervalRef = useRef<number | null>(null);
 
-  const handleStartTraining = async () => {
+  useEffect(() => {
+    const fetchPlayers = async () => {
+      if (!user) return;
+      const team = await getTeam(user.id);
+      setPlayers(team?.players || []);
+    };
+    fetchPlayers();
+  }, [user]);
+
+  const TRAINING_DURATION = 5 * 60; // 5 minutes in seconds
+
+  const handleStartTraining = () => {
     if (!selectedPlayer || !selectedTraining) {
       toast.error('Lütfen oyuncu ve antrenman seçin');
       return;
     }
 
     setIsTraining(true);
-    
-    // Simulate training
-    setTimeout(() => {
-      const improvement = 0.001 + Math.random() * 0.05; // 0.001-0.051 improvement
-      const successRate = Math.random() * 100;
-      
-      setIsTraining(false);
-      
-      if (successRate > 70) {
-        toast.success(`${selectedPlayer.name} antrenmanı başarıyla tamamladı! +${(improvement * 100).toFixed(1)}% gelişim`);
-      } else if (successRate > 40) {
-        toast(`${selectedPlayer.name} ortalama bir antrenman yaptı. +${(improvement * 50).toFixed(1)}% gelişim`);
-      } else {
-        toast.error(`${selectedPlayer.name} antrenmanı tamamlayamadı. Gelişim yok.`);
+    setTimeLeft(TRAINING_DURATION);
+
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+    }
+    intervalRef.current = window.setInterval(() => {
+      setTimeLeft(prev => prev - 1);
+    }, 1000);
+  };
+
+  useEffect(() => {
+    if (isTraining && timeLeft <= 0) {
+      completeTraining();
+    }
+  }, [isTraining, timeLeft]);
+
+  useEffect(() => {
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
       }
-    }, 3000);
+    };
+  }, []);
+
+  const completeTraining = async () => {
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+    }
+
+    if (!selectedPlayer || !selectedTraining || !user) {
+      setIsTraining(false);
+      return;
+    }
+
+    const improvement = 0.001 + Math.random() * 0.05;
+    const successRate = Math.random() * 100;
+    let gain = 0;
+
+    if (successRate > 70) {
+      gain = improvement;
+      toast.success(`${selectedPlayer.name} antrenmanı başarıyla tamamladı! +${(gain * 100).toFixed(1)}% gelişim`);
+    } else if (successRate > 40) {
+      gain = improvement * 0.5;
+      toast(`${selectedPlayer.name} ortalama bir antrenman yaptı. +${(gain * 100).toFixed(1)}% gelişim`);
+    } else {
+      toast.error(`${selectedPlayer.name} antrenmanı tamamlayamadı. Gelişim yok.`);
+    }
+
+    if (gain > 0) {
+      const updatedPlayers = players.map(p => {
+        if (p.id !== selectedPlayer.id) return p;
+        const newAttr = Math.min(p.attributes[selectedTraining.type] + gain, 1);
+        return {
+          ...p,
+          attributes: { ...p.attributes, [selectedTraining.type]: newAttr },
+          overall: Math.min(parseFloat((p.overall + gain / 10).toFixed(3)), 1),
+        };
+      });
+      setPlayers(updatedPlayers);
+      const updatedPlayer = updatedPlayers.find(p => p.id === selectedPlayer.id) || null;
+      setSelectedPlayer(updatedPlayer);
+      await saveTeamPlayers(user.id, updatedPlayers);
+    }
+
+    setIsTraining(false);
+  };
+
+  const formatTime = (s: number) => {
+    const m = Math.floor(s / 60).toString().padStart(2, '0');
+    const sec = (s % 60).toString().padStart(2, '0');
+    return `${m}:${sec}`;
   };
 
   const continueToMatch = () => {
@@ -73,14 +144,14 @@ export default function TrainingPage() {
             </CardHeader>
             <CardContent>
               <Select onValueChange={(value) => {
-                const player = mockPlayers.find(p => p.id === value);
+                const player = players.find(p => p.id === value);
                 setSelectedPlayer(player || null);
               }}>
                 <SelectTrigger>
                   <SelectValue placeholder="Antrenman yapacak oyuncuyu seçin" />
                 </SelectTrigger>
                 <SelectContent>
-                  {mockPlayers.filter(p => p.squadRole === 'starting').map(player => (
+                  {players.filter(p => p.squadRole === 'starting').map(player => (
                     <SelectItem key={player.id} value={player.id}>
                       {player.name} ({player.position}) - {player.overall.toFixed(3)}
                     </SelectItem>
@@ -189,9 +260,9 @@ export default function TrainingPage() {
               size="lg"
             >
               {isTraining ? (
-                <div className="flex items-center">
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                  Antrenman Devam Ediyor...
+                <div className="flex items-center gap-2">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                  {formatTime(timeLeft)}
                 </div>
               ) : (
                 <>
