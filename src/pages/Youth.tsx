@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { PlayerCard } from '@/components/ui/player-card';
 import { PlayerCardSkeleton } from '@/components/ui/loading-skeleton';
 import { youthPlayers } from '@/lib/data';
 import { generateRandomName } from '@/lib/names';
@@ -11,6 +10,7 @@ import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { addPlayerToTeam } from '@/services/team';
+import CandidateCard from '@/features/academy/CandidateCard';
 
 export default function Youth() {
   const navigate = useNavigate();
@@ -167,11 +167,12 @@ export default function Youth() {
             </Card>
           ) : (
             players.map(player => (
-              <PlayerCard
-                key={player.id}
-                player={player}
-                onPromoteToTeam={() => promotePlayer(player.id)}
-              />
+              <CandidateCard
+      key={player.id}
+      candidate={{ id: player.id, player }}   // CandidateCard player objesini bu şekilde alıyor
+      onAccept={() => promotePlayer(player.id)}
+      onRelease={() => setPlayers(prev => prev.filter(p => p.id !== player.id))}
+    />
             ))
           )}
         </div>
