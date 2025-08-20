@@ -1,27 +1,24 @@
 import { useState } from 'react';
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
+import { useAuth } from '@/contexts/AuthContext';
 import CheckoutModal from './CheckoutModal';
-import { DIAMOND_PACKS } from './packs';
-import type { DiamondPack } from '@/services/diamonds';
+import PacksGrid from './PacksGrid';
+import { DIAMOND_PACKS, DiamondPack } from './packs';
 
 const DiamondsPage = () => {
+  const { user } = useAuth();
   const [selected, setSelected] = useState<DiamondPack | null>(null);
 
+  if (!user) {
+    return <div className="p-4 text-center">Giriş yapmalısın</div>;
+  }
+
   return (
-    <div className="p-4 grid gap-4 md:grid-cols-3">
-      {DIAMOND_PACKS.map((pack) => (
-        <Card key={pack.id}>
-          <CardHeader>
-            <CardTitle>{pack.label}</CardTitle>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-2">
-            <span>{pack.amount} elmas</span>
-            <span>₺{pack.price.toFixed(2)}</span>
-            <Button onClick={() => setSelected(pack)}>Kripto ile öde</Button>
-          </CardContent>
-        </Card>
-      ))}
+    <div className="p-4 space-y-4">
+      <div>
+        <h1 className="text-2xl font-bold">Elmas Mağazası</h1>
+        <p className="text-muted-foreground">Oyun deneyimini geliştirmek için elmas satın al.</p>
+      </div>
+      <PacksGrid packs={DIAMOND_PACKS} onSelect={setSelected} />
       <CheckoutModal pack={selected} onClose={() => setSelected(null)} />
     </div>
   );
