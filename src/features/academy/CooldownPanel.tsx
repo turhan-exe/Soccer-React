@@ -38,7 +38,7 @@ const CooldownPanel: React.FC<Props> = ({ nextPullAt, onPull, onReset, canReset 
       </Button>
       <Button
         onClick={onReset}
-        disabled={!canReset}
+        disabled={!canReset || canPull}
         variant="secondary"
         data-testid="academy-reset"
       >
