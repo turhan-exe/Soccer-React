@@ -21,6 +21,7 @@ import Finance from './pages/Finance';
 import Settings from './pages/Settings';
 import NotFound from './pages/NotFound';
 import DiamondsPage from '@/features/diamonds/DiamondsPage';
+import AcademyPage from '@/features/academy/AcademyPage';
 
 const queryClient = new QueryClient();
 
@@ -48,6 +49,7 @@ const AppContent = () => {
         <Route path="/profile" element={<Settings />} />
         <Route path="/settings" element={<Settings />} />
         <Route path="/store/diamonds" element={<DiamondsPage />} />
+        <Route path="/academy" element={<AcademyPage />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
     </>
