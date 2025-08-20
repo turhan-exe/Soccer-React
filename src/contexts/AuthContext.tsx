@@ -7,7 +7,7 @@ import React, {
 } from 'react';
 import { onAuthStateChanged, updateProfile } from 'firebase/auth';
 import { User } from '@/types';
-import { auth } from '@/firebase';
+import { auth } from '@/services/firebase';
 import { signIn, signUp, signOutUser } from '@/services/auth';
 import { createInitialTeam, getTeam } from '@/services/team';
 import { generateRandomName } from '@/lib/names';
