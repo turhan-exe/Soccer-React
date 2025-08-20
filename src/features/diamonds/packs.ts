@@ -1,8 +1,14 @@
-import type { DiamondPack } from '@/services/diamonds';
+export type DiamondPack = {
+  id: 'small' | 'medium' | 'large' | 'mega';
+  amount: number;
+  priceFiat?: number;
+  label: string;
+  bestDeal?: boolean;
+};
 
 export const DIAMOND_PACKS: DiamondPack[] = [
-  { id: 'small', label: 'Small', amount: 80, price: 39.99 },
-  { id: 'medium', label: 'Medium', amount: 500, price: 199.99 },
-  { id: 'large', label: 'Large', amount: 1200, price: 399.99 },
+  { id: 'small', amount: 80, priceFiat: 39.99, label: 'Small' },
+  { id: 'medium', amount: 500, priceFiat: 199.99, label: 'Medium', bestDeal: true },
+  { id: 'large', amount: 1200, priceFiat: 399.99, label: 'Large' },
+  { id: 'mega', amount: 2500, priceFiat: 749.99, label: 'Mega' },
 ];
-
