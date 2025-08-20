@@ -1,5 +1,5 @@
 import { doc, setDoc, getDoc } from 'firebase/firestore';
-import { db } from '@/firebase';
+import { db } from '@/services/firebase';
 import { Player, ClubTeam } from '@/types';
 import { generateRandomName } from '@/lib/names';
 
