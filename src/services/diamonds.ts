@@ -12,13 +12,6 @@ import {
 import { db } from './firebase';
 import { toast } from 'sonner';
 
-export interface DiamondPack {
-  id: string;
-  label: string;
-  amount: number;
-  price: number;
-}
-
 export async function ensureUserDoc(uid: string): Promise<void> {
   const ref = doc(db, 'users', uid);
   const snap = await getDoc(ref);
@@ -40,18 +33,18 @@ export function listenDiamondBalance(
 
 export async function mockPurchaseDiamonds(
   uid: string,
-  pack: DiamondPack,
+  { packId, amount, priceFiat }: { packId: string; amount: number; priceFiat?: number },
 ): Promise<void> {
   const userRef = doc(db, 'users', uid);
   const purchases = collection(userRef, 'diamondPurchases');
   try {
     await runTransaction(db, async (tx) => {
-      tx.update(userRef, { diamondBalance: increment(pack.amount) });
+      tx.update(userRef, { diamondBalance: increment(amount) });
       const purchaseRef = doc(purchases);
       tx.set(purchaseRef, {
-        packId: pack.id,
-        amount: pack.amount,
-        priceFiat: pack.price,
+        packId,
+        amount,
+        priceFiat,
         paymentMethod: 'mock-crypto',
         status: 'mock_paid',
         createdAt: serverTimestamp(),
@@ -59,7 +52,7 @@ export async function mockPurchaseDiamonds(
     });
     toast.success('Ödeme tamamlandı');
   } catch (err) {
-    console.error(err);
+    console.warn(err);
     toast.error('Ödeme başarısız');
     throw err;
   }
