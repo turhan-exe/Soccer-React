@@ -26,7 +26,12 @@ const CooldownPanel: React.FC<Props> = ({ nextPullAt, onPull, onReset, canReset 
   }, [nextPullAt]);
 
   const canPull = remaining === 0;
-  const minutes = Math.floor(remaining / 60000);
+  const hours = Math.floor(remaining / 3600000)
+    .toString()
+    .padStart(2, '0');
+  const minutes = Math.floor((remaining % 3600000) / 60000)
+    .toString()
+    .padStart(2, '0');
   const seconds = Math.floor((remaining % 60000) / 1000)
     .toString()
     .padStart(2, '0');
@@ -46,7 +51,7 @@ const CooldownPanel: React.FC<Props> = ({ nextPullAt, onPull, onReset, canReset 
       </Button>
       {!canPull && (
         <span className="text-sm text-muted-foreground">
-          Kalan: {minutes}:{seconds}
+          Kalan: {hours}:{minutes}:{seconds}
         </span>
       )}
     </div>
