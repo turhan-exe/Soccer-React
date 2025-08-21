@@ -19,7 +19,7 @@ const AcademyPage = () => {
   const { balance } = useDiamonds();
   const [nextPullAt, setNextPullAt] = useState<Date | null>(null);
   const [candidates, setCandidates] = useState<AcademyCandidate[]>([]);
-
+         console.log("login ok: academyPage",);
   useEffect(() => {
     if (!user) return;
     const ref = doc(db, 'users', user.id);

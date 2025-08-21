@@ -10,6 +10,7 @@ interface Props {
 
 const CooldownPanel: React.FC<Props> = ({ nextPullAt, onPull, onReset, canReset }) => {
   const [remaining, setRemaining] = useState(0);
+       console.log("login ok: CooldownPanel v2 RENDER", { nextPullAt, remaining });
 
   useEffect(() => {
     const tick = () => {
