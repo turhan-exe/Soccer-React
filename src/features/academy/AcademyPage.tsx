@@ -7,19 +7,19 @@ import {
   listenPendingCandidates,
   pullNewCandidate,
   resetCooldownWithDiamonds,
-  acceptCandidate,
-  releaseCandidate,
   AcademyCandidate,
 } from '@/services/academy';
 import CooldownPanel from './CooldownPanel';
 import CandidatesList from './CandidatesList';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
 
 const AcademyPage = () => {
   const { user } = useAuth();
   const { balance } = useDiamonds();
   const [nextPullAt, setNextPullAt] = useState<Date | null>(null);
   const [candidates, setCandidates] = useState<AcademyCandidate[]>([]);
-         console.log("login ok: academyPage",);
+  const [canPull, setCanPull] = useState(false);
   useEffect(() => {
     if (!user) return;
     const ref = doc(db, 'users', user.id);
@@ -35,6 +35,19 @@ const AcademyPage = () => {
     return listenPendingCandidates(user.id, setCandidates);
   }, [user]);
 
+  useEffect(() => {
+    const check = () => {
+      if (!nextPullAt) {
+        setCanPull(true);
+        return;
+      }
+      setCanPull(nextPullAt.getTime() <= Date.now());
+    };
+    check();
+    const id = setInterval(check, 1000);
+    return () => clearInterval(id);
+  }, [nextPullAt]);
+
   const handlePull = async () => {
     if (!user) return;
     await pullNewCandidate(user.id);
@@ -45,37 +58,54 @@ const AcademyPage = () => {
     await resetCooldownWithDiamonds(user.id);
   };
 
-  const handleAccept = async (id: string) => {
-    if (!user) return;
-    await acceptCandidate(user.id, id);
-  };
-
-  const handleRelease = async (id: string) => {
-    if (!user) return;
-    await releaseCandidate(user.id, id);
-  };
-
   if (!user) {
     return <div className="p-4">Giriş yapmalısın</div>;
   }
+  const youthCount = candidates.length;
+  const talentedCount = candidates.filter(
+    (c) => c.player.potential >= 0.8,
+  ).length;
+  const avgAge = youthCount
+    ? Math.round(
+        candidates.reduce((sum, c) => sum + c.player.age, 0) / youthCount,
+      )
+    : 0;
 
   return (
-    <div className="p-4 space-y-4">
-      <div>
+    <div className="p-4 space-y-6">
+      <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Altyapı</h1>
-        <p className="text-muted-foreground">Yeni oyuncu adaylarını keşfet.</p>
+        <Button onClick={handlePull} disabled={!canPull} data-testid="academy-pull">
+          Oyuncu Üret
+        </Button>
+      </div>
+      <div className="grid grid-cols-3 gap-4">
+        <Card>
+          <CardContent className="p-4 text-center">
+            <div className="text-2xl font-bold">{youthCount}</div>
+            <p className="text-sm text-muted-foreground">Genç Oyuncu</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4 text-center">
+            <div className="text-2xl font-bold">{talentedCount}</div>
+            <p className="text-sm text-muted-foreground">Yetenekli</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4 text-center">
+            <div className="text-2xl font-bold">{avgAge}</div>
+            <p className="text-sm text-muted-foreground">Ort. Yaş</p>
+          </CardContent>
+        </Card>
       </div>
       <CooldownPanel
         nextPullAt={nextPullAt}
-        onPull={handlePull}
         onReset={handleReset}
         canReset={balance >= 100}
       />
-      <CandidatesList
-        candidates={candidates}
-        onAccept={handleAccept}
-        onRelease={handleRelease}
-      />
+      <h2 className="text-xl font-semibold">Genç Oyuncular</h2>
+      <CandidatesList candidates={candidates} />
     </div>
   );
 };
