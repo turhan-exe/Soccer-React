@@ -16,6 +16,8 @@ import { db } from './firebase';
 import { toast } from 'sonner';
 import { generateMockCandidate, CandidatePlayer } from '@/features/academy/generateMockCandidate';
 
+export const ACADEMY_COOLDOWN_MS = 2 * 60 * 60 * 1000; // 2 saat
+
 interface UserDoc {
   diamondBalance?: number;
   academy?: {
@@ -50,7 +52,7 @@ export async function pullNewCandidate(uid: string): Promise<void> {
   const userRef = doc(db, 'users', uid);
   const candidates = collection(userRef, 'academyCandidates');
   const now = new Date();
-  const nextDate = new Date(now.getTime() + 2 * 60 * 60 * 1000);
+  const nextDate = new Date(now.getTime() + ACADEMY_COOLDOWN_MS);
   try {
     await runTransaction(db, async (tx) => {
       const userSnap = await tx.get(userRef);
