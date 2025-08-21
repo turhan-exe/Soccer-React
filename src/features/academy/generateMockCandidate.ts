@@ -5,6 +5,10 @@ export interface CandidatePlayer {
   overall: number;
   potential: number;
   traits: string[];
+  attributes: {
+    topSpeed: number;
+    shooting: number;
+  };
 }
 
 const NAMES = ['Ahmet', 'Mehmet', 'Ali', 'Can', 'Emre', 'Mert'];
@@ -20,8 +24,8 @@ function randomInt(min: number, max: number): number {
 }
 
 export function generateMockCandidate(): CandidatePlayer {
-  const overall = randomInt(50, 70);
-  const potential = Math.min(90, overall + randomInt(5, 20));
+  const overall = Math.random();
+  const potential = Math.min(1, overall + Math.random() * 0.2);
   return {
     name: pick(NAMES),
     age: randomInt(16, 19),
@@ -29,5 +33,9 @@ export function generateMockCandidate(): CandidatePlayer {
     overall,
     potential,
     traits: [pick(TRAITS)],
+    attributes: {
+      topSpeed: Math.random(),
+      shooting: Math.random(),
+    },
   };
 }
