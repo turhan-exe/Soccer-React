@@ -15,6 +15,11 @@ const CandidateCard: React.FC<Props> = ({ candidate }) => {
     .map((n) => n[0])
     .join('');
 
+  const avatarClass =
+    'w-12 h-12 bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-800 rounded-full flex items-center justify-center text-lg font-semibold';
+  const positionBadgeClass =
+    'absolute -bottom-1 -right-1 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white bg-gray-500';
+
   return (
     <Card
       data-testid={`academy-candidate-${candidate.id}`}
@@ -22,12 +27,8 @@ const CandidateCard: React.FC<Props> = ({ candidate }) => {
     >
       <div className="flex items-start gap-3">
         <div className="relative">
-          <div className="w-12 h-12 bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-800 rounded-full flex items-center justify-center text-lg font-semibold">
-            {initials}
-          </div>
-          <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white bg-gray-500">
-            {player.position}
-          </div>
+          <div className={avatarClass}>{initials}</div>
+          <div className={positionBadgeClass}>{player.position}</div>
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center justify-between mb-2">
