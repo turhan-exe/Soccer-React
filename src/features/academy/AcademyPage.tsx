@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { doc, onSnapshot } from 'firebase/firestore';
+import { doc, onSnapshot, Timestamp } from 'firebase/firestore';
 import { db } from '@/services/firebase';
 import { useAuth } from '@/contexts/AuthContext';
 import { useDiamonds } from '@/contexts/DiamondContext';
@@ -8,7 +8,9 @@ import {
   pullNewCandidate,
   resetCooldownWithDiamonds,
   AcademyCandidate,
+  ACADEMY_COOLDOWN_MS,
 } from '@/services/academy';
+import { generateMockCandidate } from './generateMockCandidate';
 import CooldownPanel from './CooldownPanel';
 import CandidatesList from './CandidatesList';
 import { Button } from '@/components/ui/button';
@@ -22,17 +24,25 @@ const AcademyPage = () => {
   const [canPull, setCanPull] = useState(false);
   useEffect(() => {
     if (!user) return;
-    const ref = doc(db, 'users', user.id);
-    return onSnapshot(ref, (snap) => {
-      const data = snap.data() as { academy?: { nextPullAt?: { toDate: () => Date } } } | undefined;
-      const ts = data?.academy?.nextPullAt;
-      setNextPullAt(ts ? ts.toDate() : null);
-    });
+    try {
+      const ref = doc(db, 'users', user.id);
+      return onSnapshot(ref, (snap) => {
+        const data = snap.data() as { academy?: { nextPullAt?: { toDate: () => Date } } } | undefined;
+        const ts = data?.academy?.nextPullAt;
+        setNextPullAt(ts ? ts.toDate() : null);
+      });
+    } catch (err) {
+      console.warn(err);
+    }
   }, [user]);
 
   useEffect(() => {
     if (!user) return;
-    return listenPendingCandidates(user.id, setCandidates);
+    try {
+      return listenPendingCandidates(user.id, setCandidates);
+    } catch (err) {
+      console.warn(err);
+    }
   }, [user]);
 
   useEffect(() => {
@@ -49,13 +59,35 @@ const AcademyPage = () => {
   }, [nextPullAt]);
 
   const handlePull = async () => {
-    if (!user) return;
-    await pullNewCandidate(user.id);
+    if (user) {
+      try {
+        await pullNewCandidate(user.id);
+        return;
+      } catch (err) {
+        console.warn(err);
+      }
+    }
+    const mock: AcademyCandidate = {
+      id: Math.random().toString(36).slice(2),
+      status: 'pending',
+      createdAt: Timestamp.now(),
+      player: generateMockCandidate(),
+      source: 'mock',
+    };
+    setCandidates((prev) => [mock, ...prev]);
+    setNextPullAt(new Date(Date.now() + ACADEMY_COOLDOWN_MS));
   };
 
   const handleReset = async () => {
-    if (!user) return;
-    await resetCooldownWithDiamonds(user.id);
+    if (user) {
+      try {
+        await resetCooldownWithDiamonds(user.id);
+        return;
+      } catch (err) {
+        console.warn(err);
+      }
+    }
+    setNextPullAt(new Date());
   };
 
   if (!user) {
