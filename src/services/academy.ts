@@ -10,8 +10,8 @@ import {
   serverTimestamp,
   Timestamp,
   increment,
-  deleteDoc,
   getDoc,
+  updateDoc,
 } from 'firebase/firestore';
 import { db } from './firebase';
 import { toast } from 'sonner';
@@ -176,7 +176,7 @@ export async function acceptCandidate(uid: string, candidateId: string): Promise
     const data = snap.data() as { player: CandidatePlayer };
     const player = candidateToPlayer(candidateId, data.player);
     await addPlayerToTeam(uid, player);
-    await deleteDoc(candidateRef);
+    await updateDoc(candidateRef, { status: 'accepted' });
     toast.success('Oyuncu takıma eklendi');
   } catch (err) {
     console.warn(err);
@@ -188,7 +188,7 @@ export async function acceptCandidate(uid: string, candidateId: string): Promise
 export async function releaseCandidate(uid: string, candidateId: string): Promise<void> {
   const ref = doc(db, 'users', uid, 'academyCandidates', candidateId);
   try {
-    await deleteDoc(ref);
+    await updateDoc(ref, { status: 'released' });
     toast.success('Oyuncu serbest bırakıldı');
   } catch (err) {
     console.warn(err);
