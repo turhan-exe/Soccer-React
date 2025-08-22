@@ -61,7 +61,10 @@ const AcademyPage = () => {
   const handlePull = async () => {
     if (user) {
       try {
-        await pullNewCandidate(user.id);
+        const candidate = await pullNewCandidate(user.id);
+        // optimistically show the new candidate before Firestore listener updates
+        setCandidates((prev) => [candidate, ...prev]);
+        setNextPullAt(new Date(Date.now() + ACADEMY_COOLDOWN_MS));
         return;
       } catch (err) {
         console.warn(err);
