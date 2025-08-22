@@ -17,12 +17,35 @@ import CandidatesList from './CandidatesList';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 
+const STORAGE_KEY = 'academyCandidates';
+const NEXT_PULL_KEY = 'academyNextPullAt';
+
 const AcademyPage = () => {
   const { user } = useAuth();
   const { balance } = useDiamonds();
   const [nextPullAt, setNextPullAt] = useState<Date | null>(null);
   const [candidates, setCandidates] = useState<AcademyCandidate[]>([]);
   const [canPull, setCanPull] = useState(false);
+
+  // Load stored candidates and cooldown on first render
+  useEffect(() => {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored) {
+      try {
+        const parsed: AcademyCandidate[] = JSON.parse(stored);
+        setCandidates(parsed);
+      } catch (err) {
+        console.warn(err);
+      }
+    }
+    const storedNext = localStorage.getItem(NEXT_PULL_KEY);
+    if (storedNext) {
+      const ts = parseInt(storedNext, 10);
+      if (!isNaN(ts)) {
+        setNextPullAt(new Date(ts));
+      }
+    }
+  }, []);
   useEffect(() => {
     if (!user) return;
     try {
@@ -45,6 +68,19 @@ const AcademyPage = () => {
       console.warn(err);
     }
   }, [user]);
+
+  // Persist candidates and next pull time to localStorage
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(candidates));
+  }, [candidates]);
+
+  useEffect(() => {
+    if (nextPullAt) {
+      localStorage.setItem(NEXT_PULL_KEY, nextPullAt.getTime().toString());
+    } else {
+      localStorage.removeItem(NEXT_PULL_KEY);
+    }
+  }, [nextPullAt]);
 
   useEffect(() => {
     const check = () => {
