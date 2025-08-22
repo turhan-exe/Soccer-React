@@ -11,10 +11,13 @@ import {
   Timestamp,
   increment,
   deleteDoc,
+  getDoc,
 } from 'firebase/firestore';
 import { db } from './firebase';
 import { toast } from 'sonner';
 import { generateMockCandidate, CandidatePlayer } from '@/features/academy/generateMockCandidate';
+import { addPlayerToTeam } from './team';
+import type { Player } from '@/types';
 
 export const ACADEMY_COOLDOWN_MS = 2 * 60 * 60 * 1000; // 2 saat
 
@@ -122,25 +125,59 @@ export async function resetCooldownWithDiamonds(uid: string): Promise<void> {
   }
 }
 
+function mapPosition(pos: string): Player['position'] {
+  const mapping: Record<string, Player['position']> = {
+    GK: 'GK',
+    DEF: 'CB',
+    MID: 'CM',
+    FWD: 'ST',
+  };
+  return mapping[pos] ?? 'CM';
+}
+
+function candidateToPlayer(id: string, c: CandidatePlayer): Player {
+  const randomAttr = () => parseFloat(Math.random().toFixed(3));
+  return {
+    id,
+    name: c.name,
+    position: mapPosition(c.position),
+    overall: c.overall,
+    attributes: {
+      strength: randomAttr(),
+      acceleration: randomAttr(),
+      topSpeed: c.attributes.topSpeed,
+      dribbleSpeed: randomAttr(),
+      jump: randomAttr(),
+      tackling: randomAttr(),
+      ballKeeping: randomAttr(),
+      passing: randomAttr(),
+      longBall: randomAttr(),
+      agility: randomAttr(),
+      shooting: c.attributes.shooting,
+      shootPower: randomAttr(),
+      positioning: randomAttr(),
+      reaction: randomAttr(),
+      ballControl: randomAttr(),
+    },
+    age: c.age,
+    height: 180,
+    weight: 75,
+    squadRole: 'reserve',
+  };
+}
+
 export async function acceptCandidate(uid: string, candidateId: string): Promise<void> {
-  const userRef = doc(db, 'users', uid);
-  const candidateRef = doc(userRef, 'academyCandidates', candidateId);
-  const squadRef = doc(userRef, 'squadPending', candidateId);
+  const candidateRef = doc(db, 'users', uid, 'academyCandidates', candidateId);
   try {
-    await runTransaction(db, async (tx) => {
-      const snap = await tx.get(candidateRef);
-      if (!snap.exists()) {
-        throw new Error('Aday bulunamadı');
-      }
-      const data = snap.data() as { player: CandidatePlayer };
-      tx.set(squadRef, {
-        player: data.player,
-        source: 'academy',
-        createdAt: serverTimestamp(),
-      });
-      tx.delete(candidateRef);
-    });
-    toast.success('Oyuncu takıma eklendi (mock)');
+    const snap = await getDoc(candidateRef);
+    if (!snap.exists()) {
+      throw new Error('Aday bulunamadı');
+    }
+    const data = snap.data() as { player: CandidatePlayer };
+    const player = candidateToPlayer(candidateId, data.player);
+    await addPlayerToTeam(uid, player);
+    await deleteDoc(candidateRef);
+    toast.success('Oyuncu takıma eklendi');
   } catch (err) {
     console.warn(err);
     toast.error('İşlem başarısız');
