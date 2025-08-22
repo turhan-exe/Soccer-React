@@ -1,8 +1,16 @@
-import { AcademyCandidate } from '@/services/academy';
+import { AcademyCandidate, acceptCandidate, releaseCandidate } from '@/services/academy';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { StatBar } from '@/components/ui/stat-bar';
-import { TrendingUp } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { MoreVertical, TrendingUp } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface Props {
   candidate: AcademyCandidate;
@@ -10,6 +18,25 @@ interface Props {
 
 const CandidateCard: React.FC<Props> = ({ candidate }) => {
   const { player } = candidate;
+  const { user } = useAuth();
+
+  const handleAccept = async () => {
+    if (!user) return;
+    try {
+      await acceptCandidate(user.id, candidate.id);
+    } catch (err) {
+      console.warn(err);
+    }
+  };
+
+  const handleRelease = async () => {
+    if (!user) return;
+    try {
+      await releaseCandidate(user.id, candidate.id);
+    } catch (err) {
+      console.warn(err);
+    }
+  };
   const initials = player.name
     .split(' ')
     .map((n) => n[0])
@@ -44,6 +71,17 @@ const CandidateCard: React.FC<Props> = ({ candidate }) => {
                 </div>
               </div>
             </div>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                  <MoreVertical className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={handleAccept}>Takıma Al</DropdownMenuItem>
+                <DropdownMenuItem onClick={handleRelease}>Serbest Bırak</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
           <div className="space-y-1">
             <StatBar label="Hız" value={player.attributes.topSpeed} />
