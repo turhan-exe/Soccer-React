@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { doc, onSnapshot, Timestamp } from 'firebase/firestore';
+import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from '@/services/firebase';
 import { useAuth } from '@/contexts/AuthContext';
 import { useDiamonds } from '@/contexts/DiamondContext';
@@ -12,7 +12,6 @@ import {
   AcademyCandidate,
   ACADEMY_COOLDOWN_MS,
 } from '@/services/academy';
-import { generateMockCandidate } from './generateMockCandidate';
 import CooldownPanel from './CooldownPanel';
 import CandidatesList from './CandidatesList';
 import { Button } from '@/components/ui/button';
@@ -61,38 +60,24 @@ const AcademyPage = () => {
   }, [nextPullAt]);
 
   const handlePull = async () => {
-    if (user) {
-      try {
-        const candidate = await pullNewCandidate(user.id);
-        // optimistically show the new candidate before Firestore listener updates
-        setCandidates((prev) => [candidate, ...prev]);
-        setNextPullAt(new Date(Date.now() + ACADEMY_COOLDOWN_MS));
-        return;
-      } catch (err) {
-        console.warn(err);
-      }
+    if (!user) return;
+    try {
+      const candidate = await pullNewCandidate(user.id);
+      // optimistically show the new candidate before Firestore listener updates
+      setCandidates((prev) => [candidate, ...prev]);
+      setNextPullAt(new Date(Date.now() + ACADEMY_COOLDOWN_MS));
+    } catch (err) {
+      console.warn(err);
     }
-    const mock: AcademyCandidate = {
-      id: Math.random().toString(36).slice(2),
-      status: 'pending',
-      createdAt: Timestamp.now(),
-      player: generateMockCandidate(),
-      source: 'mock',
-    };
-    setCandidates((prev) => [mock, ...prev]);
-    setNextPullAt(new Date(Date.now() + ACADEMY_COOLDOWN_MS));
   };
 
   const handleReset = async () => {
-    if (user) {
-      try {
-        await resetCooldownWithDiamonds(user.id);
-        return;
-      } catch (err) {
-        console.warn(err);
-      }
+    if (!user) return;
+    try {
+      await resetCooldownWithDiamonds(user.id);
+    } catch (err) {
+      console.warn(err);
     }
-    setNextPullAt(new Date());
   };
 
   const handleAccept = async (id: string) => {
