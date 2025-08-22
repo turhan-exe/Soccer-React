@@ -54,7 +54,9 @@ describe('pullNewCandidate', () => {
     });
     await pullNewCandidate('uid');
     expect(fromDateMock).toHaveBeenCalled();
-    const calledDate = fromDateMock.mock.calls[0][0] as Date;
+    // Use the last call which reflects the cooldown timestamp
+    const calls = fromDateMock.mock.calls;
+    const calledDate = calls[calls.length - 1][0] as Date;
     expect(calledDate.getTime()).toBe(Date.now() + ACADEMY_COOLDOWN_MS);
     vi.useRealTimers();
   });

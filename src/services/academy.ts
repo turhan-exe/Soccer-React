@@ -48,11 +48,21 @@ export function listenPendingCandidates(
   });
 }
 
-export async function pullNewCandidate(uid: string): Promise<void> {
+export async function pullNewCandidate(uid: string): Promise<AcademyCandidate> {
   const userRef = doc(db, 'users', uid);
   const candidates = collection(userRef, 'academyCandidates');
   const now = new Date();
   const nextDate = new Date(now.getTime() + ACADEMY_COOLDOWN_MS);
+  // create candidate data locally so we can optimistically update UI
+  const player = generateMockCandidate();
+  const candidateRef = doc(candidates);
+  const newCandidate: AcademyCandidate = {
+    id: candidateRef.id,
+    status: 'pending',
+    createdAt: Timestamp.fromDate(now),
+    player,
+    source: 'academy',
+  };
   try {
     await runTransaction(db, async (tx) => {
       const userSnap = await tx.get(userRef);
@@ -61,11 +71,10 @@ export async function pullNewCandidate(uid: string): Promise<void> {
       if (nextPullAt && nextPullAt > now) {
         throw new Error('2 saat beklemelisin');
       }
-      const candidateRef = doc(candidates);
       tx.set(candidateRef, {
         status: 'pending',
         createdAt: serverTimestamp(),
-        player: generateMockCandidate(),
+        player,
         source: 'academy',
       });
       tx.set(
@@ -80,6 +89,7 @@ export async function pullNewCandidate(uid: string): Promise<void> {
       );
     });
     toast.success('Yeni aday eklendi');
+    return newCandidate;
   } catch (err) {
     console.warn(err);
     toast.error((err as Error).message || 'İşlem başarısız');
