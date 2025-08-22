@@ -1,5 +1,11 @@
 import { describe, it, expect, vi } from 'vitest';
-import { resetCooldownWithDiamonds, pullNewCandidate, ACADEMY_COOLDOWN_MS } from './academy';
+import {
+  resetCooldownWithDiamonds,
+  pullNewCandidate,
+  ACADEMY_COOLDOWN_MS,
+  acceptCandidate,
+  releaseCandidate,
+} from './academy';
 
 vi.mock('./firebase', () => ({ db: {} }));
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
@@ -8,6 +14,8 @@ const docMock = vi.fn(() => ({}));
 const collectionMock = vi.fn(() => ({}));
 const runTransactionMock = vi.fn();
 const fromDateMock = vi.fn();
+const getDocMock = vi.fn();
+const updateDocMock = vi.fn();
 
 vi.mock('firebase/firestore', () => ({
   doc: (...args: unknown[]) => docMock(...args),
@@ -16,7 +24,11 @@ vi.mock('firebase/firestore', () => ({
   serverTimestamp: vi.fn(),
   Timestamp: { fromDate: (...args: unknown[]) => fromDateMock(...args) },
   increment: vi.fn(),
+  getDoc: (...args: unknown[]) => getDocMock(...args),
+  updateDoc: (...args: unknown[]) => updateDocMock(...args),
 }));
+
+vi.mock('./team', () => ({ addPlayerToTeam: vi.fn() }));
 
 describe('resetCooldownWithDiamonds', () => {
   it('throws when not enough diamonds', async () => {
@@ -51,13 +63,30 @@ describe('pullNewCandidate', () => {
         get: async () => ({ data: () => ({}) }),
         set: setMock,
       });
+  });
+  await pullNewCandidate('uid');
+  expect(fromDateMock).toHaveBeenCalled();
+  // Use the last call which reflects the cooldown timestamp
+  const calls = fromDateMock.mock.calls;
+  const calledDate = calls[calls.length - 1][0] as Date;
+  expect(calledDate.getTime()).toBe(Date.now() + ACADEMY_COOLDOWN_MS);
+  vi.useRealTimers();
+  });
+});
+
+describe('candidate status updates', () => {
+  it('marks candidate as accepted', async () => {
+    getDocMock.mockResolvedValueOnce({
+      exists: () => true,
+      data: () => ({ player: { name: 'a', position: 'MID', overall: 0.5, age: 17, potential: 0.9, traits: [], attributes: { topSpeed: 0.5, shooting: 0.5 } } }),
     });
-    await pullNewCandidate('uid');
-    expect(fromDateMock).toHaveBeenCalled();
-    // Use the last call which reflects the cooldown timestamp
-    const calls = fromDateMock.mock.calls;
-    const calledDate = calls[calls.length - 1][0] as Date;
-    expect(calledDate.getTime()).toBe(Date.now() + ACADEMY_COOLDOWN_MS);
-    vi.useRealTimers();
+    await acceptCandidate('uid', 'cid');
+    expect(updateDocMock).toHaveBeenCalledWith({}, { status: 'accepted' });
+  });
+
+  it('marks candidate as released', async () => {
+    updateDocMock.mockClear();
+    await releaseCandidate('uid', 'cid2');
+    expect(updateDocMock).toHaveBeenCalledWith({}, { status: 'released' });
   });
 });
