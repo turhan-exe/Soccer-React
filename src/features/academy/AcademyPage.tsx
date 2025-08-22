@@ -7,6 +7,8 @@ import {
   listenPendingCandidates,
   pullNewCandidate,
   resetCooldownWithDiamonds,
+  acceptCandidate,
+  releaseCandidate,
   AcademyCandidate,
   ACADEMY_COOLDOWN_MS,
 } from '@/services/academy';
@@ -93,6 +95,26 @@ const AcademyPage = () => {
     setNextPullAt(new Date());
   };
 
+  const handleAccept = async (id: string) => {
+    if (!user) return;
+    try {
+      await acceptCandidate(user.id, id);
+      setCandidates((prev) => prev.filter((c) => c.id !== id));
+    } catch (err) {
+      console.warn(err);
+    }
+  };
+
+  const handleRelease = async (id: string) => {
+    if (!user) return;
+    try {
+      await releaseCandidate(user.id, id);
+      setCandidates((prev) => prev.filter((c) => c.id !== id));
+    } catch (err) {
+      console.warn(err);
+    }
+  };
+
   if (!user) {
     return <div className="p-4">Giriş yapmalısın</div>;
   }
@@ -140,7 +162,11 @@ const AcademyPage = () => {
         canReset={balance >= 100}
       />
       <h2 className="text-xl font-semibold">Genç Oyuncular</h2>
-      <CandidatesList candidates={candidates} />
+      <CandidatesList
+        candidates={candidates}
+        onAccept={handleAccept}
+        onRelease={handleRelease}
+      />
     </div>
   );
 };
