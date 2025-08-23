@@ -1,6 +1,6 @@
-import AcademyPage from '@/features/academy/AcademyPage';
+import YouthPage from '@/features/youth/YouthPage';
 
 export default function Youth() {
-  return <AcademyPage />;
+  return <YouthPage />;
 }
 
