@@ -14,6 +14,7 @@ import {
 } from '@/services/youth';
 import { db } from '@/services/firebase';
 import { generateRandomName } from '@/lib/names';
+import { calculateOverall, getRoles } from '@/lib/player';
 import { Button } from '@/components/ui/button';
 import YouthList from './YouthList';
 import CooldownPanel from './CooldownPanel';
@@ -21,12 +22,9 @@ import type { Player } from '@/types';
 
 const positions: Player['position'][] = ['GK','CB','LB','RB','CM','LM','RM','CAM','LW','RW','ST'];
 const randomAttr = () => parseFloat(Math.random().toFixed(3));
-const generatePlayer = (): Player => ({
-  id: crypto.randomUUID(),
-  name: generateRandomName(),
-  position: positions[Math.floor(Math.random() * positions.length)],
-  overall: randomAttr(),
-  attributes: {
+const generatePlayer = (): Player => {
+  const position = positions[Math.floor(Math.random() * positions.length)];
+  const attributes = {
     strength: randomAttr(),
     acceleration: randomAttr(),
     topSpeed: randomAttr(),
@@ -42,12 +40,20 @@ const generatePlayer = (): Player => ({
     positioning: randomAttr(),
     reaction: randomAttr(),
     ballControl: randomAttr(),
-  },
-  age: Math.floor(Math.random() * 5) + 16,
-  height: 180,
-  weight: 75,
-  squadRole: 'youth',
-});
+  } as Player['attributes'];
+  return {
+    id: crypto.randomUUID(),
+    name: generateRandomName(),
+    position,
+    roles: getRoles(position),
+    overall: calculateOverall(position, attributes),
+    attributes,
+    age: Math.floor(Math.random() * 5) + 16,
+    height: 180,
+    weight: 75,
+    squadRole: 'youth',
+  };
+};
 
 const YouthPage = () => {
   const { user } = useAuth();
