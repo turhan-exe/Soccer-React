@@ -18,10 +18,31 @@ const YouthCandidateCard: React.FC<Props> = ({ candidate, onAccept, onRelease })
     .map((n) => n[0])
     .join('');
 
+  const attributeEntries: [string, number][] = [
+    ['Hız', player.attributes.topSpeed],
+    ['Şut', player.attributes.shooting],
+    ['Güç', player.attributes.strength],
+    ['İvme', player.attributes.acceleration],
+    ['Top Sürme', player.attributes.dribbleSpeed],
+    ['Zıplama', player.attributes.jump],
+    ['Savunma', player.attributes.tackling],
+    ['Top Saklama', player.attributes.ballKeeping],
+    ['Pas', player.attributes.passing],
+    ['Uzun Pas', player.attributes.longBall],
+    ['Çeviklik', player.attributes.agility],
+    ['Şut Gücü', player.attributes.shootPower],
+    ['Pozisyon Alma', player.attributes.positioning],
+    ['Reaksiyon', player.attributes.reaction],
+    ['Top Kontrolü', player.attributes.ballControl],
+  ];
+
+  const basicStats = attributeEntries.slice(0, 2);
+  const extraStats = attributeEntries.slice(2);
+
   return (
     <Card
       data-testid={`youth-candidate-${candidate.id}`}
-      className="p-4 hover:shadow-md transition-shadow"
+      className="p-4 hover:shadow-md transition-all transform hover:scale-105 group"
     >
       <div className="flex items-start gap-3">
         <div className="relative">
@@ -66,8 +87,17 @@ const YouthCandidateCard: React.FC<Props> = ({ candidate, onAccept, onRelease })
             </div>
           </div>
           <div className="space-y-1">
-            <StatBar label="Hız" value={player.attributes.topSpeed} />
-            <StatBar label="Şut" value={player.attributes.shooting} />
+            {basicStats.map(([label, value]) => (
+              <StatBar key={label} label={label} value={value} />
+            ))}
+            <div className="hidden group-hover:block space-y-1 mt-2">
+              {extraStats.map(([label, value]) => (
+                <StatBar key={label} label={label} value={value} />
+              ))}
+              <div className="text-xs text-muted-foreground mt-2">
+                Boy: {player.height} cm · Kilo: {player.weight} kg
+              </div>
+            </div>
           </div>
         </div>
       </div>
