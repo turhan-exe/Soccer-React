@@ -18,6 +18,7 @@ import { toast } from 'sonner';
 import { generateMockCandidate, CandidatePlayer } from '@/features/academy/generateMockCandidate';
 import { addPlayerToTeam } from './team';
 import type { Player } from '@/types';
+import { calculateOverall, getRoles } from '@/lib/player';
 
 export const ACADEMY_COOLDOWN_MS = 2 * 60 * 60 * 1000; // 2 saat
 
@@ -137,28 +138,31 @@ function mapPosition(pos: string): Player['position'] {
 
 function candidateToPlayer(id: string, c: CandidatePlayer): Player {
   const randomAttr = () => parseFloat(Math.random().toFixed(3));
+  const position = mapPosition(c.position);
+  const attributes: Player['attributes'] = {
+    strength: randomAttr(),
+    acceleration: randomAttr(),
+    topSpeed: c.attributes.topSpeed,
+    dribbleSpeed: randomAttr(),
+    jump: randomAttr(),
+    tackling: randomAttr(),
+    ballKeeping: randomAttr(),
+    passing: randomAttr(),
+    longBall: randomAttr(),
+    agility: randomAttr(),
+    shooting: c.attributes.shooting,
+    shootPower: randomAttr(),
+    positioning: randomAttr(),
+    reaction: randomAttr(),
+    ballControl: randomAttr(),
+  };
   return {
     id,
     name: c.name,
-    position: mapPosition(c.position),
-    overall: c.overall,
-    attributes: {
-      strength: randomAttr(),
-      acceleration: randomAttr(),
-      topSpeed: c.attributes.topSpeed,
-      dribbleSpeed: randomAttr(),
-      jump: randomAttr(),
-      tackling: randomAttr(),
-      ballKeeping: randomAttr(),
-      passing: randomAttr(),
-      longBall: randomAttr(),
-      agility: randomAttr(),
-      shooting: c.attributes.shooting,
-      shootPower: randomAttr(),
-      positioning: randomAttr(),
-      reaction: randomAttr(),
-      ballControl: randomAttr(),
-    },
+    position,
+    roles: getRoles(position),
+    overall: calculateOverall(position, attributes),
+    attributes,
     age: c.age,
     height: 180,
     weight: 75,

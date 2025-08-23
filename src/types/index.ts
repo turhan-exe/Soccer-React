@@ -1,20 +1,23 @@
 export type SquadRole = 'starting' | 'bench' | 'reserve';
 
+export type Position =
+  | 'GK'
+  | 'CB'
+  | 'LB'
+  | 'RB'
+  | 'CM'
+  | 'LM'
+  | 'RM'
+  | 'CAM'
+  | 'LW'
+  | 'RW'
+  | 'ST';
+
 export interface Player {
   id: string;
   name: string;
-  position:
-    | 'GK'
-    | 'CB'
-    | 'LB'
-    | 'RB'
-    | 'CM'
-    | 'LM'
-    | 'RM'
-    | 'CAM'
-    | 'LW'
-    | 'RW'
-    | 'ST';
+  position: Position;
+  roles: Position[];
   overall: number;
   attributes: {
     strength: number;

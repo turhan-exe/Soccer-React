@@ -26,6 +26,7 @@ const player: Player = {
   id: 'p1',
   name: 'Test',
   position: 'GK',
+  roles: ['GK'],
   overall: 0.5,
   attributes: {
     strength: 0,

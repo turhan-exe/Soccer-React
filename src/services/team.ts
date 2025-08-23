@@ -2,17 +2,15 @@ import { doc, setDoc, getDoc } from 'firebase/firestore';
 import { db } from '@/services/firebase';
 import { Player, ClubTeam } from '@/types';
 import { generateRandomName } from '@/lib/names';
+import { calculateOverall, getRoles } from '@/lib/player';
 
 const positions: Player['position'][] = ['GK','CB','LB','RB','CM','LM','RM','CAM','LW','RW','ST'];
 
 const randomAttr = () => parseFloat(Math.random().toFixed(3));
 
-const generatePlayer = (id: number): Player => ({
-  id: String(id),
-  name: generateRandomName(),
-  position: positions[Math.floor(Math.random() * positions.length)],
-  overall: randomAttr(),
-  attributes: {
+const generatePlayer = (id: number): Player => {
+  const position = positions[Math.floor(Math.random() * positions.length)];
+  const attributes = {
     strength: randomAttr(),
     acceleration: randomAttr(),
     topSpeed: randomAttr(),
@@ -28,12 +26,20 @@ const generatePlayer = (id: number): Player => ({
     positioning: randomAttr(),
     reaction: randomAttr(),
     ballControl: randomAttr(),
-  },
-  age: Math.floor(Math.random() * 17) + 18,
-  height: 180,
-  weight: 75,
-  squadRole: 'reserve',
-});
+  } as Player['attributes'];
+  return {
+    id: String(id),
+    name: generateRandomName(),
+    position,
+    roles: getRoles(position),
+    overall: calculateOverall(position, attributes),
+    attributes,
+    age: Math.floor(Math.random() * 17) + 18,
+    height: 180,
+    weight: 75,
+    squadRole: 'reserve',
+  };
+};
 
 const generateTeamData = (id: string, name: string, manager: string): ClubTeam => {
   const players: Player[] = Array.from({ length: 30 }, (_, i) => generatePlayer(i + 1));
