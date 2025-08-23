@@ -1,6 +1,5 @@
 import {
   collection,
-  addDoc,
   onSnapshot,
   query,
   where,
@@ -11,6 +10,8 @@ import {
   Unsubscribe,
   serverTimestamp,
   Timestamp,
+  runTransaction,
+  increment,
 } from 'firebase/firestore';
 import { db } from './firebase';
 import { Player } from '@/types';
@@ -22,6 +23,15 @@ export type YouthCandidate = {
   createdAt: Timestamp;
   player: Player;
 };
+
+export const YOUTH_COOLDOWN_MS = 2 * 60 * 60 * 1000; // 2 saat
+
+interface UserDoc {
+  diamondBalance?: number;
+  youth?: {
+    nextGenerateAt?: Timestamp;
+  };
+}
 
 export function listenYouthCandidates(
   uid: string,
@@ -42,16 +52,39 @@ export async function createYouthCandidate(
   uid: string,
   player: Player,
 ): Promise<YouthCandidate> {
-  const col = collection(db, 'users', uid, 'youthCandidates');
-  const ref = await addDoc(col, {
-    status: 'pending',
+  const userRef = doc(db, 'users', uid);
+  const candidates = collection(userRef, 'youthCandidates');
+  const now = new Date();
+  const nextDate = new Date(now.getTime() + YOUTH_COOLDOWN_MS);
+  const candidateRef = doc(candidates);
+  const candidateData = {
+    status: 'pending' as const,
     createdAt: serverTimestamp(),
     player,
+  };
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(userRef);
+    const data = snap.data() as UserDoc | undefined;
+    const nextAt = data?.youth?.nextGenerateAt?.toDate();
+    if (nextAt && nextAt > now) {
+      throw new Error('2 saat beklemelisin');
+    }
+    tx.set(candidateRef, candidateData);
+    tx.set(
+      userRef,
+      {
+        youth: {
+          lastGenerateAt: serverTimestamp(),
+          nextGenerateAt: Timestamp.fromDate(nextDate),
+        },
+      },
+      { merge: true },
+    );
   });
   return {
-    id: ref.id,
+    id: (candidateRef as { id: string }).id,
     status: 'pending',
-    createdAt: Timestamp.now(),
+    createdAt: Timestamp.fromDate(now),
     player,
   };
 }
@@ -74,4 +107,22 @@ export async function releaseYouthCandidate(
 ): Promise<void> {
   const ref = doc(db, 'users', uid, 'youthCandidates', candidateId);
   await deleteDoc(ref);
+}
+
+export async function resetCooldownWithDiamonds(uid: string): Promise<void> {
+  const userRef = doc(db, 'users', uid);
+  const now = new Date();
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(userRef);
+    const data = snap.data() as UserDoc | undefined;
+    const balance = data?.diamondBalance ?? 0;
+    if (balance < 100) {
+      throw new Error('Yetersiz elmas');
+    }
+    tx.update(userRef, {
+      diamondBalance: increment(-100),
+      'youth.lastGenerateAt': serverTimestamp(),
+      'youth.nextGenerateAt': Timestamp.fromDate(now),
+    });
+  });
 }
