@@ -6,6 +6,7 @@ import {
   orderBy,
   doc,
   getDoc,
+  getDocs,
   deleteDoc,
   Unsubscribe,
   serverTimestamp,
@@ -31,6 +32,16 @@ interface UserDoc {
   youth?: {
     nextGenerateAt?: Timestamp;
   };
+}
+
+export async function getYouthCandidates(uid: string): Promise<YouthCandidate[]> {
+  const col = collection(db, 'users', uid, 'youthCandidates');
+  const q = query(col, where('status', '==', 'pending'), orderBy('createdAt', 'desc'));
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => ({
+    id: d.id,
+    ...(d.data() as Omit<YouthCandidate, 'id'>),
+  }));
 }
 
 export function listenYouthCandidates(

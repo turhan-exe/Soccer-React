@@ -5,6 +5,7 @@ import { useDiamonds } from '@/contexts/DiamondContext';
 import { toast } from 'sonner';
 import {
   listenYouthCandidates,
+  getYouthCandidates,
   createYouthCandidate,
   acceptYouthCandidate,
   releaseYouthCandidate,
@@ -67,6 +68,7 @@ const YouthPage = () => {
 
   useEffect(() => {
     if (!user?.id) return;
+    getYouthCandidates(user.id).then(setCandidates).catch(console.warn);
     return listenYouthCandidates(user.id, setCandidates);
   }, [user?.id]);
 
@@ -101,8 +103,7 @@ const YouthPage = () => {
     if (!user?.id) return;
     try {
       const player = generatePlayer();
-      const candidate = await createYouthCandidate(user.id, player);
-      setCandidates((prev) => [candidate, ...prev]);
+      await createYouthCandidate(user.id, player);
       setNextGenerateAt(new Date(Date.now() + YOUTH_COOLDOWN_MS));
       toast.success('Oyuncu üretildi');
     } catch (err) {
