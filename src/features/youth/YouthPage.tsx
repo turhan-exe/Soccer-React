@@ -56,7 +56,8 @@ const YouthPage = () => {
     if (!user?.id) return;
     try {
       const player = generatePlayer();
-      await createYouthCandidate(user.id, player);
+      const candidate = await createYouthCandidate(user.id, player);
+      setCandidates((prev) => [candidate, ...prev]);
       toast.success('Oyuncu üretildi');
     } catch (err) {
       console.warn(err);

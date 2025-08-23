@@ -38,13 +38,22 @@ export function listenYouthCandidates(
   });
 }
 
-export async function createYouthCandidate(uid: string, player: Player): Promise<void> {
+export async function createYouthCandidate(
+  uid: string,
+  player: Player,
+): Promise<YouthCandidate> {
   const col = collection(db, 'users', uid, 'youthCandidates');
-  await addDoc(col, {
+  const ref = await addDoc(col, {
     status: 'pending',
     createdAt: serverTimestamp(),
     player,
   });
+  return {
+    id: ref.id,
+    status: 'pending',
+    createdAt: Timestamp.now(),
+    player,
+  };
 }
 
 export async function acceptYouthCandidate(
