@@ -10,6 +10,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { getRoles } from '@/lib/player';
+import type { Player } from '@/types';
 
 interface Props {
   candidate: AcademyCandidate;
@@ -17,8 +19,19 @@ interface Props {
   onRelease: (id: string) => void;
 }
 
+const mapPosition = (pos: string): Player['position'] => {
+  const mapping: Record<string, Player['position']> = {
+    GK: 'GK',
+    DEF: 'CB',
+    MID: 'CM',
+    FWD: 'ST',
+  };
+  return mapping[pos] || 'CM';
+};
+
 const CandidateCard: React.FC<Props> = ({ candidate, onAccept, onRelease }) => {
   const { player } = candidate;
+  const roles = getRoles(mapPosition(player.position));
   const initials = player.name
     .split(' ')
     .map((n) => n[0])
@@ -50,6 +63,13 @@ const CandidateCard: React.FC<Props> = ({ candidate, onAccept, onRelease }) => {
                 <div className="flex items-center gap-1 text-xs text-muted-foreground">
                   <TrendingUp className="w-3 h-3" />
                   <span className="font-semibold">{player.overall.toFixed(3)}</span>
+                </div>
+                <div className="flex gap-1">
+                  {roles.map((role) => (
+                    <Badge key={role} variant="outline" className="text-xs">
+                      {role}
+                    </Badge>
+                  ))}
                 </div>
               </div>
             </div>
