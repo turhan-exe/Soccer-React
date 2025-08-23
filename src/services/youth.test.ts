@@ -28,6 +28,7 @@ const player: Player = {
   position: 'GK',
   roles: ['GK'],
   overall: 0.5,
+  potential: 0.9,
   attributes: {
     strength: 0,
     acceleration: 0,

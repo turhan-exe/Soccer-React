@@ -171,7 +171,7 @@ export default function TrainingPage() {
         return {
           ...p,
           attributes: { ...p.attributes, [training.type]: newAttr },
-          overall: Math.min(parseFloat((p.overall + gain / 10).toFixed(3)), 1),
+          overall: Math.min(parseFloat((p.overall + gain / 10).toFixed(3)), p.potential),
         };
       });
       setPlayers(updatedPlayers);
@@ -255,7 +255,7 @@ export default function TrainingPage() {
                 <SelectContent>
                   {players.filter(p => p.squadRole === 'starting').map(player => (
                     <SelectItem key={player.id} value={player.id}>
-                      {player.name} ({player.position}) - {player.overall.toFixed(3)}
+                    {player.name} ({player.position}) - {Math.round(player.overall * 100)}
                     </SelectItem>
                   ))}
                 </SelectContent>

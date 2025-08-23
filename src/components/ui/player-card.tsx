@@ -10,6 +10,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
 interface PlayerCardProps {
   player: Player;
@@ -67,7 +68,16 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({
                 <Badge variant="secondary" className="text-xs">{player.age} yaş</Badge>
                 <div className="flex items-center gap-1 text-xs text-muted-foreground">
                   <TrendingUp className="w-3 h-3" />
-                  <span className="font-semibold">{player.overall.toFixed(3)}</span>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="font-semibold">
+                        {Math.round(player.overall * 100)}
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      Maks. Potansiyel: {Math.round(player.potential * 100)}
+                    </TooltipContent>
+                  </Tooltip>
                 </div>
                 <div className="flex gap-1">
                   {(player.roles ?? []).map((role) => (

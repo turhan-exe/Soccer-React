@@ -162,6 +162,7 @@ function candidateToPlayer(id: string, c: CandidatePlayer): Player {
     position,
     roles: getRoles(position),
     overall: calculateOverall(position, attributes),
+    potential: c.potential,
     attributes,
     age: c.age,
     height: 180,
