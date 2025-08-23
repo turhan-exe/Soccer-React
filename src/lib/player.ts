@@ -14,8 +14,17 @@ const POSITION_ATTRIBUTES: Record<Player['position'], (keyof Player['attributes'
   ST: ['shooting', 'shootPower', 'positioning', 'strength', 'topSpeed'],
 };
 
-export function calculateOverall(position: Player['position'], attributes: Player['attributes']): number {
-  const keys = POSITION_ATTRIBUTES[position];
+export function getPositionAttributes(
+  position: Player['position']
+): (keyof Player['attributes'])[] {
+  return POSITION_ATTRIBUTES[position];
+}
+
+export function calculateOverall(
+  position: Player['position'],
+  attributes: Player['attributes']
+): number {
+  const keys = getPositionAttributes(position);
   const total = keys.reduce((sum, key) => sum + attributes[key], 0);
   return parseFloat((total / keys.length).toFixed(3));
 }
