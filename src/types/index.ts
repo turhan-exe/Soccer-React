@@ -19,6 +19,7 @@ export interface Player {
   position: Position;
   roles: Position[];
   overall: number;
+  potential: number;
   attributes: {
     strength: number;
     acceleration: number;

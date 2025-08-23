@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { getRoles } from '@/lib/player';
 import type { Player } from '@/types';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
 interface Props {
   candidate: AcademyCandidate;
@@ -62,7 +63,16 @@ const CandidateCard: React.FC<Props> = ({ candidate, onAccept, onRelease }) => {
                 </Badge>
                 <div className="flex items-center gap-1 text-xs text-muted-foreground">
                   <TrendingUp className="w-3 h-3" />
-                  <span className="font-semibold">{player.overall.toFixed(3)}</span>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="font-semibold">
+                        {Math.round(player.overall * 100)}
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      Maks. Potansiyel: {Math.round(player.potential * 100)}
+                    </TooltipContent>
+                  </Tooltip>
                 </div>
                 <div className="flex gap-1">
                   {roles.map((role) => (
