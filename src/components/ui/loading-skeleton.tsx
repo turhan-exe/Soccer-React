@@ -6,7 +6,10 @@ export const PlayerCardSkeleton = () => (
       <Skeleton className="w-12 h-12 rounded-full" />
       <div className="flex-1 space-y-2">
         <Skeleton className="h-4 w-24" />
-        <Skeleton className="h-3 w-16" />
+        <div className="flex gap-2">
+          <Skeleton className="h-3 w-16" />
+          <Skeleton className="h-3 w-10" />
+        </div>
       </div>
     </div>
     <div className="space-y-2">
