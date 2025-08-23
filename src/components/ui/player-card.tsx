@@ -70,7 +70,7 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({
                   <span className="font-semibold">{player.overall.toFixed(3)}</span>
                 </div>
                 <div className="flex gap-1">
-                  {player.roles.map(role => (
+                  {(player.roles ?? []).map((role) => (
                     <Badge key={role} variant="outline" className="text-xs">
                       {role}
                     </Badge>
