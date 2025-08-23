@@ -19,7 +19,7 @@ export const StatBar: React.FC<StatBarProps> = ({
     <div className={`space-y-1 ${className}`}>
       <div className="flex justify-between items-center text-xs">
         <span className="text-muted-foreground font-medium">{label}</span>
-        <span className="text-foreground font-semibold">{value.toFixed(3)}</span>
+        <span className="text-foreground font-semibold">{percentage.toFixed(0)}</span>
       </div>
       <Progress value={percentage} className="h-2" />
     </div>

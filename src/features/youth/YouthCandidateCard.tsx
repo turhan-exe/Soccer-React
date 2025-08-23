@@ -4,6 +4,7 @@ import { Badge } from '@/components/ui/badge';
 import { StatBar } from '@/components/ui/stat-bar';
 import { Button } from '@/components/ui/button';
 import { TrendingUp } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
 interface Props {
   candidate: YouthCandidate;
@@ -63,7 +64,16 @@ const YouthCandidateCard: React.FC<Props> = ({ candidate, onAccept, onRelease })
                 </Badge>
                 <div className="flex items-center gap-1 text-xs text-muted-foreground">
                   <TrendingUp className="w-3 h-3" />
-                  <span className="font-semibold">{player.overall.toFixed(3)}</span>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="font-semibold">
+                        {Math.round(player.overall * 100)}
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      Maks. Potansiyel: {Math.round(player.potential * 100)}
+                    </TooltipContent>
+                  </Tooltip>
                 </div>
                 <div className="flex gap-1">
                   {player.roles.map((role) => (
