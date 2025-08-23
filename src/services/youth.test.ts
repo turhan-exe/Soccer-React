@@ -20,6 +20,11 @@ vi.mock('firebase/firestore', () => ({
   serverTimestamp: vi.fn(),
   Timestamp: { fromDate: (...args: unknown[]) => fromDateMock(...args) },
   increment: vi.fn(),
+  getDocs: vi.fn(),
+  query: vi.fn(),
+  where: vi.fn(),
+  orderBy: vi.fn(),
+  onSnapshot: vi.fn(),
 }));
 
 const player: Player = {
