@@ -69,6 +69,7 @@ const YouthPage = () => {
     if (!user?.id) return;
     try {
       await acceptYouthCandidate(user.id, id);
+      setCandidates((prev) => prev.filter((c) => c.id !== id));
       toast.success('Oyuncu takıma eklendi');
     } catch (err) {
       console.warn(err);
@@ -80,6 +81,7 @@ const YouthPage = () => {
     if (!user?.id) return;
     try {
       await releaseYouthCandidate(user.id, id);
+      setCandidates((prev) => prev.filter((c) => c.id !== id));
       toast.success('Oyuncu serbest bırakıldı');
     } catch (err) {
       console.warn(err);
