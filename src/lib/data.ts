@@ -1,4 +1,5 @@
 import { Player, Match, Team, Training, FinanceRecord } from '@/types';
+import { getRoles } from './player';
 
 const createAttributes = (attrs: Partial<Player['attributes']>): Player['attributes'] => ({
   strength: 0.5,
@@ -26,6 +27,7 @@ export const mockPlayers: Player[] = [
     id: '1',
     name: 'Mehmet Özkan',
     position: 'GK',
+    roles: getRoles('GK'),
     overall: 0.852,
     attributes: createAttributes({
       topSpeed: 0.432,
@@ -45,6 +47,7 @@ export const mockPlayers: Player[] = [
     id: '2',
     name: 'Ali Yılmaz',
     position: 'CB',
+    roles: getRoles('CB'),
     overall: 0.789,
     attributes: createAttributes({
       topSpeed: 0.567,
@@ -64,6 +67,7 @@ export const mockPlayers: Player[] = [
     id: '3',
     name: 'Can Demir',
     position: 'CB',
+    roles: getRoles('CB'),
     overall: 0.776,
     attributes: createAttributes({
       topSpeed: 0.534,
@@ -83,6 +87,7 @@ export const mockPlayers: Player[] = [
     id: '4',
     name: 'Emre Kara',
     position: 'LB',
+    roles: getRoles('LB'),
     overall: 0.723,
     attributes: createAttributes({
       topSpeed: 0.789,
@@ -102,6 +107,7 @@ export const mockPlayers: Player[] = [
     id: '5',
     name: 'Burak Şen',
     position: 'RB',
+    roles: getRoles('RB'),
     overall: 0.734,
     attributes: createAttributes({
       topSpeed: 0.798,
@@ -121,6 +127,7 @@ export const mockPlayers: Player[] = [
     id: '6',
     name: 'Oğuz Çelik',
     position: 'CM',
+    roles: getRoles('CM'),
     overall: 0.812,
     attributes: createAttributes({
       topSpeed: 0.656,
@@ -140,6 +147,7 @@ export const mockPlayers: Player[] = [
     id: '7',
     name: 'Serkan Aydın',
     position: 'CM',
+    roles: getRoles('CM'),
     overall: 0.798,
     attributes: createAttributes({
       topSpeed: 0.645,
@@ -159,6 +167,7 @@ export const mockPlayers: Player[] = [
     id: '8',
     name: 'Kemal Arslan',
     position: 'LW',
+    roles: getRoles('LW'),
     overall: 0.845,
     attributes: createAttributes({
       topSpeed: 0.923,
@@ -178,6 +187,7 @@ export const mockPlayers: Player[] = [
     id: '9',
     name: 'Hakan Polat',
     position: 'RW',
+    roles: getRoles('RW'),
     overall: 0.834,
     attributes: createAttributes({
       topSpeed: 0.912,
@@ -197,6 +207,7 @@ export const mockPlayers: Player[] = [
     id: '10',
     name: 'Murat Koç',
     position: 'CAM',
+    roles: getRoles('CAM'),
     overall: 0.867,
     attributes: createAttributes({
       topSpeed: 0.734,
@@ -216,6 +227,7 @@ export const mockPlayers: Player[] = [
     id: '11',
     name: 'Volkan Tekin',
     position: 'ST',
+    roles: getRoles('ST'),
     overall: 0.889,
     attributes: createAttributes({
       topSpeed: 0.823,
@@ -235,6 +247,7 @@ export const mockPlayers: Player[] = [
     id: '12',
     name: 'Yusuf Balık',
     position: 'GK',
+    roles: getRoles('GK'),
     overall: 0.678,
     attributes: createAttributes({
       topSpeed: 0.345,
@@ -254,6 +267,7 @@ export const mockPlayers: Player[] = [
     id: '13',
     name: 'Fatih Güven',
     position: 'CB',
+    roles: getRoles('CB'),
     overall: 0.634,
     attributes: createAttributes({
       topSpeed: 0.456,
@@ -273,6 +287,7 @@ export const mockPlayers: Player[] = [
     id: '14',
     name: 'Deniz Akın',
     position: 'CM',
+    roles: getRoles('CM'),
     overall: 0.687,
     attributes: createAttributes({
       topSpeed: 0.567,
@@ -295,6 +310,7 @@ export const youthPlayers: Player[] = [
     id: 'y1',
     name: 'Ahmet Genç',
     position: 'ST',
+    roles: getRoles('ST'),
     overall: 0.567,
     attributes: createAttributes({
       topSpeed: 0.712,
@@ -314,6 +330,7 @@ export const youthPlayers: Player[] = [
     id: 'y2',
     name: 'Berkay Yeni',
     position: 'CM',
+    roles: getRoles('CM'),
     overall: 0.523,
     attributes: createAttributes({
       topSpeed: 0.578,
