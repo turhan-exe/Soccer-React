@@ -69,6 +69,13 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({
                   <TrendingUp className="w-3 h-3" />
                   <span className="font-semibold">{player.overall.toFixed(3)}</span>
                 </div>
+                <div className="flex gap-1">
+                  {player.roles.map(role => (
+                    <Badge key={role} variant="outline" className="text-xs">
+                      {role}
+                    </Badge>
+                  ))}
+                </div>
               </div>
             </div>
             
