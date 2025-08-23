@@ -41,12 +41,15 @@ const generatePlayer = (): Player => {
     reaction: randomAttr(),
     ballControl: randomAttr(),
   } as Player['attributes'];
+  const overall = calculateOverall(position, attributes);
+  const potential = Math.min(1, overall + Math.random() * (1 - overall));
   return {
     id: crypto.randomUUID(),
     name: generateRandomName(),
     position,
     roles: getRoles(position),
-    overall: calculateOverall(position, attributes),
+    overall,
+    potential,
     attributes,
     age: Math.floor(Math.random() * 5) + 16,
     height: 180,

@@ -22,7 +22,7 @@ const createAttributes = (attrs: Partial<Player['attributes']>): Player['attribu
 
 const defaultPhysical = { height: 180, weight: 75 };
 
-export const mockPlayers: Player[] = [
+const rawMockPlayers: Omit<Player, 'potential'>[] = [
   {
     id: '1',
     name: 'Mehmet Özkan',
@@ -347,6 +347,11 @@ export const youthPlayers: Player[] = [
     ...defaultPhysical,
   },
 ];
+
+export const mockPlayers: Player[] = rawMockPlayers.map((p) => ({
+  ...p,
+  potential: Math.min(1, p.overall + Math.random() * (1 - p.overall)),
+}));
 
 export const upcomingMatches: Match[] = [
   {
