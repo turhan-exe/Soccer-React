@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { StatBar } from '@/components/ui/stat-bar';
 import { trainings } from '@/lib/data';
+import { calculateOverall } from '@/lib/player';
 import { Player, Training } from '@/types';
 import { Dumbbell, Play, TrendingUp, Clock } from 'lucide-react';
 import { toast } from 'sonner';
@@ -168,10 +169,14 @@ export default function TrainingPage() {
       const updatedPlayers = players.map(p => {
         if (p.id !== player.id) return p;
         const newAttr = Math.min(p.attributes[training.type] + gain, 1);
+        const newAttributes = { ...p.attributes, [training.type]: newAttr };
         return {
           ...p,
-          attributes: { ...p.attributes, [training.type]: newAttr },
-          overall: Math.min(parseFloat((p.overall + gain / 10).toFixed(3)), p.potential),
+          attributes: newAttributes,
+          overall: Math.min(
+            calculateOverall(p.position, newAttributes),
+            p.potential
+          ),
         };
       });
       setPlayers(updatedPlayers);
