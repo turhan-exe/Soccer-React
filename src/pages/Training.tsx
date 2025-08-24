@@ -11,6 +11,8 @@ import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { getTeam, saveTeamPlayers } from '@/services/team';
+import { Timestamp } from 'firebase/firestore';
+import { getActiveTraining, setActiveTraining, clearActiveTraining } from '@/services/training';
 
 export default function TrainingPage() {
   const navigate = useNavigate();
@@ -33,35 +35,28 @@ export default function TrainingPage() {
     fetchPlayers();
   }, [user]);
 
-  // Restore training session from localStorage if it exists
+  // Restore training session from Firestore if it exists
   useEffect(() => {
     if (!user || !playersLoaded) return;
-    const sessionStr = localStorage.getItem('activeTraining');
-    if (!sessionStr) return;
-
-    try {
-      const session = JSON.parse(sessionStr);
-      if (session.userId !== user.id) {
-        // Remove training sessions that belong to another user
-        localStorage.removeItem('activeTraining');
-        return;
-      }
+    const fetchSession = async () => {
+      const session = await getActiveTraining(user.id);
+      if (!session) return;
 
       const player = players.find(p => p.id === session.playerId);
       const training = trainings.find(t => t.id === session.trainingId);
       if (!player || !training) {
-        localStorage.removeItem('activeTraining');
+        await clearActiveTraining(user.id);
         return;
       }
 
-      const remaining = Math.round((session.endTime - Date.now()) / 1000);
+      const remaining = Math.round((session.endAt.toMillis() - Date.now()) / 1000);
 
       if (remaining <= 0) {
         setSelectedPlayer(player);
         setSelectedTraining(training);
         setIsTraining(true);
         setTimeLeft(0);
-        completeTraining(player, training);
+        await completeTraining(player, training);
       } else {
         setSelectedPlayer(player);
         setSelectedTraining(training);
@@ -75,42 +70,33 @@ export default function TrainingPage() {
           setTimeLeft(prev => prev - 1);
         }, 1000);
       }
-    } catch (e) {
-      localStorage.removeItem('activeTraining');
-    }
+    };
+    fetchSession();
   }, [players, user, playersLoaded]);
 
-  const handleStartTraining = () => {
+  const handleStartTraining = async () => {
     if (!selectedPlayer || !selectedTraining || !user) {
       toast.error('Lütfen oyuncu ve antrenman seçin');
       return;
     }
 
-    const existingStr = localStorage.getItem('activeTraining');
-    if (existingStr) {
-      try {
-        const existing = JSON.parse(existingStr);
-        if (existing.userId === user.id) {
-          toast.error('Zaten devam eden bir antrenman var');
-          return;
-        }
-      } catch {
-        // ignore parse errors and clear stale data
-      }
-      localStorage.removeItem('activeTraining');
+    const existing = await getActiveTraining(user.id);
+    if (existing) {
+      toast.error('Zaten devam eden bir antrenman var');
+      return;
     }
 
     const duration = selectedTraining.duration * 60;
-    const endTime = Date.now() + duration * 1000;
-    localStorage.setItem(
-      'activeTraining',
-      JSON.stringify({
-        userId: user.id,
-        playerId: selectedPlayer.id,
-        trainingId: selectedTraining.id,
-        endTime,
-      })
-    );
+    const startTime = Date.now();
+    const endTime = startTime + duration * 1000;
+    await setActiveTraining(user.id, {
+      playerId: selectedPlayer.id,
+      playerName: selectedPlayer.name,
+      trainingId: selectedTraining.id,
+      trainingName: selectedTraining.name,
+      startAt: Timestamp.fromMillis(startTime),
+      endAt: Timestamp.fromMillis(endTime),
+    });
 
     setIsTraining(true);
     setTimeLeft(duration);
@@ -147,7 +133,7 @@ export default function TrainingPage() {
 
     if (!player || !training || !user) {
       setIsTraining(false);
-      localStorage.removeItem('activeTraining');
+      if (user) await clearActiveTraining(user.id);
       return;
     }
 
@@ -187,7 +173,7 @@ export default function TrainingPage() {
 
     setIsTraining(false);
     setTimeLeft(0);
-    localStorage.removeItem('activeTraining');
+    await clearActiveTraining(user.id);
   };
 
   const formatTime = (s: number) => {
