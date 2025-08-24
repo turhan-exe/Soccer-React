@@ -13,6 +13,7 @@ import {
   Timestamp,
   runTransaction,
   increment,
+  addDoc,
 } from 'firebase/firestore';
 import { db } from './firebase';
 import { Player } from '@/types';
@@ -67,12 +68,8 @@ export async function createYouthCandidate(
   const candidates = collection(userRef, 'youthCandidates');
   const now = new Date();
   const nextDate = new Date(now.getTime() + YOUTH_COOLDOWN_MS);
-  const candidateRef = doc(candidates);
-  const candidateData = {
-    status: 'pending' as const,
-    createdAt: serverTimestamp(),
-    player,
-  };
+
+  // check cooldown & update user document atomically
   await runTransaction(db, async (tx) => {
     const snap = await tx.get(userRef);
     const data = snap.data() as UserDoc | undefined;
@@ -80,7 +77,6 @@ export async function createYouthCandidate(
     if (nextAt && nextAt > now) {
       throw new Error('2 saat beklemelisin');
     }
-    tx.set(candidateRef, candidateData);
     tx.set(
       userRef,
       {
@@ -92,8 +88,16 @@ export async function createYouthCandidate(
       { merge: true },
     );
   });
+
+  // persist candidate separately to ensure it's stored even if listener fails
+  const candidateDoc = await addDoc(candidates, {
+    status: 'pending' as const,
+    createdAt: serverTimestamp(),
+    player,
+  });
+
   return {
-    id: (candidateRef as { id: string }).id,
+    id: candidateDoc.id,
     status: 'pending',
     createdAt: Timestamp.fromDate(now),
     player,
