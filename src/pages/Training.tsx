@@ -258,9 +258,9 @@ export default function TrainingPage() {
                   <SelectValue placeholder="Antrenman yapacak oyuncuyu seçin" />
                 </SelectTrigger>
                 <SelectContent>
-                  {players.filter(p => p.squadRole === 'starting').map(player => (
+                  {players.map(player => (
                     <SelectItem key={player.id} value={player.id}>
-                    {player.name} ({player.position}) - {Math.round(player.overall * 100)}
+                      {player.name} ({player.position}) - {Math.round(player.overall * 100)}
                     </SelectItem>
                   ))}
                 </SelectContent>
