@@ -12,11 +12,13 @@ const docMock = vi.fn(() => ({ id: 'id' }));
 const collectionMock = vi.fn(() => ({}));
 const runTransactionMock = vi.fn();
 const fromDateMock = vi.fn();
+const addDocMock = vi.fn(() => ({ id: 'id' }));
 
 vi.mock('firebase/firestore', () => ({
   doc: (...args: unknown[]) => docMock(...args),
   collection: (...args: unknown[]) => collectionMock(...args),
   runTransaction: (...args: unknown[]) => runTransactionMock(...args),
+  addDoc: (...args: unknown[]) => addDocMock(...args),
   serverTimestamp: vi.fn(),
   Timestamp: { fromDate: (...args: unknown[]) => fromDateMock(...args) },
   increment: vi.fn(),
@@ -91,11 +93,12 @@ describe('createYouthCandidate', () => {
         set: setMock,
       });
     });
+    addDocMock.mockResolvedValue({ id: 'id' });
     await createYouthCandidate('uid', player);
     expect(fromDateMock).toHaveBeenCalled();
-    const calls = fromDateMock.mock.calls;
-    const calledDate = calls[0][0] as Date;
+    const calledDate = fromDateMock.mock.calls[0][0] as Date;
     expect(calledDate.getTime()).toBe(Date.now() + YOUTH_COOLDOWN_MS);
+    expect(addDocMock).toHaveBeenCalled();
     vi.useRealTimers();
   });
 });
