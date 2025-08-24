@@ -103,7 +103,8 @@ const YouthPage = () => {
     if (!user?.id) return;
     try {
       const player = generatePlayer();
-      await createYouthCandidate(user.id, player);
+      const candidate = await createYouthCandidate(user.id, player);
+      setCandidates((prev) => [candidate, ...prev]);
       setNextGenerateAt(new Date(Date.now() + YOUTH_COOLDOWN_MS));
       toast.success('Oyuncu üretildi');
     } catch (err) {
