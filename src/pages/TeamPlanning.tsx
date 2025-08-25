@@ -204,13 +204,19 @@ export default function TeamPlanning() {
                       onDrop={() => handlePositionDrop(position)}
                     >
                       <div
-                        className="w-12 h-12 rounded-full bg-white/80 flex items-center justify-center cursor-move"
+                        className="w-12 h-12 rounded-full bg-white/80 flex flex-col items-center justify-center cursor-move text-[8px] leading-tight"
                         draggable={!!player}
                         onDragStart={() => player && setDraggedPlayerId(player.id)}
                         onDragEnd={() => setDraggedPlayerId(null)}
                       >
-
-                        {player ? player.name.split(' ')[0] : position}
+                        {player ? (
+                          <>
+                            <span className="text-[9px] font-semibold">{position}</span>
+                            <span>{player.name.split(' ')[0]}</span>
+                          </>
+                        ) : (
+                          <span className="text-[9px] font-semibold">{position}</span>
+                        )}
                       </div>
                     </div>
                   ))}
