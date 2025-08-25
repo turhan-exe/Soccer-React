@@ -6,17 +6,25 @@ import { StatBar } from '@/components/ui/stat-bar';
 import { trainings } from '@/lib/data';
 import { calculateOverall } from '@/lib/player';
 import { Player, Training } from '@/types';
-import { Dumbbell, Play, TrendingUp, Clock } from 'lucide-react';
+import { Dumbbell, Play, TrendingUp, Clock, Diamond } from 'lucide-react';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { getTeam, saveTeamPlayers } from '@/services/team';
 import { Timestamp } from 'firebase/firestore';
-import { getActiveTraining, setActiveTraining, clearActiveTraining } from '@/services/training';
+import {
+  getActiveTraining,
+  setActiveTraining,
+  clearActiveTraining,
+  finishTrainingWithDiamonds,
+  TRAINING_FINISH_COST,
+} from '@/services/training';
+import { useDiamonds } from '@/contexts/DiamondContext';
 
 export default function TrainingPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { balance } = useDiamonds();
   const [players, setPlayers] = useState<Player[]>([]);
   const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null);
   const [selectedTraining, setSelectedTraining] = useState<Training | null>(null);
@@ -117,6 +125,16 @@ export default function TrainingPage() {
     intervalRef.current = window.setInterval(() => {
       setTimeLeft(prev => prev - 1);
     }, 1000);
+  };
+
+  const handleFinishWithDiamonds = async () => {
+    if (!selectedPlayer || !selectedTraining || !user) return;
+    try {
+      await finishTrainingWithDiamonds(user.id);
+      setTimeLeft(0);
+    } catch (err) {
+      toast.error((err as Error).message);
+    }
   };
 
   useEffect(() => {
@@ -231,6 +249,15 @@ export default function TrainingPage() {
                   {formatTime(timeLeft)}
                 </div>
               </div>
+              <Button
+                onClick={handleFinishWithDiamonds}
+                className="mt-4 w-full"
+                variant="secondary"
+                disabled={balance < TRAINING_FINISH_COST}
+              >
+                <Diamond className="h-4 w-4 mr-1" />
+                {TRAINING_FINISH_COST} Elmas ile bitir
+              </Button>
             </CardContent>
           </Card>
         )}
