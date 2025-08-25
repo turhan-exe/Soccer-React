@@ -20,6 +20,7 @@ export interface ActiveTrainingSession {
   trainingName: string;
   startAt: Timestamp;
   endAt: Timestamp;
+  boost?: boolean;
 }
 
 export interface TrainingHistoryRecord {
@@ -65,6 +66,7 @@ export async function getTrainingHistory(
 }
 
 export const TRAINING_FINISH_COST = 50;
+export const TRAINING_BOOST_COST = 20;
 
 export async function finishTrainingWithDiamonds(
   uid: string,
@@ -96,6 +98,25 @@ export async function finishTrainingWithDiamonds(
 
     toast.success('Antrenman tamamlandı');
     return session;
+  } catch (err) {
+    console.warn(err);
+    toast.error((err as Error).message || 'İşlem başarısız');
+    throw err;
+  }
+}
+
+export async function purchaseTrainingBoost(uid: string): Promise<void> {
+  const userRef = doc(db, 'users', uid);
+  try {
+    await runTransaction(db, async tx => {
+      const userSnap = await tx.get(userRef);
+      const balance = (userSnap.data() as { diamondBalance?: number })
+        .diamondBalance ?? 0;
+      if (balance < TRAINING_BOOST_COST) {
+        throw new Error('Yetersiz elmas');
+      }
+      tx.update(userRef, { diamondBalance: increment(-TRAINING_BOOST_COST) });
+    });
   } catch (err) {
     console.warn(err);
     toast.error((err as Error).message || 'İşlem başarısız');
