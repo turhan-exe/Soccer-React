@@ -18,6 +18,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { formations } from '@/lib/formations';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
 export default function TeamPlanning() {
   const navigate = useNavigate();
@@ -199,25 +200,34 @@ export default function TeamPlanning() {
                         top: `${y}%`,
                         transform: 'translate(-50%, -50%)',
                       }}
-
                       onDragOver={e => e.preventDefault()}
                       onDrop={() => handlePositionDrop(position)}
                     >
-                      <div
-                        className="w-12 h-12 rounded-full bg-white/80 flex flex-col items-center justify-center cursor-move text-[8px] leading-tight"
-                        draggable={!!player}
-                        onDragStart={() => player && setDraggedPlayerId(player.id)}
-                        onDragEnd={() => setDraggedPlayerId(null)}
-                      >
-                        {player ? (
-                          <>
-                            <span className="text-[9px] font-semibold">{position}</span>
-                            <span>{player.name.split(' ')[0]}</span>
-                          </>
-                        ) : (
+                      {player ? (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <div
+                              className="w-12 h-12 rounded-full bg-white/80 flex flex-col items-center justify-center cursor-move text-[8px] leading-tight"
+                              draggable
+                              onDragStart={() => setDraggedPlayerId(player.id)}
+                              onDragEnd={() => setDraggedPlayerId(null)}
+                            >
+                              <span className="text-[9px] font-semibold">{player.name.split(' ')[0]}</span>
+                            </div>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <div className="text-xs">
+                              {position} - {player.overall}
+                            </div>
+                          </TooltipContent>
+                        </Tooltip>
+                      ) : (
+                        <div
+                          className="w-12 h-12 rounded-full bg-white/80 flex flex-col items-center justify-center text-[8px] leading-tight"
+                        >
                           <span className="text-[9px] font-semibold">{position}</span>
-                        )}
-                      </div>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
