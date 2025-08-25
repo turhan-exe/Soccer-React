@@ -392,15 +392,6 @@ export default function TrainingPage() {
                   {formatTime(timeLeft)}
                 </div>
               </div>
-              <Button
-                onClick={handleFinishWithDiamonds}
-                className="mt-4 w-full"
-                variant="secondary"
-                disabled={balance < TRAINING_FINISH_COST}
-              >
-                <Diamond className="h-4 w-4 mr-1" />
-                {TRAINING_FINISH_COST} Elmas ile bitir
-              </Button>
             </CardContent>
           </Card>
         )}
@@ -576,6 +567,18 @@ export default function TrainingPage() {
                 </>
               )}
             </Button>
+
+            {isTraining && selectedPlayer && selectedTraining && (
+              <Button
+                onClick={handleFinishWithDiamonds}
+                className="mt-4 w-full"
+                variant="secondary"
+                disabled={balance < TRAINING_FINISH_COST}
+              >
+                <Diamond className="h-4 w-4 mr-1" />
+                {TRAINING_FINISH_COST} Elmas ile bitir
+              </Button>
+            )}
 
             {(!selectedPlayer || !selectedTraining) && (
               <p className="text-center text-sm text-muted-foreground mt-2">
