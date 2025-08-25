@@ -123,11 +123,22 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({
           </div>
 
           {/* Stats */}
-          <div className="space-y-1">
-            <StatBar label="Hız" value={player.attributes.topSpeed} />
-            <StatBar label="Şut" value={player.attributes.shooting} />
+          <div className="grid grid-cols-2 gap-1">
+            <StatBar label="Güç" value={player.attributes.strength} />
+            <StatBar label="Hızlanma" value={player.attributes.acceleration} />
+            <StatBar label="Maks Hız" value={player.attributes.topSpeed} />
+            <StatBar label="Dribling Hızı" value={player.attributes.dribbleSpeed} />
+            <StatBar label="Sıçrama" value={player.attributes.jump} />
+            <StatBar label="Mücadele" value={player.attributes.tackling} />
+            <StatBar label="Top Saklama" value={player.attributes.ballKeeping} />
             <StatBar label="Pas" value={player.attributes.passing} />
-            <StatBar label="Savunma" value={player.attributes.tackling} />
+            <StatBar label="Uzun Top" value={player.attributes.longBall} />
+            <StatBar label="Çeviklik" value={player.attributes.agility} />
+            <StatBar label="Şut" value={player.attributes.shooting} />
+            <StatBar label="Şut Gücü" value={player.attributes.shootPower} />
+            <StatBar label="Pozisyon Alma" value={player.attributes.positioning} />
+            <StatBar label="Refleks" value={player.attributes.reaction} />
+            <StatBar label="Top Kontrolü" value={player.attributes.ballControl} />
           </div>
         </div>
       </div>

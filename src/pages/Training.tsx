@@ -31,6 +31,8 @@ import {
   clearActiveTraining,
   finishTrainingWithDiamonds,
   TRAINING_FINISH_COST,
+  purchaseTrainingBoost,
+  TRAINING_BOOST_COST,
   addTrainingRecord,
   getTrainingHistory,
   TrainingHistoryRecord,
@@ -46,6 +48,7 @@ export default function TrainingPage() {
   const [selectedTraining, setSelectedTraining] = useState<Training | null>(null);
   const [isTraining, setIsTraining] = useState(false);
   const [timeLeft, setTimeLeft] = useState(0);
+  const [useBoost, setUseBoost] = useState(false);
   const [playersLoaded, setPlayersLoaded] = useState(false);
   const [history, setHistory] = useState<TrainingHistoryRecord[]>([]);
   const [filterPlayer, setFilterPlayer] = useState('all');
@@ -92,6 +95,7 @@ export default function TrainingPage() {
       }
 
       const remaining = Math.round((session.endAt.toMillis() - Date.now()) / 1000);
+      setUseBoost(session.boost || false);
 
       if (remaining <= 0) {
         setSelectedPlayer(player);
@@ -133,6 +137,14 @@ export default function TrainingPage() {
       return;
     }
 
+    if (useBoost) {
+      try {
+        await purchaseTrainingBoost(user.id);
+      } catch (err) {
+        return;
+      }
+    }
+
     const duration = selectedTraining.duration * 60;
     const startTime = Date.now();
     const endTime = startTime + duration * 1000;
@@ -143,6 +155,7 @@ export default function TrainingPage() {
       trainingName: selectedTraining.name,
       startAt: Timestamp.fromMillis(startTime),
       endAt: Timestamp.fromMillis(endTime),
+      boost: useBoost,
     });
 
     setIsTraining(true);
@@ -195,7 +208,7 @@ export default function TrainingPage() {
     }
 
     const improvement = 0.001 + Math.random() * 0.05;
-    const successRate = Math.random() * 100;
+    const successRate = Math.min(Math.random() * 100 + (useBoost ? 20 : 0), 100);
     let gain = 0;
     let result: 'success' | 'average' | 'fail' = 'fail';
 
@@ -250,6 +263,7 @@ export default function TrainingPage() {
     setIsTraining(false);
     setTimeLeft(0);
     await clearActiveTraining(user.id);
+    setUseBoost(false);
   };
 
   const formatTime = (s: number) => {
@@ -429,34 +443,49 @@ export default function TrainingPage() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <Select onValueChange={(value) => {
-                const training = trainings.find(t => t.id === value);
-                setSelectedTraining(training || null);
-              }}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Antrenman türünü seçin" />
-                </SelectTrigger>
-                <SelectContent>
-                  {trainings.map(training => (
-                    <SelectItem
-                      key={training.id}
-                      value={training.id}
-                      disabled={
-                        selectedPlayer ? selectedPlayer.attributes[training.type] >= 1 : false
-                      }
-                    >
-                      <div className="flex items-center justify-between w-full">
-                        <span>{training.name}</span>
-                        <span className="text-xs text-muted-foreground ml-2">
-                          {selectedPlayer && selectedPlayer.attributes[training.type] >= 1
-                            ? 'Max'
-                            : `${training.duration}dk`}
-                        </span>
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className="flex items-center gap-2">
+                <Select onValueChange={(value) => {
+                  const training = trainings.find(t => t.id === value);
+                  setSelectedTraining(training || null);
+                }}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Antrenman türünü seçin" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {trainings.map(training => (
+                      <SelectItem
+                        key={training.id}
+                        value={training.id}
+                        disabled={
+                          selectedPlayer ? selectedPlayer.attributes[training.type] >= 1 : false
+                        }
+                      >
+                        <div className="flex items-center justify-between w-full">
+                          <span>{training.name}</span>
+                          <span className="text-xs text-muted-foreground ml-2">
+                            {selectedPlayer && selectedPlayer.attributes[training.type] >= 1
+                              ? 'Max'
+                              : `${training.duration}dk`}
+                          </span>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button
+                  size="icon"
+                  variant={useBoost ? 'default' : 'outline'}
+                  onClick={() => setUseBoost(!useBoost)}
+                  disabled={balance < TRAINING_BOOST_COST || isTraining}
+                >
+                  <Diamond className="h-4 w-4" />
+                </Button>
+              </div>
+              {useBoost && (
+                <p className="text-xs text-muted-foreground mt-2">
+                  {TRAINING_BOOST_COST} Elmas • Başarı şansı artar
+                </p>
+              )}
             </CardContent>
           </Card>
         </div>
@@ -477,12 +506,21 @@ export default function TrainingPage() {
                   <p className="text-muted-foreground">{selectedPlayer.position} • {selectedPlayer.age} yaş</p>
                   
                   <div className="grid grid-cols-2 gap-3 mt-4">
-                    <StatBar label="Hız" value={selectedPlayer.attributes.topSpeed} />
-                    <StatBar label="Şut" value={selectedPlayer.attributes.shooting} />
+                    <StatBar label="Güç" value={selectedPlayer.attributes.strength} />
+                    <StatBar label="Hızlanma" value={selectedPlayer.attributes.acceleration} />
+                    <StatBar label="Maks Hız" value={selectedPlayer.attributes.topSpeed} />
+                    <StatBar label="Dribling Hızı" value={selectedPlayer.attributes.dribbleSpeed} />
+                    <StatBar label="Sıçrama" value={selectedPlayer.attributes.jump} />
+                    <StatBar label="Mücadele" value={selectedPlayer.attributes.tackling} />
+                    <StatBar label="Top Saklama" value={selectedPlayer.attributes.ballKeeping} />
                     <StatBar label="Pas" value={selectedPlayer.attributes.passing} />
-                    <StatBar label="Savunma" value={selectedPlayer.attributes.tackling} />
-                    <StatBar label="Dribling" value={selectedPlayer.attributes.ballControl} />
-                    <StatBar label="Fizik" value={selectedPlayer.attributes.strength} />
+                    <StatBar label="Uzun Top" value={selectedPlayer.attributes.longBall} />
+                    <StatBar label="Çeviklik" value={selectedPlayer.attributes.agility} />
+                    <StatBar label="Şut" value={selectedPlayer.attributes.shooting} />
+                    <StatBar label="Şut Gücü" value={selectedPlayer.attributes.shootPower} />
+                    <StatBar label="Pozisyon Alma" value={selectedPlayer.attributes.positioning} />
+                    <StatBar label="Refleks" value={selectedPlayer.attributes.reaction} />
+                    <StatBar label="Top Kontrolü" value={selectedPlayer.attributes.ballControl} />
                   </div>
                 </div>
               </div>
