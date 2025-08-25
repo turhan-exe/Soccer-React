@@ -46,3 +46,47 @@ const POSITION_ROLES: Record<Player['position'], Player['position'][]> = {
 export function getRoles(position: Player['position']): Player['position'][] {
   return POSITION_ROLES[position] || [position];
 }
+
+/**
+ * Assigns maximum attribute values for the roles a player can perform while
+ * ensuring the average of those attributes does not exceed the provided
+ * `maxAverage`.
+ *
+ * The function sets all attributes relevant to the player's roles to
+ * `maxValue` (defaults to 1). If the average of these attributes is higher
+ * than `maxAverage`, they are scaled down proportionally.
+ */
+export function assignMaxStats(
+  player: Player,
+  maxAverage: number,
+  maxValue = 1,
+): Player {
+  const attributes = { ...player.attributes };
+
+  // Determine unique attributes across all playable roles
+  const relevant = new Set<keyof Player['attributes']>();
+  player.roles.forEach((role) => {
+    getPositionAttributes(role).forEach((attr) => relevant.add(attr));
+  });
+
+  // Assign the max value to all relevant attributes
+  relevant.forEach((attr) => {
+    attributes[attr] = maxValue;
+  });
+
+  // Scale down if the average exceeds the allowed maximum
+  const total = Array.from(relevant).reduce((sum, attr) => sum + attributes[attr], 0);
+  const avg = total / relevant.size;
+  if (avg > maxAverage) {
+    const scale = maxAverage / avg;
+    relevant.forEach((attr) => {
+      attributes[attr] = parseFloat((attributes[attr] * scale).toFixed(3));
+    });
+  }
+
+  return {
+    ...player,
+    attributes,
+    overall: calculateOverall(player.position, attributes),
+  };
+}
