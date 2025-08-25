@@ -53,13 +53,17 @@ export function getRoles(position: Player['position']): Player['position'][] {
  * `maxAverage`.
  *
  * The function sets all attributes relevant to the player's roles to
- * `maxValue` (defaults to 1). If the average of these attributes is higher
+ * `maxValue` (defaults to 100). If the average of these attributes is higher
  * than `maxAverage`, they are scaled down proportionally.
+ *
+ * If `maxAverage` is not supplied, the player's current overall for their main
+ * position is used. This guarantees that overall ratings are calculated based
+ * on the player's position before applying the maximum stats.
  */
 export function assignMaxStats(
   player: Player,
-  maxAverage: number,
-  maxValue = 1,
+  maxAverage = calculateOverall(player.position, player.attributes),
+  maxValue = 100,
 ): Player {
   const attributes = { ...player.attributes };
 
