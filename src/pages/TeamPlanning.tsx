@@ -217,7 +217,7 @@ export default function TeamPlanning() {
                           </TooltipTrigger>
                           <TooltipContent>
                             <div className="text-xs">
-                              {position} - {player.overall}
+                              {player.position} - {Math.round(player.overall * 100)}
                             </div>
                           </TooltipContent>
                         </Tooltip>
