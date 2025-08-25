@@ -4,21 +4,21 @@ import type { Player } from '@/types';
 
 test('assigns max stats based on roles without exceeding average', () => {
   const baseAttributes: Player['attributes'] = {
-    strength: 0.1,
-    acceleration: 0.1,
-    topSpeed: 0.1,
-    dribbleSpeed: 0.1,
-    jump: 0.1,
-    tackling: 0.1,
-    ballKeeping: 0.1,
-    passing: 0.1,
-    longBall: 0.1,
-    agility: 0.1,
-    shooting: 0.1,
-    shootPower: 0.1,
-    positioning: 0.1,
-    reaction: 0.1,
-    ballControl: 0.1,
+    strength: 10,
+    acceleration: 10,
+    topSpeed: 10,
+    dribbleSpeed: 10,
+    jump: 10,
+    tackling: 10,
+    ballKeeping: 10,
+    passing: 10,
+    longBall: 10,
+    agility: 10,
+    shooting: 10,
+    shootPower: 10,
+    positioning: 10,
+    reaction: 10,
+    ballControl: 10,
   };
 
   const player: Player = {
@@ -26,8 +26,8 @@ test('assigns max stats based on roles without exceeding average', () => {
     name: 'Test Player',
     position: 'CM',
     roles: ['CM', 'CAM'],
-    overall: 0.1,
-    potential: 1,
+    overall: 10,
+    potential: 100,
     attributes: baseAttributes,
     age: 20,
     height: 180,
@@ -35,7 +35,7 @@ test('assigns max stats based on roles without exceeding average', () => {
     squadRole: 'starting',
   };
 
-  const updated = assignMaxStats(player, 0.9);
+  const updated = assignMaxStats(player, 90);
 
   const relevant = new Set<keyof Player['attributes']>([
     ...getPositionAttributes('CM'),
@@ -43,12 +43,12 @@ test('assigns max stats based on roles without exceeding average', () => {
   ]);
 
   relevant.forEach((attr) => {
-    expect(updated.attributes[attr]).toBe(0.9);
+    expect(updated.attributes[attr]).toBe(90);
   });
 
   // A non-relevant attribute should remain unchanged
   expect(updated.attributes.longBall).toBe(baseAttributes.longBall);
 
   // overall should match the maximum average for the main position
-  expect(updated.overall).toBe(0.9);
+  expect(updated.overall).toBe(90);
 });
