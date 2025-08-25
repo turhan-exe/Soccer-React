@@ -164,7 +164,7 @@ export default function TrainingPage() {
     if (gain > 0) {
       const updatedPlayers = players.map(p => {
         if (p.id !== player.id) return p;
-        const newAttr = Math.min(p.attributes[training.type] + gain, 1);
+        const newAttr = Math.min(p.attributes[training.type] + gain, p.potential);
         const newAttributes = { ...p.attributes, [training.type]: newAttr };
         return {
           ...p,
