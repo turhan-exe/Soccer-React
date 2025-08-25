@@ -3,13 +3,18 @@ import { db } from '@/services/firebase';
 import { Player, ClubTeam } from '@/types';
 import { generateRandomName } from '@/lib/names';
 import { calculateOverall, getRoles } from '@/lib/player';
+import { formations } from '@/lib/formations';
 
 const positions: Player['position'][] = ['GK','CB','LB','RB','CM','LM','RM','CAM','LW','RW','ST'];
 
 const randomAttr = () => parseFloat(Math.random().toFixed(3));
 
-const generatePlayer = (id: number): Player => {
-  const position = positions[Math.floor(Math.random() * positions.length)];
+const generatePlayer = (
+  id: number,
+  forcedPosition?: Player['position'],
+): Player => {
+  const position =
+    forcedPosition || positions[Math.floor(Math.random() * positions.length)];
   const attributes = {
     strength: randomAttr(),
     acceleration: randomAttr(),
@@ -45,7 +50,14 @@ const generatePlayer = (id: number): Player => {
 };
 
 const generateTeamData = (id: string, name: string, manager: string): ClubTeam => {
-  const players: Player[] = Array.from({ length: 30 }, (_, i) => generatePlayer(i + 1));
+  const players: Player[] = [];
+  const startingPositions = formations[0].positions.map(p => p.position);
+  startingPositions.forEach((pos, idx) => {
+    players.push(generatePlayer(idx + 1, pos));
+  });
+  for (let i = startingPositions.length; i < 30; i++) {
+    players.push(generatePlayer(i + 1));
+  }
   players.slice(0, 11).forEach(p => (p.squadRole = 'starting'));
   players.slice(11, 22).forEach(p => (p.squadRole = 'bench'));
   players.slice(22).forEach(p => (p.squadRole = 'reserve'));
