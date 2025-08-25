@@ -25,6 +25,11 @@ export default function TrainingPage() {
   const [playersLoaded, setPlayersLoaded] = useState(false);
   const intervalRef = useRef<number | null>(null);
 
+  const isStatMaxed =
+    selectedPlayer &&
+    selectedTraining &&
+    selectedPlayer.attributes[selectedTraining.type] >= 1;
+
   useEffect(() => {
     const fetchPlayers = async () => {
       if (!user) return;
@@ -77,6 +82,11 @@ export default function TrainingPage() {
   const handleStartTraining = async () => {
     if (!selectedPlayer || !selectedTraining || !user) {
       toast.error('Lütfen oyuncu ve antrenman seçin');
+      return;
+    }
+
+    if (isStatMaxed) {
+      toast.error('Bu yetenek zaten maksimum seviyede');
       return;
     }
 
@@ -272,11 +282,19 @@ export default function TrainingPage() {
                 </SelectTrigger>
                 <SelectContent>
                   {trainings.map(training => (
-                    <SelectItem key={training.id} value={training.id}>
+                    <SelectItem
+                      key={training.id}
+                      value={training.id}
+                      disabled={
+                        selectedPlayer ? selectedPlayer.attributes[training.type] >= 1 : false
+                      }
+                    >
                       <div className="flex items-center justify-between w-full">
                         <span>{training.name}</span>
                         <span className="text-xs text-muted-foreground ml-2">
-                          {training.duration}dk
+                          {selectedPlayer && selectedPlayer.attributes[training.type] >= 1
+                            ? 'Max'
+                            : `${training.duration}dk`}
                         </span>
                       </div>
                     </SelectItem>
@@ -348,7 +366,7 @@ export default function TrainingPage() {
           <CardContent className="p-6">
             <Button
               onClick={handleStartTraining}
-              disabled={!selectedPlayer || !selectedTraining || isTraining}
+              disabled={!selectedPlayer || !selectedTraining || isTraining || isStatMaxed}
               className="w-full h-12"
               size="lg"
             >
@@ -364,10 +382,15 @@ export default function TrainingPage() {
                 </>
               )}
             </Button>
-            
+
             {(!selectedPlayer || !selectedTraining) && (
               <p className="text-center text-sm text-muted-foreground mt-2">
                 Antrenmanı başlatmak için oyuncu ve antrenman türü seçin
+              </p>
+            )}
+            {isStatMaxed && selectedPlayer && selectedTraining && (
+              <p className="text-center text-sm text-muted-foreground mt-2">
+                Bu yetenek zaten maksimum seviyede
               </p>
             )}
           </CardContent>
