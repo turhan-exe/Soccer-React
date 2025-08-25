@@ -46,6 +46,8 @@ export default function TrainingPage() {
   const [players, setPlayers] = useState<Player[]>([]);
   const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null);
   const [selectedTraining, setSelectedTraining] = useState<Training | null>(null);
+  const [activePlayer, setActivePlayer] = useState<Player | null>(null);
+  const [activeTraining, setActiveTraining] = useState<Training | null>(null);
   const [isTraining, setIsTraining] = useState(false);
   const [timeLeft, setTimeLeft] = useState(0);
   const [useBoost, setUseBoost] = useState(false);
@@ -97,15 +99,15 @@ export default function TrainingPage() {
       const remaining = Math.round((session.endAt.toMillis() - Date.now()) / 1000);
       setUseBoost(session.boost || false);
 
+      setSelectedPlayer(player);
+      setSelectedTraining(training);
+      setActivePlayer(player);
+      setActiveTraining(training);
+
       if (remaining <= 0) {
-        setSelectedPlayer(player);
-        setSelectedTraining(training);
-        setIsTraining(true);
         setTimeLeft(0);
         await completeTraining(player, training);
       } else {
-        setSelectedPlayer(player);
-        setSelectedTraining(training);
         setIsTraining(true);
         setTimeLeft(remaining);
 
@@ -158,6 +160,8 @@ export default function TrainingPage() {
       boost: useBoost,
     });
 
+    setActivePlayer(selectedPlayer);
+    setActiveTraining(selectedTraining);
     setIsTraining(true);
     setTimeLeft(duration);
 
@@ -198,11 +202,13 @@ export default function TrainingPage() {
       clearInterval(intervalRef.current);
     }
 
-    const player = playerOverride || selectedPlayer;
-    const training = trainingOverride || selectedTraining;
+    const player = playerOverride || activePlayer;
+    const training = trainingOverride || activeTraining;
 
     if (!player || !training || !user) {
       setIsTraining(false);
+      setActivePlayer(null);
+      setActiveTraining(null);
       if (user) await clearActiveTraining(user.id);
       return;
     }
@@ -262,6 +268,8 @@ export default function TrainingPage() {
 
     setIsTraining(false);
     setTimeLeft(0);
+    setActivePlayer(null);
+    setActiveTraining(null);
     await clearActiveTraining(user.id);
     setUseBoost(false);
   };
@@ -373,7 +381,7 @@ export default function TrainingPage() {
       </div>
 
       <div className="p-4 space-y-6">
-        {isTraining && selectedPlayer && selectedTraining && (
+        {isTraining && activePlayer && activeTraining && (
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -384,8 +392,8 @@ export default function TrainingPage() {
             <CardContent>
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="font-semibold">{selectedPlayer.name}</p>
-                  <p className="text-sm text-muted-foreground">{selectedTraining.name}</p>
+                  <p className="font-semibold">{activePlayer.name}</p>
+                  <p className="text-sm text-muted-foreground">{activeTraining.name}</p>
                 </div>
                 <div className="flex items-center gap-1 text-sm text-muted-foreground">
                   <Clock className="h-4 w-4" />
