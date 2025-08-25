@@ -48,22 +48,16 @@ export function getRoles(position: Player['position']): Player['position'][] {
 }
 
 /**
- * Assigns maximum attribute values for the roles a player can perform while
- * ensuring the average of those attributes does not exceed the provided
- * `maxAverage`.
+ * Sets a player's role-specific attributes to their maximum allowed value
+ * without exceeding the player's maximum overall rating.
  *
- * The function sets all attributes relevant to the player's roles to
- * `maxValue` (defaults to 100). If the average of these attributes is higher
- * than `maxAverage`, they are scaled down proportionally.
- *
- * If `maxAverage` is not supplied, the player's current overall for their main
- * position is used. This guarantees that overall ratings are calculated based
- * on the player's position before applying the maximum stats.
+ * `maxOverall` defaults to the player's potential and represents the highest
+ * rating the player can reach. Each relevant attribute is set to this value,
+ * ensuring no attribute surpasses the maximum overall.
  */
 export function assignMaxStats(
   player: Player,
-  maxAverage = calculateOverall(player.position, player.attributes),
-  maxValue = 100,
+  maxOverall = player.potential,
 ): Player {
   const attributes = { ...player.attributes };
 
@@ -73,20 +67,12 @@ export function assignMaxStats(
     getPositionAttributes(role).forEach((attr) => relevant.add(attr));
   });
 
-  // Assign the max value to all relevant attributes
-  relevant.forEach((attr) => {
-    attributes[attr] = maxValue;
-  });
+  const cap = Math.min(maxOverall, player.potential);
 
-  // Scale down if the average exceeds the allowed maximum
-  const total = Array.from(relevant).reduce((sum, attr) => sum + attributes[attr], 0);
-  const avg = total / relevant.size;
-  if (avg > maxAverage) {
-    const scale = maxAverage / avg;
-    relevant.forEach((attr) => {
-      attributes[attr] = parseFloat((attributes[attr] * scale).toFixed(3));
-    });
-  }
+  // Assign the capped value to all relevant attributes
+  relevant.forEach((attr) => {
+    attributes[attr] = cap;
+  });
 
   return {
     ...player,
