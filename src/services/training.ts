@@ -6,6 +6,9 @@ import {
   Timestamp,
   runTransaction,
   increment,
+  collection,
+  addDoc,
+  getDocs,
 } from 'firebase/firestore';
 import { db } from '@/services/firebase';
 import { toast } from 'sonner';
@@ -19,7 +22,20 @@ export interface ActiveTrainingSession {
   endAt: Timestamp;
 }
 
+export interface TrainingHistoryRecord {
+  id?: string;
+  playerId: string;
+  playerName: string;
+  trainingId: string;
+  trainingName: string;
+  result: 'success' | 'average' | 'fail';
+  gain: number;
+  completedAt: Timestamp;
+}
+
 const trainingDoc = (uid: string) => doc(db, 'users', uid, 'training', 'active');
+const trainingHistoryCol = (uid: string) =>
+  collection(db, 'users', uid, 'trainingHistory');
 
 export async function getActiveTraining(uid: string): Promise<ActiveTrainingSession | null> {
   const snap = await getDoc(trainingDoc(uid));
@@ -32,6 +48,20 @@ export async function setActiveTraining(uid: string, session: ActiveTrainingSess
 
 export async function clearActiveTraining(uid: string): Promise<void> {
   await deleteDoc(trainingDoc(uid));
+}
+
+export async function addTrainingRecord(
+  uid: string,
+  record: TrainingHistoryRecord,
+): Promise<void> {
+  await addDoc(trainingHistoryCol(uid), record);
+}
+
+export async function getTrainingHistory(
+  uid: string,
+): Promise<TrainingHistoryRecord[]> {
+  const snap = await getDocs(trainingHistoryCol(uid));
+  return snap.docs.map((d) => ({ id: d.id, ...(d.data() as TrainingHistoryRecord) }));
 }
 
 export const TRAINING_FINISH_COST = 50;

@@ -1,8 +1,21 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { StatBar } from '@/components/ui/stat-bar';
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from '@/components/ui/sheet';
 import { trainings } from '@/lib/data';
 import { calculateOverall } from '@/lib/player';
 import { Player, Training } from '@/types';
@@ -18,6 +31,9 @@ import {
   clearActiveTraining,
   finishTrainingWithDiamonds,
   TRAINING_FINISH_COST,
+  addTrainingRecord,
+  getTrainingHistory,
+  TrainingHistoryRecord,
 } from '@/services/training';
 import { useDiamonds } from '@/contexts/DiamondContext';
 
@@ -31,6 +47,10 @@ export default function TrainingPage() {
   const [isTraining, setIsTraining] = useState(false);
   const [timeLeft, setTimeLeft] = useState(0);
   const [playersLoaded, setPlayersLoaded] = useState(false);
+  const [history, setHistory] = useState<TrainingHistoryRecord[]>([]);
+  const [filterPlayer, setFilterPlayer] = useState('all');
+  const [filterTrainingType, setFilterTrainingType] = useState('all');
+  const [filterResult, setFilterResult] = useState('all');
   const intervalRef = useRef<number | null>(null);
 
   const isStatMaxed =
@@ -46,6 +66,15 @@ export default function TrainingPage() {
       setPlayersLoaded(true);
     };
     fetchPlayers();
+  }, [user]);
+
+  useEffect(() => {
+    if (!user) return;
+    const loadHistory = async () => {
+      const records = await getTrainingHistory(user.id);
+      setHistory(records);
+    };
+    loadHistory();
   }, [user]);
 
   // Restore training session from Firestore if it exists
@@ -168,21 +197,29 @@ export default function TrainingPage() {
     const improvement = 0.001 + Math.random() * 0.05;
     const successRate = Math.random() * 100;
     let gain = 0;
+    let result: 'success' | 'average' | 'fail' = 'fail';
 
     if (successRate > 70) {
       gain = improvement;
-      toast.success(`${player.name} antrenmanı başarıyla tamamladı! +${(gain * 100).toFixed(1)}% gelişim`);
+      result = 'success';
+      toast.success(
+        `${player.name} antrenmanı başarıyla tamamladı! +${(gain * 100).toFixed(1)}% gelişim`,
+      );
     } else if (successRate > 40) {
       gain = improvement * 0.5;
-      toast(`${player.name} ortalama bir antrenman yaptı. +${(gain * 100).toFixed(1)}% gelişim`);
+      result = 'average';
+      toast(
+        `${player.name} ortalama bir antrenman yaptı. +${(gain * 100).toFixed(1)}% gelişim`,
+      );
     } else {
+      result = 'fail';
       toast.error(`${player.name} antrenmanı tamamlayamadı. Gelişim yok.`);
     }
 
     if (gain > 0) {
       const updatedPlayers = players.map(p => {
         if (p.id !== player.id) return p;
-        const newAttr = Math.min(p.attributes[training.type] + gain, p.potential);
+        const newAttr = Math.min(p.attributes[training.type] + gain, 1);
         const newAttributes = { ...p.attributes, [training.type]: newAttr };
         return {
           ...p,
@@ -198,6 +235,17 @@ export default function TrainingPage() {
       setSelectedPlayer(updatedPlayer);
       await saveTeamPlayers(user.id, updatedPlayers);
     }
+    const record: TrainingHistoryRecord = {
+      playerId: player.id,
+      playerName: player.name,
+      trainingId: training.id,
+      trainingName: training.name,
+      result,
+      gain,
+      completedAt: Timestamp.now(),
+    };
+    await addTrainingRecord(user.id, record);
+    setHistory(prev => [...prev, record]);
 
     setIsTraining(false);
     setTimeLeft(0);
@@ -214,6 +262,12 @@ export default function TrainingPage() {
     navigate('/match-preview');
   };
 
+  const filteredHistory = history.filter(h =>
+    (filterPlayer === 'all' || h.playerId === filterPlayer) &&
+    (filterTrainingType === 'all' || h.trainingId === filterTrainingType) &&
+    (filterResult === 'all' || h.result === filterResult)
+  );
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 via-emerald-50 to-teal-50 dark:from-green-950 dark:via-emerald-950 dark:to-teal-950">
       {/* Header */}
@@ -223,9 +277,84 @@ export default function TrainingPage() {
             <Button variant="ghost" onClick={() => navigate('/')}>←</Button>
             <h1 className="text-xl font-bold">Antrenman</h1>
           </div>
-          <Button onClick={continueToMatch} variant="outline">
-            Maç Önizleme →
-          </Button>
+          <div className="flex items-center gap-2">
+            <Sheet>
+              <SheetTrigger asChild>
+                <Button variant="outline">Geçmiş</Button>
+              </SheetTrigger>
+              <SheetContent side="left" className="w-[350px] sm:w-[400px] overflow-y-auto">
+                <SheetHeader>
+                  <SheetTitle>Geçmiş Antrenmanlar</SheetTitle>
+                </SheetHeader>
+                <div className="p-4 space-y-4">
+                  <div className="space-y-2">
+                    <Select value={filterPlayer} onValueChange={setFilterPlayer}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Oyuncu" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Tümü</SelectItem>
+                        {players.map(p => (
+                          <SelectItem key={p.id} value={p.id}>
+                            {p.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Select value={filterTrainingType} onValueChange={setFilterTrainingType}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Antrenman" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Tümü</SelectItem>
+                        {trainings.map(t => (
+                          <SelectItem key={t.id} value={t.id}>
+                            {t.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Select value={filterResult} onValueChange={setFilterResult}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Durum" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Tümü</SelectItem>
+                        <SelectItem value="success">Başarılı</SelectItem>
+                        <SelectItem value="average">Ortalama</SelectItem>
+                        <SelectItem value="fail">Başarısız</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2 max-h-[calc(100vh-200px)] overflow-y-auto">
+                    {filteredHistory.length === 0 && (
+                      <p className="text-sm text-muted-foreground">Kayıt yok</p>
+                    )}
+                    {filteredHistory.map((rec, idx) => (
+                      <div key={idx} className="border p-2 rounded">
+                        <p className="font-semibold">{rec.playerName}</p>
+                        <p className="text-sm">
+                          {rec.trainingName} •
+                          {rec.result === 'success'
+                            ? ' Başarılı'
+                            : rec.result === 'average'
+                              ? ' Ortalama'
+                              : ' Başarısız'}
+                          {rec.gain > 0 && ` • +${(rec.gain * 100).toFixed(1)}%`}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {rec.completedAt.toDate().toLocaleString()}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </SheetContent>
+            </Sheet>
+            <Button onClick={continueToMatch} variant="outline">
+              Maç Önizleme →
+            </Button>
+          </div>
         </div>
       </div>
 
