@@ -22,18 +22,17 @@ async function assignTeam(teamId: string) {
       return existing.docs[0].ref.parent.parent!; // already in league
     }
 
+    const leaguesCol = db.collection('lig');
     const forming = await tx.get(
-      db
-        .collection('leagues')
-        .where('state', '==', 'forming')
-        .orderBy('createdAt', 'asc')
-        .limit(1)
+      leaguesCol.where('state', '==', 'forming').orderBy('createdAt', 'asc').limit(1)
     );
     let leagueRef: FirebaseFirestore.DocumentReference;
     if (forming.empty) {
-      leagueRef = db.collection('leagues').doc();
+      const allLeagues = await tx.get(leaguesCol);
+      const nextId = `lig${allLeagues.size + 1}`;
+      leagueRef = leaguesCol.doc(nextId);
       tx.set(leagueRef, {
-        name: `League ${leagueRef.id}`,
+        name: `Lig ${nextId}`,
         season: 1,
         capacity: 22,
         timezone: 'Europe/Istanbul',
@@ -98,7 +97,7 @@ export const assignAllTeamsToLeagues = functions.https.onRequest(async (_req, re
 });
 
 async function generateFixturesForLeague(leagueId: string) {
-  const leagueRef = db.collection('leagues').doc(leagueId);
+  const leagueRef = db.collection('lig').doc(leagueId);
   const leagueSnap = await leagueRef.get();
   const league = leagueSnap.data() as any;
   const teamsSnap = await leagueRef.collection('teams').get();
