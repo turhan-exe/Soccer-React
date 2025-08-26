@@ -15,7 +15,7 @@ export const assignTeamToLeague = functions.https.onCall(async (data, context) =
     const existing = await tx.get(
       db
         .collectionGroup('teams')
-        .where(admin.firestore.FieldPath.documentId(), '==', teamId)
+        .where('teamId', '==', teamId)
         .limit(1)
     );
     if (!existing.empty) {
