@@ -1,8 +1,6 @@
 import {
   collection,
   collectionGroup,
-  doc,
-  getDoc,
   getDocs,
   onSnapshot,
   orderBy,
@@ -65,22 +63,19 @@ export async function listLeagues(): Promise<League[]> {
   const leagues: League[] = [];
   for (const d of snap.docs) {
     const teamsSnap = await getDocs(collection(d.ref, 'teams'));
-    const teams = await Promise.all(
-      teamsSnap.docs.map(async (t) => {
-        const teamDoc = await getDoc(doc(db, 'teams', t.id));
-        return {
-          id: t.id,
-          name: teamDoc.exists()
-            ? (teamDoc.data() as { name?: string }).name
-            : t.id,
-        };
-      })
-    );
+    const teams = teamsSnap.docs.map((t) => {
+      const data = t.data() as { name?: string };
+      return { id: t.id, name: data.name ?? t.id };
+    });
+    const leagueData = d.data() as Omit<
+      League,
+      'id' | 'teamCount' | 'teams'
+    > & { teamCount?: number };
     leagues.push({
       id: d.id,
-      teamCount: teamsSnap.size,
+      teamCount: leagueData.teamCount ?? teamsSnap.size,
       teams,
-      ...(d.data() as Omit<League, 'id' | 'teamCount' | 'teams'>),
+      ...leagueData,
     });
   }
   return leagues;
