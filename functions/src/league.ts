@@ -39,6 +39,7 @@ async function assignTeam(teamId: string) {
         timezone: 'Europe/Istanbul',
         state: 'forming',
         rounds: 21,
+        teamCount: 0,
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
       });
     } else {
@@ -50,19 +51,22 @@ async function assignTeam(teamId: string) {
     if (teamsSnap.docs.some((d) => d.id === teamId)) {
       return leagueRef;
     }
+    const teamDoc = await tx.get(db.collection('teams').doc(teamId));
+    const teamName = (teamDoc.data() as any)?.name || `Team ${teamId}`;
     tx.set(teamsCol.doc(teamId), {
       teamId,
+      name: teamName,
       joinedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
 
     const count = teamsSnap.size + 1;
+    const updateData: FirebaseFirestore.UpdateData = { teamCount: count };
     if (count === 22) {
       const startDate = getNextStartDate();
-      tx.update(leagueRef, {
-        state: 'scheduled',
-        startDate: admin.firestore.Timestamp.fromDate(startDate),
-      });
+      updateData.state = 'scheduled';
+      updateData.startDate = admin.firestore.Timestamp.fromDate(startDate);
     }
+    tx.update(leagueRef, updateData);
 
     return leagueRef;
   });
