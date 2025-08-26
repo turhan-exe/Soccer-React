@@ -14,12 +14,12 @@ export default function Fixtures() {
 
   useEffect(() => {
     if (!user) return;
-    const unsub = listenMyLeague(user.uid, async (league) => {
+    const unsub = listenMyLeague(user.id, async (league) => {
       if (!league) {
         setFixtures([]);
         return;
       }
-      const list = await getFixturesForTeam(league.id, user.uid);
+      const list = await getFixturesForTeam(league.id, user.id);
       setFixtures(list);
     });
     return unsub;
