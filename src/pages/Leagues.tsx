@@ -53,6 +53,11 @@ export default function Leagues() {
                 <div className="text-sm text-muted-foreground">
                   Sezon {myLeague.season} - {myLeague.teamCount ?? 0}/{myLeague.capacity}
                 </div>
+                {myLeague.teams && myLeague.teams.length > 0 && (
+                  <div className="text-xs text-muted-foreground mt-1">
+                    Takımlar: {myLeague.teams.map((t) => t.name).join(', ')}
+                  </div>
+                )}
               </div>
               <Badge>{myLeague.state}</Badge>
             </CardContent>
@@ -75,6 +80,11 @@ export default function Leagues() {
                   <div className="text-sm text-muted-foreground">
                     Sezon {l.season} - {l.teamCount ?? 0}/{l.capacity}
                   </div>
+                  {l.teams && l.teams.length > 0 && (
+                    <div className="text-xs text-muted-foreground mt-1">
+                      Takımlar: {l.teams.map((t) => t.name).join(', ')}
+                    </div>
+                  )}
                 </div>
                 <Badge>{l.state}</Badge>
               </CardContent>
