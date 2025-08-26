@@ -1,0 +1,56 @@
+import { useEffect, useState } from 'react';
+import { useParams } from 'react-router-dom';
+import { listenStandings } from '@/services/leagues';
+import type { Standing } from '@/types';
+import { Card, CardContent } from '@/components/ui/card';
+
+export default function LeagueDetail() {
+  const { leagueId } = useParams();
+  const [rows, setRows] = useState<Standing[]>([]);
+
+  useEffect(() => {
+    if (!leagueId) return;
+    const unsub = listenStandings(leagueId, setRows);
+    return unsub;
+  }, [leagueId]);
+
+  return (
+    <div className="p-4">
+      <h1 className="text-xl font-bold mb-4">Lig Detayı</h1>
+      <Card>
+        <CardContent className="p-0">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left border-b">
+                <th className="p-2">Takım</th>
+                <th className="p-2">P</th>
+                <th className="p-2">W</th>
+                <th className="p-2">D</th>
+                <th className="p-2">L</th>
+                <th className="p-2">GF</th>
+                <th className="p-2">GA</th>
+                <th className="p-2">GD</th>
+                <th className="p-2">Pts</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r) => (
+                <tr key={r.teamId} data-testid={`standings-row-${r.teamId}`} className="border-b">
+                  <td className="p-2">{r.name}</td>
+                  <td className="p-2">{r.P}</td>
+                  <td className="p-2">{r.W}</td>
+                  <td className="p-2">{r.D}</td>
+                  <td className="p-2">{r.L}</td>
+                  <td className="p-2">{r.GF}</td>
+                  <td className="p-2">{r.GA}</td>
+                  <td className="p-2">{r.GD}</td>
+                  <td className="p-2">{r.Pts}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}

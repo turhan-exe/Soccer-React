@@ -1,0 +1,22 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "fixtures",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "participants", "arrayConfig": "CONTAINS" },
+        { "fieldPath": "date", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "standings",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "Pts", "order": "DESCENDING" },
+        { "fieldPath": "GD", "order": "DESCENDING" },
+        { "fieldPath": "GF", "order": "DESCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}

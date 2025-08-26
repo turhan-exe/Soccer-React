@@ -1,0 +1,16 @@
+{
+  "name": "functions",
+  "type": "module",
+  "engines": { "node": "18" },
+  "main": "lib/index.js",
+  "scripts": {
+    "build": "tsc"
+  },
+  "dependencies": {
+    "firebase-admin": "^11.11.1",
+    "firebase-functions": "^4.3.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.3"
+  }
+}
