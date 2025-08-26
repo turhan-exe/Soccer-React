@@ -84,6 +84,36 @@ export interface Team {
   goalDifference: number;
 }
 
+export interface League {
+  id: string;
+  name: string;
+  season: number;
+  capacity: number;
+  timezone: string;
+  state: 'forming' | 'scheduled' | 'active' | 'completed';
+  startDate?: unknown;
+  rounds: number;
+  teamCount?: number;
+}
+
+export interface Fixture {
+  id: string;
+  round: number;
+  date: unknown;
+  homeTeamId: string;
+  awayTeamId: string;
+  participants: string[];
+  status: 'scheduled' | 'in_progress' | 'played';
+  score: { home: number; away: number } | null;
+}
+
+export interface Standing {
+  id: string;
+  teamId: string;
+  name: string;
+  P: number; W: number; D: number; L: number; GF: number; GA: number; GD: number; Pts: number;
+}
+
 export interface Training {
   id: string;
   name: string;
