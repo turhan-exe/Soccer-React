@@ -94,6 +94,7 @@ export interface League {
   startDate?: unknown;
   rounds: number;
   teamCount?: number;
+  teams?: { id: string; name: string }[];
 }
 
 export interface Fixture {
