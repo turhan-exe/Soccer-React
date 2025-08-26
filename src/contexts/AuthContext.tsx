@@ -83,9 +83,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       const cred = await signUp(email, password);
       if (cred.user) {
         const managerName = generateRandomName();
-        await updateProfile(cred.user, { displayName: teamName });
-        await createInitialTeam(cred.user.uid, teamName, managerName);
-        await requestJoinLeague(cred.user.uid);
+        try {
+          await updateProfile(cred.user, { displayName: teamName });
+          await createInitialTeam(cred.user.uid, teamName, managerName);
+          await requestJoinLeague(cred.user.uid);
+        } catch (err) {
+          console.error('Post-register setup failed:', err);
+        }
       }
     } finally {
       setIsLoading(false);
