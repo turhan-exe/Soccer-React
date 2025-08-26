@@ -68,7 +68,12 @@ export async function listLeagues(): Promise<League[]> {
     const teams = await Promise.all(
       teamsSnap.docs.map(async (t) => {
         const teamDoc = await getDoc(doc(db, 'teams', t.id));
-        return { id: t.id, name: teamDoc.exists() ? (teamDoc.data() as any).name : t.id };
+        return {
+          id: t.id,
+          name: teamDoc.exists()
+            ? (teamDoc.data() as { name?: string }).name
+            : t.id,
+        };
       })
     );
     leagues.push({
