@@ -6,7 +6,6 @@ import {
   orderBy,
   query,
   where,
-  documentId,
   limit,
   Unsubscribe,
 } from 'firebase/firestore';
@@ -23,7 +22,7 @@ export async function requestJoinLeague(teamId: string) {
 export function listenMyLeague(teamId: string, cb: (league: League | null) => void): Unsubscribe {
   const teamsQ = query(
     collectionGroup(db, 'teams'),
-    where(documentId(), '==', teamId),
+    where('teamId', '==', teamId),
     limit(1)
   );
   let unsubLeague: Unsubscribe | null = null;
