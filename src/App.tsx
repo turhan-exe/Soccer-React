@@ -14,6 +14,7 @@ import TeamPlanning from './pages/TeamPlanning';
 import Youth from './pages/Youth';
 import Fixtures from './pages/Fixtures';
 import Leagues from './pages/Leagues';
+import LeagueDetail from './pages/LeagueDetail';
 import Training from './pages/Training';
 import MatchPreview from './pages/MatchPreview';
 import MatchSimulation from './pages/MatchSimulation';
@@ -41,6 +42,7 @@ const AppContent = () => {
         <Route path="/youth" element={<Youth />} />
         <Route path="/fixtures" element={<Fixtures />} />
         <Route path="/leagues" element={<Leagues />} />
+        <Route path="/leagues/:leagueId" element={<LeagueDetail />} />
         <Route path="/training" element={<Training />} />
         <Route path="/match-preview" element={<MatchPreview />} />
         <Route path="/match-simulation" element={<MatchSimulation />} />
