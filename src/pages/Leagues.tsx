@@ -30,6 +30,14 @@ export default function Leagues() {
   return (
     <div className="p-4">
       <h1 className="text-xl font-bold mb-4">Ligler</h1>
+      {leagues.length === 0 && (
+        <p
+          data-testid="no-leagues-message"
+          className="text-sm text-muted-foreground"
+        >
+          Henüz lig oluşturulmamış.
+        </p>
+      )}
       {myLeague && (
         <div className="mb-6">
           <h2 className="font-semibold mb-2">Takımının Ligi</h2>
