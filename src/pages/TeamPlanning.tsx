@@ -7,7 +7,7 @@ import { PlayerCard } from '@/components/ui/player-card';
 import { Player } from '@/types';
 import { getTeam, saveTeamPlayers, createInitialTeam } from '@/services/team';
 import { useAuth } from '@/contexts/AuthContext';
-import { Search, Save, Eye, Filter, ArrowUp } from 'lucide-react';
+import { Search, Save, Eye, ArrowUp } from 'lucide-react';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -31,12 +31,41 @@ export default function TeamPlanning() {
   );
 
   const [draggedPlayerId, setDraggedPlayerId] = useState<string | null>(null);
+  const [sortBy, setSortBy] = useState<'role' | 'overall' | 'potential'>('role');
 
 
-  const filteredPlayers = players.filter(player => 
-    player.name.toLowerCase().includes(searchTerm.toLowerCase()) &&
-    player.squadRole === activeTab
+  const filteredPlayers = players.filter(
+    player =>
+      player.name.toLowerCase().includes(searchTerm.toLowerCase()) &&
+      player.squadRole === activeTab,
   );
+
+  const positionOrder: Player['position'][] = [
+    'GK',
+    'LB',
+    'CB',
+    'RB',
+    'LM',
+    'CM',
+    'RM',
+    'CAM',
+    'LW',
+    'RW',
+    'ST',
+  ];
+
+  const sortedPlayers = [...filteredPlayers].sort((a, b) => {
+    switch (sortBy) {
+      case 'overall':
+        return b.overall - a.overall;
+      case 'potential':
+        return b.potential - a.potential;
+      default:
+        return (
+          positionOrder.indexOf(a.position) - positionOrder.indexOf(b.position)
+        );
+    }
+  });
 
   const movePlayer = (playerId: string, newRole: Player['squadRole']) => {
     setPlayers(prev => prev.map(player =>
@@ -81,20 +110,27 @@ export default function TeamPlanning() {
   })();
 
 
-  const handlePositionDrop = (targetPosition: Player['position']) => {
-    if (!draggedPlayerId) return;
+  const handlePositionDrop = (
+    e: React.DragEvent<HTMLDivElement>,
+    targetPosition: Player['position'],
+  ) => {
+    const playerId = e.dataTransfer.getData('text/plain') || draggedPlayerId;
+    if (!playerId) return;
     setPlayers(prev => {
-      const draggedIndex = prev.findIndex(p => p.id === draggedPlayerId);
+      const draggedIndex = prev.findIndex(p => p.id === playerId);
       if (draggedIndex === -1) return prev;
       const draggedPlayer = prev[draggedIndex];
       if (draggedPlayer.position === targetPosition) return prev;
       const targetIndex = prev.findIndex(
-        p => p.position === targetPosition && p.squadRole === 'starting'
+        p => p.position === targetPosition && p.squadRole === 'starting',
       );
       const updated = [...prev];
       if (targetIndex !== -1) {
         const targetPlayer = prev[targetIndex];
-        updated[targetIndex] = { ...targetPlayer, position: draggedPlayer.position };
+        updated[targetIndex] = {
+          ...targetPlayer,
+          position: draggedPlayer.position,
+        };
       }
       updated[draggedIndex] = { ...draggedPlayer, position: targetPosition };
       return updated;
@@ -134,14 +170,20 @@ export default function TeamPlanning() {
                 <Input
                   placeholder="Oyuncu ara..."
                   value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
+                  onChange={e => setSearchTerm(e.target.value)}
                   className="pl-10"
                 />
               </div>
-              <Button variant="outline" size="sm">
-                <Filter className="h-4 w-4 mr-2" />
-                Filtre
-              </Button>
+              <Select value={sortBy} onValueChange={setSortBy}>
+                <SelectTrigger className="w-40">
+                  <SelectValue placeholder="Sırala" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="role">Role göre</SelectItem>
+                  <SelectItem value="overall">Ortalamaya göre</SelectItem>
+                  <SelectItem value="potential">Maks. potansiyel</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </CardContent>
         </Card>
@@ -201,7 +243,7 @@ export default function TeamPlanning() {
                         transform: 'translate(-50%, -50%)',
                       }}
                       onDragOver={e => e.preventDefault()}
-                      onDrop={() => handlePositionDrop(position)}
+                      onDrop={e => handlePositionDrop(e, position)}
                     >
                       {player ? (
                         <Tooltip>
@@ -209,12 +251,15 @@ export default function TeamPlanning() {
                             <div
                               className="w-12 h-12 rounded-full bg-white/80 flex flex-col items-center justify-center cursor-move text-[8px] leading-tight"
                               draggable
-                              onDragStart={() => setDraggedPlayerId(player.id)}
+                              onDragStart={e => {
+                                setDraggedPlayerId(player.id);
+                                e.dataTransfer.setData('text/plain', player.id);
+                              }}
                               onDragEnd={() => setDraggedPlayerId(null)}
                               title={`${player.position} - ${Math.round(player.overall * 100)}`}
                             >
-                              <span className="text-[9px] font-semibold text-center">
-                                {player.name}
+                              <span className="text-[9px] font-semibold text-center text-black">
+                                {player.name.split(' ')[0]}
                               </span>
                             </div>
                           </TooltipTrigger>
@@ -254,7 +299,7 @@ export default function TeamPlanning() {
           </TabsList>
 
           <TabsContent value="starting" className="space-y-4 mt-4">
-            {filteredPlayers.length === 0 ? (
+            {sortedPlayers.length === 0 ? (
               <Card>
                 <CardContent className="p-8 text-center">
                   <div className="text-4xl mb-4">⚽</div>
@@ -265,7 +310,7 @@ export default function TeamPlanning() {
                 </CardContent>
               </Card>
             ) : (
-              filteredPlayers.map(player => (
+              sortedPlayers.map(player => (
                 <PlayerCard
                   key={player.id}
                   player={player}
@@ -277,7 +322,7 @@ export default function TeamPlanning() {
           </TabsContent>
 
           <TabsContent value="bench" className="space-y-4 mt-4">
-            {filteredPlayers.length === 0 ? (
+            {sortedPlayers.length === 0 ? (
               <Card>
                 <CardContent className="p-8 text-center">
                   <div className="text-4xl mb-4">🪑</div>
@@ -288,7 +333,7 @@ export default function TeamPlanning() {
                 </CardContent>
               </Card>
             ) : (
-              filteredPlayers.map(player => (
+              sortedPlayers.map(player => (
                 <PlayerCard
                   key={player.id}
                   player={player}
@@ -300,7 +345,7 @@ export default function TeamPlanning() {
           </TabsContent>
 
           <TabsContent value="reserve" className="space-y-4 mt-4">
-            {filteredPlayers.length === 0 ? (
+            {sortedPlayers.length === 0 ? (
               <Card>
                 <CardContent className="p-8 text-center">
                   <div className="text-4xl mb-4">👥</div>
@@ -311,7 +356,7 @@ export default function TeamPlanning() {
                 </CardContent>
               </Card>
             ) : (
-              filteredPlayers.map(player => (
+              sortedPlayers.map(player => (
                 <PlayerCard
                   key={player.id}
                   player={player}
