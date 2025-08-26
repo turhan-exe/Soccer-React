@@ -5,13 +5,13 @@ import { generateRoundRobinFixtures, getNextStartDate } from './utils/schedule';
 admin.initializeApp();
 const db = admin.firestore();
 
-export const assignTeamToLeague = functions.https.onCall(async (data, context) => {
-  const teamId: string = data.teamId;
-  if (!teamId) {
-    throw new functions.https.HttpsError('invalid-argument', 'teamId required');
-  }
-  const leagueSnap = await db.runTransaction(async (tx) => {
-    // ensure team not already in a league
+/**
+ * Core logic for assigning a team to a league. Ensures a team is only placed
+ * into one league and that a new league is created when none are available.
+ * When the league reaches 22 teams, it is scheduled and fixtures are created.
+ */
+async function assignTeam(teamId: string) {
+  const leagueRef = await db.runTransaction(async (tx) => {
     const existing = await tx.get(
       db
         .collectionGroup('teams')
@@ -19,9 +19,9 @@ export const assignTeamToLeague = functions.https.onCall(async (data, context) =
         .limit(1)
     );
     if (!existing.empty) {
-      return existing.docs[0].ref.parent.parent!; // league ref
+      return existing.docs[0].ref.parent.parent!; // already in league
     }
-    // find oldest forming league
+
     const forming = await tx.get(
       db
         .collection('leagues')
@@ -44,6 +44,7 @@ export const assignTeamToLeague = functions.https.onCall(async (data, context) =
     } else {
       leagueRef = forming.docs[0].ref;
     }
+
     const teamsCol = leagueRef.collection('teams');
     const teamsSnap = await tx.get(teamsCol);
     if (teamsSnap.docs.some((d) => d.id === teamId)) {
@@ -53,6 +54,7 @@ export const assignTeamToLeague = functions.https.onCall(async (data, context) =
       teamId,
       joinedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
+
     const count = teamsSnap.size + 1;
     if (count === 22) {
       const startDate = getNextStartDate();
@@ -61,15 +63,34 @@ export const assignTeamToLeague = functions.https.onCall(async (data, context) =
         startDate: admin.firestore.Timestamp.fromDate(startDate),
       });
     }
+
     return leagueRef;
   });
 
-  // generate fixtures if scheduled
-  const leagueData = (await leagueSnap.get()).data() as any;
+  const leagueData = (await leagueRef.get()).data() as any;
   if (leagueData.state === 'scheduled') {
-    await generateFixturesForLeague(leagueSnap.id);
+    await generateFixturesForLeague(leagueRef.id);
   }
-  return { leagueId: leagueSnap.id, state: leagueData.state };
+  return { leagueRef, state: leagueData.state };
+}
+
+export const assignTeamToLeague = functions.https.onCall(async (data) => {
+  const teamId: string = data.teamId;
+  if (!teamId) {
+    throw new functions.https.HttpsError('invalid-argument', 'teamId required');
+  }
+  const { leagueRef, state } = await assignTeam(teamId);
+  return { leagueId: leagueRef.id, state };
+});
+
+export const assignAllTeamsToLeagues = functions.https.onRequest(async (_req, res) => {
+  const snap = await db.collection('teams').get();
+  const results: { teamId: string; leagueId: string; state: string }[] = [];
+  for (const doc of snap.docs) {
+    const { leagueRef, state } = await assignTeam(doc.id);
+    results.push({ teamId: doc.id, leagueId: leagueRef.id, state });
+  }
+  res.json({ assigned: results.length, details: results });
 });
 
 async function generateFixturesForLeague(leagueId: string) {
@@ -101,3 +122,4 @@ export const generateRoundRobinFixturesFn = functions.https.onCall(async (data) 
   await generateFixturesForLeague(data.leagueId);
   return true;
 });
+
