@@ -11,7 +11,7 @@ service cloud.firestore {
       }
     }
 
-    match /leagues/{leagueId} {
+      match /lig/{leagueId} {
       allow read: if true;
       allow write: if false;
 
