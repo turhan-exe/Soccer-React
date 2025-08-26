@@ -10,6 +10,7 @@ import { User } from '@/types';
 import { auth } from '@/services/firebase';
 import { signIn, signUp, signOutUser } from '@/services/auth';
 import { createInitialTeam, getTeam } from '@/services/team';
+import { requestJoinLeague } from '@/services/leagues';
 import { generateRandomName } from '@/lib/names';
 
 interface AuthContextType {
@@ -54,6 +55,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         });
         if (!team) {
           await createInitialTeam(firebaseUser.uid, teamName, username);
+          await requestJoinLeague(firebaseUser.uid);
         }
       } else {
         setUser(null);
@@ -83,6 +85,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         const managerName = generateRandomName();
         await updateProfile(cred.user, { displayName: teamName });
         await createInitialTeam(cred.user.uid, teamName, managerName);
+        await requestJoinLeague(cred.user.uid);
       }
     } finally {
       setIsLoading(false);
