@@ -13,7 +13,10 @@ export const assignTeamToLeague = functions.https.onCall(async (data, context) =
   const leagueSnap = await db.runTransaction(async (tx) => {
     // ensure team not already in a league
     const existing = await tx.get(
-      db.collectionGroup('teams').where('teamId', '==', teamId).limit(1)
+      db
+        .collectionGroup('teams')
+        .where(admin.firestore.FieldPath.documentId(), '==', teamId)
+        .limit(1)
     );
     if (!existing.empty) {
       return existing.docs[0].ref.parent.parent!; // league ref
