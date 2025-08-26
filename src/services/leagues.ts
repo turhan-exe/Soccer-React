@@ -44,14 +44,14 @@ export function listenMyLeague(teamId: string, cb: (league: League | null) => vo
 }
 
 export async function getFixturesForTeam(leagueId: string, teamId: string): Promise<Fixture[]> {
-  const col = collection(db, 'leagues', leagueId, 'fixtures');
+  const col = collection(db, 'lig', leagueId, 'fixtures');
   const q = query(col, where('participants', 'array-contains', teamId), orderBy('date'));
   const snap = await getDocs(q);
   return snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Fixture, 'id'>) }));
 }
 
 export function listenStandings(leagueId: string, cb: (rows: Standing[]) => void): Unsubscribe {
-  const col = collection(db, 'leagues', leagueId, 'standings');
+  const col = collection(db, 'lig', leagueId, 'standings');
   const q = query(col, orderBy('Pts', 'desc'), orderBy('GD', 'desc'), orderBy('GF', 'desc'));
   return onSnapshot(q, (snap) => {
     cb(snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Standing, 'id'>) })));
@@ -59,7 +59,7 @@ export function listenStandings(leagueId: string, cb: (rows: Standing[]) => void
 }
 
 export async function listLeagues(): Promise<League[]> {
-  const snap = await getDocs(collection(db, 'leagues'));
+  const snap = await getDocs(collection(db, 'lig'));
   const leagues: League[] = [];
   for (const d of snap.docs) {
     const teamsSnap = await getDocs(collection(d.ref, 'teams'));
@@ -82,7 +82,7 @@ export async function listLeagues(): Promise<League[]> {
 }
 
 export async function listLeagueStandings(leagueId: string): Promise<Standing[]> {
-  const col = collection(db, 'leagues', leagueId, 'standings');
+  const col = collection(db, 'lig', leagueId, 'standings');
   const q = query(col, orderBy('Pts', 'desc'), orderBy('GD', 'desc'), orderBy('GF', 'desc'));
   const snap = await getDocs(q);
   return snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Standing, 'id'>) }));
