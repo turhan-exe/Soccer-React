@@ -120,7 +120,6 @@ export default function TeamPlanning() {
       const draggedIndex = prev.findIndex(p => p.id === playerId);
       if (draggedIndex === -1) return prev;
       const draggedPlayer = prev[draggedIndex];
-      if (draggedPlayer.position === targetPosition) return prev;
       const targetIndex = prev.findIndex(
         p => p.position === targetPosition && p.squadRole === 'starting',
       );
@@ -130,9 +129,14 @@ export default function TeamPlanning() {
         updated[targetIndex] = {
           ...targetPlayer,
           position: draggedPlayer.position,
+          squadRole: draggedPlayer.squadRole,
         };
       }
-      updated[draggedIndex] = { ...draggedPlayer, position: targetPosition };
+      updated[draggedIndex] = {
+        ...draggedPlayer,
+        position: targetPosition,
+        squadRole: 'starting',
+      };
       return updated;
     });
     setDraggedPlayerId(null);
@@ -314,6 +318,13 @@ export default function TeamPlanning() {
                 <PlayerCard
                   key={player.id}
                   player={player}
+                  compact
+                  draggable
+                  onDragStart={e => {
+                    setDraggedPlayerId(player.id);
+                    e.dataTransfer.setData('text/plain', player.id);
+                  }}
+                  onDragEnd={() => setDraggedPlayerId(null)}
                   onMoveToBench={() => movePlayer(player.id, 'bench')}
                   onMoveToReserve={() => movePlayer(player.id, 'reserve')}
                 />
@@ -337,6 +348,13 @@ export default function TeamPlanning() {
                 <PlayerCard
                   key={player.id}
                   player={player}
+                  compact
+                  draggable
+                  onDragStart={e => {
+                    setDraggedPlayerId(player.id);
+                    e.dataTransfer.setData('text/plain', player.id);
+                  }}
+                  onDragEnd={() => setDraggedPlayerId(null)}
                   onMoveToStarting={() => movePlayer(player.id, 'starting')}
                   onMoveToReserve={() => movePlayer(player.id, 'reserve')}
                 />
@@ -360,6 +378,13 @@ export default function TeamPlanning() {
                 <PlayerCard
                   key={player.id}
                   player={player}
+                  compact
+                  draggable
+                  onDragStart={e => {
+                    setDraggedPlayerId(player.id);
+                    e.dataTransfer.setData('text/plain', player.id);
+                  }}
+                  onDragEnd={() => setDraggedPlayerId(null)}
                   onMoveToStarting={() => movePlayer(player.id, 'starting')}
                   onMoveToBench={() => movePlayer(player.id, 'bench')}
                 />
