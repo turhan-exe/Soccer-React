@@ -211,8 +211,11 @@ export default function TeamPlanning() {
                               draggable
                               onDragStart={() => setDraggedPlayerId(player.id)}
                               onDragEnd={() => setDraggedPlayerId(null)}
+                              title={`${player.position} - ${Math.round(player.overall * 100)}`}
                             >
-                              <span className="text-[9px] font-semibold">{player.name.split(' ')[0]}</span>
+                              <span className="text-[9px] font-semibold text-center">
+                                {player.name}
+                              </span>
                             </div>
                           </TooltipTrigger>
                           <TooltipContent>
