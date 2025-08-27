@@ -4,7 +4,7 @@ import { listenStandings } from '@/services/leagues';
 import type { Standing } from '@/types';
 import { Card, CardContent } from '@/components/ui/card';
 
-export default function LeagueDetail() {
+export default function LeagueDetailPage() {
   const { leagueId } = useParams();
   const [rows, setRows] = useState<Standing[]>([]);
 
