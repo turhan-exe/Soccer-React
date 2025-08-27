@@ -47,7 +47,7 @@ export async function getFixturesForTeam(leagueId: string, teamId: string): Prom
   const q = query(col, where('participants', 'array-contains', teamId), orderBy('date'));
   const snap = await getDocs(q);
   return snap.docs.map((d) => {
-    const data = d.data() as any;
+    const data = d.data() as { date: { toDate: () => Date } } & Omit<Fixture, 'id' | 'date'>;
     return { id: d.id, ...data, date: data.date.toDate() } as Fixture;
   });
 }
