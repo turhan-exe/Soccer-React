@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { listenStandings } from '@/services/leagues';
+import { listenStandings, getLeagueTeams } from '@/services/leagues';
 import type { Standing } from '@/types';
 import { Card, CardContent } from '@/components/ui/card';
 
@@ -10,7 +10,28 @@ export default function LeagueDetailPage() {
 
   useEffect(() => {
     if (!leagueId) return;
-    const unsub = listenStandings(leagueId, setRows);
+    const unsub = listenStandings(leagueId, async (sRows) => {
+      if (sRows.length === 0) {
+        const teams = await getLeagueTeams(leagueId);
+        setRows(
+          teams.map((t) => ({
+            id: t.id,
+            teamId: t.id,
+            name: t.name,
+            P: 0,
+            W: 0,
+            D: 0,
+            L: 0,
+            GF: 0,
+            GA: 0,
+            GD: 0,
+            Pts: 0,
+          })),
+        );
+      } else {
+        setRows(sRows);
+      }
+    });
     return unsub;
   }, [leagueId]);
 
