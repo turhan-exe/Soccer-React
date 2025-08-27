@@ -13,10 +13,9 @@ import { httpsCallable } from 'firebase/functions';
 import { db, functions } from './firebase';
 import type { League, Fixture, Standing } from '@/types';
 
-export async function requestJoinLeague(teamId: string) {
+export async function requestJoinLeague(teamId: string): Promise<void> {
   const fn = httpsCallable(functions, 'assignTeamToLeague');
-  const res = await fn({ teamId });
-  return res.data as { leagueId: string; state: string };
+  await fn({ teamId });
 }
 
 export function listenMyLeague(teamId: string, cb: (league: League | null) => void): Unsubscribe {
@@ -47,7 +46,31 @@ export async function getFixturesForTeam(leagueId: string, teamId: string): Prom
   const col = collection(db, 'leagues', leagueId, 'fixtures');
   const q = query(col, where('participants', 'array-contains', teamId), orderBy('date'));
   const snap = await getDocs(q);
-  return snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Fixture, 'id'>) }));
+  return snap.docs.map((d) => {
+    const data = d.data() as any;
+    return { id: d.id, ...data, date: data.date.toDate() } as Fixture;
+  });
+}
+
+export async function getMyLeagueId(teamId: string): Promise<string | null> {
+  const q = query(
+    collectionGroup(db, 'teams'),
+    where('teamId', '==', teamId),
+    limit(1),
+  );
+  const snap = await getDocs(q);
+  if (snap.empty) return null;
+  return snap.docs[0].ref.parent.parent!.id;
+}
+
+export async function getLeagueTeams(
+  leagueId: string,
+): Promise<{ id: string; name: string }[]> {
+  const snap = await getDocs(collection(db, 'leagues', leagueId, 'teams'));
+  return snap.docs.map((d) => {
+    const data = d.data() as { name?: string };
+    return { id: d.id, name: data.name ?? d.id };
+  });
 }
 
 export function listenStandings(leagueId: string, cb: (rows: Standing[]) => void): Unsubscribe {
