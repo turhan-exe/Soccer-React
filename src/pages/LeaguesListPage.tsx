@@ -6,7 +6,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { listLeagues, listenMyLeague } from '@/services/leagues';
 import type { League } from '@/types';
 
-export default function Leagues() {
+export default function LeaguesListPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [leagues, setLeagues] = useState<League[]>([]);
