@@ -1,17 +1,34 @@
 import {
   collection,
   collectionGroup,
+  addDoc,
   getDocs,
   onSnapshot,
   orderBy,
   query,
   where,
   limit,
+  serverTimestamp,
   Unsubscribe,
 } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { db, functions } from './firebase';
 import type { League, Fixture, Standing } from '@/types';
+
+export async function ensureDefaultLeague(): Promise<void> {
+  const snap = await getDocs(collection(db, 'leagues'));
+  if (!snap.empty) return;
+  await addDoc(collection(db, 'leagues'), {
+    name: 'League 1',
+    season: 1,
+    capacity: 22,
+    timezone: 'Europe/Istanbul',
+    state: 'forming',
+    rounds: 0,
+    teamCount: 0,
+    createdAt: serverTimestamp(),
+  });
+}
 
 export async function requestJoinLeague(teamId: string): Promise<void> {
   const fn = httpsCallable(functions, 'assignTeamToLeague');
