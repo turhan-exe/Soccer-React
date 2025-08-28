@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/contexts/AuthContext';
-import { listLeagues, listenMyLeague } from '@/services/leagues';
+import { ensureDefaultLeague, listLeagues, listenMyLeague } from '@/services/leagues';
 import type { League } from '@/types';
 
 export default function LeaguesListPage() {
@@ -13,7 +13,12 @@ export default function LeaguesListPage() {
   const [myLeagueId, setMyLeagueId] = useState<string | null>(null);
 
   useEffect(() => {
-    listLeagues().then(setLeagues);
+    const load = async () => {
+      await ensureDefaultLeague();
+      const ls = await listLeagues();
+      setLeagues(ls);
+    };
+    load();
   }, []);
 
   useEffect(() => {

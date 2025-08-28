@@ -1,20 +1,27 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { listLeagues } from './leagues';
+import { listLeagues, ensureDefaultLeague } from './leagues';
 
 vi.mock('./firebase', () => ({ db: {} }));
 
-const collectionMock = vi.fn();
-const getDocsMock = vi.fn();
+const { collectionMock, getDocsMock, addDocMock, serverTimestampMock } = vi.hoisted(() => ({
+  collectionMock: vi.fn(),
+  getDocsMock: vi.fn(),
+  addDocMock: vi.fn(),
+  serverTimestampMock: vi.fn(() => 'ts'),
+}));
 
 vi.mock('firebase/firestore', () => ({
   collection: (...args: unknown[]) => collectionMock(...args),
   getDocs: (...args: unknown[]) => getDocsMock(...args),
+  addDoc: (...args: unknown[]) => addDocMock(...args),
+  serverTimestamp: serverTimestampMock,
 }));
 
 describe('listLeagues', () => {
   beforeEach(() => {
     collectionMock.mockClear();
     getDocsMock.mockReset();
+    addDocMock.mockReset();
   });
 
   it('returns empty array when no leagues exist', async () => {
@@ -50,5 +57,25 @@ describe('listLeagues', () => {
       { id: 't1', name: 'Team 1' },
       { id: 't2', name: 't2' },
     ]);
+  });
+});
+
+describe('ensureDefaultLeague', () => {
+  beforeEach(() => {
+    getDocsMock.mockReset();
+    addDocMock.mockReset();
+  });
+
+  it('does nothing when leagues exist', async () => {
+    getDocsMock.mockResolvedValueOnce({ empty: false });
+    await ensureDefaultLeague();
+    expect(addDocMock).not.toHaveBeenCalled();
+  });
+
+  it('creates league when none exist', async () => {
+    getDocsMock.mockResolvedValueOnce({ empty: true });
+    await ensureDefaultLeague();
+    expect(addDocMock).toHaveBeenCalledTimes(1);
+    expect(serverTimestampMock).toHaveBeenCalled();
   });
 });
