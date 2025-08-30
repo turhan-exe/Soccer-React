@@ -43,6 +43,7 @@ export default function LeagueDetailPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="text-left border-b">
+                <th className="p-2 w-10">S</th>
                 <th className="p-2">Takım</th>
                 <th className="p-2">P</th>
                 <th className="p-2">W</th>
@@ -55,8 +56,9 @@ export default function LeagueDetailPage() {
               </tr>
             </thead>
             <tbody>
-              {rows.map((r) => (
+              {rows.map((r, idx) => (
                 <tr key={r.teamId} data-testid={`standings-row-${r.teamId}`} className="border-b">
+                  <td className="p-2">{idx + 1}</td>
                   <td className="p-2">{r.name}</td>
                   <td className="p-2">{r.P}</td>
                   <td className="p-2">{r.W}</td>

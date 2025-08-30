@@ -150,6 +150,24 @@ export async function assignTeam(teamId: string, teamName: string) {
         name: teamName,
         joinedAt: FieldValue.serverTimestamp(),
       });
+      // Initialize standings row with zeros so UI can list teams immediately
+      const standingsRef = chosenLeagueRef!.collection('standings').doc(teamId);
+      tx.set(
+        standingsRef,
+        {
+          teamId,
+          name: teamName,
+          P: 0,
+          W: 0,
+          D: 0,
+          L: 0,
+          GF: 0,
+          GA: 0,
+          GD: 0,
+          Pts: 0,
+        },
+        { merge: true }
+      );
       const newCount = currentCount + 1;
       // Loosen typing here to avoid dependency/type resolution issues in UI env
       const updateData: any = {

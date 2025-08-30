@@ -47,11 +47,25 @@ export async function assignTeam(teamId, teamName) {
         // Defer writes until after all reads to satisfy Firestore TX rules
         let finalizeOldForming = null;
         let pendingNewLeague = null;
-        const formingSnap = await tx.get(db
-            .collection('leagues')
-            .where('state', '==', 'forming')
-            .orderBy('createdAt', 'asc')
-            .limit(1));
+        // Prefer indexed query (state + createdAt). If index is missing in the
+        // target project, fall back to a simpler query to avoid 500s in prod.
+        let formingSnap;
+        try {
+            formingSnap = await tx.get(db
+                .collection('leagues')
+                .where('state', '==', 'forming')
+                .orderBy('createdAt', 'asc')
+                .limit(1));
+        }
+        catch (e) {
+            functions.logger.warn('[ASSIGN:TXX] Missing index for state+createdAt; using fallback without orderBy', {
+                error: e?.message,
+            });
+            formingSnap = await tx.get(db
+                .collection('leagues')
+                .where('state', '==', 'forming')
+                .limit(1));
+        }
         if (formingSnap.empty) {
             functions.logger.info('[ASSIGN:TXX] Uygun forming lig yok, yenisi oluşturuluyor');
             const { newLeagueRef, newLeagueData } = await prepareNewFormingLeague();
@@ -116,6 +130,20 @@ export async function assignTeam(teamId, teamName) {
                 name: teamName,
                 joinedAt: FieldValue.serverTimestamp(),
             });
+            // Initialize standings row with zeros so UI can list teams immediately
+            const standingsRef = chosenLeagueRef.collection('standings').doc(teamId);
+            tx.set(standingsRef, {
+                teamId,
+                name: teamName,
+                P: 0,
+                W: 0,
+                D: 0,
+                L: 0,
+                GF: 0,
+                GA: 0,
+                GD: 0,
+                Pts: 0,
+            }, { merge: true });
             const newCount = currentCount + 1;
             // Loosen typing here to avoid dependency/type resolution issues in UI env
             const updateData = {
