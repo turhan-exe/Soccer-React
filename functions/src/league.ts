@@ -108,6 +108,46 @@ export const assignTeamToLeague = functions.https.onCall(async (data, context) =
   return { leagueId: leagueRef.id, state };
 });
 
+export const assignTeamToLeagueHttp = functions.https.onRequest(async (req, res) => {
+  try {
+    if (req.method !== 'POST') {
+      res.status(405).send('Method Not Allowed');
+      return;
+    }
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      res.status(401).json({ error: 'unauthenticated' });
+      return;
+    }
+    const token = authHeader.split('Bearer ')[1];
+    const decoded = await admin.auth().verifyIdToken(token);
+    const uid = decoded.uid;
+    const teamId = req.body?.teamId as string | undefined;
+    if (!teamId) {
+      res.status(400).json({ error: 'teamId required' });
+      return;
+    }
+    const teamSnap = await db.collection('teams').doc(teamId).get();
+    if (!teamSnap.exists) {
+      res.status(404).json({ error: 'Team not found' });
+      return;
+    }
+    const teamData = teamSnap.data() as any;
+    if (teamData.ownerUid && teamData.ownerUid !== uid) {
+      res.status(403).json({ error: 'Not owner' });
+      return;
+    }
+    const { leagueRef, state } = await assignTeam(
+      teamId,
+      teamData.name || `Team ${teamId}`,
+    );
+    res.json({ leagueId: leagueRef.id, state });
+  } catch (err) {
+    console.error('assignTeamToLeagueHttp error', err);
+    res.status(500).json({ error: 'internal' });
+  }
+});
+
 export const assignAllTeamsToLeagues = functions.https.onRequest(async (_req, res) => {
   const snap = await db.collection('teams').get();
   const results: { teamId: string; leagueId: string; state: string }[] = [];

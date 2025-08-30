@@ -1,5 +1,6 @@
 export {
   assignTeamToLeague,
+  assignTeamToLeagueHttp,
   assignAllTeamsToLeagues,
   generateRoundRobinFixturesFn,
 } from './league';
