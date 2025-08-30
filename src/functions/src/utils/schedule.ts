@@ -1,4 +1,5 @@
 import { addDays } from 'date-fns';
+import { fromZonedTime, formatInTimeZone } from 'date-fns-tz';
 
 export interface MatchPair {
   round: number;
@@ -6,55 +7,58 @@ export interface MatchPair {
   awayTeamId: string;
 }
 
-// Berger round-robin algorithm for even number of teams
+// Circle method (team[0] sabit) — ilk yarı: A, B, C, ... sırasıyla
+// A'nın ev sahibi olduğu karşılaşmalar; ikinci yarı birebir aynısının
+// deplasman olarak aynen tekrarı. Kullanıcı beklentisiyle uyumlu sıra.
 export function generateRoundRobinFixtures(teamIds: string[]): MatchPair[] {
   const n = teamIds.length;
   if (n % 2 !== 0) throw new Error('Team count must be even');
   const rounds = n - 1;
   const half = n / 2;
-  const teams = [...teamIds];
-  const fixtures: MatchPair[] = [];
-  for (let round = 0; round < rounds; round++) {
-    for (let i = 0; i < half; i++) {
-      const homeIdx = (round + i) % (n - 1);
-      const awayIdx = (n - 1 - i + round) % (n - 1);
-      let home = teams[homeIdx];
-      let away = teams[awayIdx];
-      if (i === 0) away = teams[n - 1];
-      if (round % 2 === 1) {
-        const tmp = home;
-        home = away;
-        away = tmp;
+
+  const fixed = teamIds[0];
+  const rotating = teamIds.slice(1); // dönen kuyruk
+
+  const firstLeg: MatchPair[] = [];
+
+  for (let r = 0; r < rounds; r++) {
+    // 1) Sabit takım fixed, her turda rotating[0] ile oynar
+    firstLeg.push({ round: r + 1, homeTeamId: fixed, awayTeamId: rotating[0] });
+
+    // 2) Kalan eşleşmeler: uçlardan içeri doğru eşleştir
+    for (let i = 1; i < half; i++) {
+      const t1 = rotating[i];
+      const t2 = rotating[rotating.length - i];
+      // Basit dengeleme: tur numarasına göre ev sahibi değiştir (opsiyonel)
+      if (r % 2 === 0) {
+        firstLeg.push({ round: r + 1, homeTeamId: t1, awayTeamId: t2 });
+      } else {
+        firstLeg.push({ round: r + 1, homeTeamId: t2, awayTeamId: t1 });
       }
-      fixtures.push({ round: round + 1, homeTeamId: home, awayTeamId: away });
     }
+
+    // 3) Döndür: ilk elemanı sona al (A vs B -> A vs C -> ...)
+    const first = rotating.shift()!;
+    rotating.push(first);
   }
-  return fixtures;
+
+  // İkinci yarı: aynı sıranın ev/deplasman ters çevrilmiş hali
+  const secondLeg: MatchPair[] = firstLeg.map((m) => ({
+    round: rounds + m.round,
+    homeTeamId: m.awayTeamId,
+    awayTeamId: m.homeTeamId,
+  }));
+
+  return [...firstLeg, ...secondLeg];
 }
 
-// Returns 19:00 Europe/Istanbul of today or tomorrow if past 19:00
-export function nextValid19TR(now: Date = new Date()): Date {
+// Returns the next day at 19:00 in Europe/Istanbul, as a UTC Date
+export function nextDay19TR(baseDate: Date = new Date()): Date {
   const tz = 'Europe/Istanbul';
-  const fmt = new Intl.DateTimeFormat('en-US', {
-    timeZone: tz,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-  });
-  const parts = fmt.formatToParts(now);
-  const year = Number(parts.find((p) => p.type === 'year')?.value);
-  const month = Number(parts.find((p) => p.type === 'month')?.value);
-  let day = Number(parts.find((p) => p.type === 'day')?.value);
-  const hour = Number(parts.find((p) => p.type === 'hour')?.value);
-  if (hour >= 19) day += 1;
-  const local = new Date(Date.UTC(year, month - 1, day, 19, 0, 0));
-  const offset =
-    new Date(local.toLocaleString('en-US', { timeZone: tz })).getTime() -
-    local.getTime();
-  return new Date(local.getTime() - offset);
+  // Find tomorrow's date in TR timezone (string)
+  const tomorrowYmdInTR = formatInTimeZone(addDays(baseDate, 1), tz, 'yyyy-MM-dd');
+  // Convert that local TR 19:00 to a UTC Date
+  return fromZonedTime(`${tomorrowYmdInTR} 19:00:00`, tz);
 }
 
 export function addDaysUTC(date: Date, days: number): Date {

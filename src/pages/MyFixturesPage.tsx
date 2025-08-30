@@ -4,13 +4,18 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
+import { toast } from '@/components/ui/sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import {
   getFixturesForTeam,
   getMyLeagueId,
   getLeagueTeams,
+  ensureFixturesForLeague,
 } from '@/services/leagues';
 import type { Fixture } from '@/types';
+import { formatInTimeZone } from 'date-fns-tz';
+import { httpsCallable } from 'firebase/functions';
+import { functions } from '@/services/firebase';
 
 interface DisplayFixture extends Fixture {
   opponent: string;
@@ -22,6 +27,8 @@ export default function MyFixturesPage() {
   const { user } = useAuth();
   const [fixtures, setFixtures] = useState<DisplayFixture[]>([]);
   const [upcomingOnly, setUpcomingOnly] = useState(true);
+  const [myLeagueId, setMyLeagueId] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     const load = async () => {
@@ -29,8 +36,12 @@ export default function MyFixturesPage() {
       const leagueId = await getMyLeagueId(user.id);
       if (!leagueId) {
         setFixtures([]);
+        setMyLeagueId(null);
         return;
       }
+      setMyLeagueId(leagueId);
+      // Backfill: ensure fixtures exist when a league just got scheduled
+      await ensureFixturesForLeague(leagueId);
       const [list, teams] = await Promise.all([
         getFixturesForTeam(leagueId, user.id),
         getLeagueTeams(leagueId),
@@ -51,11 +62,54 @@ export default function MyFixturesPage() {
   }, [user]);
 
   const formatDate = (d: Date) =>
-    d.toLocaleString('tr-TR', { timeZone: 'Europe/Istanbul', hour12: false });
+    formatInTimeZone(d, 'Europe/Istanbul', 'dd MMM yyyy, HH:mm');
 
   const visibleFixtures = upcomingOnly
     ? fixtures.filter((f) => f.status !== 'played')
     : fixtures;
+
+  const handleGenerateFixtures = async () => {
+    if (!user || !myLeagueId) {
+      toast.message('Lig bulunamadı', {
+        description: 'Önce bir lige katılmalısınız.',
+      });
+      return;
+    }
+    try {
+      setBusy(true);
+      const toastId = toast.loading('Fikstür oluşturuluyor...', {
+        description: 'Lütfen bekleyin.',
+      });
+      const fn = httpsCallable(functions, 'generateRoundRobinFixturesFn');
+      await fn({ leagueId: myLeagueId, force: true });
+      const [list, teams] = await Promise.all([
+        getFixturesForTeam(myLeagueId, user.id),
+        getLeagueTeams(myLeagueId),
+      ]);
+      const teamMap = new Map(teams.map((t) => [t.id, t.name]));
+      const mapped: DisplayFixture[] = list.map((m) => {
+        const home = m.homeTeamId === user.id;
+        const opponentId = home ? m.awayTeamId : m.homeTeamId;
+        return {
+          ...m,
+          opponent: teamMap.get(opponentId) || opponentId,
+          home,
+        };
+      });
+      setFixtures(mapped);
+      toast.success('Fikstür yeniden oluşturuldu', {
+        description: 'Maçlar başarıyla güncellendi.',
+        id: toastId,
+      });
+    } catch (e) {
+      console.warn('[MyFixturesPage] generate fixtures failed', e);
+      toast.error('Hata', {
+        description: 'Fikstür oluşturulamadı. Lütfen tekrar deneyin.',
+      });
+    } finally {
+      setBusy(false);
+    }
+  };
 
   return (
     <div className="p-4">
@@ -69,6 +123,13 @@ export default function MyFixturesPage() {
             onCheckedChange={setUpcomingOnly}
             aria-label="Upcoming only toggle"
           />
+          <Button
+            size="sm"
+            onClick={handleGenerateFixtures}
+            disabled={!myLeagueId || busy}
+          >
+            Fikstürü Oluştur
+          </Button>
         </div>
       </div>
       <div className="space-y-2">
