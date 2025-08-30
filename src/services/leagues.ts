@@ -10,12 +10,37 @@ import {
   Unsubscribe,
 } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
-import { db, functions } from './firebase';
+import { db, functions, auth } from './firebase';
 import type { League, Fixture, Standing } from '@/types';
 
 export async function requestJoinLeague(teamId: string): Promise<void> {
   const fn = httpsCallable(functions, 'assignTeamToLeague');
-  await fn({ teamId });
+  try {
+    await fn({ teamId });
+  } catch (err) {
+    console.error(
+      '[leagues.requestJoinLeague] Callable failed, trying HTTP fallback:',
+      err,
+    );
+    const token = await auth.currentUser?.getIdToken();
+    if (!token) throw err;
+    const region =
+      (functions as unknown as { _region?: string })._region || 'us-central1';
+    const projectId = functions.app.options.projectId;
+    const url = `https://${region}-${projectId}.cloudfunctions.net/assignTeamToLeagueHttp`;
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ teamId }),
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`HTTP ${res.status}: ${text}`);
+    }
+  }
 }
 
 export function listenMyLeague(teamId: string, cb: (league: League | null) => void): Unsubscribe {
