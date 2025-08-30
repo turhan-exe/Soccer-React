@@ -1,9 +1,11 @@
 import * as functions from 'firebase-functions';
 import * as admin from 'firebase-admin';
+import { getFirestore, Timestamp } from 'firebase-admin/firestore';
+import * as pubsub from 'firebase-functions/v1/pubsub';
 
-const db = admin.firestore();
+const db = getFirestore();
 
-export const runDailyMatches = functions.pubsub
+export const runDailyMatches = pubsub
   .schedule('0 19 * * *')
   .timeZone('Europe/Istanbul')
   .onRun(async () => {
@@ -24,7 +26,7 @@ export const runDailyMatches = functions.pubsub
       new Date(local.toLocaleString('en-US', { timeZone: tz })).getTime() -
       local.getTime();
     const target = new Date(local.getTime() - offset);
-    const matchTs = admin.firestore.Timestamp.fromDate(target);
+    const matchTs = Timestamp.fromDate(target);
 
     const leaguesSnap = await db
       .collection('leagues')

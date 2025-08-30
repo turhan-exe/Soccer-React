@@ -178,7 +178,12 @@ export default function TeamPlanning() {
                   className="pl-10"
                 />
               </div>
-              <Select value={sortBy} onValueChange={setSortBy}>
+              <Select
+                value={sortBy}
+                onValueChange={value =>
+                  setSortBy(value as 'role' | 'overall' | 'potential')
+                }
+              >
                 <SelectTrigger className="w-40">
                   <SelectValue placeholder="Sırala" />
                 </SelectTrigger>
