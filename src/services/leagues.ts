@@ -29,6 +29,7 @@ export async function ensureDefaultLeague(): Promise<void> {
     teamCount: 0,
     createdAt: serverTimestamp(),
   });
+
 }
 
 /** Takımı bir lige yerleştirmek için callable'ı kullan; gerekirse HTTP fallback */
