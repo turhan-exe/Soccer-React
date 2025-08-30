@@ -1,5 +1,5 @@
 import * as functions from 'firebase-functions';
-import { generateRoundRobinFixtures, nextValid19TR } from './utils/schedule.js';
+import { generateRoundRobinFixtures, nextDay19TR } from './utils/schedule.js';
 import { initializeApp } from 'firebase-admin/app';
 import { getFirestore, FieldValue, Timestamp, } from 'firebase-admin/firestore';
 import { getAuth } from 'firebase-admin/auth';
@@ -13,6 +13,8 @@ const db = getFirestore();
 export async function assignTeam(teamId, teamName) {
     functions.logger.info('[ASSIGN] Başladı', { teamId, teamName });
     const t0 = Date.now();
+    // Capture a league we may finalize inside the TX so we can create fixtures after
+    let finalizedToScheduleOuter = null;
     const leagueRef = await db.runTransaction(async (tx) => {
         functions.logger.info('[ASSIGN:TXX] Transaction başladı', { teamId });
         // 1) Team already in a league? If so, return that league.
@@ -35,7 +37,7 @@ export async function assignTeam(teamId, teamName) {
                 capacity: 22,
                 timezone: 'Europe/Istanbul',
                 state: 'forming',
-                rounds: 21,
+                rounds: 42,
                 teamCount: 0,
                 createdAt: FieldValue.serverTimestamp(),
             };
@@ -86,7 +88,7 @@ export async function assignTeam(teamId, teamName) {
                     count,
                     capacity,
                 });
-                const startDate = nextValid19TR();
+                const startDate = nextDay19TR();
                 finalizeOldForming = { ref: doc.ref, startDate };
                 const { newLeagueRef, newLeagueData } = await prepareNewFormingLeague();
                 pendingNewLeague = { ref: newLeagueRef, data: newLeagueData };
@@ -120,7 +122,13 @@ export async function assignTeam(teamId, teamName) {
                 tx.update(finalizeOldForming.ref, {
                     state: 'scheduled',
                     startDate: Timestamp.fromDate(finalizeOldForming.startDate),
+                    lockedAt: FieldValue.serverTimestamp(),
+                    rounds: 42,
                 });
+                finalizedToScheduleOuter = {
+                    leagueId: finalizeOldForming.ref.id,
+                    startDate: finalizeOldForming.startDate,
+                };
             }
             if (pendingNewLeague) {
                 tx.set(pendingNewLeague.ref, pendingNewLeague.data);
@@ -152,9 +160,11 @@ export async function assignTeam(teamId, teamName) {
                 teams: FieldValue.arrayUnion({ teamId, name: teamName }),
             };
             if (newCount === capacity) {
-                const startDate = nextValid19TR();
+                const startDate = nextDay19TR();
                 updateData.state = 'scheduled';
                 updateData.startDate = Timestamp.fromDate(startDate);
+                updateData.lockedAt = FieldValue.serverTimestamp();
+                updateData.rounds = 42;
                 functions.logger.info('[ASSIGN:TXX] Kapasite tamamlandı, lig schedule edildi', {
                     leagueId: chosenLeagueRef.id,
                     startDate: updateData.startDate,
@@ -174,6 +184,16 @@ export async function assignTeam(teamId, teamName) {
         state: leagueData.state,
         ms: Date.now() - t0,
     });
+    // If we finalized a full league that wasn't the one we returned, generate fixtures for it now
+    if (finalizedToScheduleOuter) {
+        const { leagueId: finId, startDate: finStart } = finalizedToScheduleOuter;
+        const finRef = db.collection('leagues').doc(finId);
+        const hasFixtures = await finRef.collection('fixtures').limit(1).get();
+        if (hasFixtures.empty) {
+            functions.logger.info('[ASSIGN] Finalize edilen lig için fikstür üretimi', { leagueId: finId });
+            await generateFixturesForLeague(finId, finStart);
+        }
+    }
     if (leagueData.state === 'scheduled') {
         const startDate = leagueData.startDate.toDate();
         const fixturesSnap = await leagueRef.collection('fixtures').limit(1).get();
@@ -336,12 +356,48 @@ async function generateFixturesForLeague(leagueId, startDate) {
 }
 export const generateRoundRobinFixturesFn = functions.https.onCall(async (request) => {
     const leagueId = request.data?.leagueId;
-    functions.logger.info('[CALLABLE] generateRoundRobinFixturesFn çağrıldı', { leagueId });
+    const force = Boolean(request.data?.force);
+    functions.logger.info('[CALLABLE] generateRoundRobinFixturesFn çağrıldı', { leagueId, force });
+    if (!leagueId) {
+        throw new functions.https.HttpsError('invalid-argument', 'leagueId required');
+    }
     const leagueRef = db.collection('leagues').doc(leagueId);
     const leagueSnap = await leagueRef.get();
+    if (!leagueSnap.exists) {
+        throw new functions.https.HttpsError('not-found', 'League not found');
+    }
     const league = leagueSnap.data();
+    const existing = await leagueRef.collection('fixtures').limit(1).get();
+    if (!existing.empty && !force) {
+        functions.logger.info('[CALLABLE] generateRoundRobinFixturesFn: Zaten mevcut, atlandı', { leagueId });
+        return { ok: true, skipped: true };
+    }
+    // If forcing, delete all current fixtures first (chunked batches for safety)
+    if (force && !existing.empty) {
+        const all = await leagueRef.collection('fixtures').get();
+        let deleted = 0;
+        let batch = db.batch();
+        let ops = 0;
+        for (const doc of all.docs) {
+            batch.delete(doc.ref);
+            ops++;
+            deleted++;
+            if (ops >= 450) {
+                await batch.commit();
+                batch = db.batch();
+                ops = 0;
+            }
+        }
+        if (ops > 0) {
+            await batch.commit();
+        }
+        functions.logger.info('[CALLABLE] generateRoundRobinFixturesFn: Eski fikstürler silindi', {
+            leagueId,
+            deleted,
+        });
+    }
     await generateFixturesForLeague(leagueId, league.startDate.toDate());
-    functions.logger.info('[CALLABLE] generateRoundRobinFixturesFn bitti', { leagueId });
-    return true;
+    functions.logger.info('[CALLABLE] generateRoundRobinFixturesFn bitti', { leagueId, forced: force });
+    return { ok: true, forced: force };
 });
 // export const

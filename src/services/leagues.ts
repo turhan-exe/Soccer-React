@@ -1,12 +1,15 @@
 // src/services/leagues.ts
 import {
   collection,
+  doc,
+  getDoc,
   collectionGroup,
   addDoc,
   getDocs,
   onSnapshot,
   query,
   where,
+  orderBy,
   limit,
   serverTimestamp,
   Unsubscribe,
@@ -87,6 +90,26 @@ export async function requestJoinLeague(teamId: string): Promise<void> {
   }
 }
 
+/** Eğer lig 'scheduled' ve fikstürleri yoksa, functions ile üretmeyi dener */
+export async function ensureFixturesForLeague(leagueId: string): Promise<void> {
+  const leagueSnap = await getDoc(doc(db, 'leagues', leagueId));
+  if (!leagueSnap.exists()) return;
+  const league = leagueSnap.data() as League & { startDate?: any };
+  if (league.state !== 'scheduled' && league.state !== 'active') return;
+
+  const fixturesRef = collection(db, 'leagues', leagueId, 'fixtures');
+  const existing = await getDocs(query(fixturesRef, limit(1)));
+  if (!existing.empty) return;
+
+  try {
+    const fn = httpsCallable(functions, 'generateRoundRobinFixturesFn');
+    await fn({ leagueId });
+  } catch (e) {
+    // swallow; page will still render empty if it fails
+    console.warn('[ensureFixturesForLeague] failed', e);
+  }
+}
+
 /** Kullanıcının takımının hangi ligde olduğunu dinle */
 export function listenMyLeague(
   teamId: string,
@@ -123,27 +146,42 @@ export function listenMyLeague(
 /**
  * Bir takımın fikstürlerini getir.
  * NOT: array-contains + orderBy('date') kompozit index ister.
- * Index zorunluluğunu kaldırmak için tarih sıralamasını istemcide yapıyoruz.
+ * Index hazır değilse de sonuçlar her zaman istemcide tarihe göre sıralanır.
  */
 export async function getFixturesForTeam(
   leagueId: string,
   teamId: string
 ): Promise<Fixture[]> {
   const col = collection(db, 'leagues', leagueId, 'fixtures');
-  const q = query(col, where('participants', 'array-contains', teamId));
-  const snap = await getDocs(q);
+  let snap;
+  try {
+    const q = query(
+      col,
+      where('participants', 'array-contains', teamId),
+      orderBy('date', 'asc')
+    );
+    snap = await getDocs(q);
+  } catch {
+    // Fallback if composite index not deployed yet
+    const q = query(col, where('participants', 'array-contains', teamId));
+    snap = await getDocs(q);
+  }
 
-  const list: Fixture[] = snap.docs.map((d) => {
+  // Firestore Timestamp → Date dönüştür ve tarihe göre sırala (artan)
+  const list = snap.docs.map((d) => {
     const data = d.data() as { date: { toDate: () => Date } } & Omit<
       Fixture,
       'id' | 'date'
     >;
-    return { id: d.id, ...data, date: data.date.toDate() } as Fixture;
+    return { id: d.id, ...data, date: data.date.toDate() } as Fixture & {
+      date: Date;
+    };
   });
 
-  // Tarihe göre artan sırada
-  list.sort((a, b) => (a.date as Date).getTime() - (b.date as Date).getTime());
-  return list;
+  // İstemci tarafı tarih sıralaması: her zaman artan
+  (list as { date: Date }[]).sort((a, b) => a.date.getTime() - b.date.getTime());
+
+  return list as unknown as Fixture[];
 }
 
 /** Takımın bağlı olduğu ligin id'sini tek seferlik getir */
