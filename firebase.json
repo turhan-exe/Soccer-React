@@ -12,5 +12,9 @@
         "destination": "/index.html"
       }
     ]
+  },
+  "functions": {
+    "source": "src/functions", 
+    "runtime": "nodejs20"
   }
 }

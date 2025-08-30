@@ -305,48 +305,6 @@ const rawMockPlayers: Omit<Player, 'potential'>[] = [
   },
 ];
 
-export const youthPlayers: Player[] = [
-  {
-    id: 'y1',
-    name: 'Ahmet Genç',
-    position: 'ST',
-    roles: getRoles('ST'),
-    overall: 0.567,
-    attributes: createAttributes({
-      topSpeed: 0.712,
-      acceleration: 0.5,
-      agility: 0.5,
-      shooting: 0.634,
-      passing: 0.456,
-      tackling: 0.123,
-      ballControl: 0.678,
-      strength: 0.445,
-    }),
-    age: 18,
-    squadRole: 'youth',
-    ...defaultPhysical,
-  },
-  {
-    id: 'y2',
-    name: 'Berkay Yeni',
-    position: 'CM',
-    roles: getRoles('CM'),
-    overall: 0.523,
-    attributes: createAttributes({
-      topSpeed: 0.578,
-      acceleration: 0.5,
-      agility: 0.5,
-      shooting: 0.423,
-      passing: 0.667,
-      tackling: 0.445,
-      ballControl: 0.567,
-      strength: 0.456,
-    }),
-    age: 17,
-    squadRole: 'youth',
-    ...defaultPhysical,
-  },
-];
 
 export const mockPlayers: Player[] = rawMockPlayers.map((p) => ({
   ...p,

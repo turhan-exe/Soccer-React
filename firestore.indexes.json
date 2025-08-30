@@ -1,6 +1,21 @@
 {
   "indexes": [
     {
+      "collectionId": "leagues",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "state", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "teams",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "teamId", "order": "ASCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "fixtures",
       "queryScope": "COLLECTION",
       "fields": [
