@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -21,6 +21,7 @@ import {
   Bell
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { getMyLeagueId, listLeagueStandings, getFixturesForTeam } from '@/services/leagues';
 
 const menuItems = [
   { id: 'team-planning', label: 'Takım Planı', icon: Users, color: 'bg-blue-500' },
@@ -40,6 +41,51 @@ export default function MainMenu() {
   const { user, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
+
+  const [leaguePosition, setLeaguePosition] = useState<number | null>(null);
+  const [leaguePoints, setLeaguePoints] = useState<number | null>(null);
+  const [hoursToNextMatch, setHoursToNextMatch] = useState<number | null>(null);
+
+  useEffect(() => {
+    const loadQuickStats = async () => {
+      if (!user) return;
+      try {
+        const leagueId = await getMyLeagueId(user.id);
+        if (!leagueId) {
+          setLeaguePosition(null);
+          setLeaguePoints(null);
+          setHoursToNextMatch(null);
+          return;
+        }
+
+        const standings = await listLeagueStandings(leagueId);
+        const myIndex = standings.findIndex((s) => s.id === user.id);
+        if (myIndex >= 0) {
+          setLeaguePosition(myIndex + 1);
+          setLeaguePoints(standings[myIndex].Pts);
+        } else {
+          setLeaguePosition(null);
+          setLeaguePoints(null);
+        }
+
+        const fixtures = await getFixturesForTeam(leagueId, user.id);
+        const upcoming = fixtures.find((f: any) => f.status !== 'played');
+        if (upcoming && (upcoming as any).date) {
+          const matchTime = new Date((upcoming as any).date as Date).getTime();
+          const now = Date.now();
+          const diffMs = Math.max(0, matchTime - now);
+          const hours = Math.ceil(diffMs / 36e5);
+          setHoursToNextMatch(hours);
+        } else {
+          setHoursToNextMatch(null);
+        }
+      } catch (e) {
+        console.warn('[MainMenu] quick stats load failed', e);
+      }
+    };
+
+    loadQuickStats();
+  }, [user]);
 
   const handleMenuClick = (itemId: string) => {
     navigate(`/${itemId}`);
@@ -110,20 +156,20 @@ export default function MainMenu() {
           <div className="grid grid-cols-3 gap-4">
             <Card>
               <CardContent className="p-4 text-center">
-                <div className="text-2xl font-bold text-green-600">3.</div>
+                <div className="text-2xl font-bold text-green-600">{leaguePosition ?? '-'}{leaguePosition ? '.' : ''}</div>
                 <div className="text-sm text-muted-foreground">Lig Sırası</div>
               </CardContent>
             </Card>
             <Card>
               <CardContent className="p-4 text-center">
-                <div className="text-2xl font-bold text-blue-600">15</div>
+                <div className="text-2xl font-bold text-blue-600">{leaguePoints ?? '-'}</div>
                 <div className="text-sm text-muted-foreground">Puan</div>
               </CardContent>
             </Card>
             <Card>
               <CardContent className="p-4 text-center">
-                <div className="text-2xl font-bold text-purple-600">2</div>
-                <div className="text-sm text-muted-foreground">Gün Sonra</div>
+                <div className="text-2xl font-bold text-purple-600">{hoursToNextMatch ?? '-'}</div>
+                <div className="text-sm text-muted-foreground">Saat Sonra</div>
               </CardContent>
             </Card>
           </div>
