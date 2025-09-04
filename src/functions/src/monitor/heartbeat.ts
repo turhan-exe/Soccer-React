@@ -1,0 +1,28 @@
+import { getApps, initializeApp } from 'firebase-admin/app';
+import * as admin from 'firebase-admin';
+import { getFirestore } from 'firebase-admin/firestore';
+import { formatInTimeZone } from 'date-fns-tz';
+import { log } from '../logger.js';
+
+if (!getApps().length) {
+  initializeApp();
+}
+
+const db = getFirestore();
+const TZ = 'Europe/Istanbul';
+
+export function dayTR(d: Date = new Date()): string {
+  return formatInTimeZone(d, TZ, 'yyyy-MM-dd');
+}
+
+// Writes/merges a heartbeat document under ops_heartbeats/{yyyy-mm-dd}
+export async function markHeartbeat(patch: Record<string, any>, d?: Date) {
+  const day = dayTR(d ?? new Date());
+  const ref = db.doc(`ops_heartbeats/${day}`);
+  await ref.set(
+    { lastUpdated: admin.firestore.FieldValue.serverTimestamp(), ...patch },
+    { merge: true }
+  );
+  log.info('heartbeat marked', { day, ...patch });
+}
+

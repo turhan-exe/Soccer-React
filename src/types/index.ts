@@ -84,28 +84,39 @@ export interface Team {
   goalDifference: number;
 }
 
+// Firestore Timestamp type (client SDK)
+type FirestoreTimestamp = import('firebase/firestore').Timestamp;
+
 export interface League {
   id: string;
   name: string;
-  season: number;
+  season: number; // season number or identifier
   capacity: number;
-  timezone: string;
+  timezone: string; // e.g., 'Europe/Istanbul'
+  // States used in the app. Plan suggests finished; code uses completed.
   state: 'forming' | 'scheduled' | 'active' | 'completed';
-  startDate?: unknown;
-  rounds: number;
+  // When fixtures start; stored as Firestore Timestamp
+  startDate?: FirestoreTimestamp;
+  // Metadata
+  rounds: number; // total rounds (22 teams => 42)
   teamCount?: number;
+  // Optional mirror array for quick reads (not authoritative)
   teams?: { id: string; name: string }[];
 }
 
 export interface Fixture {
   id: string;
   round: number;
-  date: unknown;
+  // Client uses concrete Date for display; services map Timestamp -> Date
+  date: Date;
   homeTeamId: string;
   awayTeamId: string;
+  // Always [homeTeamId, awayTeamId]
   participants: string[];
-  status: 'scheduled' | 'in_progress' | 'played';
+  status: 'scheduled' | 'running' | 'played' | 'failed';
   score: { home: number; away: number } | null;
+  // Optional replay storage path (when Unity integration lands)
+  replayPath?: string;
 }
 
 export interface Standing {
@@ -143,3 +154,10 @@ export interface User {
     apple?: boolean;
   };
 }
+
+// Plan 2.1 schema exports (Firestore documents)
+export type { FirebaseTimestamp } from './common';
+export type { LeagueDoc, LeagueState } from './league';
+export type { TeamDoc, Lineup } from './team';
+export type { FixtureDoc, FixtureStatus } from './fixture';
+export type { MatchPlanDoc } from './matchPlan';

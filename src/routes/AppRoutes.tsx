@@ -13,6 +13,7 @@ import Settings from '@/pages/Settings';
 import NotFound from '@/pages/NotFound';
 import DiamondsPage from '@/features/diamonds/DiamondsPage';
 import AcademyPage from '@/features/academy/AcademyPage';
+import StandingsPage from '@/pages/StandingsPage';
 
 export default function AppRoutes() {
   return (
@@ -21,6 +22,8 @@ export default function AppRoutes() {
       <Route path="/team-planning" element={<TeamPlanning />} />
       <Route path="/youth" element={<Youth />} />
       <Route path="/fixtures" element={<MyFixturesPage />} />
+      <Route path="/my-matches" element={<MyFixturesPage />} />
+      <Route path="/standings" element={<StandingsPage />} />
       <Route path="/leagues" element={<LeaguesListPage />} />
       <Route path="/leagues/:leagueId" element={<LeagueDetailPage />} />
       <Route path="/training" element={<Training />} />

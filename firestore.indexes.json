@@ -10,22 +10,30 @@
     },
     {
       "collectionGroup": "teams",
-      "queryScope": "COLLECTION",
+      "queryScope": "COLLECTION_GROUP",
       "fields": [
         { "fieldPath": "teamId", "order": "ASCENDING" }
       ]
     },
     {
       "collectionGroup": "fixtures",
-      "queryScope": "COLLECTION",
+      "queryScope": "COLLECTION_GROUP",
       "fields": [
         { "fieldPath": "participants", "arrayConfig": "CONTAINS" },
         { "fieldPath": "date", "order": "ASCENDING" }
       ]
     },
     {
+      "collectionGroup": "fixtures",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "date", "order": "ASCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "standings",
-      "queryScope": "COLLECTION",
+      "queryScope": "COLLECTION_GROUP",
       "fields": [
         { "fieldPath": "Pts", "order": "DESCENDING" },
         { "fieldPath": "GD", "order": "DESCENDING" },

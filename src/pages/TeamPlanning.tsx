@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { PlayerCard } from '@/components/ui/player-card';
 import { Player } from '@/types';
-import { getTeam, saveTeamPlayers, createInitialTeam } from '@/services/team';
+import { getTeam, saveTeamPlayers, createInitialTeam, setLineupServer } from '@/services/team';
 import { useAuth } from '@/contexts/AuthContext';
 import { Search, Save, Eye, ArrowUp } from 'lucide-react';
 import { toast } from 'sonner';
@@ -74,10 +74,26 @@ export default function TeamPlanning() {
     toast.success('Oyuncu başarıyla taşındı');
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!user) return;
-    saveTeamPlayers(user.id, players);
-    toast.success('Takım planı kaydedildi!');
+    try {
+      // Persist full roster locally for client experience
+      await saveTeamPlayers(user.id, players);
+
+      // Also send authoritative lineup snapshot to server (XI + bench)
+      const starters = players.filter(p => p.squadRole === 'starting').map(p => p.id);
+      const bench = players.filter(p => p.squadRole === 'bench').map(p => p.id);
+      await setLineupServer({
+        teamId: user.id,
+        formation: selectedFormation,
+        starters,
+        subs: bench,
+      });
+      toast.success('Takım planı kaydedildi!');
+    } catch (e) {
+      console.warn('[TeamPlanning] setLineup failed', e);
+      toast.error('Sunucu hatası', { description: 'Kadro kaydı başarısız. Lütfen tekrar deneyin.' });
+    }
   };
 
   useEffect(() => {

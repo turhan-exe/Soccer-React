@@ -1,0 +1,26 @@
+{
+  "lifecycle": {
+    "rule": [
+      {
+        "action": { "type": "SetStorageClass", "storageClass": "NEARLINE" },
+        "condition": { "age": 30, "matchesPrefix": ["replays/"], "matchesStorageClass": ["STANDARD"] }
+      },
+      {
+        "action": { "type": "SetStorageClass", "storageClass": "COLDLINE" },
+        "condition": { "age": 60, "matchesPrefix": ["replays/"], "matchesStorageClass": ["NEARLINE"] }
+      },
+      {
+        "action": { "type": "Delete" },
+        "condition": { "age": 90, "matchesPrefix": ["replays/"] }
+      },
+      {
+        "action": { "type": "Delete" },
+        "condition": { "age": 30, "matchesPrefix": ["results/"] }
+      },
+      {
+        "action": { "type": "Delete" },
+        "condition": { "age": 7, "matchesPrefix": ["jobs/"] }
+      }
+    ]
+  }
+}

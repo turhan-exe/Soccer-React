@@ -70,3 +70,10 @@ pnpm run build
 3. Wrap your app with `AuthProvider` and use the `useAuth` hook to call `login`,
    `register`, and `logout`, which connect to Firebase under the hood.
 
+## Unity Headless Worker (Plan 2.3)
+
+- Headless simulation worker scaffolding is available under `Unity/Headless`.
+- C# scripts: `Unity/Headless/Assets/Scripts` implement batch download, deterministic sim, replay/result upload, and optional live event posting.
+- Containerization: `Unity/Headless/Build/Dockerfile` runs the Linux server build on Cloud Run Jobs.
+- See `infra/headless/README.md` for environment variables and run instructions.
+
