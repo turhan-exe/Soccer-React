@@ -8,7 +8,12 @@
     "lint": "eslint --quiet ./src",
     "preview": "vite preview",
     "test": "vitest run --reporter=basic --silent --coverage=false",
-    "test:ci": "vitest run --reporter=dot --silent --coverage=false --single-thread"
+    "test:ci": "vitest run --reporter=dot --silent --coverage=false --single-thread",
+    "emu": "firebase emulators:start --only firestore,functions,storage,database,hosting",
+    "gcs:lifecycle:apply": "node scripts/gcs-lifecycle.mjs apply",
+    "gcs:lifecycle:describe": "node scripts/gcs-lifecycle.mjs describe",
+    "pretest:e2e": "vite build",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.0",
@@ -85,6 +90,7 @@
     "typescript": "^5.5.3",
     "typescript-eslint": "^8.0.1",
     "vite": "^5.4.1",
-    "vitest": "^1.6.0"
+    "vitest": "^1.6.0",
+    "@playwright/test": "^1.47.2"
   }
 }

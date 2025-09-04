@@ -13,6 +13,7 @@ import {
   limit,
   serverTimestamp,
   Unsubscribe,
+  documentId,
 } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { auth, db, functions } from './firebase';
@@ -71,8 +72,11 @@ export async function requestJoinLeague(teamId: string): Promise<void> {
     if (!user) throw err;
 
     const token = await user.getIdToken();
+    const region = import.meta.env.VITE_FUNCTIONS_REGION || 'europe-west1';
+    const projectId = import.meta.env.VITE_FIREBASE_PROJECT_ID;
+    const httpUrl = `https://${region}-${projectId}.cloudfunctions.net/assignTeamToLeagueHttp`;
     const resp = await fetch(
-      'https://us-central1-osm-react.cloudfunctions.net/assignTeamToLeagueHttp',
+      httpUrl,
       {
         method: 'POST',
         headers: {
@@ -94,7 +98,7 @@ export async function requestJoinLeague(teamId: string): Promise<void> {
 export async function ensureFixturesForLeague(leagueId: string): Promise<void> {
   const leagueSnap = await getDoc(doc(db, 'leagues', leagueId));
   if (!leagueSnap.exists()) return;
-  const league = leagueSnap.data() as League & { startDate?: any };
+  const league = leagueSnap.data() as League;
   if (league.state !== 'scheduled' && league.state !== 'active') return;
 
   const fixturesRef = collection(db, 'leagues', leagueId, 'fixtures');
@@ -149,39 +153,68 @@ export function listenMyLeague(
  * Index hazır değilse de sonuçlar her zaman istemcide tarihe göre sıralanır.
  */
 export async function getFixturesForTeam(
-  leagueId: string,
-  teamId: string
+  arg1: string,
+  arg2?: string
 ): Promise<Fixture[]> {
-  const col = collection(db, 'leagues', leagueId, 'fixtures');
+  // Overload-like behavior
+  // - If called as (leagueId, teamId), query the league's fixtures subcollection
+  // - If called as (teamId), query collectionGroup('fixtures') across leagues
   let snap;
-  try {
-    const q = query(
-      col,
-      where('participants', 'array-contains', teamId),
-      orderBy('date', 'asc')
-    );
-    snap = await getDocs(q);
-  } catch {
-    // Fallback if composite index not deployed yet
-    const q = query(col, where('participants', 'array-contains', teamId));
-    snap = await getDocs(q);
+  if (arg2) {
+    const leagueId = arg1;
+    const teamId = arg2;
+    const col = collection(db, 'leagues', leagueId, 'fixtures');
+    try {
+      const q = query(
+        col,
+        where('participants', 'array-contains', teamId),
+        orderBy('date', 'asc')
+      );
+      snap = await getDocs(q);
+    } catch {
+      // Fallback if composite index not deployed yet
+      const q = query(col, where('participants', 'array-contains', teamId));
+      snap = await getDocs(q);
+    }
+  } else {
+    const teamId = arg1;
+    try {
+      const q = query(
+        collectionGroup(db, 'fixtures'),
+        where('participants', 'array-contains', teamId),
+        orderBy('date', 'asc')
+      );
+      snap = await getDocs(q);
+    } catch {
+      const q = query(
+        collectionGroup(db, 'fixtures'),
+        where('participants', 'array-contains', teamId)
+      );
+      snap = await getDocs(q);
+    }
   }
 
   // Firestore Timestamp → Date dönüştür ve tarihe göre sırala (artan)
-  const list = snap.docs.map((d) => {
-    const data = d.data() as { date: { toDate: () => Date } } & Omit<
-      Fixture,
-      'id' | 'date'
-    >;
-    return { id: d.id, ...data, date: data.date.toDate() } as Fixture & {
-      date: Date;
-    };
+  const list: Fixture[] = snap.docs.map((d) => {
+    const raw = d.data() as any;
+    const ts = raw.date as { toDate: () => Date };
+    return {
+      id: d.id,
+      round: raw.round,
+      date: ts.toDate(),
+      homeTeamId: raw.homeTeamId,
+      awayTeamId: raw.awayTeamId,
+      participants: raw.participants ?? [raw.homeTeamId, raw.awayTeamId],
+      status: raw.status,
+      score: raw.score ?? null,
+      replayPath: raw.replayPath,
+    } satisfies Fixture;
   });
 
   // İstemci tarafı tarih sıralaması: her zaman artan
   (list as { date: Date }[]).sort((a, b) => a.date.getTime() - b.date.getTime());
 
-  return list as unknown as Fixture[];
+  return list;
 }
 
 /** Takımın bağlı olduğu ligin id'sini tek seferlik getir */
@@ -194,6 +227,51 @@ export async function getMyLeagueId(teamId: string): Promise<string | null> {
   const snap = await getDocs(q);
   if (snap.empty) return null;
   return snap.docs[0].ref.parent.parent!.id;
+}
+
+/**
+ * Tek bir maç (fixture) dokümanını id'siyle bulur.
+ * CollectionGroup('fixtures') üzerinde documentId() == matchId sorgusu yapar.
+ * Dönüş: { fixture, leagueId } veya null
+ */
+export async function getFixtureByIdAcrossLeagues(
+  matchId: string
+): Promise<{ fixture: Fixture; leagueId: string } | null> {
+  const q = query(collectionGroup(db, 'fixtures'), where(documentId(), '==', matchId), limit(1));
+  const snap = await getDocs(q);
+  if (snap.empty) return null;
+  const d = snap.docs[0];
+  const raw: any = d.data();
+  const ts = raw.date as { toDate: () => Date };
+  const fixture: Fixture = {
+    id: d.id,
+    round: raw.round,
+    date: ts.toDate(),
+    homeTeamId: raw.homeTeamId,
+    awayTeamId: raw.awayTeamId,
+    participants: raw.participants ?? [raw.homeTeamId, raw.awayTeamId],
+    status: raw.status,
+    score: raw.score ?? null,
+    replayPath: raw.replayPath,
+  };
+  // leagues/{leagueId}/fixtures/{matchId}
+  const leagueId = d.ref.parent.parent!.id;
+  return { fixture, leagueId };
+}
+
+/** Plan 2.5: Kullanıcının ligini getir (leagueId + teamId) */
+export async function getMyLeague(
+  teamId: string
+): Promise<{ leagueId: string; teamId: string } | null> {
+  const q = query(
+    collectionGroup(db, 'teams'),
+    where('teamId', '==', teamId),
+    limit(1)
+  );
+  const snap = await getDocs(q);
+  if (snap.empty) return null;
+  const ref = snap.docs[0].ref.parent.parent!;
+  return { leagueId: ref.id, teamId };
 }
 
 /** Ligdeki takımları getir */

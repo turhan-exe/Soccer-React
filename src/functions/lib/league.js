@@ -1,16 +1,18 @@
-import * as functions from 'firebase-functions';
+import * as functions from 'firebase-functions/v1';
+import { requireAppCheck, requireAuth } from './mw/auth.js';
 import { generateRoundRobinFixtures, nextDay19TR } from './utils/schedule.js';
 import { initializeApp } from 'firebase-admin/app';
 import { getFirestore, FieldValue, Timestamp, } from 'firebase-admin/firestore';
 import { getAuth } from 'firebase-admin/auth';
 initializeApp();
 const db = getFirestore();
+const ADMIN_SECRET = functions.config()?.admin?.secret || '';
 /**
  * Core logic for assigning a team to a league. Ensures a team is only placed
  * into one league and that a new league is created when none are available.
  * When the league reaches 22 teams, it is scheduled and fixtures are created.
  */
-export async function assignTeam(teamId, teamName) {
+export async function assignTeam(teamId, teamName, ownerUid) {
     functions.logger.info('[ASSIGN] Başladı', { teamId, teamName });
     const t0 = Date.now();
     // Capture a league we may finalize inside the TX so we can create fixtures after
@@ -37,7 +39,7 @@ export async function assignTeam(teamId, teamName) {
                 capacity: 22,
                 timezone: 'Europe/Istanbul',
                 state: 'forming',
-                rounds: 42,
+                rounds: 21,
                 teamCount: 0,
                 createdAt: FieldValue.serverTimestamp(),
             };
@@ -123,7 +125,7 @@ export async function assignTeam(teamId, teamName) {
                     state: 'scheduled',
                     startDate: Timestamp.fromDate(finalizeOldForming.startDate),
                     lockedAt: FieldValue.serverTimestamp(),
-                    rounds: 42,
+                    rounds: 21,
                 });
                 finalizedToScheduleOuter = {
                     leagueId: finalizeOldForming.ref.id,
@@ -133,11 +135,14 @@ export async function assignTeam(teamId, teamName) {
             if (pendingNewLeague) {
                 tx.set(pendingNewLeague.ref, pendingNewLeague.data);
             }
-            tx.set(teamDocRef, {
+            const teamDoc = {
                 teamId,
                 name: teamName,
                 joinedAt: FieldValue.serverTimestamp(),
-            });
+            };
+            if (ownerUid)
+                teamDoc.ownerUid = ownerUid;
+            tx.set(teamDocRef, teamDoc);
             // Initialize standings row with zeros so UI can list teams immediately
             const standingsRef = chosenLeagueRef.collection('standings').doc(teamId);
             tx.set(standingsRef, {
@@ -157,14 +162,14 @@ export async function assignTeam(teamId, teamName) {
             const updateData = {
                 teamCount: newCount,
                 // Also mirror teams under league doc as an array for quick reads
-                teams: FieldValue.arrayUnion({ teamId, name: teamName }),
+                teams: FieldValue.arrayUnion({ id: teamId, name: teamName }),
             };
             if (newCount === capacity) {
                 const startDate = nextDay19TR();
                 updateData.state = 'scheduled';
                 updateData.startDate = Timestamp.fromDate(startDate);
                 updateData.lockedAt = FieldValue.serverTimestamp();
-                updateData.rounds = 42;
+                updateData.rounds = 21;
                 functions.logger.info('[ASSIGN:TXX] Kapasite tamamlandı, lig schedule edildi', {
                     leagueId: chosenLeagueRef.id,
                     startDate: updateData.startDate,
@@ -211,10 +216,12 @@ export async function assignTeam(teamId, teamName) {
     });
     return { leagueRef, state: leagueData.state };
 }
-export const assignTeamToLeague = functions.https.onCall(async (request) => {
+export const assignTeamToLeague = functions.region('europe-west1').https.onCall(async (request) => {
     functions.logger.info('[CALLABLE] assignTeamToLeague: Fonksiyon çağrıldı', {
         hasAuth: !!request.auth,
     });
+    // Security: enforce App Check + Auth
+    requireAppCheck(request);
     const uid = request.auth?.uid;
     if (!uid) {
         functions.logger.warn('[CALLABLE] Auth yok');
@@ -236,11 +243,18 @@ export const assignTeamToLeague = functions.https.onCall(async (request) => {
         throw new functions.https.HttpsError('permission-denied', 'Not owner');
     }
     functions.logger.info('[CALLABLE] Atama başlıyor', { teamId });
-    const { leagueRef, state } = await assignTeam(teamId, teamData.name || `Team ${teamId}`);
+    const { leagueRef, state } = await assignTeam(teamId, teamData.name || `Team ${teamId}`, uid);
     functions.logger.info('[CALLABLE] Atama bitti', { leagueId: leagueRef.id, state });
     return { leagueId: leagueRef.id, state };
 });
-export const assignAllTeamsToLeagues = functions.https.onRequest(async (_req, res) => {
+export const assignAllTeamsToLeagues = functions.region('europe-west1').https.onRequest(async (req, res) => {
+    // Admin-only via bearer secret
+    const authz = req.headers.authorization || '';
+    const token = authz.startsWith('Bearer ') ? authz.slice(7) : '';
+    if (!ADMIN_SECRET || token !== ADMIN_SECRET) {
+        res.status(401).send('unauthorized');
+        return;
+    }
     functions.logger.info('[HTTP] assignAllTeamsToLeagues: Çağrıldı');
     const snap = await db.collection('teams').get();
     functions.logger.info('[HTTP] assignAllTeamsToLeagues: Takımlar çekildi', { count: snap.size });
@@ -248,7 +262,7 @@ export const assignAllTeamsToLeagues = functions.https.onRequest(async (_req, re
     for (const doc of snap.docs) {
         const data = doc.data();
         functions.logger.info('[HTTP] Tekil atama başlıyor', { teamId: doc.id });
-        const { leagueRef, state } = await assignTeam(doc.id, data.name || `Team ${doc.id}`);
+        const { leagueRef, state } = await assignTeam(doc.id, data.name || `Team ${doc.id}`, data.ownerUid);
         functions.logger.info('[HTTP] Tekil atama bitti', { teamId: doc.id, leagueId: leagueRef.id, state });
         results.push({ teamId: doc.id, leagueId: leagueRef.id, state });
     }
@@ -256,7 +270,7 @@ export const assignAllTeamsToLeagues = functions.https.onRequest(async (_req, re
     res.json({ assigned: results.length, details: results });
 });
 // Optional HTTP version with CORS for direct fetch() callers in dev
-export const assignTeamToLeagueHttp = functions.https.onRequest(async (req, res) => {
+export const assignTeamToLeagueHttp = functions.region('europe-west1').https.onRequest(async (req, res) => {
     functions.logger.info('[HTTP] assignTeamToLeagueHttp: Çağrıldı', {
         method: req.method,
         origin: req.headers.origin,
@@ -321,7 +335,7 @@ export const assignTeamToLeagueHttp = functions.https.onRequest(async (req, res)
             return;
         }
         functions.logger.info('[HTTP] assignTeamToLeagueHttp: Atama başlıyor', { teamId });
-        const { leagueRef, state } = await assignTeam(teamId, teamData.name || `Team ${teamId}`);
+        const { leagueRef, state } = await assignTeam(teamId, teamData.name || `Team ${teamId}`, uid);
         functions.logger.info('[HTTP] assignTeamToLeagueHttp: Atama bitti', { leagueId: leagueRef.id, state });
         res.json({ leagueId: leagueRef.id, state });
     }
@@ -354,7 +368,9 @@ async function generateFixturesForLeague(leagueId, startDate) {
     await batch.commit();
     functions.logger.info('[FIXTURE] Üretim bitti', { leagueId, total: fixtures.length });
 }
-export const generateRoundRobinFixturesFn = functions.https.onCall(async (request) => {
+export const generateRoundRobinFixturesFn = functions.region('europe-west1').https.onCall(async (request) => {
+    requireAppCheck(request);
+    requireAuth(request);
     const leagueId = request.data?.leagueId;
     const force = Boolean(request.data?.force);
     functions.logger.info('[CALLABLE] generateRoundRobinFixturesFn çağrıldı', { leagueId, force });
@@ -372,14 +388,14 @@ export const generateRoundRobinFixturesFn = functions.https.onCall(async (reques
         functions.logger.info('[CALLABLE] generateRoundRobinFixturesFn: Zaten mevcut, atlandı', { leagueId });
         return { ok: true, skipped: true };
     }
-    // If forcing, delete all current fixtures first (chunked batches for safety)
+    // If forcing, delete all existing fixtures first
     if (force && !existing.empty) {
         const all = await leagueRef.collection('fixtures').get();
         let deleted = 0;
         let batch = db.batch();
         let ops = 0;
-        for (const doc of all.docs) {
-            batch.delete(doc.ref);
+        for (const d of all.docs) {
+            batch.delete(d.ref);
             ops++;
             deleted++;
             if (ops >= 450) {
@@ -391,13 +407,78 @@ export const generateRoundRobinFixturesFn = functions.https.onCall(async (reques
         if (ops > 0) {
             await batch.commit();
         }
-        functions.logger.info('[CALLABLE] generateRoundRobinFixturesFn: Eski fikstürler silindi', {
-            leagueId,
-            deleted,
-        });
+        functions.logger.info('[CALLABLE] generateRoundRobinFixturesFn: Eski fikstürler silindi', { leagueId, deleted });
     }
     await generateFixturesForLeague(leagueId, league.startDate.toDate());
     functions.logger.info('[CALLABLE] generateRoundRobinFixturesFn bitti', { leagueId, forced: force });
     return { ok: true, forced: force };
 });
-// export const
+// New callable alias matching plan: requestJoinLeague
+export const requestJoinLeague = functions.region('europe-west1').https.onCall(async (request) => {
+    requireAppCheck(request);
+    functions.logger.info('[CALLABLE] requestJoinLeague çağrıldı', { hasAuth: !!request.auth });
+    const uid = request.auth?.uid;
+    if (!uid)
+        throw new functions.https.HttpsError('unauthenticated', 'Auth required');
+    const teamId = request.data?.teamId;
+    if (!teamId)
+        throw new functions.https.HttpsError('invalid-argument', 'teamId required');
+    const teamSnap = await db.collection('teams').doc(teamId).get();
+    if (!teamSnap.exists)
+        throw new functions.https.HttpsError('not-found', 'Team not found');
+    const teamData = teamSnap.data();
+    if (teamData.ownerUid && teamData.ownerUid !== uid)
+        throw new functions.https.HttpsError('permission-denied', 'Not owner');
+    const { leagueRef, state } = await assignTeam(teamId, teamData.name || `Team ${teamId}`, uid);
+    return { leagueId: leagueRef.id, state };
+});
+// Finalize a forming league when full (22 teams). Optionally provide leagueId; if omitted, finds a full forming league.
+export const finalizeIfFull = functions.region('europe-west1').https.onCall(async (request) => {
+    requireAppCheck(request);
+    requireAuth(request);
+    const leagueId = request.data?.leagueId;
+    functions.logger.info('[CALLABLE] finalizeIfFull çağrıldı', { leagueId });
+    let targetRef = null;
+    if (leagueId) {
+        targetRef = db.collection('leagues').doc(leagueId);
+    }
+    else {
+        const snap = await db
+            .collection('leagues')
+            .where('state', '==', 'forming')
+            .where('teamCount', '>=', 22)
+            .limit(1)
+            .get();
+        if (!snap.empty)
+            targetRef = snap.docs[0].ref;
+    }
+    if (!targetRef)
+        return { ok: true, finalized: false };
+    const result = await db.runTransaction(async (tx) => {
+        const doc = await tx.get(targetRef);
+        if (!doc.exists)
+            throw new functions.https.HttpsError('not-found', 'League not found');
+        const data = doc.data();
+        const capacity = data.capacity ?? 22;
+        const count = data.teamCount ?? 0;
+        if (data.state !== 'forming' || count < capacity) {
+            return { finalized: false, leagueId: doc.id };
+        }
+        const startDate = nextDay19TR();
+        tx.update(doc.ref, {
+            state: 'scheduled',
+            startDate: Timestamp.fromDate(startDate),
+            lockedAt: FieldValue.serverTimestamp(),
+            rounds: 21,
+        });
+        return { finalized: true, leagueId: doc.id, startDate };
+    });
+    if (result.finalized) {
+        const { leagueId: lid, startDate } = result;
+        const fixturesSnap = await db.collection('leagues').doc(lid).collection('fixtures').limit(1).get();
+        if (fixturesSnap.empty) {
+            await generateFixturesForLeague(lid, startDate);
+        }
+    }
+    return { ok: true, ...result };
+});

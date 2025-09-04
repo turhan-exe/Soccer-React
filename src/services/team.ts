@@ -1,5 +1,6 @@
 import { doc, setDoc, getDoc } from 'firebase/firestore';
-import { db } from '@/services/firebase';
+import { httpsCallable } from 'firebase/functions';
+import { db, functions } from '@/services/firebase';
 import { Player, ClubTeam } from '@/types';
 import { generateRandomName } from '@/lib/names';
 import { calculateOverall, getRoles } from '@/lib/player';
@@ -100,3 +101,23 @@ export const addPlayerToTeam = async (userId: string, player: Player) => {
   await setDoc(doc(db, 'teams', userId), { players: updatedPlayers }, { merge: true });
   return updatedPlayers;
 };
+
+/**
+ * Server-side lineup setter (calls Cloud Function 'setLineup')
+ */
+export async function setLineupServer(params: {
+  teamId: string;
+  formation?: string;
+  tactics?: Record<string, any>;
+  starters: string[];
+  subs?: string[];
+}): Promise<void> {
+  const fn = httpsCallable(functions, 'setLineup');
+  await fn({
+    teamId: params.teamId,
+    formation: params.formation || 'auto',
+    tactics: params.tactics || {},
+    starters: params.starters,
+    subs: params.subs || [],
+  });
+}

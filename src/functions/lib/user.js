@@ -8,7 +8,7 @@ export const assignTeamOnUserCreate = functions.auth.user().onCreate(async (user
     const teamName = user.displayName || `Team ${uid.slice(0, 6)}`;
     try {
         // Assign to a forming league (or open a new one). Idempotent across retries.
-        await assignTeamInternal(uid, teamName);
+        await assignTeamInternal(uid, teamName, uid);
     }
     catch (err) {
         console.error('Failed to auto-assign team to league on signup', { uid, err });

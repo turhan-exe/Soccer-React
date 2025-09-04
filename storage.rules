@@ -1,0 +1,27 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Replays: only authenticated users can read; clients never write
+    match /replays/{seasonId}/{leagueId}/{fileName} {
+      // Only .json or .json.gz files are readable by clients
+      allow read: if request.auth != null && fileName.matches(".*\\.json(\\.gz)?$");
+      allow write: if false;
+    }
+
+    // Results/derived artifacts: fully closed to clients
+    match /results/{path=**} {
+      allow read, write: if false;
+    }
+
+    // Batch inputs or temporary jobs: fully closed
+    match /jobs/{path=**} {
+      allow read, write: if false;
+    }
+
+    // All other paths closed (secure default)
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}
+

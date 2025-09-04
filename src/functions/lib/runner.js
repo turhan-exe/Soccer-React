@@ -1,8 +1,9 @@
+import * as functions from 'firebase-functions/v1';
 import { getFirestore, Timestamp } from 'firebase-admin/firestore';
-import * as pubsub from 'firebase-functions/v1/pubsub';
 const db = getFirestore();
-export const runDailyMatches = pubsub
-    .schedule('0 19 * * *')
+export const runDailyMatches = functions
+    .region('europe-west1')
+    .pubsub.schedule('0 19 * * *')
     .timeZone('Europe/Istanbul')
     .onRun(async () => {
     const tz = 'Europe/Istanbul';

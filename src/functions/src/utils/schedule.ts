@@ -1,66 +1,54 @@
-import { addDays } from 'date-fns';
-import { fromZonedTime, formatInTimeZone } from 'date-fns-tz';
+import { formatInTimeZone } from 'date-fns-tz';
+import { addMinutes } from 'date-fns';
+import * as admin from 'firebase-admin';
 
-export interface MatchPair {
-  round: number;
-  homeTeamId: string;
-  awayTeamId: string;
+const TZ = 'Europe/Istanbul';
+
+export function dayKeyTR(d = new Date()) {
+  return formatInTimeZone(d, TZ, 'yyyy-MM-dd');
 }
 
-// Circle method (team[0] sabit) — ilk yarı: A, B, C, ... sırasıyla
-// A'nın ev sahibi olduğu karşılaşmalar; ikinci yarı birebir aynısının
-// deplasman olarak aynen tekrarı. Kullanıcı beklentisiyle uyumlu sıra.
-export function generateRoundRobinFixtures(teamIds: string[]): MatchPair[] {
-  const n = teamIds.length;
-  if (n % 2 !== 0) throw new Error('Team count must be even');
-  const rounds = n - 1;
-  const half = n / 2;
-
-  const fixed = teamIds[0];
-  const rotating = teamIds.slice(1); // dönen kuyruk
-
-  const firstLeg: MatchPair[] = [];
-
-  for (let r = 0; r < rounds; r++) {
-    // 1) Sabit takım fixed, her turda rotating[0] ile oynar
-    firstLeg.push({ round: r + 1, homeTeamId: fixed, awayTeamId: rotating[0] });
-
-    // 2) Kalan eşleşmeler: uçlardan içeri doğru eşleştir
-    for (let i = 1; i < half; i++) {
-      const t1 = rotating[i];
-      const t2 = rotating[rotating.length - i];
-      // Basit dengeleme: tur numarasına göre ev sahibi değiştir (opsiyonel)
-      if (r % 2 === 0) {
-        firstLeg.push({ round: r + 1, homeTeamId: t1, awayTeamId: t2 });
-      } else {
-        firstLeg.push({ round: r + 1, homeTeamId: t2, awayTeamId: t1 });
-      }
-    }
-
-    // 3) Döndür: ilk elemanı sona al (A vs B -> A vs C -> ...)
-    const first = rotating.shift()!;
-    rotating.push(first);
-  }
-
-  // İkinci yarı: aynı sıranın ev/deplasman ters çevrilmiş hali
-  const secondLeg: MatchPair[] = firstLeg.map((m) => ({
-    round: rounds + m.round,
-    homeTeamId: m.awayTeamId,
-    awayTeamId: m.homeTeamId,
-  }));
-
-  return [...firstLeg, ...secondLeg];
+export function trAt(d: Date, hh: number, mm = 0) {
+  // Build a TR-date string for midnight, then set UTC hours appropriately
+  const baseStr = formatInTimeZone(d, TZ, "yyyy-MM-dd'T'00:00:00XXX");
+  const base = new Date(baseStr);
+  base.setUTCHours(hh - base.getTimezoneOffset() / 60, mm, 0, 0);
+  return base; // UTC Date representing TR time desired
 }
 
-// Returns the next day at 19:00 in Europe/Istanbul, as a UTC Date
-export function nextDay19TR(baseDate: Date = new Date()): Date {
-  const tz = 'Europe/Istanbul';
-  // Find tomorrow's date in TR timezone (string)
-  const tomorrowYmdInTR = formatInTimeZone(addDays(baseDate, 1), tz, 'yyyy-MM-dd');
-  // Convert that local TR 19:00 to a UTC Date
-  return fromZonedTime(`${tomorrowYmdInTR} 19:00:00`, tz);
+export function todayTR_19() {
+  const d = new Date();
+  return trAt(d, 19, 0);
 }
 
-export function addDaysUTC(date: Date, days: number): Date {
-  return addDays(date, days);
+// Alias used by other modules
+export function today19TR(d: Date = new Date()) {
+  return trAt(d, 19, 0);
+}
+
+export function todayTR_18_30() {
+  const d = new Date();
+  return trAt(d, 18, 30);
+}
+
+export function isInLockWindow(now = new Date()) {
+  const start = todayTR_18_30();
+  const end = todayTR_19();
+  return now >= start && now < end;
+}
+
+export function ts(date: Date) {
+  return admin.firestore.Timestamp.fromDate(date);
+}
+
+export function betweenTR_19_to_2359(dateTRKey: string) {
+  // for yyyy-MM-dd in TR, get UTC Date range for 19:00–23:59 TR
+  const base = new Date(dateTRKey);
+  const start = trAt(base, 19, 0);
+  const end = trAt(base, 23, 59);
+  return { start, end };
+}
+
+export function addMinutesTR(date: Date, minutes: number) {
+  return addMinutes(date, minutes);
 }

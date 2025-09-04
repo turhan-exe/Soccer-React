@@ -26,8 +26,9 @@ export const db = initializeFirestore(app, {
   }),
 });
 
-// Use default region explicitly; keeps callable URLs consistent
-export const functions = getFunctions(app, 'us-central1');
+// Region from env (Plan 2.0: europe-west1). Fallback to 'europe-west1'.
+const FUNCTIONS_REGION = import.meta.env.VITE_FUNCTIONS_REGION || 'europe-west1';
+export const functions = getFunctions(app, FUNCTIONS_REGION);
 
 // Optional: connect to emulator in dev if configured
 if (import.meta.env.DEV && import.meta.env.VITE_USE_FUNCTIONS_EMULATOR === '1') {
