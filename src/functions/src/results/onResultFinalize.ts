@@ -1,9 +1,15 @@
 import * as functions from 'firebase-functions/v1';
-import * as admin from 'firebase-admin';
+import { getApps, initializeApp } from 'firebase-admin/app';
+import { getFirestore, FieldValue } from 'firebase-admin/firestore';
+import { getStorage } from 'firebase-admin/storage';
 import { log } from '../logger.js';
 import { sendSlack } from '../notify/slack.js';
 
-const db = admin.firestore();
+if (!getApps().length) {
+  initializeApp();
+}
+
+const db = getFirestore();
 const REGION = 'europe-west1';
 
 async function resolveReplayPath(
@@ -17,7 +23,7 @@ async function resolveReplayPath(
   const explicit: string | undefined = resultJson?.replay?.path || resultJson?.replayPath;
   if (explicit) return explicit;
 
-  const bucket = admin.storage().bucket(bucketName);
+  const bucket = getStorage().bucket(bucketName);
   const jsonPath = `replays/${seasonId}/${leagueId}/${matchId}.json`;
   const gzPath = `${jsonPath}.gz`;
 
@@ -44,7 +50,7 @@ export const onResultFinalize = functions
       const leagueId = parts[2];
       const matchId = parts[3].replace('.json', '');
 
-      const fileRef = admin.storage().bucket(obj.bucket).file(path);
+      const fileRef = getStorage().bucket(obj.bucket).file(path);
       const [buf] = await fileRef.download();
       const result = JSON.parse(buf.toString());
 
@@ -69,7 +75,7 @@ export const onResultFinalize = functions
           status: 'played',
           score,
           replayPath,
-          endedAt: admin.firestore.FieldValue.serverTimestamp(),
+          endedAt: FieldValue.serverTimestamp(),
         });
         if (!score) return;
         const homeId = cur.homeTeamId;
@@ -120,7 +126,7 @@ export const onResultFinalize = functions
           .get();
         if (remaining.empty) {
           await db.doc(`leagues/${leagueId}`).set(
-            { state: 'completed', completedAt: admin.firestore.FieldValue.serverTimestamp() },
+            { state: 'completed', completedAt: FieldValue.serverTimestamp() },
             { merge: true }
           );
         }

@@ -24,6 +24,17 @@
       </div>
     </div>
     <script>
+      // Parse query params and expose to window for runtime bridging
+      (function(){
+        try {
+          const usp = new URLSearchParams(location.search);
+          const matchId = usp.get('matchId') || '';
+          const replayUrl = usp.get('replayUrl') || '';
+          window.__MGX__ = { matchId, replayUrl };
+        } catch (e) {
+          window.__MGX__ = { matchId: '', replayUrl: '' };
+        }
+      })();
 
       var container = document.querySelector("#unity-container");
       var canvas = document.querySelector("#unity-canvas");
@@ -110,6 +121,22 @@
                 fullscreenButton.onclick = () => {
                   unityInstance.SetFullscreen(1);
                 };
+                try {
+                  // Expose for external glue code
+                  window.__MGX__ = Object.assign({}, window.__MGX__ || {}, { unityInstance });
+                  if (typeof window.onUnityReady === 'function') {
+                    window.onUnityReady(unityInstance);
+                  }
+                  // Optional: try common bridge method names if present in build
+                  const ctx = window.__MGX__ || {};
+                  if (ctx.replayUrl && unityInstance && typeof unityInstance.SendMessage === 'function') {
+                    // Attempt some conventional targets if the build provides them
+                    const payload = JSON.stringify({ replayUrl: ctx.replayUrl, matchId: ctx.matchId });
+                    try { unityInstance.SendMessage('WebBridge', 'InitWithQuery', payload); } catch {}
+                    try { unityInstance.SendMessage('JSBridge', 'InitWithQuery', payload); } catch {}
+                    try { unityInstance.SendMessage('Bridge', 'InitWithQuery', payload); } catch {}
+                  }
+                } catch {}
               }).catch((message) => {
                 alert(message);
               });

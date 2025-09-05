@@ -1,6 +1,5 @@
 import { getApps, initializeApp } from 'firebase-admin/app';
-import * as admin from 'firebase-admin';
-import { getFirestore } from 'firebase-admin/firestore';
+import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import { formatInTimeZone } from 'date-fns-tz';
 import { log } from '../logger.js';
 
@@ -20,9 +19,8 @@ export async function markHeartbeat(patch: Record<string, any>, d?: Date) {
   const day = dayTR(d ?? new Date());
   const ref = db.doc(`ops_heartbeats/${day}`);
   await ref.set(
-    { lastUpdated: admin.firestore.FieldValue.serverTimestamp(), ...patch },
+    { lastUpdated: FieldValue.serverTimestamp(), ...patch },
     { merge: true }
   );
   log.info('heartbeat marked', { day, ...patch });
 }
-

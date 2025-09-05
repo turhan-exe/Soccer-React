@@ -1,5 +1,6 @@
 import * as functions from 'firebase-functions/v1';
-import * as admin from 'firebase-admin';
+import { getApps, initializeApp } from 'firebase-admin/app';
+import { getStorage } from 'firebase-admin/storage';
 import { requireAuth, requireAppCheck } from '../mw/auth.js';
 import { log } from '../logger.js';
 
@@ -23,7 +24,10 @@ export const getReplay = functions
       throw new functions.https.HttpsError('invalid-argument', 'replayPath is required');
     }
 
-    const bucket = admin.storage().bucket();
+    if (!getApps().length) {
+      initializeApp();
+    }
+    const bucket = getStorage().bucket();
     try {
       const [exists] = await bucket.file(replayPath).exists();
       if (!exists) {
@@ -43,3 +47,4 @@ export const getReplay = functions
       throw new functions.https.HttpsError('internal', e?.message || 'Failed to sign URL');
     }
   });
+

@@ -1,4 +1,4 @@
-import * as functions from 'firebase-functions';
+import * as functions from 'firebase-functions/v1';
 import { getApps, initializeApp } from 'firebase-admin/app';
 import { getDatabase, ServerValue } from 'firebase-admin/database';
 
@@ -112,3 +112,4 @@ export const emitLive = functions.region('europe-west1').https.onRequest(async (
     return;
   }
 });
+

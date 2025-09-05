@@ -1,4 +1,4 @@
-import * as functions from 'firebase-functions';
+import * as functions from 'firebase-functions/v1';
 
 // Uses global fetch (Node 18/20)
 export async function sendSlack(text: string, extra?: Record<string, any>) {
@@ -24,3 +24,4 @@ export async function sendSlack(text: string, extra?: Record<string, any>) {
     // ignore failures to avoid breaking prod path
   }
 }
+

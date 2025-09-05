@@ -1,8 +1,8 @@
 import * as functions from 'firebase-functions/v1';
 import { requireAppCheck, requireAuth } from '../mw/auth.js';
 import { getApps, initializeApp } from 'firebase-admin/app';
-import * as admin from 'firebase-admin';
 import { getFirestore, Timestamp } from 'firebase-admin/firestore';
+import { getStorage } from 'firebase-admin/storage';
 import { formatInTimeZone, fromZonedTime } from 'date-fns-tz';
 
 if (!getApps().length) {
@@ -35,7 +35,7 @@ export async function createDailyBatchInternal(day?: string) {
     .where('date', '==', matchTs)
     .get();
 
-  const bucket = admin.storage().bucket();
+  const bucket = getStorage().bucket();
 
   if (snap.empty) {
     const emptyPayload = {

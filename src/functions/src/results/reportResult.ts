@@ -1,4 +1,4 @@
-import * as functions from 'firebase-functions';
+import * as functions from 'firebase-functions/v1';
 import { getApps, initializeApp } from 'firebase-admin/app';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 
@@ -117,3 +117,4 @@ function normalizeScore(obj: any): { home: number; away: number } {
   }
   return { home: 0, away: 0 };
 }
+

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { Card } from '@/components/ui/card';
-import { ReplayPlayer } from '@/components/replay/ReplayPlayer';
+import { MatchReplayView } from '@/components/replay/MatchReplayView';
 import { getReplay } from '@/services/matches';
 import { subscribeLive, type LiveEvent as LiveEv, type LiveMeta } from '@/services/live';
 import { getFixtureByIdAcrossLeagues } from '@/services/leagues';
@@ -73,7 +73,7 @@ export default function MatchWatcherPage() {
   if (mode === 'replay' && replayUrl) return (
     <div className="p-4 space-y-3">
       <h1 className="text-xl font-bold">Maç Kaydı</h1>
-      <ReplayPlayer url={replayUrl} />
+      <MatchReplayView matchId={id!} replayUrl={replayUrl} />
     </div>
   );
 
@@ -98,4 +98,3 @@ export default function MatchWatcherPage() {
     </div>
   );
 }
-

@@ -1,4 +1,4 @@
-import * as functions from 'firebase-functions';
+import * as functions from 'firebase-functions/v1';
 
 export function requireAuth(ctx: functions.https.CallableContext) {
   if (!ctx.auth) {
@@ -13,4 +13,5 @@ export function requireAppCheck(ctx: functions.https.CallableContext) {
     throw new functions.https.HttpsError('failed-precondition', 'AppCheck required');
   }
 }
+
 

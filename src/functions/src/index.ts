@@ -1,7 +1,9 @@
-﻿import * as admin from 'firebase-admin';
+import { getApps, initializeApp } from 'firebase-admin/app';
 
 try {
-  admin.initializeApp();
+  if (!getApps().length) {
+    initializeApp();
+  }
 } catch {}
 
 export { lockWindowSnapshot } from './lineup/lockWindow.js';
@@ -10,7 +12,7 @@ export { startMatchHttp } from './orchestrate/startMatch.js';
 export { onResultFinalize } from './results/onResultFinalize.js';
 export { getReplay } from './results/getReplay.js';
 
-// Plan 4: SÃ¶zleÅŸmeler (React â†” Functions â†” Unity)
+// Plan 4: Sözleşmeler (React ⇄ Functions ⇄ Unity)
 // League onboarding & fixtures management
 export {
   assignTeamToLeague,
@@ -36,3 +38,4 @@ export { reportResult } from './results/reportResult.js';
 export { cronCreateBatch, kickUnityJob, cronWatchdog } from './orchestrate/scheduler.js';
 // Retry & Poison queue (Plan 10)
 export { finalizeWatchdogHttp } from './orchestrate/retry.js';
+
