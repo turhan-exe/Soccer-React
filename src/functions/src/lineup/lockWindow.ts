@@ -1,9 +1,14 @@
-import * as functions from 'firebase-functions';
-import * as admin from 'firebase-admin';
+import * as functions from 'firebase-functions/v1';
+import { getApps, initializeApp } from 'firebase-admin/app';
+import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import { betweenTR_19_to_2359, dayKeyTR, ts } from '../utils/schedule.js';
 import { log } from '../logger.js';
 
-const db = admin.firestore();
+if (!getApps().length) {
+  initializeApp();
+}
+
+const db = getFirestore();
 const REGION = 'europe-west1';
 const LOCK_SECRET = (functions.config() as any)?.lock?.secret
   || (functions.config() as any)?.scheduler?.secret
@@ -54,7 +59,7 @@ export const lockWindowSnapshot = functions.region(REGION).https.onRequest(async
       matchId,
       leagueId,
       seasonId: fx.seasonId || 'S-2025a',
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      createdAt: FieldValue.serverTimestamp(),
       rngSeed: fx.seed || Math.floor(Math.random() * 1e9),
       kickoffUtc: fx.date, // Firestore Timestamp
       home: {

@@ -1,11 +1,16 @@
-import * as functions from 'firebase-functions';
-import * as admin from 'firebase-admin';
+import * as functions from 'firebase-functions/v1';
+import { getApps, initializeApp } from 'firebase-admin/app';
+import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import { v2 as cloudTasks } from '@google-cloud/tasks';
 import { log } from '../logger.js';
 import { startMatchInternal } from './startMatch.js';
 import { sendSlack } from '../notify/slack.js';
 
-const db = admin.firestore();
+if (!getApps().length) {
+  initializeApp();
+}
+
+const db = getFirestore();
 const REGION = 'europe-west1';
 const START_SECRET = (functions.config() as any)?.start?.secret || (functions.config() as any)?.orchestrate?.secret || '';
 const MAX_RETRIES = Number(process.env.FINALIZE_MAX_RETRIES || '3');
@@ -44,7 +49,7 @@ async function markPoison(matchId: string, leagueId: string, reason: string, att
   try {
     await db.doc(`leagues/${leagueId}/fixtures/${matchId}`).set({
       status: 'failed',
-      failedAt: admin.firestore.FieldValue.serverTimestamp(),
+      failedAt: FieldValue.serverTimestamp(),
       failReason: reason,
     }, { merge: true });
   } catch {}
@@ -54,7 +59,7 @@ async function markPoison(matchId: string, leagueId: string, reason: string, att
       leagueId,
       reason,
       attempt,
-      ts: admin.firestore.FieldValue.serverTimestamp(),
+      ts: FieldValue.serverTimestamp(),
     }, { merge: true });
   } catch {}
   try {

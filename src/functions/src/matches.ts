@@ -1,4 +1,4 @@
-import * as functions from 'firebase-functions';
+import * as functions from 'firebase-functions/v1';
 import { getApps, initializeApp } from 'firebase-admin/app';
 import { getFirestore, Timestamp, FieldValue, QueryDocumentSnapshot } from 'firebase-admin/firestore';
 import { today19TR } from './utils/schedule.js';
@@ -75,4 +75,5 @@ export async function queueTodayScheduledMatches(baseDate: Date = new Date()) {
   functions.logger.info('[MATCHES] Queue result', res);
   return res;
 }
+
 

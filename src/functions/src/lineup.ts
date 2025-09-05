@@ -1,4 +1,4 @@
-﻿import * as functions from 'firebase-functions';
+import * as functions from 'firebase-functions/v1';
 import { getApps, initializeApp } from 'firebase-admin/app';
 import { getFirestore, FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { requireAppCheck } from './mw/auth.js';
@@ -219,4 +219,5 @@ export const setLineup = functions.region('europe-west1').https.onCall(async (re
   await teamRef.set({ lineup }, { merge: true });
   return { ok: true };
 });
+
 

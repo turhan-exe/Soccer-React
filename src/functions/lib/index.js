@@ -1,19 +1,20 @@
-import * as admin from 'firebase-admin';
+import { getApps, initializeApp } from 'firebase-admin/app';
 try {
-    admin.initializeApp();
+    if (!getApps().length) {
+        initializeApp();
+    }
 }
 catch { }
 export { lockWindowSnapshot } from './lineup/lockWindow.js';
 export { orchestrate19TRT } from './orchestrate/orchestrate19trt.js';
 export { startMatchHttp } from './orchestrate/startMatch.js';
 export { onResultFinalize } from './results/onResultFinalize.js';
-export { finalizeMatch } from './results/finalizeMatch.js';
 export { getReplay } from './results/getReplay.js';
-// Plan 4: SÃ¶zleÅŸmeler (React â†” Functions â†” Unity)
+// Plan 4: Sözleşmeler (React ⇄ Functions ⇄ Unity)
 // League onboarding & fixtures management
 export { assignTeamToLeague, assignTeamToLeagueHttp, requestJoinLeague, finalizeIfFull, generateRoundRobinFixturesFn, assignAllTeamsToLeagues, } from './league.js';
 // Lineup lock (server-side, secret protected)
-export { lockLineup } from './lineup.js';
+export { lockLineup, setLineup } from './lineup.js';
 // Live feed endpoints for Unity publisher
 export { emitLive } from './live/emit.js';
 export { endLive } from './live/end.js';

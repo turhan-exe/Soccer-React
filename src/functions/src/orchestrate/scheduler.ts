@@ -1,7 +1,6 @@
 import * as functions from 'firebase-functions/v1';
 import { getApps, initializeApp } from 'firebase-admin/app';
-import * as admin from 'firebase-admin';
-import { getFirestore } from 'firebase-admin/firestore';
+import { getFirestore, FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { formatInTimeZone } from 'date-fns-tz';
 import { sendSlack } from '../notify/slack.js';
 import { createDailyBatchInternal } from '../jobs/createBatch.js';
@@ -23,7 +22,7 @@ function todayTR(d = new Date()) {
 
 async function setHeartbeat(day: string, patch: Record<string, any>) {
   const ref = db.doc(`ops_heartbeats/${day}`);
-  await ref.set({ lastUpdated: admin.firestore.FieldValue.serverTimestamp(), ...patch }, { merge: true });
+  await ref.set({ lastUpdated: FieldValue.serverTimestamp(), ...patch }, { merge: true });
 }
 
 export const cronCreateBatch = functions
@@ -39,7 +38,7 @@ export const cronCreateBatch = functions
       const day = todayTR();
       const r = await createDailyBatchInternal(day);
       await setHeartbeat(day, { batchOk: true, batchCount: r.count, info: r.batchPath });
-      res.json({ ok: true, ...r });
+      res.json(r);
     } catch (e: any) {
       await sendSlack(`❌ cronCreateBatch hata: ${e?.message || e}`);
       res.status(500).send(e?.message || 'error');
@@ -93,13 +92,13 @@ export const cronWatchdog = functions
     const scheduledPastSnap = await db
       .collectionGroup('fixtures')
       .where('status', '==', 'scheduled')
-      .where('date', '<', admin.firestore.Timestamp.now())
+      .where('date', '<', Timestamp.now())
       .limit(50)
       .get();
     if (scheduledPastSnap.size > 0) problems.push(`scheduledPast=${scheduledPastSnap.size}`);
 
     // running for too long (e.g., > 20 min) but not played
-    const twentyMinAgo = admin.firestore.Timestamp.fromMillis(Date.now() - 20 * 60 * 1000);
+    const twentyMinAgo = Timestamp.fromMillis(Date.now() - 20 * 60 * 1000);
     const longRunningSnap = await db
       .collectionGroup('fixtures')
       .where('status', '==', 'running')
@@ -112,7 +111,12 @@ export const cronWatchdog = functions
     // if (!hb.unityJobOk) problems.push('Unity job çalismadi');
     if (problems.length) {
       await sendSlack(`🚨 Watchdog ${day} 19:10: ${problems.join(' • ')}`, { heartbeat: hb, scheduledPast: scheduledPastSnap.size });
-      return res.status(500).json({ ok: false, problems });
+      res.status(500).json({ ok: false, problems });
+      return;
     }
-    return res.json({ ok: true });
+    res.json({ ok: true });
+      return;
   });
+
+
+

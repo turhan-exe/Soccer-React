@@ -1,10 +1,15 @@
-import * as admin from 'firebase-admin';
+import { getApps, initializeApp } from 'firebase-admin/app';
+import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import * as functions from 'firebase-functions/v1';
 import { log } from '../logger.js';
 import { v2 as cloudTasks } from '@google-cloud/tasks';
 import { scheduleFinalizeWatchdog } from './retry.js';
 
-const db = admin.firestore();
+if (!getApps().length) {
+  initializeApp();
+}
+
+const db = getFirestore();
 const REGION = 'europe-west1';
 const START_SECRET = (functions.config() as any)?.start?.secret || (functions.config() as any)?.orchestrate?.secret || '';
 
@@ -67,7 +72,7 @@ export async function startMatchInternal(matchId: string, leagueId: string, opts
     if (st === 'scheduled') {
       tx.update(fxRef, {
         status: 'running',
-        startedAt: admin.firestore.FieldValue.serverTimestamp(),
+        startedAt: FieldValue.serverTimestamp(),
       });
       return;
     }
@@ -92,7 +97,7 @@ export async function startMatchInternal(matchId: string, leagueId: string, opts
     const h = home.data() as any, a = away.data() as any;
     await planRef.set({
       matchId, leagueId, seasonId: fx.seasonId || 'S-2025a',
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      createdAt: FieldValue.serverTimestamp(),
       rngSeed: fx.seed || Math.floor(Math.random() * 1e9),
       kickoffUtc: fx.date,
       home: {
@@ -110,7 +115,7 @@ export async function startMatchInternal(matchId: string, leagueId: string, opts
 
   // If forceRedispatch and fixture is not running, ensure it's marked running
   if (forceRedispatch && fx?.status !== 'running') {
-    await fxRef.set({ status: 'running', startedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
+    await fxRef.set({ status: 'running', startedAt: FieldValue.serverTimestamp() }, { merge: true });
   }
 
   // Mark league active on first start
@@ -119,7 +124,7 @@ export async function startMatchInternal(matchId: string, leagueId: string, opts
     const leagueSnap = await leagueRef.get();
     const state = (leagueSnap.data() as any)?.state;
     if (state === 'scheduled') {
-      await leagueRef.set({ state: 'active', activatedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
+      await leagueRef.set({ state: 'active', activatedAt: FieldValue.serverTimestamp() }, { merge: true });
     }
   } catch {}
 
@@ -211,7 +216,8 @@ export const startMatchHttp = functions
     }
 
     const { matchId, leagueId } = req.body || {};
-    if (!matchId || !leagueId) return res.status(400).send('missing params');
+    if (!matchId || !leagueId) res.status(400).send('missing params');
+      return;
     try {
       const r = await startMatchInternal(matchId, leagueId);
       const durationMs = Date.now() - t0;
@@ -223,3 +229,6 @@ export const startMatchHttp = functions
       res.status(500).send(e?.message || 'error');
     }
   });
+
+
+

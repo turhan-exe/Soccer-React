@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -39,6 +39,7 @@ function dayTitle(d: Date) {
 
 export default function MyFixturesPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user } = useAuth();
   const [fixtures, setFixtures] = useState<DisplayFixture[]>([]);
   const [upcomingOnly, setUpcomingOnly] = useState(true);
@@ -108,10 +109,11 @@ export default function MyFixturesPage() {
     };
   }, [fixtures]);
 
-  const visibleFixtures = useMemo(
-    () => (upcomingOnly ? fixtures.filter((f) => f.status !== 'played') : fixtures),
-    [fixtures, upcomingOnly]
-  );
+  const isHistoryRoute = location.pathname.includes('match-history');
+  const visibleFixtures = useMemo(() => {
+    if (isHistoryRoute) return fixtures.filter((f) => f.status === 'played');
+    return upcomingOnly ? fixtures.filter((f) => f.status !== 'played') : fixtures;
+  }, [fixtures, upcomingOnly, isHistoryRoute]);
 
   // Gün bazında gruplama
   const grouped = useMemo(() => {
@@ -172,14 +174,18 @@ export default function MyFixturesPage() {
     <div className="p-4">
       <div className="flex items-center justify-between mb-4">
         <Button variant="ghost" onClick={() => navigate('/')}>←</Button>
-        <h1 className="text-xl font-bold">Fikstür</h1>
+        <h1 className="text-xl font-bold">{isHistoryRoute ? 'Maç Geçmişi' : 'Fikstür'}</h1>
         <div className="flex items-center space-x-2">
-          <span className="text-sm">Sadece yaklaşan</span>
-          <Switch
-            checked={upcomingOnly}
-            onCheckedChange={setUpcomingOnly}
-            aria-label="Upcoming only toggle"
-          />
+          {!isHistoryRoute && (
+            <>
+              <span className="text-sm">Sadece yaklaşan</span>
+              <Switch
+                checked={upcomingOnly}
+                onCheckedChange={setUpcomingOnly}
+                aria-label="Upcoming only toggle"
+              />
+            </>
+          )}
           <Button size="sm" onClick={handleGenerateFixtures} disabled={!myLeagueId || busy}>
             Fikstürü Oluştur
           </Button>
@@ -218,7 +224,7 @@ export default function MyFixturesPage() {
                             </div>
                           </div>
                           <div className="flex items-center gap-2">
-                            {isPlayed && m.replayPath && (
+                            {isPlayed && (
                               <Button
                                 variant="outline"
                                 size="sm"
