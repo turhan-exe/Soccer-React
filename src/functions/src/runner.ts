@@ -1,4 +1,5 @@
 import * as functions from 'firebase-functions/v1';
+import './_firebase.js';
 import { getFirestore, Timestamp } from 'firebase-admin/firestore';
 import * as pubsub from 'firebase-functions/v1/pubsub';
 

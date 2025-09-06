@@ -1,10 +1,7 @@
 import * as functions from 'firebase-functions/v1';
-import { getApps, initializeApp } from 'firebase-admin/app';
+import './_firebase.js';
 import { queueTodayScheduledMatches } from './matches.js';
 
-if (!getApps().length) {
-  initializeApp();
-}
 
 // Orchestrator endpoint for Cloud Scheduler (Option A in the plan)
 export const orchestrate19TRT = functions

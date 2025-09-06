@@ -1,13 +1,10 @@
-import { getApps, initializeApp } from 'firebase-admin/app';
+import '../_firebase.js';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import * as functions from 'firebase-functions/v1';
 import { log } from '../logger.js';
 import { v2 as cloudTasks } from '@google-cloud/tasks';
 import { scheduleFinalizeWatchdog } from './retry.js';
 
-if (!getApps().length) {
-  initializeApp();
-}
 
 const db = getFirestore();
 const REGION = 'europe-west1';

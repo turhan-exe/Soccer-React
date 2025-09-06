@@ -1,11 +1,8 @@
 import * as functions from 'firebase-functions/v1';
-import { getApps, initializeApp } from 'firebase-admin/app';
+import './_firebase.js';
 import { getFirestore, FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { requireAppCheck } from './mw/auth.js';
 
-if (!getApps().length) {
-  initializeApp();
-}
 
 const db = getFirestore();
 

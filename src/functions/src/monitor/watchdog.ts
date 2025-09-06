@@ -1,13 +1,10 @@
 import * as functions from 'firebase-functions/v1';
-import { getApps, initializeApp } from 'firebase-admin/app';
+import '../_firebase.js';
 import { getFirestore } from 'firebase-admin/firestore';
 import { dayTR } from './heartbeat.js';
 import { sendSlack } from '../notify/slack.js';
 import { log } from '../logger.js';
 
-if (!getApps().length) {
-  initializeApp();
-}
 
 const db = getFirestore();
 const REGION = 'europe-west1';

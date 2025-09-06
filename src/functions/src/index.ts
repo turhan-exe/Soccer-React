@@ -1,10 +1,4 @@
-import { getApps, initializeApp } from 'firebase-admin/app';
-
-try {
-  if (!getApps().length) {
-    initializeApp();
-  }
-} catch {}
+import './_firebase.js';
 
 export { lockWindowSnapshot } from './lineup/lockWindow.js';
 export { orchestrate19TRT } from './orchestrate/orchestrate19trt.js';
@@ -38,4 +32,5 @@ export { reportResult } from './results/reportResult.js';
 export { cronCreateBatch, kickUnityJob, cronWatchdog } from './orchestrate/scheduler.js';
 // Retry & Poison queue (Plan 10)
 export { finalizeWatchdogHttp } from './orchestrate/retry.js';
-
+// Operator callable: play all fixtures for a TR day
+export { playAllForDayFn } from './orchestrate/playAll.js';

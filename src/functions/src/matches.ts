@@ -1,11 +1,8 @@
 import * as functions from 'firebase-functions/v1';
-import { getApps, initializeApp } from 'firebase-admin/app';
+import './_firebase.js';
 import { getFirestore, Timestamp, FieldValue, QueryDocumentSnapshot } from 'firebase-admin/firestore';
 import { today19TR } from './utils/schedule.js';
 
-if (!getApps().length) {
-  initializeApp();
-}
 
 const db = getFirestore();
 

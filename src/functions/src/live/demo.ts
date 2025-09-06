@@ -1,10 +1,7 @@
 import * as functions from 'firebase-functions/v1';
-import { getApps, initializeApp } from 'firebase-admin/app';
+import '../_firebase.js';
 import { getDatabase, ServerValue } from 'firebase-admin/database';
 
-if (!getApps().length) {
-  initializeApp();
-}
 
 const rtdb = getDatabase();
 const SECRET = (functions.config() as any)?.live?.secret || '';

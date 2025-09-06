@@ -1,7 +1,7 @@
 import * as functions from 'firebase-functions/v1';
 import { requireAppCheck, requireAuth } from './mw/auth.js';
 import { generateRoundRobinFixtures, nextDay19TR } from './utils/schedule.js';
-import { initializeApp } from 'firebase-admin/app';
+import './_firebase.js';
 import {
   getFirestore,
   FieldValue,
@@ -12,7 +12,6 @@ import {
 } from 'firebase-admin/firestore';
 import { getAuth } from 'firebase-admin/auth';
 
-initializeApp();
 const db = getFirestore();
 const ADMIN_SECRET = (functions.config() as any)?.admin?.secret || '';
 

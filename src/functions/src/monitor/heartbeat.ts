@@ -1,11 +1,8 @@
-import { getApps, initializeApp } from 'firebase-admin/app';
+import '../_firebase.js';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import { formatInTimeZone } from 'date-fns-tz';
 import { log } from '../logger.js';
 
-if (!getApps().length) {
-  initializeApp();
-}
 
 const db = getFirestore();
 const TZ = 'Europe/Istanbul';
