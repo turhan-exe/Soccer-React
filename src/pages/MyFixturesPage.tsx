@@ -45,6 +45,7 @@ export default function MyFixturesPage() {
   const [upcomingOnly, setUpcomingOnly] = useState(true);
   const [myLeagueId, setMyLeagueId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [playing, setPlaying] = useState(false);
   const [myTeamName, setMyTeamName] = useState<string>('Takımım');
   const [liveMap, setLiveMap] = useState<Record<string, boolean>>({});
   const liveUnsubs = React.useRef<Record<string, () => void>>({});
@@ -168,6 +169,42 @@ export default function MyFixturesPage() {
     }
   };
 
+  const handlePlayNextMatchDay = async () => {
+    if (!user) {
+      toast.message('Giriş gerekli', { description: 'Önce oturum açın.' });
+      return;
+    }
+    // Find earliest upcoming fixture date (not played)
+    const upcoming = fixtures.filter((f) => f.status !== 'played');
+    if (upcoming.length === 0) {
+      toast.message('Oynatılacak maç yok', {
+        description: 'Yaklaşan maç bulunamadı.',
+      });
+      return;
+    }
+    const nextDate = upcoming[0].date as Date;
+    const targetDayKey = dayKey(nextDate);
+    try {
+      setPlaying(true);
+      const toastId = toast.loading('Maçlar başlatılıyor...', {
+        description: `${targetDayKey} tarihindeki tüm maçlar` ,
+      });
+      const fn = httpsCallable(functions, 'playAllForDayFn');
+      const resp = (await fn({ dayKey: targetDayKey })) as any;
+      const total = resp?.data?.total ?? 0;
+      const started = resp?.data?.started ?? 0;
+      toast.success('Başlatma tamamlandı', {
+        description: `${started}/${total} maç başlatıldı.`,
+        id: toastId,
+      });
+    } catch (e: any) {
+      const msg = e?.message || 'İşlem başarısız';
+      toast.error('Hata', { description: msg });
+    } finally {
+      setPlaying(false);
+    }
+  };
+
   const dayKeys = Object.keys(grouped).sort();
 
   return (
@@ -189,6 +226,11 @@ export default function MyFixturesPage() {
           <Button size="sm" onClick={handleGenerateFixtures} disabled={!myLeagueId || busy}>
             Fikstürü Oluştur
           </Button>
+          {!isHistoryRoute && (
+            <Button size="sm" variant="secondary" onClick={handlePlayNextMatchDay} disabled={playing}>
+              Bir Sonraki Maçları Oynat
+            </Button>
+          )}
         </div>
       </div>
 

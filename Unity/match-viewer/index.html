@@ -30,7 +30,13 @@
           const usp = new URLSearchParams(location.search);
           const matchId = usp.get('matchId') || '';
           const replayUrl = usp.get('replayUrl') || '';
-          window.__MGX__ = { matchId, replayUrl };
+          const mode = usp.get('mode') || '';
+          const leagueId = usp.get('leagueId') || '';
+          const homeTeamId = usp.get('homeTeamId') || '';
+          const awayTeamId = usp.get('awayTeamId') || '';
+          const homeTeamName = usp.get('homeTeamName') || '';
+          const awayTeamName = usp.get('awayTeamName') || '';
+          window.__MGX__ = { matchId, replayUrl, mode, leagueId, homeTeamId, awayTeamId, homeTeamName, awayTeamName };
         } catch (e) {
           window.__MGX__ = { matchId: '', replayUrl: '' };
         }
@@ -129,9 +135,18 @@
                   }
                   // Optional: try common bridge method names if present in build
                   const ctx = window.__MGX__ || {};
-                  if (ctx.replayUrl && unityInstance && typeof unityInstance.SendMessage === 'function') {
-                    // Attempt some conventional targets if the build provides them
-                    const payload = JSON.stringify({ replayUrl: ctx.replayUrl, matchId: ctx.matchId });
+                  if (unityInstance && typeof unityInstance.SendMessage === 'function') {
+                    // Try to pass available query info to Unity (replay or practice)
+                    const payload = JSON.stringify({
+                      matchId: ctx.matchId,
+                      replayUrl: ctx.replayUrl,
+                      mode: ctx.mode,
+                      leagueId: ctx.leagueId,
+                      homeTeamId: ctx.homeTeamId,
+                      awayTeamId: ctx.awayTeamId,
+                      homeTeamName: ctx.homeTeamName,
+                      awayTeamName: ctx.awayTeamName,
+                    });
                     try { unityInstance.SendMessage('WebBridge', 'InitWithQuery', payload); } catch {}
                     try { unityInstance.SendMessage('JSBridge', 'InitWithQuery', payload); } catch {}
                     try { unityInstance.SendMessage('Bridge', 'InitWithQuery', payload); } catch {}

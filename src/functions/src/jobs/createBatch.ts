@@ -1,13 +1,10 @@
 import * as functions from 'firebase-functions/v1';
 import { requireAppCheck, requireAuth } from '../mw/auth.js';
-import { getApps, initializeApp } from 'firebase-admin/app';
+import '../_firebase.js';
 import { getFirestore, Timestamp } from 'firebase-admin/firestore';
 import { getStorage } from 'firebase-admin/storage';
 import { formatInTimeZone, fromZonedTime } from 'date-fns-tz';
 
-if (!getApps().length) {
-  initializeApp();
-}
 
 const db = getFirestore();
 

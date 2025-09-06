@@ -1,12 +1,9 @@
 import * as functions from 'firebase-functions/v1';
-import { getApps, initializeApp } from 'firebase-admin/app';
+import '../_firebase.js';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import { betweenTR_19_to_2359, dayKeyTR, ts } from '../utils/schedule.js';
 import { log } from '../logger.js';
 
-if (!getApps().length) {
-  initializeApp();
-}
 
 const db = getFirestore();
 const REGION = 'europe-west1';

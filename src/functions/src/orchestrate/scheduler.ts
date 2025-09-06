@@ -1,14 +1,11 @@
 import * as functions from 'firebase-functions/v1';
-import { getApps, initializeApp } from 'firebase-admin/app';
+import '../_firebase.js';
 import { getFirestore, FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { formatInTimeZone } from 'date-fns-tz';
 import { sendSlack } from '../notify/slack.js';
 import { createDailyBatchInternal } from '../jobs/createBatch.js';
 import { GoogleAuth } from 'google-auth-library';
 
-if (!getApps().length) {
-  initializeApp();
-}
 
 const db = getFirestore();
 const TZ = 'Europe/Istanbul';

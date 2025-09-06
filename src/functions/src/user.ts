@@ -1,5 +1,6 @@
 import * as functions from 'firebase-functions/v1';
 import { assignTeam as assignTeamInternal } from './league.js';
+import './_firebase.js';
 import { getFirestore } from 'firebase-admin/firestore';
 
 const db =getFirestore();

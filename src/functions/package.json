@@ -1,4 +1,4 @@
-﻿{
+{
     "name":  "football-manager-functions",
     "version":  "0.1.0",
     "private":  true,
@@ -13,22 +13,22 @@
                     "lint":  "echo \u0027no lint configured\u0027",
                     "serve":  "firebase emulators:start --only functions",
                     "deploy":  "firebase deploy --only functions",
-                    "seed": "node src/functions/scripts/seed.mjs",
-                    "push-live": "node src/functions/scripts/push-live.mjs",
-                    "finalize:sample": "node src/functions/scripts/finalize-sample.mjs",
-                    "e2e:happy": "node src/functions/scripts/e2e-lock-start-finalize.mjs"
+                    "seed":  "node src/functions/scripts/seed.mjs",
+                    "push-live":  "node src/functions/scripts/push-live.mjs",
+                    "finalize:sample":  "node src/functions/scripts/finalize-sample.mjs",
+                    "e2e:happy":  "node src/functions/scripts/e2e-lock-start-finalize.mjs"
                 },
     "dependencies":  {
-                         "@google-cloud/tasks":  "^6.4.0",
+                         "@google-cloud/tasks":  "6.2.0",
                          "date-fns":  "^3.6.0",
                          "date-fns-tz":  "^3.2.0",
                          "firebase-admin":  "^12.6.0",
-                         "firebase-functions":  "^6.4.0",
+                         "firebase-functions":  "^6.2.0",
                          "uuid":  "^9.0.1"
                      },
     "devDependencies":  {
+                            "@types/node":  "^22.5.5",
                             "rimraf":  "^5.0.7",
-                            "typescript":  "^5.5.4",
-                            "@types/node":  "^22.5.5"
+                            "typescript":  "^5.5.4"
                         }
 }

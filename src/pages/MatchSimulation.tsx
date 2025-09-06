@@ -6,6 +6,11 @@ import { useAuth } from '@/contexts/AuthContext';
 import { getFixturesForTeam, getMyLeagueId, getLeagueTeams } from '@/services/leagues';
 import type { Fixture } from '@/types';
 import { UnityPracticeView } from '@/components/unity/UnityPracticeView';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { getTeam } from '@/services/team';
+import { makeMockTeam } from '@/lib/mockTeam';
+import { simulateMatch } from '@/lib/practiceSim';
+import { MatchReplayView } from '@/components/replay/MatchReplayView';
 
 type DisplayFixture = Fixture & { opponent: string; home: boolean };
 
@@ -15,6 +20,13 @@ export default function MatchSimulation() {
   const [loading, setLoading] = useState(true);
   const [leagueId, setLeagueId] = useState<string | null>(null);
   const [nextFixture, setNextFixture] = useState<DisplayFixture | null>(null);
+  const [teams, setTeams] = useState<{ id: string; name: string }[]>([]);
+  const [homeSel, setHomeSel] = useState<string | null>(null);
+  const [awaySel, setAwaySel] = useState<string | null>(null);
+  const [localReplayUrl, setLocalReplayUrl] = useState<string | null>(null);
+  const [localMatchId, setLocalMatchId] = useState<string | null>(null);
+  const [showUnityPractice, setShowUnityPractice] = useState(false);
+  const [practiceMatchId, setPracticeMatchId] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -32,6 +44,7 @@ export default function MatchSimulation() {
           getFixturesForTeam(lid, user.id),
           getLeagueTeams(lid),
         ]);
+        setTeams(teams);
         const teamMap = new Map(teams.map((t) => [t.id, t.name]));
         const upcoming = fixtures
           .filter((f) => f.status !== 'played')
@@ -47,6 +60,9 @@ export default function MatchSimulation() {
           opponent: teamMap.get(opponentId) || opponentId,
           home,
         });
+        // Defaults for custom sim
+        setHomeSel(upcoming.homeTeamId);
+        setAwaySel(upcoming.awayTeamId);
       } finally {
         setLoading(false);
       }
@@ -113,6 +129,96 @@ export default function MatchSimulation() {
           homeTeamId={nextFixture.homeTeamId}
           awayTeamId={nextFixture.awayTeamId}
         />
+
+        <Card>
+          <CardContent className="p-4 space-y-3">
+            <div className="font-semibold">Özel Simülasyon (Yerel)</div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
+              <div>
+                <div className="text-xs mb-1">Ev Sahibi</div>
+                <Select value={homeSel || undefined} onValueChange={(v) => setHomeSel(v)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Takım seçin" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {teams.map((t) => (
+                      <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <div className="text-xs mb-1">Deplasman</div>
+                <Select value={awaySel || undefined} onValueChange={(v) => setAwaySel(v)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Takım seçin" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {teams.map((t) => (
+                      <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  className="mt-6"
+                  disabled={!homeSel || !awaySel || homeSel === awaySel}
+                  onClick={async () => {
+                    if (!homeSel || !awaySel) return;
+                    try {
+                      const homeTeam = (await getTeam(homeSel)) || makeMockTeam(homeSel, teams.find((t) => t.id === homeSel)?.name || homeSel);
+                      const awayTeam = (await getTeam(awaySel)) || makeMockTeam(awaySel, teams.find((t) => t.id === awaySel)?.name || awaySel);
+                      const { replay } = simulateMatch(homeTeam, awayTeam);
+                      const blob = new Blob([JSON.stringify(replay)], { type: 'application/json' });
+                      const url = URL.createObjectURL(blob);
+                      setLocalReplayUrl(url);
+                      setLocalMatchId(replay.meta?.matchId || `LOCAL-${Date.now()}`);
+                      setShowUnityPractice(false);
+                    } catch (e) {
+                      console.warn('[LocalSim] failed', e);
+                    }
+                  }}
+                >
+                  Yerel Simülasyonu Başlat
+                </Button>
+                <Button
+                  variant="outline"
+                  className="mt-6"
+                  disabled={!homeSel || !awaySel || homeSel === awaySel}
+                  onClick={() => {
+                    if (!homeSel || !awaySel) return;
+                    setLocalReplayUrl(null);
+                    setLocalMatchId(null);
+                    setPracticeMatchId(`PRAC-${homeSel}-${awaySel}-${Date.now()}`);
+                    setShowUnityPractice(true);
+                  }}
+                >
+                  Unity’de Aç (Takımlar Seçili)
+                </Button>
+              </div>
+            </div>
+
+            {localReplayUrl && localMatchId && !showUnityPractice && (
+              <div className="pt-2">
+                <MatchReplayView matchId={localMatchId} replayUrl={localReplayUrl} />
+              </div>
+            )}
+
+            {showUnityPractice && practiceMatchId && homeSel && awaySel && (
+              <div className="pt-2">
+                <UnityPracticeView
+                  matchId={practiceMatchId}
+                  leagueId={leagueId}
+                  homeTeamId={homeSel}
+                  awayTeamId={awaySel}
+                  homeTeamName={teams.find((t) => t.id === homeSel)?.name}
+                  awayTeamName={teams.find((t) => t.id === awaySel)?.name}
+                />
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </div>
     </div>
   );

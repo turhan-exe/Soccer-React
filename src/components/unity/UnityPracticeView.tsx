@@ -5,13 +5,15 @@ type Props = {
   leagueId?: string | null;
   homeTeamId?: string;
   awayTeamId?: string;
+  homeTeamName?: string;
+  awayTeamName?: string;
 };
 
 /**
  * Embeds Unity WebGL match viewer in practice mode for the upcoming match.
  * Falls back to a simple message if Unity bundle is not available.
  */
-export function UnityPracticeView({ matchId, leagueId, homeTeamId, awayTeamId }: Props) {
+export function UnityPracticeView({ matchId, leagueId, homeTeamId, awayTeamId, homeTeamName, awayTeamName }: Props) {
   const [unityOk, setUnityOk] = useState<boolean | null>(null);
 
   // Probe Unity availability
@@ -43,8 +45,10 @@ export function UnityPracticeView({ matchId, leagueId, homeTeamId, awayTeamId }:
     if (leagueId) params.set('leagueId', leagueId);
     if (homeTeamId) params.set('homeTeamId', homeTeamId);
     if (awayTeamId) params.set('awayTeamId', awayTeamId);
+    if (homeTeamName) params.set('homeTeamName', homeTeamName);
+    if (awayTeamName) params.set('awayTeamName', awayTeamName);
     return `/Unity/match-viewer/index.html?${params.toString()}`;
-  }, [matchId, leagueId, homeTeamId, awayTeamId]);
+  }, [matchId, leagueId, homeTeamId, awayTeamId, homeTeamName, awayTeamName]);
 
   if (unityOk === null) return <div>Oynatıcı hazırlanıyor…</div>;
   if (!unityOk) return <div>Unity oynatıcı bulunamadı.</div>;
@@ -55,4 +59,3 @@ export function UnityPracticeView({ matchId, leagueId, homeTeamId, awayTeamId }:
     </div>
   );
 }
-

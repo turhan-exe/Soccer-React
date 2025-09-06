@@ -1,5 +1,5 @@
 import * as functions from 'firebase-functions/v1';
-import { getApps, initializeApp } from 'firebase-admin/app';
+import '../_firebase.js';
 import { getStorage } from 'firebase-admin/storage';
 import { requireAuth, requireAppCheck } from '../mw/auth.js';
 import { log } from '../logger.js';
@@ -24,9 +24,7 @@ export const getReplay = functions
       throw new functions.https.HttpsError('invalid-argument', 'replayPath is required');
     }
 
-    if (!getApps().length) {
-      initializeApp();
-    }
+    // Firebase Admin app is initialized via side-effect import above.
     const bucket = getStorage().bucket();
     try {
       const [exists] = await bucket.file(replayPath).exists();
