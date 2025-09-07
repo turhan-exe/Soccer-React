@@ -8,11 +8,17 @@ import { LEGEND_PLAYERS, type LegendPlayer } from './players';
 import { drawLegend } from './drawLegend';
 
 const PACK_COST = 1;
+const LEAGUE_DURATION_MS = 1000 * 60 * 60 * 24 * 90;
+
+interface RentedLegend extends LegendPlayer {
+  expiresAt: Date;
+}
 
 const LegendPackPage = () => {
   const { user } = useAuth();
   const { balance, spend } = useDiamonds();
   const [current, setCurrent] = useState<LegendPlayer | null>(null);
+  const [rented, setRented] = useState<RentedLegend[]>([]);
 
   const handleOpen = async () => {
     if (!user) {
@@ -33,6 +39,18 @@ const LegendPackPage = () => {
     }
   };
 
+  const handleRent = (player: LegendPlayer) => {
+    const expiresAt = new Date(Date.now() + LEAGUE_DURATION_MS);
+    setRented((prev) => [...prev, { ...player, expiresAt }]);
+    toast.success(`${player.name} kiralandı`);
+    setCurrent(null);
+  };
+
+  const handleRelease = () => {
+    toast.message('Kart serbest bırakıldı');
+    setCurrent(null);
+  };
+
   return (
     <div className="p-4 space-y-4">
       <h1 className="text-2xl font-bold">Nostalji Paket</h1>
@@ -40,7 +58,26 @@ const LegendPackPage = () => {
       <Button onClick={handleOpen} disabled={balance < PACK_COST}>
         Paket Aç (1💎)
       </Button>
-      {current && <LegendCard player={current} />}
+      {current && (
+        <LegendCard
+          player={current}
+          onRent={handleRent}
+          onRelease={handleRelease}
+        />
+      )}
+      {rented.length > 0 && (
+        <div className="pt-4">
+          <h2 className="text-xl font-semibold">Kiralanan Oyuncular</h2>
+          <ul className="list-disc list-inside">
+            {rented.map((p) => (
+              <li key={p.id}>
+                {p.name} - Sözleşme bitiş:{' '}
+                {p.expiresAt.toLocaleDateString()}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </div>
   );
 };
