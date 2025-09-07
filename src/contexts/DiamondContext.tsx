@@ -1,11 +1,17 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { ensureUserDoc, listenDiamondBalance, mockPurchaseDiamonds } from '@/services/diamonds';
+import {
+  ensureUserDoc,
+  listenDiamondBalance,
+  mockPurchaseDiamonds,
+  spendDiamonds,
+} from '@/services/diamonds';
 import type { DiamondPack } from '@/features/diamonds/packs';
 
 interface DiamondContextValue {
   balance: number;
   purchase: (pack: DiamondPack) => Promise<void>;
+  spend: (amount: number) => Promise<void>;
 }
 
 const DiamondContext = createContext<DiamondContextValue | undefined>(undefined);
@@ -30,8 +36,13 @@ export const DiamondProvider: React.FC<{ children: ReactNode }> = ({ children })
     });
   };
 
+  const spend = async (amount: number) => {
+    if (!user) return;
+    await spendDiamonds(user.id, amount);
+  };
+
   return (
-    <DiamondContext.Provider value={{ balance, purchase }}>
+    <DiamondContext.Provider value={{ balance, purchase, spend }}>
       {children}
     </DiamondContext.Provider>
   );
