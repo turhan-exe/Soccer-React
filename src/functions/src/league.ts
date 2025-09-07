@@ -456,7 +456,12 @@ export const generateRoundRobinFixturesFn = functions.region('europe-west1').htt
     }
     functions.logger.info('[CALLABLE] generateRoundRobinFixturesFn: Eski fikstürler silindi', { leagueId, deleted });
   }
-  await generateFixturesForLeague(leagueId, (league.startDate as any).toDate());
+  // Force modunda başlangıç gününü güvenli şekilde bugün+1 19:00 TR al
+  // Aksi halde ligdeki mevcut startDate değerini kullan
+  const startDateSafe = force
+    ? nextDay19TR()
+    : ((league.startDate as any)?.toDate?.() || nextDay19TR());
+  await generateFixturesForLeague(leagueId, startDateSafe);
   functions.logger.info('[CALLABLE] generateRoundRobinFixturesFn bitti', { leagueId, forced: force });
   return { ok: true, forced: force };
 });

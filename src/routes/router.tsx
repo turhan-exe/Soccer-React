@@ -11,6 +11,7 @@ import LeagueDetailPage from '@/pages/LeagueDetailPage';
 import Training from '@/pages/Training';
 import MatchPreview from '@/pages/MatchPreview';
 import MatchSimulation from '@/pages/MatchSimulation';
+import UnityAutoSeed from '@/pages/UnityAutoSeed';
 import LiveDebugPage from '@/pages/LiveDebugPage';
 import MatchWatcherPage from '@/pages/MatchWatcherPage';
 import Finance from '@/pages/Finance';
@@ -36,6 +37,7 @@ export const router = createBrowserRouter(
         { path: '/training', element: <Training /> },
         { path: '/match-preview', element: <MatchPreview /> },
         { path: '/match-simulation', element: <MatchSimulation /> },
+        { path: '/unity-auto-seed', element: <UnityAutoSeed /> },
         { path: '/live-debug', element: <LiveDebugPage /> },
         { path: '/match/:id', element: <MatchWatcherPage /> },
         { path: '/match-history', element: <MyFixturesPage /> },

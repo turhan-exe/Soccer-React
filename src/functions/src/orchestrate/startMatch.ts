@@ -213,8 +213,10 @@ export const startMatchHttp = functions
     }
 
     const { matchId, leagueId } = req.body || {};
-    if (!matchId || !leagueId) res.status(400).send('missing params');
+    if (!matchId || !leagueId) {
+      res.status(400).send('missing params');
       return;
+    }
     try {
       const r = await startMatchInternal(matchId, leagueId);
       const durationMs = Date.now() - t0;

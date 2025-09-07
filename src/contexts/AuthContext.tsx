@@ -43,8 +43,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
         const team = await getTeam(firebaseUser.uid);
-        const teamName = team?.name || firebaseUser.displayName || 'Takımım';
-        const username = team?.manager || firebaseUser.email?.split('@')[0] || 'Kullanıcı';
+        const usernameFallback = firebaseUser.email?.split('@')[0] || 'Kullanıcı';
+        const teamName = team?.name || firebaseUser.displayName || usernameFallback || 'Takımım';
+        const username = team?.manager || usernameFallback;
         setUser({
           id: firebaseUser.uid,
           username,
@@ -84,9 +85,21 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       if (cred.user) {
         const managerName = generateRandomName();
         try {
+          // Profil ve takım oluşturmayı tamamla
           await updateProfile(cred.user, { displayName: teamName });
           await createInitialTeam(cred.user.uid, teamName, managerName);
           await requestJoinLeague(cred.user.uid);
+
+          // ÖNEMLİ: Kayıttan hemen sonra UI'da takım adını anında göstermek için
+          // context'teki kullanıcıyı güncelle (sayfa yenilemeden çalışır)
+          setUser({
+            id: cred.user.uid,
+            username: managerName,
+            email: cred.user.email || email,
+            teamName,
+            teamLogo: '⚽',
+            connectedAccounts: { google: false, apple: false },
+          });
         } catch (err) {
           console.error('Post-register setup failed:', err);
         }

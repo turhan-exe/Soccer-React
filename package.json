@@ -15,7 +15,8 @@
     "gcs:lifecycle:apply": "node scripts/gcs-lifecycle.mjs apply",
     "gcs:lifecycle:describe": "node scripts/gcs-lifecycle.mjs describe",
     "pretest:e2e": "vite build",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "league:verify": "node scripts/league-quick-verify.mjs"
   },
   "dependencies": {
     "@google-cloud/tasks": "^6.2.0",

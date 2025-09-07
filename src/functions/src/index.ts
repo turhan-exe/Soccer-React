@@ -16,6 +16,10 @@ export {
   generateRoundRobinFixturesFn,
   assignAllTeamsToLeagues,
 } from './league.js';
+// User lifecycle triggers
+export { assignTeamOnUserCreate } from './user.js';
+// Data sync helpers
+export { syncTeamName } from './user.js';
 
 // Lineup lock (server-side, secret protected)
 export { lockLineup, setLineup } from './lineup.js';
@@ -33,4 +37,4 @@ export { cronCreateBatch, kickUnityJob, cronWatchdog } from './orchestrate/sched
 // Retry & Poison queue (Plan 10)
 export { finalizeWatchdogHttp } from './orchestrate/retry.js';
 // Operator callable: play all fixtures for a TR day
-export { playAllForDayFn } from './orchestrate/playAll.js';
+export { playAllForDayFn, playAllForDayHttp } from './orchestrate/playAll.js';

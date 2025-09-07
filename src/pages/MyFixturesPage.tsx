@@ -84,6 +84,30 @@ export default function MyFixturesPage() {
     load();
   }, [user]);
 
+  // Eldeki yükleme mantığını tekrar kullanan küçük bir yeniden yükleme yardımcı fonksiyonu
+  const reloadFixtures = React.useCallback(async () => {
+    if (!user) return;
+    const leagueId = await getMyLeagueId(user.id);
+    if (!leagueId) {
+      setFixtures([]);
+      setMyLeagueId(null);
+      return;
+    }
+    setMyLeagueId(leagueId);
+    await ensureFixturesForLeague(leagueId);
+    const [list, teams] = await Promise.all([
+      getFixturesForTeam(leagueId, user.id),
+      getLeagueTeams(leagueId),
+    ]);
+    const teamMap = new Map(teams.map((t) => [t.id, t.name]));
+    const mapped: DisplayFixture[] = list.map((m) => {
+      const home = m.homeTeamId === user.id;
+      const opponentId = home ? m.awayTeamId : m.homeTeamId;
+      return { ...m, opponent: teamMap.get(opponentId) || opponentId, home };
+    });
+    setFixtures(mapped);
+  }, [user]);
+
   // Subscribe to live meta for non-played fixtures and build a live status map
   useEffect(() => {
     // cleanup previous
@@ -184,22 +208,71 @@ export default function MyFixturesPage() {
     }
     const nextDate = upcoming[0].date as Date;
     const targetDayKey = dayKey(nextDate);
+    let toastId: string | number | undefined;
     try {
       setPlaying(true);
-      const toastId = toast.loading('Maçlar başlatılıyor...', {
+      toastId = toast.loading('Maçlar başlatılıyor...', {
         description: `${targetDayKey} tarihindeki tüm maçlar` ,
       });
-      const fn = httpsCallable(functions, 'playAllForDayFn');
-      const resp = (await fn({ dayKey: targetDayKey })) as any;
-      const total = resp?.data?.total ?? 0;
-      const started = resp?.data?.started ?? 0;
-      toast.success('Başlatma tamamlandı', {
-        description: `${started}/${total} maç başlatıldı.`,
-        id: toastId,
-      });
+      const httpFirst = (import.meta as any).env?.VITE_USE_HTTP_FUNCTIONS === '1' || import.meta.env.DEV;
+      if (httpFirst) {
+        // HTTP (CORS açık) önce dene
+        const region = import.meta.env.VITE_FUNCTIONS_REGION || 'europe-west1';
+        const projectId = import.meta.env.VITE_FIREBASE_PROJECT_ID;
+        const url = `https://${region}-${projectId}.cloudfunctions.net/playAllForDayHttp`;
+        const respHttp = await fetch(url, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ dayKey: targetDayKey, force: true }), mode: 'cors',
+        });
+        const data = await respHttp.json().catch(() => ({} as any));
+        if (!respHttp.ok || data?.ok === false) throw new Error(data?.error || respHttp.statusText || 'İşlem başarısız');
+        const total = data?.total ?? 0; const started = data?.started ?? 0;
+        toast.success('Başlatma tamamlandı', { description: `${started}/${total} maç başlatıldı.`, id: toastId });
+        reloadFixtures();
+        return;
+      } else {
+        // Normal callable yolu
+        const fn = httpsCallable(functions, 'playAllForDayFn');
+        const resp = (await fn({ dayKey: targetDayKey, force: true })) as any;
+        const total = resp?.data?.total ?? 0; const started = resp?.data?.started ?? 0;
+        toast.success('Başlatma tamamlandı', { description: `${started}/${total} maç başlatıldı.`, id: toastId });
+        reloadFixtures();
+      }
     } catch (e: any) {
-      const msg = e?.message || 'İşlem başarısız';
-      toast.error('Hata', { description: msg });
+      // Callable CORS vs. hata aldıysak HTTP fallback deneyelim
+      try {
+        const region = import.meta.env.VITE_FUNCTIONS_REGION || 'europe-west1';
+        const projectId = import.meta.env.VITE_FIREBASE_PROJECT_ID;
+        const url = `https://${region}-${projectId}.cloudfunctions.net/playAllForDayHttp`;
+        const resp = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ dayKey: targetDayKey, force: true }),
+          mode: 'cors',
+        });
+        const data = await resp.json().catch(() => ({} as any));
+        if (!resp.ok || data?.ok === false) throw new Error(data?.error || resp.statusText || 'İşlem başarısız');
+        const total = data?.total ?? 0;
+        const started = data?.started ?? 0;
+        toast.success('Başlatma tamamlandı', { description: `${started}/${total} maç başlatıldı.`, id: toastId });
+        reloadFixtures();
+      } catch (e2: any) {
+        // Map common callable errors to Türkçe ve anlaşılır metin
+        const code: string = e2?.code || '';
+        const m: string = e2?.message || e?.message || '';
+        let msg = 'İşlem başarısız';
+        if (code.includes('permission-denied') || m.includes('Operator permission required')) {
+          msg = 'Bu işlem için yönetici (operator) yetkisi gerekiyor.';
+        } else if (code.includes('failed-precondition') || m.includes('AppCheck')) {
+          msg = 'App Check etkin değil. İstemciye App Check ekleyin.';
+        } else if (code.includes('unauthenticated')) {
+          msg = 'Giriş yapmanız gerekiyor.';
+        } else if (m) {
+          msg = m;
+        }
+        if (toastId !== undefined) toast.error('Hata', { description: msg, id: toastId });
+        else toast.error('Hata', { description: msg });
+      }
     } finally {
       setPlaying(false);
     }

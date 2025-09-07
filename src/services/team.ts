@@ -78,7 +78,11 @@ export const createInitialTeam = async (
   manager: string,
 ): Promise<ClubTeam> => {
   const team = generateTeamData(userId, teamName, manager);
-  await setDoc(doc(db, 'teams', userId), team);
+  // Firestore security rules require ownerUid on create and forbid setting leagueId from client
+  await setDoc(
+    doc(db, 'teams', userId),
+    { ...team, ownerUid: userId },
+  );
   return team;
 };
 

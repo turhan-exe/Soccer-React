@@ -31,20 +31,20 @@ export const orchestrate19TRT = functions
 
   const q = db.collectionGroup('fixtures')
     .where('date', '>=', ts(start))
-    .where('date', '<=', ts(end))
-    .where('status', '==', 'scheduled');
+    .where('date', '<=', ts(end));
   const snap = await q.get();
+  const docs = snap.docs.filter((d) => (d.data() as any)?.status === 'scheduled');
 
-  const requestId = log.info('orchestrate19TRT_start', { function: 'orchestrate19TRT', day, count: snap.size, mode: MODE });
+  const requestId = log.info('orchestrate19TRT_start', { function: 'orchestrate19TRT', day, count: docs.length, mode: MODE });
 
   if (MODE === 'TASKS') {
-    for (const d of snap.docs) {
+    for (const d of docs) {
       const leagueId = d.ref.parent.parent?.id;
       if (!leagueId) continue;
       await enqueueStartMatch(d.id, leagueId);
     }
   } else {
-    for (const d of snap.docs) {
+    for (const d of docs) {
       const leagueId = d.ref.parent.parent?.id;
       if (!leagueId) continue;
       await startMatchInternal(d.id, leagueId);
@@ -56,11 +56,11 @@ export const orchestrate19TRT = functions
     await db.doc(`ops_heartbeats/${day}`).set({
       lastUpdated: FieldValue.serverTimestamp(),
       orchestrateOk: true,
-      matchesScheduled: snap.size,
+      matchesScheduled: docs.length,
     }, { merge: true });
   } catch {}
 
   const durationMs = Date.now() - t0;
-  log.info('orchestrate19TRT_done', { requestId, function: 'orchestrate19TRT', ok: true, durationMs, day, count: snap.size, mode: MODE });
-  res.json({ ok: true, day, count: snap.size, mode: MODE, durationMs });
+  log.info('orchestrate19TRT_done', { requestId, function: 'orchestrate19TRT', ok: true, durationMs, day, count: docs.length, mode: MODE });
+  res.json({ ok: true, day, count: docs.length, mode: MODE, durationMs });
 });
