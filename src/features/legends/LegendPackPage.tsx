@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import LegendCard from './LegendCard';
 import { LEGEND_PLAYERS, type LegendPlayer } from './players';
 import { drawLegend } from './drawLegend';
+import { rentLegend } from '@/services/legends';
 
 const PACK_COST = 1;
 const LEAGUE_DURATION_MS = 1000 * 60 * 60 * 24 * 90;
@@ -39,10 +40,17 @@ const LegendPackPage = () => {
     }
   };
 
-  const handleRent = (player: LegendPlayer) => {
+  const handleRent = async (player: LegendPlayer) => {
+    if (!user) return;
     const expiresAt = new Date(Date.now() + LEAGUE_DURATION_MS);
-    setRented((prev) => [...prev, { ...player, expiresAt }]);
-    toast.success(`${player.name} kiralandı`);
+    try {
+      await rentLegend(user.id, player, expiresAt);
+      setRented((prev) => [...prev, { ...player, expiresAt }]);
+      toast.success(`${player.name} kiralandı`);
+    } catch (err) {
+      console.warn(err);
+      toast.error('İşlem başarısız');
+    }
     setCurrent(null);
   };
 
