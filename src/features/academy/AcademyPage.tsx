@@ -16,6 +16,7 @@ import CooldownPanel from './CooldownPanel';
 import CandidatesList from './CandidatesList';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { BackButton } from '@/components/ui/back-button';
 
 const STORAGE_KEY = 'academyCandidates';
 const NEXT_PULL_KEY = 'academyNextPullAt';
@@ -152,7 +153,10 @@ const AcademyPage = () => {
   return (
     <div className="p-4 space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Altyapı</h1>
+        <div className="flex items-center gap-2">
+          <BackButton />
+          <h1 className="text-2xl font-bold">Altyapı</h1>
+        </div>
         <Button onClick={handlePull} disabled={!canPull} data-testid="academy-pull">
           Oyuncu Üret
         </Button>

@@ -20,6 +20,7 @@ import { Button } from '@/components/ui/button';
 import YouthList from './YouthList';
 import CooldownPanel from './CooldownPanel';
 import type { Player } from '@/types';
+import { BackButton } from '@/components/ui/back-button';
 
 const positions: Player['position'][] = ['GK','CB','LB','RB','CM','LM','RM','CAM','LW','RW','ST'];
 const randomAttr = () => parseFloat(Math.random().toFixed(3));
@@ -153,7 +154,10 @@ const YouthPage = () => {
   return (
     <div className="p-4 space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Altyapı</h1>
+        <div className="flex items-center gap-2">
+          <BackButton />
+          <h1 className="text-2xl font-bold">Altyapı</h1>
+        </div>
         <Button onClick={handleGenerate} disabled={!canGenerate} data-testid="youth-generate">
           Oyuncu Üret
         </Button>
