@@ -12,6 +12,7 @@ import { toUnityFormationEnum } from '@/services/unityBridge';
 import { getTeam } from '@/services/team';
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import type { Player } from '@/types';
+import { BackButton } from '@/components/ui/back-button';
 
 type DisplayFixture = Fixture & { opponent: string; home: boolean };
 
@@ -142,7 +143,7 @@ export default function MatchSimulation() {
     <div className="bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm border-b p-4">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <Button variant="ghost" onClick={() => navigate('/')}>←</Button>
+          <BackButton />
           <h1 className="text-xl font-bold">Maç Simülasyonu</h1>
         </div>
       </div>

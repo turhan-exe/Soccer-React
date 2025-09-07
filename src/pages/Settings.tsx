@@ -8,6 +8,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { Settings, Moon, Sun, Volume2, Trash2, Download } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
+import { BackButton } from '@/components/ui/back-button';
 
 export default function SettingsPage() {
   const navigate = useNavigate();
@@ -27,7 +28,7 @@ export default function SettingsPage() {
       <div className="bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm border-b p-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Button variant="ghost" onClick={() => navigate('/')}>←</Button>
+            <BackButton />
             <h1 className="text-xl font-bold">Ayarlar</h1>
           </div>
         </div>
