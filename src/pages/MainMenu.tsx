@@ -8,17 +8,18 @@ import {
   Users, 
   UserPlus, 
   Calendar, 
-  Trophy, 
-  Dumbbell, 
-  Play, 
-  History, 
-  DollarSign, 
-  User, 
-  Settings, 
-  Moon, 
+  Trophy,
+  Dumbbell,
+  Play,
+  History,
+  DollarSign,
+  User,
+  Settings,
+  Moon,
   Sun,
   LogOut,
-  Bell
+  Bell,
+  Star
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { getMyLeagueId, listLeagueStandings, getFixturesForTeam } from '@/services/leagues';
@@ -35,6 +36,7 @@ const menuItems = [
   { id: 'finance', label: 'Finans', icon: DollarSign, color: 'bg-emerald-500' },
   { id: 'profile', label: 'Kişisel Bilgiler', icon: User, color: 'bg-indigo-500' },
   { id: 'settings', label: 'Ayarlar', icon: Settings, color: 'bg-slate-500' },
+  { id: 'legend-pack', label: 'Nostalji Paket', icon: Star, color: 'bg-pink-500' },
 ];
 
 export default function MainMenu() {

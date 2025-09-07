@@ -57,3 +57,21 @@ export async function mockPurchaseDiamonds(
     throw err;
   }
 }
+
+export async function spendDiamonds(uid: string, amount: number): Promise<void> {
+  const userRef = doc(db, 'users', uid);
+  try {
+    await runTransaction(db, async (tx) => {
+      const snap = await tx.get(userRef);
+      const balance = (snap.data()?.diamondBalance ?? 0) as number;
+      if (balance < amount) {
+        throw new Error('Yeterli elmas yok');
+      }
+      tx.update(userRef, { diamondBalance: balance - amount });
+    });
+  } catch (err) {
+    console.warn(err);
+    toast.error('Yeterli elmas yok');
+    throw err;
+  }
+}
