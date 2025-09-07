@@ -1,0 +1,54 @@
+const handlePlayNextMatchDay = async () => {
+    if (!user) {
+      toast.message('Giriş gerekli', { description: 'Önce oturum açın.' });
+      return;
+    }
+    // Find earliest upcoming fixture date (not played)
+    const upcoming = fixtures.filter((f) => f.status !== 'played');
+    if (upcoming.length === 0) {
+      toast.message('Oynatılacak maç yok', {
+        description: 'Yaklaşan maç bulunamadı.',
+      });
+      return;
+    }
+    const nextDate = upcoming[0].date as Date;
+    const targetDayKey = dayKey(nextDate);
+    let toastId: string | number | undefined;
+    try {
+      setPlaying(true);
+      toastId = toast.loading('Maçlar başlatılıyor...', {
+        description: `${targetDayKey} tarihindeki tüm maçlar` ,
+      });
+      const fn = httpsCallable(functions, 'playAllForDayFn');
+      const resp = (await fn({ dayKey: targetDayKey, force: true })) as any;
+      const total = resp?.data?.total ?? 0;
+      const started = resp?.data?.started ?? 0;
+      toast.success('Başlatma tamamlandı', {
+        description: `${started}/${total} maç başlatıldı.`,
+        id: toastId,
+      });
+      // Maç durumlarını güncelle
+      reloadFixtures();
+    } catch (e: any) {
+      // Map common callable errors to Türkçe ve anlaşılır metin
+      const code: string = e?.code || '';
+      const m: string = e?.message || '';
+      let msg = 'İşlem başarısız';
+      if (code.includes('permission-denied') || m.includes('Operator permission required')) {
+        msg = 'Bu işlem için yönetici (operator) yetkisi gerekiyor.';
+      } else if (code.includes('failed-precondition') || m.includes('AppCheck')) {
+        msg = 'App Check etkin değil. İstemciye App Check ekleyin.';
+      } else if (code.includes('unauthenticated')) {
+        msg = 'Giriş yapmanız gerekiyor.';
+      } else if (m) {
+        msg = m;
+      }
+      if (toastId !== undefined) {
+        toast.error('Hata', { description: msg, id: toastId });
+      } else {
+        toast.error('Hata', { description: msg });
+      }
+    } finally {
+      setPlaying(false);
+    }
+  };

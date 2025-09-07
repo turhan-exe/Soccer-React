@@ -6,11 +6,12 @@ export function dayKeyTR(d = new Date()) {
     return formatInTimeZone(d, TZ, 'yyyy-MM-dd');
 }
 export function trAt(d, hh, mm = 0) {
-    // Build a TR-date string for midnight, then set UTC hours appropriately
-    const baseStr = formatInTimeZone(d, TZ, "yyyy-MM-dd'T'00:00:00XXX");
-    const base = new Date(baseStr);
-    base.setUTCHours(hh - base.getTimezoneOffset() / 60, mm, 0, 0);
-    return base; // UTC Date representing TR time desired
+    // Build TR wall-clock time for given date, convert to accurate UTC
+    const dayStr = formatInTimeZone(d, TZ, 'yyyy-MM-dd');
+    const offset = formatInTimeZone(new Date(`${dayStr}T00:00:00Z`), TZ, 'XXX');
+    const hhStr = String(hh).padStart(2, '0');
+    const mmStr = String(mm).padStart(2, '0');
+    return new Date(`${dayStr}T${hhStr}:${mmStr}:00${offset}`);
 }
 export function todayTR_19() {
     const d = new Date();
@@ -40,9 +41,9 @@ export function ts(date) {
 }
 export function betweenTR_19_to_2359(dateTRKey) {
     // for yyyy-MM-dd in TR, get UTC Date range for 19:00–23:59 TR
-    const base = new Date(dateTRKey);
-    const start = trAt(base, 19, 0);
-    const end = trAt(base, 23, 59);
+    const offset = formatInTimeZone(new Date(`${dateTRKey}T00:00:00Z`), TZ, 'XXX');
+    const start = new Date(`${dateTRKey}T19:00:00${offset}`);
+    const end = new Date(`${dateTRKey}T23:59:59${offset}`);
     return { start, end };
 }
 export function addMinutesTR(date, minutes) {

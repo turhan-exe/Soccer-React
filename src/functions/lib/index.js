@@ -7,6 +7,10 @@ export { getReplay } from './results/getReplay.js';
 // Plan 4: Sözleşmeler (React ⇄ Functions ⇄ Unity)
 // League onboarding & fixtures management
 export { assignTeamToLeague, assignTeamToLeagueHttp, requestJoinLeague, finalizeIfFull, generateRoundRobinFixturesFn, assignAllTeamsToLeagues, } from './league.js';
+// User lifecycle triggers
+export { assignTeamOnUserCreate } from './user.js';
+// Data sync helpers
+export { syncTeamName } from './user.js';
 // Lineup lock (server-side, secret protected)
 export { lockLineup, setLineup } from './lineup.js';
 // Live feed endpoints for Unity publisher
@@ -20,4 +24,4 @@ export { cronCreateBatch, kickUnityJob, cronWatchdog } from './orchestrate/sched
 // Retry & Poison queue (Plan 10)
 export { finalizeWatchdogHttp } from './orchestrate/retry.js';
 // Operator callable: play all fixtures for a TR day
-export { playAllForDayFn } from './orchestrate/playAll.js';
+export { playAllForDayFn, playAllForDayHttp } from './orchestrate/playAll.js';
