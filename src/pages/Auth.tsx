@@ -10,7 +10,7 @@ import { toast } from 'sonner';
 import { Loader2, Chrome, Apple } from 'lucide-react';
 
 export default function Auth() {
-  const { login, register, isLoading } = useAuth();
+  const { login, register, loginWithGoogle, loginWithApple, isLoading } = useAuth();
   const [loginForm, setLoginForm] = useState({ email: '', password: '' });
   const [registerForm, setRegisterForm] = useState({ email: '', password: '', teamName: '' });
 
@@ -42,6 +42,26 @@ export default function Auth() {
       toast.success('Hesap başarıyla oluşturuldu!');
     } catch (error) {
       toast.error('Kayıt başarısız');
+    }
+  };
+
+  const handleGoogleAuth = async () => {
+    try {
+      await loginWithGoogle();
+      toast.success('Başarıyla giriş yapıldı!');
+    } catch (error) {
+      toast.error('Google ile giriş başarısız');
+      console.error('google login error:', error);
+    }
+  };
+
+  const handleAppleAuth = async () => {
+    try {
+      await loginWithApple();
+      toast.success('Başarıyla giriş yapıldı!');
+    } catch (error) {
+      toast.error('Apple ile giriş başarısız');
+      console.error('apple login error:', error);
     }
   };
 
@@ -104,11 +124,21 @@ export default function Auth() {
               </div>
 
               <div className="space-y-2">
-                <Button variant="outline" className="w-full" disabled={isLoading}>
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={handleGoogleAuth}
+                  disabled={isLoading}
+                >
                   <Chrome className="w-4 h-4 mr-2" />
                   Google ile Giriş
                 </Button>
-                <Button variant="outline" className="w-full" disabled={isLoading}>
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={handleAppleAuth}
+                  disabled={isLoading}
+                >
                   <Apple className="w-4 h-4 mr-2" />
                   Apple ile Giriş
                 </Button>
@@ -165,11 +195,21 @@ export default function Auth() {
               </div>
 
               <div className="space-y-2">
-                <Button variant="outline" className="w-full" disabled={isLoading}>
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={handleGoogleAuth}
+                  disabled={isLoading}
+                >
                   <Chrome className="w-4 h-4 mr-2" />
                   Google ile Kayıt
                 </Button>
-                <Button variant="outline" className="w-full" disabled={isLoading}>
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={handleAppleAuth}
+                  disabled={isLoading}
+                >
                   <Apple className="w-4 h-4 mr-2" />
                   Apple ile Kayıt
                 </Button>
