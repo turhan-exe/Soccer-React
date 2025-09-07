@@ -20,6 +20,7 @@ import NotFound from '@/pages/NotFound';
 import DiamondsPage from '@/features/diamonds/DiamondsPage';
 import AcademyPage from '@/features/academy/AcademyPage';
 import StandingsPage from '@/pages/StandingsPage';
+import LegendPackPage from '@/features/legends/LegendPackPage';
 
 export const router = createBrowserRouter(
   [
@@ -46,6 +47,7 @@ export const router = createBrowserRouter(
         { path: '/settings', element: <Settings /> },
         { path: '/store/diamonds', element: <DiamondsPage /> },
         { path: '/academy', element: <AcademyPage /> },
+        { path: '/legend-pack', element: <LegendPackPage /> },
         { path: '*', element: <NotFound /> },
       ],
     },
