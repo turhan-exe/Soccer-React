@@ -116,18 +116,27 @@ export const playAllForDayHttp = functions
       const cfg = (functions.config() as any) || {};
       const APP_CHECK_OPTIONAL = (process.env.APP_CHECK_OPTIONAL ?? cfg?.app?.check_optional ?? '1') !== '0';
       const ALLOW_ANY_OPERATOR = (process.env.ALLOW_ANY_OPERATOR ?? cfg?.auth?.allow_operator_any ?? '0') === '1';
+
+      // İstek gövdesini güvenle parse et (string veya objeyi destekle)
+      let body: any = {};
+      try {
+        body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : req.body || {};
+      } catch {
+        body = {};
+      }
+
       // HTTP endpoint için yalnızca opsiyonel Bearer secret kontrolü
       const token = (req.headers.authorization || '').toString().startsWith('Bearer ')
         ? (req.headers.authorization as string).slice(7)
         : '';
       const secret = cfg?.orchestrate?.secret || cfg?.scheduler?.secret || '';
-      const force = !!(req.body?.force);
+      const force = !!body.force;
       if (!ALLOW_ANY_OPERATOR && !force && secret && token !== secret) {
         res.status(401).json({ ok: false, error: 'unauthorized' });
         return;
       }
 
-      const dayKey = (req.body?.dayKey as string | undefined) || dayKeyTR();
+      const dayKey = (body.dayKey as string | undefined) || dayKeyTR();
       const { start, end } = betweenTR_19_to_2359(dayKey);
       const allDocs = await collectFixturesBetween(start, end);
       const docs = allDocs.filter((d) => (d.data() as any)?.status === 'scheduled');
