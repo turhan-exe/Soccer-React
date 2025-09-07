@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/contexts/AuthContext';
 import { ensureDefaultLeague, listLeagues, listenMyLeague } from '@/services/leagues';
 import type { League } from '@/types';
+import { BackButton } from '@/components/ui/back-button';
 
 export default function LeaguesListPage() {
   const navigate = useNavigate();
@@ -34,7 +35,10 @@ export default function LeaguesListPage() {
 
   return (
     <div className="p-4">
-      <h1 className="text-xl font-bold mb-4">Ligler</h1>
+      <div className="flex items-center gap-2 mb-4">
+        <BackButton />
+        <h1 className="text-xl font-bold">Ligler</h1>
+      </div>
       {leagues.length === 0 && (
         <p
           data-testid="no-leagues-message"
