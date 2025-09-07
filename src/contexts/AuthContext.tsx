@@ -8,7 +8,13 @@ import React, {
 import { onAuthStateChanged, updateProfile } from 'firebase/auth';
 import { User } from '@/types';
 import { auth } from '@/services/firebase';
-import { signIn, signUp, signOutUser } from '@/services/auth';
+import {
+  signIn,
+  signUp,
+  signOutUser,
+  signInWithGoogle,
+  signInWithApple,
+} from '@/services/auth';
 import { createInitialTeam, getTeam } from '@/services/team';
 import { requestJoinLeague } from '@/services/leagues';
 import { generateRandomName } from '@/lib/names';
@@ -18,6 +24,8 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string, teamName: string) => Promise<void>;
   logout: () => Promise<void>;
+  loginWithGoogle: () => Promise<void>;
+  loginWithApple: () => Promise<void>;
   isLoading: boolean;
 }
 
@@ -114,8 +122,36 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setUser(null);
   };
 
+  const loginWithGoogle = async () => {
+    setIsLoading(true);
+    try {
+      await signInWithGoogle();
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const loginWithApple = async () => {
+    setIsLoading(true);
+    try {
+      await signInWithApple();
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
-    <AuthContext.Provider value={{ user, login, register, logout, isLoading }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        login,
+        register,
+        logout,
+        loginWithGoogle,
+        loginWithApple,
+        isLoading,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );
