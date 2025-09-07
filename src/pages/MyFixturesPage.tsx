@@ -19,6 +19,7 @@ import { httpsCallable } from 'firebase/functions';
 import { functions } from '@/services/firebase';
 import { getReplay } from '@/services/matches';
 import { subscribeLiveMeta, type LiveMeta } from '@/services/live';
+import { BackButton } from '@/components/ui/back-button';
 
 interface DisplayFixture extends Fixture {
   opponent: string;
@@ -283,7 +284,7 @@ export default function MyFixturesPage() {
   return (
     <div className="p-4">
       <div className="flex items-center justify-between mb-4">
-        <Button variant="ghost" onClick={() => navigate('/')}>←</Button>
+        <BackButton />
         <h1 className="text-xl font-bold">{isHistoryRoute ? 'Maç Geçmişi' : 'Fikstür'}</h1>
         <div className="flex items-center space-x-2">
           {!isHistoryRoute && (

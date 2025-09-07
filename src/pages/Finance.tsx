@@ -6,6 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { financeRecords } from '@/lib/data';
 import { DollarSign, TrendingUp, TrendingDown, Calendar, Filter } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { BackButton } from '@/components/ui/back-button';
 
 export default function Finance() {
   const navigate = useNavigate();
@@ -35,7 +36,7 @@ export default function Finance() {
       <div className="bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm border-b p-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Button variant="ghost" onClick={() => navigate('/')}>←</Button>
+            <BackButton />
             <h1 className="text-xl font-bold">Finans</h1>
           </div>
           <Button variant="outline" size="sm">

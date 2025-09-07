@@ -1,15 +1,51 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { upcomingMatches, mockPlayers } from '@/lib/data';
+import { upcomingMatches } from '@/lib/data';
 import { MapPin, Calendar, Users, TrendingUp, Play } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { BackButton } from '@/components/ui/back-button';
+import { useAuth } from '@/contexts/AuthContext';
+import { getTeam } from '@/services/team';
+import { getMyLeagueId, getFixturesForTeam } from '@/services/leagues';
+import type { Player } from '@/types';
 
 export default function MatchPreview() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const nextMatch = upcomingMatches[0];
-  const startingEleven = mockPlayers.filter(p => p.squadRole === 'starting');
+  const [teamOverall, setTeamOverall] = useState<number | null>(null);
+  const [teamForm, setTeamForm] = useState<string | null>(null);
+  const [startingEleven, setStartingEleven] = useState<Player[]>([]);
+
+  useEffect(() => {
+    if (!user) return;
+    (async () => {
+      const team = await getTeam(user.id);
+      if (team) {
+        const starters = team.players.filter(p => p.squadRole === 'starting');
+        setStartingEleven(starters);
+        if (starters.length) {
+          const avg =
+            starters.reduce((sum, p) => sum + p.overall, 0) / starters.length;
+          setTeamOverall(Number(avg.toFixed(3)));
+        }
+      }
+      const leagueId = await getMyLeagueId(user.id);
+      if (leagueId) {
+        const fixtures = await getFixturesForTeam(leagueId, user.id);
+        const played = fixtures.filter(f => f.status === 'played' && f.score);
+        const last5 = played.slice(-5).map(f => {
+          const isHome = f.homeTeamId === user.id;
+          const { home, away } = f.score!;
+          if (home === away) return 'D';
+          return (isHome && home > away) || (!isHome && away > home) ? 'W' : 'L';
+        });
+        setTeamForm(last5.join(''));
+      }
+    })();
+  }, [user]);
 
   const handleStartMatch = () => {
     navigate('/match-simulation');
@@ -21,7 +57,7 @@ export default function MatchPreview() {
       <div className="bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm border-b p-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Button variant="ghost" onClick={() => navigate('/')}>←</Button>
+            <BackButton />
             <h1 className="text-xl font-bold">Maç Önizleme</h1>
           </div>
         </div>
@@ -42,7 +78,10 @@ export default function MatchPreview() {
               <div className="text-center flex-1">
                 <div className="text-4xl mb-2">⚽</div>
                 <div className="font-bold text-lg">Takımım</div>
-                <div className="text-sm text-muted-foreground">Overall: 0.823</div>
+                <div className="text-sm text-muted-foreground">Overall: {teamOverall ?? '-'}</div>
+                {teamForm && (
+                  <div className="text-sm text-muted-foreground">Form: {teamForm}</div>
+                )}
               </div>
 
               <div className="text-center px-6">

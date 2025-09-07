@@ -19,6 +19,7 @@ import {
 } from '@/components/ui/select';
 import { formations } from '@/lib/formations';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { BackButton } from '@/components/ui/back-button';
 
 export default function TeamPlanning() {
   const navigate = useNavigate();
@@ -164,7 +165,7 @@ export default function TeamPlanning() {
       <div className="bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm border-b p-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Button variant="ghost" onClick={() => navigate('/')}>←</Button>
+            <BackButton />
             <h1 className="text-xl font-bold">Takım Planı</h1>
           </div>
           <div className="flex gap-2">
