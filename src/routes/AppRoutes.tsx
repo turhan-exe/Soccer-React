@@ -13,6 +13,7 @@ import Settings from '@/pages/Settings';
 import NotFound from '@/pages/NotFound';
 import DiamondsPage from '@/features/diamonds/DiamondsPage';
 import AcademyPage from '@/features/academy/AcademyPage';
+import LegendPackPage from '@/features/legends/LegendPackPage';
 import StandingsPage from '@/pages/StandingsPage';
 
 export default function AppRoutes() {
@@ -35,6 +36,7 @@ export default function AppRoutes() {
       <Route path="/settings" element={<Settings />} />
       <Route path="/store/diamonds" element={<DiamondsPage />} />
       <Route path="/academy" element={<AcademyPage />} />
+      <Route path="/legend-pack" element={<LegendPackPage />} />
       <Route path="*" element={<NotFound />} />
     </Routes>
   );
