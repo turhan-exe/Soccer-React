@@ -1,0 +1,41 @@
+.legend-card-wrapper {
+  width: 300px;
+  height: 450px;
+  margin: 0 auto;
+  perspective: 1000px;
+}
+
+.legend-card {
+  width: 100%;
+  height: 100%;
+  background: #2f2f2f;
+  color: #fff;
+  border-radius: 10px;
+  transform-style: preserve-3d;
+  transition: transform 1s ease, box-shadow 1s ease;
+  text-align: center;
+  padding-top: 150px;
+  box-shadow: 0 0 0 rgba(0, 0, 0, 0);
+}
+
+.legend-card.reveal {
+  transform: rotateY(180deg);
+  box-shadow: 0 0 50px rgba(255, 215, 0, 0.8);
+}
+
+.legend-card.show {
+  transform: rotateY(0deg);
+  box-shadow: 0 0 20px rgba(255, 255, 255, 0.5);
+}
+
+.legend-card.legend {
+  background: gold;
+}
+
+.legend-card.rare {
+  background: purple;
+}
+
+.legend-card.common {
+  background: silver;
+}
