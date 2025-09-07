@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { getMyLeagueId, listLeagueStandings, getFixturesForTeam } from '@/services/leagues';
+import { getTeam } from '@/services/team';
 
 const menuItems = [
   { id: 'team-planning', label: 'Takım Planı', icon: Users, color: 'bg-blue-500' },
@@ -47,16 +48,31 @@ export default function MainMenu() {
   const [leaguePosition, setLeaguePosition] = useState<number | null>(null);
   const [leaguePoints, setLeaguePoints] = useState<number | null>(null);
   const [hoursToNextMatch, setHoursToNextMatch] = useState<number | null>(null);
+  const [teamOverall, setTeamOverall] = useState<number | null>(null);
+  const [teamForm, setTeamForm] = useState<string | null>(null);
 
   useEffect(() => {
     const loadQuickStats = async () => {
       if (!user) return;
       try {
+        const team = await getTeam(user.id);
+        if (team) {
+          const starters = team.players.filter(p => p.squadRole === 'starting');
+          if (starters.length) {
+            const avg =
+              starters.reduce((sum, p) => sum + p.overall, 0) / starters.length;
+            setTeamOverall(Number(avg.toFixed(3)));
+          } else {
+            setTeamOverall(null);
+          }
+        }
+
         const leagueId = await getMyLeagueId(user.id);
         if (!leagueId) {
           setLeaguePosition(null);
           setLeaguePoints(null);
           setHoursToNextMatch(null);
+          setTeamForm(null);
           return;
         }
 
@@ -71,9 +87,9 @@ export default function MainMenu() {
         }
 
         const fixtures = await getFixturesForTeam(leagueId, user.id);
-        const upcoming = fixtures.find((f: any) => f.status !== 'played');
-        if (upcoming && (upcoming as any).date) {
-          const matchTime = new Date((upcoming as any).date as Date).getTime();
+        const upcoming = fixtures.find((f) => f.status !== 'played');
+        if (upcoming && upcoming.date) {
+          const matchTime = new Date(upcoming.date).getTime();
           const now = Date.now();
           const diffMs = Math.max(0, matchTime - now);
           const hours = Math.ceil(diffMs / 36e5);
@@ -81,6 +97,15 @@ export default function MainMenu() {
         } else {
           setHoursToNextMatch(null);
         }
+
+        const played = fixtures.filter((f) => f.status === 'played' && f.score);
+        const last5 = played.slice(-5).map((f) => {
+          const isHome = f.homeTeamId === user.id;
+          const { home, away } = f.score!;
+          if (home === away) return 'D';
+          return (isHome && home > away) || (!isHome && away > home) ? 'W' : 'L';
+        });
+        setTeamForm(last5.join(''));
       } catch (e) {
         console.warn('[MainMenu] quick stats load failed', e);
       }
@@ -103,8 +128,8 @@ export default function MainMenu() {
             <div>
               <h1 className="font-bold text-lg">{user?.teamName}</h1>
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Badge variant="secondary">Overall: 0.823</Badge>
-                <Badge variant="outline">Form: WWDWL</Badge>
+                <Badge variant="secondary">Overall: {teamOverall ?? '-'}</Badge>
+                <Badge variant="outline">Form: {teamForm ?? '-'}</Badge>
               </div>
             </div>
           </div>
