@@ -23,8 +23,10 @@ const PacksGrid: React.FC<Props> = ({ packs, onSelect }) => (
           </CardTitle>
         </CardHeader>
         <CardContent className="flex flex-col items-center gap-2">
-          <Diamond className="h-6 w-6 text-blue-500" />
-          <span className="text-lg font-bold">{pack.amount}</span>
+          <span className="flex items-center gap-1 text-lg font-bold">
+            <Diamond className="h-6 w-6 text-blue-500" />
+            {pack.amount}
+          </span>
           {pack.priceFiat && (
             <span className="text-sm text-muted-foreground">₺{pack.priceFiat.toFixed(2)}</span>
           )}
