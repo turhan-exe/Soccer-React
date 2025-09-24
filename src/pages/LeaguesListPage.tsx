@@ -1,23 +1,33 @@
-import { useEffect, useState } from 'react';
+﻿import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/contexts/AuthContext';
 import { ensureDefaultLeague, listLeagues, listenMyLeague } from '@/services/leagues';
+import { Skeleton } from '@/components/ui/skeleton';
 import type { League } from '@/types';
 import { BackButton } from '@/components/ui/back-button';
+import { Button } from '@/components/ui/button';
+import { toast } from '@/components/ui/use-toast';
+import { playAllForDay, playNextScheduledDay, requestBootstrap } from '@/services/leagues';
+import { formatInTimeZone } from 'date-fns-tz';
 
 export default function LeaguesListPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [leagues, setLeagues] = useState<League[]>([]);
   const [myLeagueId, setMyLeagueId] = useState<string | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
 
   useEffect(() => {
     const load = async () => {
-      await ensureDefaultLeague();
-      const ls = await listLeagues();
-      setLeagues(ls);
+      try {
+        await ensureDefaultLeague();
+        const ls = await listLeagues();
+        setLeagues(ls);
+      } finally {
+        setLoading(false);
+      }
     };
     load();
   }, []);
@@ -39,17 +49,70 @@ export default function LeaguesListPage() {
         <BackButton />
         <h1 className="text-xl font-bold">Ligler</h1>
       </div>
-      {leagues.length === 0 && (
+      {/* Test/Operator buttons: only in dev builds */}
+      {(import.meta.env.DEV || import.meta.env.VITE_ENABLE_TEST_BUTTONS === '1') && (
+        <div className="flex flex-wrap gap-2 mb-4">
+          <Button
+            variant="secondary"
+            onClick={async () => {
+              try {
+                await requestBootstrap();
+                const ls = await listLeagues();
+                setLeagues(ls);
+                toast({ description: 'AylÄ±k ligler oluÅŸturuldu/yenilendi.' });
+              } catch (e: any) {
+                toast({ description: e?.message || 'Bootstrap hata', });
+              }
+            }}
+          >
+            Test: Ligleri OluÅŸtur (AylÄ±k)
+          </Button>
+          <Button
+            onClick={async () => {
+              const dayKey = formatInTimeZone(new Date(), 'Europe/Istanbul', 'yyyy-MM-dd');
+              try {
+                const r = await playAllForDay(dayKey, { instant: true });
+                toast({ description: `BugÃ¼n (${dayKey}) maÃ§lar: ${r?.started ?? 0}/${r?.total ?? 0}` });
+              } catch (e: any) {
+                toast({ description: e?.message || 'BugÃ¼n oynatma hata' });
+              }
+            }}
+          >
+            Test: BugÃ¼nÃ¼ Oynat (TR)
+          </Button>
+          <Button
+            onClick={async () => {
+              try {
+                const r = await playNextScheduledDay();
+                if (!r) { toast({ description: 'PlanlÄ± maÃ§ bulunamadÄ±.' }); return; }
+                toast({ description: `GÃ¼n (${r.dayKey}) maÃ§lar: ${r.started ?? 0}/${r.total ?? 0}` });
+              } catch (e: any) {
+                toast({ description: e?.message || 'Sonraki gÃ¼nÃ¼ oynatma hata' });
+              }
+            }}
+          >
+            Test: Sonraki GÃ¼nÃ¼ Oynat
+          </Button>
+        </div>
+      )}
+      {loading && (
+        <div className="space-y-2" data-testid="leagues-loading">
+          <Skeleton className="h-20 w-full" />
+          <Skeleton className="h-20 w-full" />
+          <Skeleton className="h-20 w-full" />
+        </div>
+      )}
+      {!loading && leagues.length === 0 && (
         <p
           data-testid="no-leagues-message"
           className="text-sm text-muted-foreground"
         >
-          Henüz lig oluşturulmamış.
+          HenÃ¼z lig oluÅŸturulmamÄ±ÅŸ.
         </p>
       )}
       {myLeague && (
         <div className="mb-6">
-          <h2 className="font-semibold mb-2">Takımının Ligi</h2>
+          <h2 className="font-semibold mb-2">TakÄ±mÄ±nÄ±n Ligi</h2>
           <Card
             key={myLeague.id}
             data-testid={`league-row-${myLeague.id}`}
@@ -64,7 +127,7 @@ export default function LeaguesListPage() {
                 </div>
                 {myLeague.teams && myLeague.teams.length > 0 && (
                   <div className="text-xs text-muted-foreground mt-1">
-                    Takımlar: {myLeague.teams.map((t) => t.name).join(', ')}
+                    TakÄ±mlar: {myLeague.teams.map((t) => t.name).join(', ')}
                   </div>
                 )}
               </div>
@@ -75,7 +138,7 @@ export default function LeaguesListPage() {
       )}
       {otherLeagues.length > 0 && (
         <div className="space-y-2">
-          {myLeague && <h2 className="font-semibold mb-2">Diğer Ligler</h2>}
+          {myLeague && <h2 className="font-semibold mb-2">DiÄŸer Ligler</h2>}
           {otherLeagues.map((l) => (
             <Card
               key={l.id}
@@ -91,7 +154,7 @@ export default function LeaguesListPage() {
                   </div>
                   {l.teams && l.teams.length > 0 && (
                     <div className="text-xs text-muted-foreground mt-1">
-                      Takımlar: {l.teams.map((t) => t.name).join(', ')}
+                      TakÄ±mlar: {l.teams.map((t) => t.name).join(', ')}
                     </div>
                   )}
                 </div>
@@ -104,3 +167,4 @@ export default function LeaguesListPage() {
     </div>
   );
 }
+

@@ -7,10 +7,13 @@ import { Switch } from '@/components/ui/switch';
 import { toast } from '@/components/ui/sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import {
-  getFixturesForTeam,
+  getFixturesForTeamSlotAware,
   getMyLeagueId,
   getLeagueTeams,
   ensureFixturesForLeague,
+  getLeagueForTeam,
+  getFixturesForTeam,
+  playNextScheduledDay,
 } from '@/services/leagues';
 import type { Fixture } from '@/types';
 import { formatInTimeZone } from 'date-fns-tz';
@@ -64,7 +67,7 @@ export default function MyFixturesPage() {
       // Ligde fikstür yoksa oluşturmayı dene (idempotent backend)
       await ensureFixturesForLeague(leagueId);
       const [list, teams] = await Promise.all([
-        getFixturesForTeam(leagueId, user.id),
+        getFixturesForTeamSlotAware(leagueId, user.id),
         getLeagueTeams(leagueId),
       ]);
       const teamMap = new Map(teams.map((t) => [t.id, t.name]));
@@ -97,7 +100,7 @@ export default function MyFixturesPage() {
     setMyLeagueId(leagueId);
     await ensureFixturesForLeague(leagueId);
     const [list, teams] = await Promise.all([
-      getFixturesForTeam(leagueId, user.id),
+      getFixturesForTeamSlotAware(leagueId, user.id),
       getLeagueTeams(leagueId),
     ]);
     const teamMap = new Map(teams.map((t) => [t.id, t.name]));
@@ -195,85 +198,26 @@ export default function MyFixturesPage() {
   };
 
   const handlePlayNextMatchDay = async () => {
-    if (!user) {
-      toast.message('Giriş gerekli', { description: 'Önce oturum açın.' });
-      return;
-    }
-    // Find earliest upcoming fixture date (not played)
-    const upcoming = fixtures.filter((f) => f.status !== 'played');
-    if (upcoming.length === 0) {
-      toast.message('Oynatılacak maç yok', {
-        description: 'Yaklaşan maç bulunamadı.',
-      });
-      return;
-    }
-    const nextDate = upcoming[0].date as Date;
-    const targetDayKey = dayKey(nextDate);
+    // Sistemde planlı maç günü ne ise, onu bugün oynat
     let toastId: string | number | undefined;
     try {
       setPlaying(true);
-      toastId = toast.loading('Maçlar başlatılıyor...', {
-        description: `${targetDayKey} tarihindeki tüm maçlar` ,
-      });
-      const httpFirst = (import.meta as any).env?.VITE_USE_HTTP_FUNCTIONS === '1' || import.meta.env.DEV;
-      if (httpFirst) {
-        // HTTP (CORS açık) önce dene
-        const region = import.meta.env.VITE_FUNCTIONS_REGION || 'europe-west1';
-        const projectId = import.meta.env.VITE_FIREBASE_PROJECT_ID;
-        const url = `https://${region}-${projectId}.cloudfunctions.net/playAllForDayHttp`;
-        const respHttp = await fetch(url, {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ dayKey: targetDayKey, force: true }), mode: 'cors',
-        });
-        const data = await respHttp.json().catch(() => ({} as any));
-        if (!respHttp.ok || data?.ok === false) throw new Error(data?.error || respHttp.statusText || 'İşlem başarısız');
-        const total = data?.total ?? 0; const started = data?.started ?? 0;
-        toast.success('Başlatma tamamlandı', { description: `${started}/${total} maç başlatıldı.`, id: toastId });
-        reloadFixtures();
+      toastId = toast.loading('Maçlar başlatılıyor...', { description: 'Sıradaki maç günü' });
+      const res = await playNextScheduledDay();
+      if (!res) {
+        if (toastId !== undefined) toast.message('Oynatılacak maç yok', { description: 'Yaklaşan maç bulunamadı.', id: toastId });
+        else toast.message('Oynatılacak maç yok', { description: 'Yaklaşan maç bulunamadı.' });
         return;
-      } else {
-        // Normal callable yolu
-        const fn = httpsCallable(functions, 'playAllForDayFn');
-        const resp = (await fn({ dayKey: targetDayKey, force: true })) as any;
-        const total = resp?.data?.total ?? 0; const started = resp?.data?.started ?? 0;
-        toast.success('Başlatma tamamlandı', { description: `${started}/${total} maç başlatıldı.`, id: toastId });
-        reloadFixtures();
       }
+      const total = res.total ?? 0;
+      const started = res.started ?? 0;
+      const day = res.dayKey ? `(${res.dayKey}) ` : '';
+      toast.success('Başlatma tamamlandı', { description: `${day}${started}/${total} maç başlatıldı.`, id: toastId });
+      reloadFixtures();
     } catch (e: any) {
-      // Callable CORS vs. hata aldıysak HTTP fallback deneyelim
-      try {
-        const region = import.meta.env.VITE_FUNCTIONS_REGION || 'europe-west1';
-        const projectId = import.meta.env.VITE_FIREBASE_PROJECT_ID;
-        const url = `https://${region}-${projectId}.cloudfunctions.net/playAllForDayHttp`;
-        const resp = await fetch(url, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ dayKey: targetDayKey, force: true }),
-          mode: 'cors',
-        });
-        const data = await resp.json().catch(() => ({} as any));
-        if (!resp.ok || data?.ok === false) throw new Error(data?.error || resp.statusText || 'İşlem başarısız');
-        const total = data?.total ?? 0;
-        const started = data?.started ?? 0;
-        toast.success('Başlatma tamamlandı', { description: `${started}/${total} maç başlatıldı.`, id: toastId });
-        reloadFixtures();
-      } catch (e2: any) {
-        // Map common callable errors to Türkçe ve anlaşılır metin
-        const code: string = e2?.code || '';
-        const m: string = e2?.message || e?.message || '';
-        let msg = 'İşlem başarısız';
-        if (code.includes('permission-denied') || m.includes('Operator permission required')) {
-          msg = 'Bu işlem için yönetici (operator) yetkisi gerekiyor.';
-        } else if (code.includes('failed-precondition') || m.includes('AppCheck')) {
-          msg = 'App Check etkin değil. İstemciye App Check ekleyin.';
-        } else if (code.includes('unauthenticated')) {
-          msg = 'Giriş yapmanız gerekiyor.';
-        } else if (m) {
-          msg = m;
-        }
-        if (toastId !== undefined) toast.error('Hata', { description: msg, id: toastId });
-        else toast.error('Hata', { description: msg });
-      }
+      const m: string = e?.message || 'İşlem başarısız';
+      if (toastId !== undefined) toast.error('Hata', { description: m, id: toastId });
+      else toast.error('Hata', { description: m });
     } finally {
       setPlaying(false);
     }

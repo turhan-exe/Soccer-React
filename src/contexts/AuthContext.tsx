@@ -16,7 +16,7 @@ import {
   signInWithApple,
 } from '@/services/auth';
 import { createInitialTeam, getTeam } from '@/services/team';
-import { requestJoinLeague } from '@/services/leagues';
+import { requestAssign } from '@/services/leagues';
 import { generateRandomName } from '@/lib/names';
 
 interface AuthContextType {
@@ -64,7 +64,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         });
         if (!team) {
           await createInitialTeam(firebaseUser.uid, teamName, username);
-          await requestJoinLeague(firebaseUser.uid);
+          // Slot tabanlı: sıradaki ligde rastgele bir BOT'un yerine geç
+          await requestAssign(firebaseUser.uid);
+        } else if (!(team as any)?.leagueId) {
+          try { await requestAssign(firebaseUser.uid); } catch {}
         }
       } else {
         setUser(null);
@@ -96,7 +99,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           // Profil ve takım oluşturmayı tamamla
           await updateProfile(cred.user, { displayName: teamName });
           await createInitialTeam(cred.user.uid, teamName, managerName);
-          await requestJoinLeague(cred.user.uid);
+          // Slot tabanlı atama
+          await requestAssign(cred.user.uid);
 
           // ÖNEMLİ: Kayıttan hemen sonra UI'da takım adını anında göstermek için
           // context'teki kullanıcıyı güncelle (sayfa yenilemeden çalışır)

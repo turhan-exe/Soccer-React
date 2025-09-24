@@ -21,11 +21,16 @@ export const auth = getAuth(app);
 
 // Use persistent cache with multi‑tab synchronization to avoid
 // failed-precondition errors and the deprecation warning.
-export const db = initializeFirestore(app, {
-  localCache: persistentLocalCache({
-    tabManager: persistentMultipleTabManager(),
-  }),
-});
+// Guard against multiple initializeFirestore calls due to differing import paths
+const __global = globalThis as any;
+if (!__global.__FM_DB__) {
+  __global.__FM_DB__ = initializeFirestore(app, {
+    localCache: persistentLocalCache({
+      tabManager: persistentMultipleTabManager(),
+    }),
+  });
+}
+export const db = __global.__FM_DB__;
 
 // Region from env (Plan 2.0: europe-west1). Fallback to 'europe-west1'.
 const FUNCTIONS_REGION = import.meta.env.VITE_FUNCTIONS_REGION || 'europe-west1';
