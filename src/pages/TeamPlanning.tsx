@@ -26,6 +26,72 @@ import { BackButton } from '@/components/ui/back-button';
 
 const DEFAULT_GAUGE_VALUE = 0.75;
 
+const KNOWN_POSITIONS: Player['position'][] = ['GK', 'CB', 'LB', 'RB', 'CM', 'LM', 'RM', 'CAM', 'LW', 'RW', 'ST'];
+
+const POSITION_ALIAS_MAP: Record<string, Player['position']> = {
+  CF: 'ST',
+  FW: 'ST',
+  FWD: 'ST',
+  FOR: 'ST',
+  FORWARD: 'ST',
+  STRIKER: 'ST',
+  ATT: 'ST',
+  SS: 'ST',
+  HU: 'ST',
+  FO: 'ST',
+  STP: 'ST',
+  AM: 'CAM',
+  AMF: 'CAM',
+  IM: 'CAM',
+  CMF: 'CM',
+  CMID: 'CM',
+  MID: 'CM',
+  DM: 'CM',
+  DMF: 'CM',
+  CDM: 'CM',
+  RMF: 'RM',
+  RWF: 'RW',
+  RWB: 'RB',
+  LWF: 'LW',
+  LMF: 'LM',
+  LWB: 'LB',
+  RCB: 'CB',
+  LCB: 'CB',
+  CBK: 'CB',
+  BL: 'CB',
+  DR: 'RB',
+  EB: 'RW',
+  IR: 'RM',
+  LY: 'LB',
+};
+
+const squadRoleWeight = (role?: Player['squadRole'] | 'youth'): number => {
+  switch (role) {
+    case 'starting':
+      return 0;
+    case 'bench':
+      return 1;
+    case 'reserve':
+      return 2;
+    case 'youth':
+      return 3;
+    default:
+      return 4;
+  }
+};
+
+const canonicalPosition = (value?: string | null): Player['position'] => {
+  if (!value) return 'CM';
+  const key = value.toUpperCase().replace(/[^A-Z]/g, '');
+  if ((KNOWN_POSITIONS as readonly string[]).includes(key)) {
+    return key as Player['position'];
+  }
+  if (POSITION_ALIAS_MAP[key]) {
+    return POSITION_ALIAS_MAP[key];
+  }
+  return 'CM';
+};
+
 function normalizePlayer(player: Player): Player {
   return {
     ...player,
@@ -75,6 +141,7 @@ export default function TeamPlanning() {
 
   const [draggedPlayerId, setDraggedPlayerId] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<'role' | 'overall' | 'potential'>('role');
+  const [focusedPlayerId, setFocusedPlayerId] = useState<string | null>(null);
 
 
   const filteredPlayers = players.filter(
@@ -114,7 +181,7 @@ export default function TeamPlanning() {
     setPlayers(prev => prev.map(player =>
       player.id === playerId ? { ...player, squadRole: newRole } : player
     ));
-    toast.success('Oyuncu başarıyla taşındı');
+    toast.success('Oyuncu baÃ…Å¸arÃ„Â±yla taÃ…Å¸Ã„Â±ndÃ„Â±');
   };
 
   const handleSave = async () => {
@@ -132,10 +199,10 @@ export default function TeamPlanning() {
         starters,
         subs: bench,
       });
-      toast.success('Takım planı kaydedildi!');
+      toast.success('TakÃ„Â±m planÃ„Â± kaydedildi!');
     } catch (e) {
       console.warn('[TeamPlanning] setLineup failed', e);
-      toast.error('Sunucu hatası', { description: 'Kadro kaydı başarısız. Lütfen tekrar deneyin.' });
+      toast.error('Sunucu hatasÃ„Â±', { description: 'Kadro kaydÃ„Â± baÃ…Å¸arÃ„Â±sÃ„Â±z. LÃƒÂ¼tfen tekrar deneyin.' });
     }
   };
 
@@ -150,6 +217,22 @@ export default function TeamPlanning() {
     })();
   }, [user]);
 
+  useEffect(() => {
+    if (players.length === 0) {
+      if (focusedPlayerId !== null) {
+        setFocusedPlayerId(null);
+      }
+      return;
+    }
+    if (focusedPlayerId && players.some(p => p.id === focusedPlayerId)) {
+      return;
+    }
+    const fallback = players.find(p => p.squadRole === 'starting') ?? players[0];
+    if (fallback && fallback.id !== focusedPlayerId) {
+      setFocusedPlayerId(fallback.id);
+    }
+  }, [players, focusedPlayerId]);
+
   const startingEleven = players.filter(p => p.squadRole === 'starting');
   const benchPlayers = players.filter(p => p.squadRole === 'bench');
   const reservePlayers = players.filter(p => p.squadRole === 'reserve');
@@ -157,16 +240,32 @@ export default function TeamPlanning() {
   const currentFormation = formations.find(
     f => f.name === selectedFormation
   )!;
-  const formationPositions = (() => {
+
+  const prioritizedPlayers = useMemo(() => {
+    const indexMap = new Map(players.map((p, idx) => [p.id, idx]));
+    return [...players].sort((a, b) => {
+      const roleDiff = squadRoleWeight(a.squadRole) - squadRoleWeight(b.squadRole);
+      if (roleDiff !== 0) return roleDiff;
+      return (indexMap.get(a.id) ?? 0) - (indexMap.get(b.id) ?? 0);
+    });
+  }, [players]);
+
+  const formationPositions = useMemo(() => {
     const used = new Set<string>();
     return currentFormation.positions.map(pos => {
-      const player = startingEleven.find(
-        p => p.position === pos.position && !used.has(p.id)
+      const target = canonicalPosition(pos.position);
+      const directMatch = prioritizedPlayers.find(
+        player => !used.has(player.id) && canonicalPosition(player.position) === target
       );
+      const roleMatch = prioritizedPlayers.find(
+        player =>
+          !used.has(player.id) && (player.roles ?? []).some(role => canonicalPosition(role) === target)
+      );
+      const player = directMatch ?? roleMatch ?? null;
       if (player) used.add(player.id);
       return { ...pos, player };
     });
-  })();
+  }, [currentFormation, prioritizedPlayers]);
 
   const selectedPlayer = useMemo(() => {
     if (!focusedPlayerId) return null;
@@ -236,7 +335,7 @@ export default function TeamPlanning() {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <BackButton />
-            <h1 className="text-xl font-bold">Takım Planı</h1>
+            <h1 className="text-xl font-bold">TakÃ„Â±m PlanÃ„Â±</h1>
           </div>
           <div className="flex gap-2">
             <Button variant="outline" size="sm">
@@ -272,11 +371,11 @@ export default function TeamPlanning() {
                 }
               >
                 <SelectTrigger className="w-40">
-                  <SelectValue placeholder="Sırala" />
+                  <SelectValue placeholder="SÃ„Â±rala" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="role">Role göre</SelectItem>
-                  <SelectItem value="overall">Ortalamaya göre</SelectItem>
+                  <SelectItem value="role">Role gÃƒÂ¶re</SelectItem>
+                  <SelectItem value="overall">Ortalamaya gÃƒÂ¶re</SelectItem>
                   <SelectItem value="potential">Maks. potansiyel</SelectItem>
                 </SelectContent>
               </Select>
@@ -289,7 +388,7 @@ export default function TeamPlanning() {
           <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <CardTitle className="flex items-center gap-2">
               <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-              Formasyon Görünümü ({selectedFormation})
+              Formasyon GÃƒÂ¶rÃƒÂ¼nÃƒÂ¼mÃƒÂ¼ ({selectedFormation})
             </CardTitle>
             <Select value={selectedFormation} onValueChange={setSelectedFormation}>
               <SelectTrigger className="w-40">
@@ -373,7 +472,7 @@ export default function TeamPlanning() {
                           </TooltipTrigger>
                           <TooltipContent className="w-48 space-y-2">
                             <div className="text-xs font-semibold">{player.name}</div>
-                            <PerformanceGauge label="G��" value={getPlayerPower(player)} />
+                            <PerformanceGauge label="GÃ¼Ã§" value={getPlayerPower(player)} />
                             <PerformanceGauge label="Kondisyon" value={getPlayerCondition(player)} />
                             <PerformanceGauge label="Motivasyon" value={getPlayerMotivation(player)} />
                           </TooltipContent>
@@ -393,10 +492,10 @@ export default function TeamPlanning() {
                     <div className="space-y-4">
                       <div className="flex items-center justify-between gap-3">
                         <div>
-                          <p className="text-xs uppercase tracking-wide text-white/70">Se�ili Oyuncu</p>
+                          <p className="text-xs uppercase tracking-wide text-white/70">SeÃ§ili Oyuncu</p>
                           <h3 className="text-lg font-semibold">{selectedPlayer.name}</h3>
                           <p className="text-xs text-white/70">
-                            {selectedPlayer.position} � G�� {Math.round(selectedPower * 100)}
+                            {selectedPlayer.position} â€¢ GÃ¼Ã§ {Math.round(selectedPower * 100)}
                           </p>
                         </div>
                         <div className="flex h-14 w-14 items-center justify-center rounded-full bg-white/20 text-lg font-semibold">
@@ -404,26 +503,26 @@ export default function TeamPlanning() {
                         </div>
                       </div>
                       <div className="space-y-3">
-                        <PerformanceGauge label="G��" value={selectedPower} variant="dark" />
+                        <PerformanceGauge label="GÃ¼Ã§" value={selectedPower} variant="dark" />
                         <PerformanceGauge label="Kondisyon" value={getPlayerCondition(selectedPlayer)} variant="dark" />
                         <PerformanceGauge label="Motivasyon" value={getPlayerMotivation(selectedPlayer)} variant="dark" />
                       </div>
                     </div>
                   ) : (
                     <div className="py-8 text-center text-sm text-white/70">
-                      Formasyondaki bir oyuncuya t�klay�n.
+                      Formasyondaki bir oyuncuya tÄ±klayÄ±n.
                     </div>
                   )}
                 </div>
                 <div className="rounded-xl border border-emerald-200/40 bg-white/80 p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900/70">
                   <div className="mb-4 flex items-center justify-between">
-                    <h4 className="text-sm font-semibold text-emerald-700 dark:text-emerald-200">Tak�m Nabz�</h4>
-                    <span className="text-xs text-muted-foreground">�lk 11 ortalamas�</span>
+                    <h4 className="text-sm font-semibold text-emerald-700 dark:text-emerald-200">TakÄ±m NabzÄ±</h4>
+                    <span className="text-xs text-muted-foreground">Ä°lk 11 ortalamasÄ±</span>
                   </div>
                   <div className="space-y-3">
-                    <PerformanceGauge label="Tak�m G�c�" value={startingAverages.power} />
-                    <PerformanceGauge label="Kondisyon Ortalamas�" value={startingAverages.condition} />
-                    <PerformanceGauge label="Motivasyon Ortalamas�" value={startingAverages.motivation} />
+                    <PerformanceGauge label="TakÄ±m GÃ¼cÃ¼" value={startingAverages.power} />
+                    <PerformanceGauge label="Kondisyon OrtalamasÄ±" value={startingAverages.condition} />
+                    <PerformanceGauge label="Motivasyon OrtalamasÄ±" value={startingAverages.motivation} />
                   </div>
                 </div>
               </div>
@@ -435,7 +534,7 @@ export default function TeamPlanning() {
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="starting">
-              İlk 11 ({startingEleven.length})
+              Ã„Â°lk 11 ({startingEleven.length})
             </TabsTrigger>
             <TabsTrigger value="bench">
               Yedek ({benchPlayers.length})
@@ -449,10 +548,10 @@ export default function TeamPlanning() {
             {sortedPlayers.length === 0 ? (
               <Card>
                 <CardContent className="p-8 text-center">
-                  <div className="text-4xl mb-4">⚽</div>
-                  <h3 className="font-semibold mb-2">İlk 11'inizi oluşturun</h3>
+                  <div className="text-4xl mb-4">Ã¢Å¡Â½</div>
+                  <h3 className="font-semibold mb-2">Ã„Â°lk 11'inizi oluÃ…Å¸turun</h3>
                   <p className="text-muted-foreground text-sm">
-                    Yedek kulübesinden oyuncularınızı İlk 11'e taşıyın
+                    Yedek kulÃƒÂ¼besinden oyuncularÃ„Â±nÃ„Â±zÃ„Â± Ã„Â°lk 11'e taÃ…Å¸Ã„Â±yÃ„Â±n
                   </p>
                 </CardContent>
               </Card>
@@ -479,10 +578,10 @@ export default function TeamPlanning() {
             {sortedPlayers.length === 0 ? (
               <Card>
                 <CardContent className="p-8 text-center">
-                  <div className="text-4xl mb-4">🪑</div>
-                  <h3 className="font-semibold mb-2">Yedek kulübesi boş</h3>
+                  <div className="text-4xl mb-4">ÄŸÅ¸Âªâ€˜</div>
+                  <h3 className="font-semibold mb-2">Yedek kulÃƒÂ¼besi boÃ…Å¸</h3>
                   <p className="text-muted-foreground text-sm">
-                    Rezervden oyuncularınızı yedek kulübesine taşıyın
+                    Rezervden oyuncularÃ„Â±nÃ„Â±zÃ„Â± yedek kulÃƒÂ¼besine taÃ…Å¸Ã„Â±yÃ„Â±n
                   </p>
                 </CardContent>
               </Card>
@@ -509,10 +608,10 @@ export default function TeamPlanning() {
             {sortedPlayers.length === 0 ? (
               <Card>
                 <CardContent className="p-8 text-center">
-                  <div className="text-4xl mb-4">👥</div>
+                  <div className="text-4xl mb-4">ÄŸÅ¸â€˜Â¥</div>
                   <h3 className="font-semibold mb-2">Rezerv oyuncu yok</h3>
                   <p className="text-muted-foreground text-sm">
-                    Altyapıdan oyuncu transfer edin veya pazardan oyuncu satın alın
+                    AltyapÃ„Â±dan oyuncu transfer edin veya pazardan oyuncu satÃ„Â±n alÃ„Â±n
                   </p>
                 </CardContent>
               </Card>
@@ -539,6 +638,7 @@ export default function TeamPlanning() {
     </div>
   );
 }
+
 
 
 
