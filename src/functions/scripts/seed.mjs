@@ -57,6 +57,8 @@ async function run() {
         position: i === 0 ? 'GK' : i < 5 ? 'DEF' : i < 9 ? 'MID' : 'FW',
         overall: 60 + ((i + idx) % 20),
         squadRole: 'starting',
+        condition: 0.82,
+        motivation: 0.8,
       })),
       // 7 bench
       ...Array.from({ length: 7 }, (_, i) => ({
@@ -65,6 +67,8 @@ async function run() {
         position: i < 3 ? 'DEF' : i < 5 ? 'MID' : 'FW',
         overall: 55 + ((i + idx) % 15),
         squadRole: 'bench',
+        condition: 0.76,
+        motivation: 0.74,
       })),
     ],
   });

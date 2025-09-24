@@ -36,6 +36,8 @@ function legendToPlayer(id: string, legend: LegendPlayer): Player {
     height: 180,
     weight: 75,
     squadRole: 'reserve',
+    condition: 0.96,
+    motivation: 0.98,
   };
 }
 

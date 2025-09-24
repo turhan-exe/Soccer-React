@@ -51,6 +51,8 @@ function makePlayer(id: number, forced?: Position): Player {
     height: 170 + Math.floor(Math.random() * 20),
     weight: 65 + Math.floor(Math.random() * 20),
     squadRole: 'reserve',
+    condition: parseFloat((0.6 + Math.random() * 0.4).toFixed(3)),
+    motivation: parseFloat((0.55 + Math.random() * 0.45).toFixed(3)),
   };
 }
 

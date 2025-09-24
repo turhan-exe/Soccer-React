@@ -646,3 +646,4 @@ export async function getFixturesByLeagueAndSlotMap(
     .sort((a, b) => a.date.getTime() - b.date.getTime());
   return rows;
 }
+export { buildChampionsLeagueTournament, buildConferenceLeagueTournament, fetchChampionsLeagueParticipants, buildKnockoutBracket } from './tournaments';

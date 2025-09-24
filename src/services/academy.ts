@@ -168,6 +168,8 @@ function candidateToPlayer(id: string, c: CandidatePlayer): Player {
     height: 180,
     weight: 75,
     squadRole: 'reserve',
+    condition: parseFloat((0.65 + Math.random() * 0.3).toFixed(3)),
+    motivation: parseFloat((0.6 + Math.random() * 0.35).toFixed(3)),
   };
 }
 

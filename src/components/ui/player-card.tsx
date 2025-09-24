@@ -2,6 +2,7 @@ import { Player } from '@/types';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { StatBar } from '@/components/ui/stat-bar';
+import { PerformanceGauge, clampPerformanceGauge } from '@/components/ui/performance-gauge';
 import { Button } from '@/components/ui/button';
 import { MoreVertical, TrendingUp } from 'lucide-react';
 import {
@@ -11,6 +12,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { calculatePowerIndex } from '@/lib/player';
 import { cn } from '@/lib/utils';
 
 interface PlayerCardProps {
@@ -54,6 +56,14 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({
     };
     return colors[position as keyof typeof colors] || 'bg-gray-500';
   };
+
+  const condition = clampPerformanceGauge(player.condition);
+  const motivation = clampPerformanceGauge(player.motivation);
+  const power = calculatePowerIndex({
+    ...player,
+    condition,
+    motivation,
+  });
 
   return (
     <Card
@@ -148,6 +158,12 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({
                 </DropdownMenuContent>
               </DropdownMenu>
             )}
+          </div>
+
+          <div className={cn('mb-3 grid grid-cols-3 gap-2', compact && 'gap-1')}>
+            <PerformanceGauge label="Guc" value={power} className={compact ? 'space-y-0.5' : ''} />
+            <PerformanceGauge label="Kondisyon" value={condition} className={compact ? 'space-y-0.5' : ''} />
+            <PerformanceGauge label="Motivasyon" value={motivation} className={compact ? 'space-y-0.5' : ''} />
           </div>
 
           {/* Stats */}
