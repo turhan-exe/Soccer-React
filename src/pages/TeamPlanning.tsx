@@ -150,7 +150,7 @@ export default function TeamPlanning() {
       player.squadRole === activeTab,
   );
 
-  const positionOrder: Player['position'][] = [
+  const POSITION_ORDER: Player['position'][] = [
     'GK',
     'LB',
     'CB',
@@ -172,7 +172,7 @@ export default function TeamPlanning() {
         return b.potential - a.potential;
       default:
         return (
-          positionOrder.indexOf(a.position) - positionOrder.indexOf(b.position)
+          POSITION_ORDER.indexOf(a.position) - POSITION_ORDER.indexOf(b.position)
         );
     }
   });
@@ -352,7 +352,7 @@ export default function TeamPlanning() {
 
       <div className="p-4">
         {/* Search & Filter */}
-        <Card className="mb-6">
+        <Card className="mb-6 sticky top-0 z-20">
           <CardContent className="p-4">
             <div className="flex gap-2">
               <div className="relative flex-1">
@@ -385,10 +385,10 @@ export default function TeamPlanning() {
 
         {/* Team Formation Overview */}
         <Card className="mb-6">
-          <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <CardHeader className="flex flex-col gap-2 border-b border-white/60 bg-white/70 backdrop-blur-sm sm:flex-row sm:items-center sm:justify-between dark:border-white/10 dark:bg-slate-900/80">
             <CardTitle className="flex items-center gap-2">
               <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-              Formasyon GÃƒÂ¶rÃƒÂ¼nÃƒÂ¼mÃƒÂ¼ ({selectedFormation})
+              Formasyon GörüÃƒÂ¶rÃƒÂ¼nÃƒÂ¼mÃƒÂ¼ ({selectedFormation})
             </CardTitle>
             <Select value={selectedFormation} onValueChange={setSelectedFormation}>
               <SelectTrigger className="w-40">
@@ -403,7 +403,7 @@ export default function TeamPlanning() {
               </SelectContent>
             </Select>
           </CardHeader>
-          <CardContent>
+          <CardContent className="bg-gradient-to-br from-emerald-600/95 via-emerald-700/95 to-emerald-800/95">
             <div className="flex flex-col gap-6 lg:flex-row">
               <div className="relative w-full max-w-md flex-shrink-0 overflow-hidden rounded-2xl bg-gradient-to-b from-emerald-600 via-emerald-700 to-emerald-800 p-5 shadow-[0_20px_45px_-25px_rgba(16,80,40,0.8)]">
                 <div className="absolute inset-0 opacity-80">
@@ -510,7 +510,7 @@ export default function TeamPlanning() {
                     </div>
                   ) : (
                     <div className="py-8 text-center text-sm text-white/70">
-                      Formasyondaki bir oyuncuya tÄ±klayÄ±n.
+                      Formasyondaki bir oyuncuya tıklayın.Ä±klayÄ±n.
                     </div>
                   )}
                 </div>
@@ -638,6 +638,7 @@ export default function TeamPlanning() {
     </div>
   );
 }
+
 
 
 

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+﻿import { useMemo, useState } from 'react';
 import { Player } from '@/types';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -24,6 +24,7 @@ interface PlayerCardProps {
   onPromoteToTeam?: () => void;
   showActions?: boolean;
   compact?: boolean;
+  condensedStats?: boolean;
   draggable?: boolean;
   onDragStart?: (e: React.DragEvent<HTMLDivElement>) => void;
   onDragEnd?: (e: React.DragEvent<HTMLDivElement>) => void;
@@ -51,6 +52,7 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({
   onPromoteToTeam,
   showActions = true,
   compact = false,
+  condensedStats = false,
   draggable = false,
   onDragStart,
   onDragEnd,
@@ -69,6 +71,34 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({
         motivation,
       }),
     [player, condition, motivation]
+  );
+
+  const renderedStats = (
+    <>
+      <div className={cn('mb-3 grid grid-cols-3 gap-2', (compact || condensedStats) && 'gap-1')}>
+        <PerformanceGauge label="Güç" value={power} className={compact ? 'space-y-0.5' : ''} />
+        <PerformanceGauge label="Kondisyon" value={condition} className={compact ? 'space-y-0.5' : ''} />
+        <PerformanceGauge label="Motivasyon" value={motivation} className={compact ? 'space-y-0.5' : ''} />
+      </div>
+
+      <div className={cn('grid grid-cols-2 gap-1', (compact || condensedStats) && 'gap-0.5')}>
+        <StatBar label="Güç" value={player.attributes.strength} condensed={compact || condensedStats} />
+        <StatBar label="Hızlanma" value={player.attributes.acceleration} condensed={compact || condensedStats} />
+        <StatBar label="Maks Hız" value={player.attributes.topSpeed} condensed={compact || condensedStats} />
+        <StatBar label="Dribling Hızı" value={player.attributes.dribbleSpeed} condensed={compact || condensedStats} />
+        <StatBar label="Sıçrama" value={player.attributes.jump} condensed={compact || condensedStats} />
+        <StatBar label="Mücadele" value={player.attributes.tackling} condensed={compact || condensedStats} />
+        <StatBar label="Top Saklama" value={player.attributes.ballKeeping} condensed={compact || condensedStats} />
+        <StatBar label="Pas" value={player.attributes.passing} condensed={compact || condensedStats} />
+        <StatBar label="Uzun Top" value={player.attributes.longBall} condensed={compact || condensedStats} />
+        <StatBar label="Çeviklik" value={player.attributes.agility} condensed={compact || condensedStats} />
+        <StatBar label="Şut" value={player.attributes.shooting} condensed={compact || condensedStats} />
+        <StatBar label="Şut Gücü" value={player.attributes.shootPower} condensed={compact || condensedStats} />
+        <StatBar label="Pozisyon Alma" value={player.attributes.positioning} condensed={compact || condensedStats} />
+        <StatBar label="Refleks" value={player.attributes.reaction} condensed={compact || condensedStats} />
+        <StatBar label="Top Kontrolü" value={player.attributes.ballControl} condensed={compact || condensedStats} />
+      </div>
+    </>
   );
 
   return (
@@ -161,33 +191,7 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({
             )}
           </div>
 
-          {!collapsed && (
-            <>
-              <div className={cn('mb-3 grid grid-cols-3 gap-2', compact && 'gap-1')}>
-                <PerformanceGauge label="Güç" value={power} className={compact ? 'space-y-0.5' : ''} />
-                <PerformanceGauge label="Kondisyon" value={condition} className={compact ? 'space-y-0.5' : ''} />
-                <PerformanceGauge label="Motivasyon" value={motivation} className={compact ? 'space-y-0.5' : ''} />
-              </div>
-
-              <div className="grid grid-cols-2 gap-1">
-                <StatBar label="Güç" value={player.attributes.strength} className={compact ? 'text-[10px]' : ''} />
-                <StatBar label="Hızlanma" value={player.attributes.acceleration} className={compact ? 'text-[10px]' : ''} />
-                <StatBar label="Maks Hız" value={player.attributes.topSpeed} className={compact ? 'text-[10px]' : ''} />
-                <StatBar label="Dribling Hızı" value={player.attributes.dribbleSpeed} className={compact ? 'text-[10px]' : ''} />
-                <StatBar label="Sıçrama" value={player.attributes.jump} className={compact ? 'text-[10px]' : ''} />
-                <StatBar label="Mücadele" value={player.attributes.tackling} className={compact ? 'text-[10px]' : ''} />
-                <StatBar label="Top Saklama" value={player.attributes.ballKeeping} className={compact ? 'text-[10px]' : ''} />
-                <StatBar label="Pas" value={player.attributes.passing} className={compact ? 'text-[10px]' : ''} />
-                <StatBar label="Uzun Top" value={player.attributes.longBall} className={compact ? 'text-[10px]' : ''} />
-                <StatBar label="Çeviklik" value={player.attributes.agility} className={compact ? 'text-[10px]' : ''} />
-                <StatBar label="Şut" value={player.attributes.shooting} className={compact ? 'text-[10px]' : ''} />
-                <StatBar label="Şut Gücü" value={player.attributes.shootPower} className={compact ? 'text-[10px]' : ''} />
-                <StatBar label="Pozisyon Alma" value={player.attributes.positioning} className={compact ? 'text-[10px]' : ''} />
-                <StatBar label="Refleks" value={player.attributes.reaction} className={compact ? 'text-[10px]' : ''} />
-                <StatBar label="Top Kontrolü" value={player.attributes.ballControl} className={compact ? 'text-[10px]' : ''} />
-              </div>
-            </>
-          )}
+          {!collapsed && renderedStats}
         </div>
       </div>
     </Card>
