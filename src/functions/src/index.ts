@@ -16,6 +16,11 @@ export {
   generateRoundRobinFixturesFn,
   assignAllTeamsToLeagues,
 } from './league.js';
+// Monthly slot-based leagues system
+export { bootstrapMonthlyLeaguesOneTime, bootstrapMonthlyLeaguesOneTimeHttp } from './bootstrap.js';
+export { assignRealTeamToFirstAvailableBotSlot, assignRealTeamToFirstAvailableBotSlotHttp } from './assign.js';
+export { resetSeasonMonthly } from './schedule.js';
+export { runDailyMatchesAt19TR } from './runner.js';
 // User lifecycle triggers
 export { assignTeamOnUserCreate } from './user.js';
 // Data sync helpers

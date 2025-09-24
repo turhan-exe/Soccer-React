@@ -18,22 +18,27 @@ import {
 import { httpsCallable } from 'firebase/functions';
 import { auth, db, functions } from './firebase';
 import type { League, Fixture, Standing } from '@/types';
+import { formatInTimeZone } from 'date-fns-tz';
 
 /** Uygulama ilk açıldığında en az bir lig olduğundan emin ol */
 export async function ensureDefaultLeague(): Promise<void> {
   const snap = await getDocs(collection(db, 'leagues'));
   if (!snap.empty) return;
-  await addDoc(collection(db, 'leagues'), {
-    name: 'League 1',
-    season: 1,
-    capacity: 22,
-    timezone: 'Europe/Istanbul',
-    state: 'forming',
-    rounds: 0,
-    teamCount: 0,
-    createdAt: serverTimestamp(),
-  });
-
+  // Yeni akış: boşsa 25×15 slot’lu aylık ligleri kurmayı dener
+  try {
+    const fn = httpsCallable(functions, 'bootstrapMonthlyLeaguesOneTime');
+    await fn({});
+  } catch (e) {
+    const user = auth.currentUser;
+    if (!user) return;
+    try {
+      const token = await user.getIdToken();
+      const region = import.meta.env.VITE_FUNCTIONS_REGION || 'europe-west1';
+      const projectId = import.meta.env.VITE_FIREBASE_PROJECT_ID;
+      const url = `https://${region}-${projectId}.cloudfunctions.net/bootstrapMonthlyLeaguesOneTimeHttp`;
+      await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({}) });
+    } catch {}
+  }
 }
 
 /** Takımı bir lige yerleştirmek için callable'ı kullan; gerekirse HTTP fallback */
@@ -94,6 +99,61 @@ export async function requestJoinLeague(teamId: string): Promise<void> {
   }
 }
 
+// One-time bootstrap for monthly slot-based leagues
+export async function requestBootstrap(): Promise<void> {
+  try {
+    const fn = httpsCallable(functions, 'bootstrapMonthlyLeaguesOneTime');
+    await fn({});
+    return;
+  } catch (err: any) {
+    const code: string | undefined = err?.code;
+    // If it's an auth error, try HTTP with ID token explicitly
+    const user = auth.currentUser;
+    if (!user) throw err;
+    const token = await user.getIdToken();
+    const region = import.meta.env.VITE_FUNCTIONS_REGION || 'europe-west1';
+    const projectId = import.meta.env.VITE_FIREBASE_PROJECT_ID;
+    const url = `https://${region}-${projectId}.cloudfunctions.net/bootstrapMonthlyLeaguesOneTimeHttp`;
+    const resp = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ data: {} }),
+    });
+    if (!resp.ok) {
+      const text = await resp.text().catch(() => '');
+      throw new Error(`HTTP ${resp.status}: ${text || '<no body>'}`);
+    }
+  }
+}
+
+// Assign current user's team to first available bot slot
+export async function requestAssign(teamId: string): Promise<void> {
+  if (!teamId) throw new Error('teamId required');
+  try {
+    const fn = httpsCallable(functions, 'assignRealTeamToFirstAvailableBotSlot');
+    await fn({ teamId });
+  } catch (err: any) {
+    const user = auth.currentUser;
+    if (!user) throw err;
+    const token = await user.getIdToken();
+    const region = import.meta.env.VITE_FUNCTIONS_REGION || 'europe-west1';
+    const projectId = import.meta.env.VITE_FIREBASE_PROJECT_ID;
+    const url = `https://${region}-${projectId}.cloudfunctions.net/assignRealTeamToFirstAvailableBotSlotHttp`;
+    const resp = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ teamId }),
+    });
+    if (!resp.ok) {
+      const text = await resp.text().catch(() => '');
+      throw new Error(`HTTP ${resp.status}: ${text || '<no body>'}`);
+    }
+  }
+}
+
 /** Eğer lig 'scheduled' ve fikstürleri yoksa, functions ile üretmeyi dener */
 export async function ensureFixturesForLeague(leagueId: string): Promise<void> {
   const leagueSnap = await getDoc(doc(db, 'leagues', leagueId));
@@ -114,37 +174,121 @@ export async function ensureFixturesForLeague(leagueId: string): Promise<void> {
   }
 }
 
+/** Test utility: Seçilen TR günündeki tüm maçları başlat (tüm ligler) */
+export async function playAllForDay(
+  dayKey?: string,
+  opts?: { instant?: boolean }
+): Promise<{ ok: boolean; started?: number; total?: number; dayKey?: string }> {
+  const targetDay = dayKey || formatInTimeZone(new Date(), 'Europe/Istanbul', 'yyyy-MM-dd');
+  const httpFirst = (import.meta as any).env?.VITE_USE_HTTP_FUNCTIONS === '1' || import.meta.env.DEV;
+  const region = import.meta.env.VITE_FUNCTIONS_REGION || 'europe-west1';
+  const projectId = import.meta.env.VITE_FIREBASE_PROJECT_ID;
+  const httpUrl = `https://${region}-${projectId}.cloudfunctions.net/playAllForDayHttp`;
+  const callFn = async () => {
+    const fn = httpsCallable(functions, 'playAllForDayFn');
+    const res: any = await fn({ dayKey: targetDay, force: true, instant: !!opts?.instant });
+    return (res?.data as any) || { ok: true, dayKey: targetDay };
+  };
+  const callHttp = async () => {
+    const user = auth.currentUser;
+    const resp = await fetch(httpUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...(user ? { Authorization: `Bearer ${await user.getIdToken()}` } : {}) },
+      body: JSON.stringify({ dayKey: targetDay, force: true, instant: !!opts?.instant }),
+      mode: 'cors',
+    });
+    if (!resp.ok) {
+      const text = await resp.text().catch(() => '');
+      throw new Error(`HTTP ${resp.status}: ${text || '<no body>'}`);
+    }
+    return await resp.json();
+  };
+
+  if (httpFirst) {
+    try { return await callHttp(); } catch { /* fallback to callable */ }
+    return await callFn();
+  } else {
+    try { return await callFn(); } catch { /* fallback to HTTP */ }
+    return await callHttp();
+  }
+}
+
+/** Test utility: En erken planlı fikstür gününü bul ve o günün tüm maçlarını başlat */
+export async function playNextScheduledDay(): Promise<{ ok: boolean; dayKey?: string; started?: number; total?: number } | null> {
+  // Find earliest fixture by date across leagues
+  let snap;
+  try {
+    // Önce 'scheduled' filtreleyelim; index gerekirse aşağıdaki catch zaten fallback yapar
+    const q = query(
+      collectionGroup(db, 'fixtures'),
+      where('status', '==', 'scheduled'),
+      orderBy('date', 'asc'),
+      limit(1)
+    );
+    snap = await getDocs(q);
+  } catch {
+    // Fallback: iterate leagues and take earliest
+    const leagues = await getDocs(collection(db, 'leagues'));
+    let earliest: { date: Date } | null = null;
+    for (const lg of leagues.docs) {
+      try {
+        const s = await getDocs(
+          query(
+            collection(lg.ref, 'fixtures'),
+            where('status', '==', 'scheduled'),
+            orderBy('date', 'asc'),
+            limit(1)
+          )
+        );
+        if (!s.empty) {
+          const d = (s.docs[0].data() as any)?.date?.toDate?.() as Date | undefined;
+          if (d && (!earliest || d < earliest.date)) earliest = { date: d };
+        }
+      } catch {}
+    }
+    if (!earliest) return null;
+    const dayKey = formatInTimeZone(earliest.date, 'Europe/Istanbul', 'yyyy-MM-dd');
+    // İsteğe bağlı: bir sonraki gün hemen oynatılsın
+    return await playAllForDay(dayKey, { instant: true });
+  }
+  if (snap.empty) return null;
+  const d = (snap.docs[0].data() as any)?.date?.toDate?.() as Date | undefined;
+  if (!d) return null;
+  const dayKey = formatInTimeZone(d, 'Europe/Istanbul', 'yyyy-MM-dd');
+  return await playAllForDay(dayKey, { instant: true });
+}
+
 /** Kullanıcının takımının hangi ligde olduğunu dinle */
-export function listenMyLeague(
-  teamId: string,
-  cb: (league: League | null) => void
-): Unsubscribe {
-  const teamsQ = query(
-    collectionGroup(db, 'teams'),
-    where('teamId', '==', teamId),
-    limit(1)
-  );
-
+export function listenMyLeague(teamId: string, cb: (league: League | null) => void): Unsubscribe {
   let unsubLeague: Unsubscribe | null = null;
-
-  const unsubTeams = onSnapshot(teamsQ, (snap) => {
-    if (unsubLeague) unsubLeague();
-
-    if (snap.empty) {
-      cb(null);
+  const tRef = doc(db, 'teams', teamId);
+  const unsubTop = onSnapshot(tRef, (tSnap) => {
+    const tData = tSnap.exists() ? (tSnap.data() as any) : null;
+    const leagueId: string | undefined = tData?.leagueId;
+    if (unsubLeague) { unsubLeague(); unsubLeague = null; }
+    if (leagueId) {
+      const lRef = doc(db, 'leagues', leagueId);
+      unsubLeague = onSnapshot(lRef, (ls) => {
+        if (!ls.exists()) { cb(null); return; }
+        cb({ id: ls.id, ...(ls.data() as Omit<League, 'id'>) });
+      });
       return;
     }
-
-    const leagueRef = snap.docs[0].ref.parent.parent!;
-    unsubLeague = onSnapshot(leagueRef, (ls) => {
-      cb({ id: ls.id, ...(ls.data() as Omit<League, 'id'>) });
+    // Fallback: eski şema (leagues/{id}/teams)
+    const qLegacy = query(collectionGroup(db, 'teams'), where('teamId', '==', teamId), limit(1));
+    const unsubLegacy = onSnapshot(qLegacy, (snap) => {
+      if (unsubLeague) { unsubLeague(); unsubLeague = null; }
+      if (snap.empty) { cb(null); return; }
+      const leagueRef = snap.docs[0].ref.parent.parent!;
+      unsubLeague = onSnapshot(leagueRef, (ls) => {
+        if (!ls.exists()) { cb(null); return; }
+        cb({ id: ls.id, ...(ls.data() as Omit<League, 'id'>) });
+      });
     });
+    // unsubLeague’ı legacy unsub ile kapatılabilir hale getir
+    unsubLeague = () => { unsubLegacy(); };
   });
-
-  return () => {
-    if (unsubLeague) unsubLeague();
-    unsubTeams();
-  };
+  return () => { if (unsubLeague) unsubLeague(); unsubTop(); };
 }
 
 /**
@@ -219,11 +363,12 @@ export async function getFixturesForTeam(
 
 /** Takımın bağlı olduğu ligin id'sini tek seferlik getir */
 export async function getMyLeagueId(teamId: string): Promise<string | null> {
-  const q = query(
-    collectionGroup(db, 'teams'),
-    where('teamId', '==', teamId),
-    limit(1)
-  );
+  // Prefer top-level teams/{teamId}.leagueId (slot-based flow)
+  const teamDoc = await getDoc(doc(db, 'teams', teamId));
+  const leagueIdTop: string | undefined = teamDoc.exists() ? (teamDoc.data() as any)?.leagueId : undefined;
+  if (leagueIdTop) return leagueIdTop;
+  // Fallback to legacy subcollection lookup
+  const q = query(collectionGroup(db, 'teams'), where('teamId', '==', teamId), limit(1));
   const snap = await getDocs(q);
   if (snap.empty) return null;
   return snap.docs[0].ref.parent.parent!.id;
@@ -274,14 +419,83 @@ export async function getMyLeague(
   return { leagueId: ref.id, teamId };
 }
 
+// Slot-aware variant that falls back to slot mapping if participants query yields nothing
+export async function getFixturesForTeamSlotAware(
+  leagueId: string,
+  teamId: string
+): Promise<Fixture[]> {
+  try {
+    const base = await getFixturesForTeam(leagueId, teamId);
+    if (base.length > 0) return base;
+  } catch {}
+
+  // Fallback: build via slots
+  const slotsSnap = await getDocs(collection(db, 'leagues', leagueId, 'slots'));
+  if (slotsSnap.empty) return [];
+  const teamIdBySlot = new Map<number, string | null>();
+  slotsSnap.docs.forEach((d) => {
+    const s = d.data() as any;
+    teamIdBySlot.set(s.slotIndex, s.teamId || null);
+  });
+  const fx = await getDocs(collection(db, 'leagues', leagueId, 'fixtures'));
+  const list: Fixture[] = fx.docs
+    .map((d) => {
+      const raw = d.data() as any;
+      const ts = raw.date as { toDate: () => Date };
+      const homeTid = raw.homeTeamId || teamIdBySlot.get(raw.homeSlot) || `slot-${raw.homeSlot}`;
+      const awayTid = raw.awayTeamId || teamIdBySlot.get(raw.awaySlot) || `slot-${raw.awaySlot}`;
+      return {
+        id: d.id,
+        round: raw.round,
+        date: ts.toDate(),
+        homeTeamId: homeTid,
+        awayTeamId: awayTid,
+        participants: [homeTid, awayTid],
+        status: raw.status,
+        score: raw.score ?? null,
+        replayPath: raw.replayPath,
+      } as Fixture;
+    })
+    .filter((m) => m.homeTeamId === teamId || m.awayTeamId === teamId)
+    .sort((a, b) => a.date.getTime() - b.date.getTime());
+  return list;
+}
+
 /** Ligdeki takımları getir */
 export async function getLeagueTeams(
   leagueId: string
 ): Promise<{ id: string; name: string }[]> {
-  const snap = await getDocs(collection(db, 'leagues', leagueId, 'teams'));
-  return snap.docs.map((d) => {
-    const data = d.data() as { name?: string };
-    return { id: d.id, name: data.name ?? d.id };
+  // Prefer standings for human-friendly names (works for slot-based)
+  const standingsSnap = await getDocs(collection(db, 'leagues', leagueId, 'standings'));
+  if (!standingsSnap.empty) {
+    const rows: { id: string; name: string }[] = [];
+    // Build both teamId -> name and slot-{i} -> name for lookups
+    standingsSnap.docs.forEach((d) => {
+      const s = d.data() as any;
+      const name = s.name || s.teamId || `Slot ${s.slotIndex}`;
+      const slotKey = `slot-${s.slotIndex}`;
+      rows.push({ id: slotKey, name });
+      if (s.teamId) rows.push({ id: s.teamId, name });
+    });
+    // De-duplicate by id preserving first occurrence
+    const seen = new Set<string>();
+    return rows.filter((r) => (seen.has(r.id) ? false : (seen.add(r.id), true)));
+  }
+
+  // Legacy teams subcollection
+  const teamsSnap = await getDocs(collection(db, 'leagues', leagueId, 'teams'));
+  if (!teamsSnap.empty) {
+    return teamsSnap.docs.map((d) => {
+      const data = d.data() as { name?: string };
+      return { id: d.id, name: data.name ?? d.id };
+    });
+  }
+
+  // Fallback to slots if standings/teams absent
+  const slots = await getDocs(collection(db, 'leagues', leagueId, 'slots'));
+  return slots.docs.map((d) => {
+    const s = d.data() as any;
+    return { id: s.teamId || `slot-${s.slotIndex}`, name: s.name || s.teamId || `Bot ${s.botId || s.slotIndex}` };
   });
 }
 
@@ -317,28 +531,47 @@ export function listenStandings(
 /** Lig listesini (takımlarla birlikte) getir */
 export async function listLeagues(): Promise<League[]> {
   const snap = await getDocs(collection(db, 'leagues'));
-
   const leagues: League[] = [];
   for (const d of snap.docs) {
-    const teamsSnap = await getDocs(collection(d.ref, 'teams'));
-    const teams = teamsSnap.docs.map((t) => {
-      const data = t.data() as { name?: string };
-      return { id: t.id, name: data.name ?? t.id };
-    });
-
-    const leagueData = d.data() as Omit<
-      League,
-      'id' | 'teamCount' | 'teams'
-    > & { teamCount?: number };
-
+    const data = d.data() as any;
+    const standingsSnap = await getDocs(collection(d.ref, 'standings'));
+    let teams: { id: string; name: string }[] = [];
+    let teamCount = 0;
+    if (!standingsSnap.empty) {
+      // Prefer standings for friendly names (works for human + bots)
+      const rows = standingsSnap.docs.map((s) => s.data() as any);
+      teams = rows.map((r) => ({ id: r.teamId || `slot-${r.slotIndex}`, name: r.name || r.teamId || `Slot ${r.slotIndex}` }));
+      teamCount = rows.filter((r) => !!r.teamId).length;
+    } else {
+      const slotsSnap = await getDocs(collection(d.ref, 'slots'));
+      if (!slotsSnap.empty) {
+        teams = slotsSnap.docs.map((s) => {
+          const sd = s.data() as any;
+          if (sd.type === 'human' && sd.teamId) teamCount++;
+          return { id: sd.teamId || `slot-${sd.slotIndex}`, name: sd.teamId || `Bot ${sd.botId || sd.slotIndex}` };
+        });
+      } else {
+      const teamsSnap = await getDocs(collection(d.ref, 'teams'));
+      teamCount = teamsSnap.size;
+      teams = teamsSnap.docs.map((t) => {
+        const td = t.data() as any;
+        return { id: t.id, name: td.name || t.id };
+      });
+      }
+    }
     leagues.push({
       id: d.id,
-      teamCount: leagueData.teamCount ?? teamsSnap.size,
+      name: data.name,
+      season: data.season,
+      capacity: data.capacity,
+      timezone: data.timezone,
+      state: data.state,
+      startDate: data.startDate,
+      rounds: data.rounds,
+      teamCount,
       teams,
-      ...leagueData,
-    });
+    } as League);
   }
-
   return leagues;
 }
 
@@ -360,5 +593,56 @@ export async function listLeagueStandings(
     return b.GF - a.GF;
   });
 
+  return rows;
+}
+
+// Get league via top-level teams/{teamId}.leagueId (slot-based flow)
+export async function getLeagueForTeam(teamId: string): Promise<{ leagueId: string | null }> {
+  const d = await getDoc(doc(db, 'teams', teamId));
+  if (!d.exists()) return { leagueId: null };
+  const leagueId: string | undefined = (d.data() as any)?.leagueId;
+  return { leagueId: leagueId || null };
+}
+
+// Resolve fixtures using slot map for a given slot index
+export async function getFixturesByLeagueAndSlotMap(
+  leagueId: string,
+  mySlotIndex: number
+): Promise<Array<Fixture & { opponentName: string; home: boolean }>> {
+  const slotsSnap = await getDocs(collection(db, 'leagues', leagueId, 'slots'));
+  const nameBySlot = new Map<number, string>();
+  const teamIdBySlot = new Map<number, string | null>();
+  slotsSnap.docs.forEach((d) => {
+    const s = d.data() as any;
+    const name = s.teamId || `Bot ${s.botId || s.slotIndex}`;
+    nameBySlot.set(s.slotIndex, name);
+    teamIdBySlot.set(s.slotIndex, s.teamId || null);
+  });
+  const fxSnap = await getDocs(collection(db, 'leagues', leagueId, 'fixtures'));
+  const rows = fxSnap.docs
+    .map((d) => {
+      const raw = d.data() as any;
+      const ts = raw.date as { toDate: () => Date };
+      const home = raw.homeSlot === mySlotIndex;
+      const oppSlot = home ? raw.awaySlot : raw.homeSlot;
+      const homeTeamId = raw.homeTeamId || teamIdBySlot.get(raw.homeSlot) || null;
+      const awayTeamId = raw.awayTeamId || teamIdBySlot.get(raw.awaySlot) || null;
+      const result: Fixture & { opponentName: string; home: boolean } = {
+        id: d.id,
+        round: raw.round,
+        date: ts.toDate(),
+        homeTeamId: homeTeamId || `slot-${raw.homeSlot}`,
+        awayTeamId: awayTeamId || `slot-${raw.awaySlot}`,
+        participants: [homeTeamId, awayTeamId].filter(Boolean) as string[],
+        status: raw.status,
+        score: raw.score ?? null,
+        replayPath: raw.replayPath,
+        opponentName: nameBySlot.get(oppSlot) || `Slot ${oppSlot}`,
+        home,
+      };
+      return result;
+    })
+    .filter((r) => r.home || r.awayTeamId === `slot-${mySlotIndex}` || r.homeTeamId === `slot-${mySlotIndex}` || r.participants.length === 0)
+    .sort((a, b) => a.date.getTime() - b.date.getTime());
   return rows;
 }

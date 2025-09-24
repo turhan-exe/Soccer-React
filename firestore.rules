@@ -35,6 +35,11 @@ service cloud.firestore {
         allow write: if false;
       }
 
+      match /slots/{slotId} {
+        allow read: if true;
+        allow write: if false;
+      }
+
       match /fixtures/{matchId} {
         allow read: if true;
         allow write: if false;

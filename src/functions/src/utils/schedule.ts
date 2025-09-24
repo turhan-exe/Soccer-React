@@ -57,6 +57,14 @@ export function betweenTR_19_to_2359(dateTRKey: string) {
   return { start, end };
 }
 
+// Full day range in TR timezone (00:00:00–23:59:59)
+export function dayRangeTR(dateTRKey: string) {
+  const offset = formatInTimeZone(new Date(`${dateTRKey}T00:00:00Z`), TZ, 'XXX');
+  const start = new Date(`${dateTRKey}T00:00:00${offset}`);
+  const end = new Date(`${dateTRKey}T23:59:59${offset}`);
+  return { start, end };
+}
+
 export function addMinutesTR(date: Date, minutes: number) {
   return addMinutes(date, minutes);
 }

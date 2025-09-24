@@ -1,5 +1,5 @@
 import * as functions from 'firebase-functions/v1';
-import { assignTeam as assignTeamInternal } from './league.js';
+import { assignIntoRandomBotSlot } from './assign.js';
 import './_firebase.js';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 const db = getFirestore();
@@ -30,7 +30,7 @@ export const assignTeamOnUserCreate = functions
                 teamNameBase = data.name;
             }
         }
-        await assignTeamInternal(uid, teamNameBase, uid);
+        await assignIntoRandomBotSlot(uid, teamNameBase);
     }
     catch (err) {
         console.error('Failed to auto-assign team to league on signup', { uid, err });
