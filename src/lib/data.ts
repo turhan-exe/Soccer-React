@@ -21,6 +21,7 @@ const createAttributes = (attrs: Partial<Player['attributes']>): Player['attribu
 });
 
 const defaultPhysical = { height: 180, weight: 75 };
+const defaultVitals = { condition: 0.82, motivation: 0.78 };
 
 const rawMockPlayers: Omit<Player, 'potential'>[] = [
   {
@@ -42,6 +43,7 @@ const rawMockPlayers: Omit<Player, 'potential'>[] = [
     age: 28,
     squadRole: 'starting',
     ...defaultPhysical,
+    ...defaultVitals,
   },
   {
     id: '2',
@@ -62,6 +64,7 @@ const rawMockPlayers: Omit<Player, 'potential'>[] = [
     age: 26,
     squadRole: 'starting',
     ...defaultPhysical,
+    ...defaultVitals,
   },
   {
     id: '3',
@@ -82,6 +85,7 @@ const rawMockPlayers: Omit<Player, 'potential'>[] = [
     age: 24,
     squadRole: 'starting',
     ...defaultPhysical,
+    ...defaultVitals,
   },
   {
     id: '4',
@@ -102,6 +106,7 @@ const rawMockPlayers: Omit<Player, 'potential'>[] = [
     age: 25,
     squadRole: 'starting',
     ...defaultPhysical,
+    ...defaultVitals,
   },
   {
     id: '5',
@@ -122,6 +127,7 @@ const rawMockPlayers: Omit<Player, 'potential'>[] = [
     age: 27,
     squadRole: 'starting',
     ...defaultPhysical,
+    ...defaultVitals,
   },
   {
     id: '6',
@@ -142,6 +148,7 @@ const rawMockPlayers: Omit<Player, 'potential'>[] = [
     age: 24,
     squadRole: 'starting',
     ...defaultPhysical,
+    ...defaultVitals,
   },
   {
     id: '7',
@@ -162,6 +169,7 @@ const rawMockPlayers: Omit<Player, 'potential'>[] = [
     age: 26,
     squadRole: 'starting',
     ...defaultPhysical,
+    ...defaultVitals,
   },
   {
     id: '8',
@@ -182,6 +190,7 @@ const rawMockPlayers: Omit<Player, 'potential'>[] = [
     age: 23,
     squadRole: 'starting',
     ...defaultPhysical,
+    ...defaultVitals,
   },
   {
     id: '9',
@@ -202,6 +211,7 @@ const rawMockPlayers: Omit<Player, 'potential'>[] = [
     age: 25,
     squadRole: 'starting',
     ...defaultPhysical,
+    ...defaultVitals,
   },
   {
     id: '10',
@@ -222,6 +232,7 @@ const rawMockPlayers: Omit<Player, 'potential'>[] = [
     age: 27,
     squadRole: 'starting',
     ...defaultPhysical,
+    ...defaultVitals,
   },
   {
     id: '11',
@@ -242,6 +253,7 @@ const rawMockPlayers: Omit<Player, 'potential'>[] = [
     age: 29,
     squadRole: 'starting',
     ...defaultPhysical,
+    ...defaultVitals,
   },
   {
     id: '12',
@@ -262,6 +274,7 @@ const rawMockPlayers: Omit<Player, 'potential'>[] = [
     age: 31,
     squadRole: 'bench',
     ...defaultPhysical,
+    ...defaultVitals,
   },
   {
     id: '13',
@@ -282,6 +295,7 @@ const rawMockPlayers: Omit<Player, 'potential'>[] = [
     age: 30,
     squadRole: 'bench',
     ...defaultPhysical,
+    ...defaultVitals,
   },
   {
     id: '14',
@@ -302,6 +316,7 @@ const rawMockPlayers: Omit<Player, 'potential'>[] = [
     age: 28,
     squadRole: 'bench',
     ...defaultPhysical,
+    ...defaultVitals,
   },
 ];
 

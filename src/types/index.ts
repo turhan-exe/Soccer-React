@@ -40,6 +40,8 @@ export interface Player {
   age: number;
   height: number;
   weight: number;
+  condition: number;
+  motivation: number;
   squadRole: SquadRole | 'youth';
   avatar?: string;
   uniqueId?: string;
@@ -161,3 +163,4 @@ export type { LeagueDoc, LeagueState } from './league';
 export type { TeamDoc, Lineup } from './team';
 export type { FixtureDoc, FixtureStatus } from './fixture';
 export type { MatchPlanDoc } from './matchPlan';
+export type { TournamentParticipant, KnockoutMatch, TournamentRound, TournamentBracket, KnockoutResult } from './tournament';

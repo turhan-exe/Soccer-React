@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { PlayerCard } from '@/components/ui/player-card';
+import { PerformanceGauge, clampPerformanceGauge } from '@/components/ui/performance-gauge';
 import { Player } from '@/types';
 import { getTeam, saveTeamPlayers, createInitialTeam, setLineupServer } from '@/services/team';
 import { useAuth } from '@/contexts/AuthContext';
@@ -18,8 +19,49 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { formations } from '@/lib/formations';
+import { calculatePowerIndex } from '@/lib/player';
+import { cn } from '@/lib/utils';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { BackButton } from '@/components/ui/back-button';
+
+const DEFAULT_GAUGE_VALUE = 0.75;
+
+function normalizePlayer(player: Player): Player {
+  return {
+    ...player,
+    condition: clampPerformanceGauge(player.condition, DEFAULT_GAUGE_VALUE),
+    motivation: clampPerformanceGauge(player.motivation, DEFAULT_GAUGE_VALUE),
+  };
+}
+
+function normalizePlayers(list: Player[]): Player[] {
+  return list.map(normalizePlayer);
+}
+
+function playerInitials(name: string): string {
+  return name
+    .split(' ')
+    .filter(Boolean)
+    .slice(0, 2)
+    .map(part => part[0]?.toUpperCase() ?? '')
+    .join('');
+}
+
+function getPlayerCondition(player: Player): number {
+  return clampPerformanceGauge(player.condition, DEFAULT_GAUGE_VALUE);
+}
+
+function getPlayerMotivation(player: Player): number {
+  return clampPerformanceGauge(player.motivation, DEFAULT_GAUGE_VALUE);
+}
+
+function getPlayerPower(player: Player): number {
+  return calculatePowerIndex({
+    ...player,
+    condition: getPlayerCondition(player),
+    motivation: getPlayerMotivation(player),
+  });
+}
 
 export default function TeamPlanning() {
   const navigate = useNavigate();
@@ -104,7 +146,7 @@ export default function TeamPlanning() {
       if (!team) {
         team = await createInitialTeam(user.id, user.teamName, user.teamName);
       }
-      setPlayers(team.players);
+      setPlayers(normalizePlayers(team.players));
     })();
   }, [user]);
 
@@ -126,6 +168,34 @@ export default function TeamPlanning() {
     });
   })();
 
+  const selectedPlayer = useMemo(() => {
+    if (!focusedPlayerId) return null;
+    return players.find(p => p.id === focusedPlayerId) ?? null;
+  }, [players, focusedPlayerId]);
+
+  const selectedPower = selectedPlayer ? getPlayerPower(selectedPlayer) : 0;
+
+  const startingAverages = useMemo(() => {
+    const starters = players.filter(p => p.squadRole === 'starting');
+    if (starters.length === 0) {
+      return { condition: 0, motivation: 0, power: 0 };
+    }
+    const totals = starters.reduce(
+      (acc, player) => {
+        acc.condition += getPlayerCondition(player);
+        acc.motivation += getPlayerMotivation(player);
+        acc.power += getPlayerPower(player);
+        return acc;
+      },
+      { condition: 0, motivation: 0, power: 0 }
+    );
+    return {
+      condition: totals.condition / starters.length,
+      motivation: totals.motivation / starters.length,
+      power: totals.power / starters.length,
+    };
+  }, [players]);
+
 
   const handlePositionDrop = (
     e: React.DragEvent<HTMLDivElement>,
@@ -145,7 +215,6 @@ export default function TeamPlanning() {
         const targetPlayer = prev[targetIndex];
         updated[targetIndex] = {
           ...targetPlayer,
-          position: draggedPlayer.position,
           squadRole: draggedPlayer.squadRole,
         };
       }
@@ -154,8 +223,9 @@ export default function TeamPlanning() {
         position: targetPosition,
         squadRole: 'starting',
       };
-      return updated;
+      return normalizePlayers(updated);
     });
+    setFocusedPlayerId(playerId);
     setDraggedPlayerId(null);
   };
 
@@ -235,34 +305,33 @@ export default function TeamPlanning() {
             </Select>
           </CardHeader>
           <CardContent>
-
-            <div className="bg-green-600 rounded-lg p-4 relative w-full max-w-md aspect-[2/3] mx-auto overflow-hidden">
-              <div className="absolute inset-0">
-                <svg
-                  viewBox="0 0 100 100"
-                  className="absolute inset-0 w-full h-full text-white/70"
-                  pointerEvents="none"
-                >
-                  <rect x="0" y="0" width="100" height="100" fill="none" stroke="currentColor" strokeWidth="2" />
-                  <line x1="0" y1="50" x2="100" y2="50" stroke="currentColor" strokeWidth="1" />
-                  <circle cx="50" cy="50" r="9" stroke="currentColor" strokeWidth="1" fill="none" />
-                  <rect x="16" y="0" width="68" height="16" stroke="currentColor" strokeWidth="1" fill="none" />
-                  <rect x="16" y="84" width="68" height="16" stroke="currentColor" strokeWidth="1" fill="none" />
-                  <rect x="30" y="0" width="40" height="6" stroke="currentColor" strokeWidth="1" fill="none" />
-                  <rect x="30" y="94" width="40" height="6" stroke="currentColor" strokeWidth="1" fill="none" />
-                  <circle cx="50" cy="11" r="1.5" fill="currentColor" />
-                  <circle cx="50" cy="89" r="1.5" fill="currentColor" />
-                </svg>
-
-                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                  <ArrowUp className="w-24 h-24 text-white/20" />
+            <div className="flex flex-col gap-6 lg:flex-row">
+              <div className="relative w-full max-w-md flex-shrink-0 overflow-hidden rounded-2xl bg-gradient-to-b from-emerald-600 via-emerald-700 to-emerald-800 p-5 shadow-[0_20px_45px_-25px_rgba(16,80,40,0.8)]">
+                <div className="absolute inset-0 opacity-80">
+                  <svg
+                    viewBox="0 0 100 100"
+                    className="absolute inset-0 h-full w-full text-white/60"
+                    pointerEvents="none"
+                  >
+                    <rect x="0" y="0" width="100" height="100" fill="none" stroke="currentColor" strokeWidth="2" />
+                    <line x1="0" y1="50" x2="100" y2="50" stroke="currentColor" strokeWidth="1" />
+                    <circle cx="50" cy="50" r="9" stroke="currentColor" strokeWidth="1" fill="none" />
+                    <rect x="16" y="0" width="68" height="16" stroke="currentColor" strokeWidth="1" fill="none" />
+                    <rect x="16" y="84" width="68" height="16" stroke="currentColor" strokeWidth="1" fill="none" />
+                    <rect x="30" y="0" width="40" height="6" stroke="currentColor" strokeWidth="1" fill="none" />
+                    <rect x="30" y="94" width="40" height="6" stroke="currentColor" strokeWidth="1" fill="none" />
+                    <circle cx="50" cy="11" r="1.5" fill="currentColor" />
+                    <circle cx="50" cy="89" r="1.5" fill="currentColor" />
+                  </svg>
                 </div>
-
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                  <ArrowUp className="h-24 w-24 text-white/15" />
+                </div>
                 <div className="absolute inset-0">
                   {formationPositions.map(({ player, position, x, y }, idx) => (
                     <div
                       key={idx}
-                      className="absolute text-xs text-center"
+                      className="absolute text-center"
                       style={{
                         left: `${x}%`,
                         top: `${y}%`,
@@ -275,35 +344,87 @@ export default function TeamPlanning() {
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <div
-                              className="w-12 h-12 rounded-full bg-white/80 flex flex-col items-center justify-center cursor-move text-[8px] leading-tight"
+                              className={cn(
+                                'flex h-12 w-12 items-center justify-center rounded-full border border-white/30 bg-white/85 text-[9px] font-semibold text-emerald-900 shadow transition-all duration-150 cursor-grab',
+                                player.id === focusedPlayerId
+                                  ? 'ring-4 ring-white/80 ring-offset-2 ring-offset-emerald-600 shadow-lg'
+                                  : 'hover:ring-2 hover:ring-white/70'
+                              )}
                               draggable
+                              onClick={() => setFocusedPlayerId(player.id)}
+                              onKeyDown={e => {
+                                if (e.key === 'Enter' || e.key === ' ') {
+                                  e.preventDefault();
+                                  setFocusedPlayerId(player.id);
+                                }
+                              }}
+                              role="button"
+                              tabIndex={0}
                               onDragStart={e => {
                                 setDraggedPlayerId(player.id);
                                 e.dataTransfer.setData('text/plain', player.id);
                               }}
                               onDragEnd={() => setDraggedPlayerId(null)}
-                              title={`${player.position} - ${Math.round(player.overall * 100)}`}
                             >
-                              <span className="text-[9px] font-semibold text-center text-black">
-                                {player.name.split(' ')[0]}
+                              <span className="px-1 text-center leading-tight">
+                                {playerInitials(player.name)}
                               </span>
                             </div>
                           </TooltipTrigger>
-                          <TooltipContent>
-                            <div className="text-xs">
-                              {player.position} - {Math.round(player.overall * 100)}
-                            </div>
+                          <TooltipContent className="w-48 space-y-2">
+                            <div className="text-xs font-semibold">{player.name}</div>
+                            <PerformanceGauge label="Güç" value={getPlayerPower(player)} />
+                            <PerformanceGauge label="Kondisyon" value={getPlayerCondition(player)} />
+                            <PerformanceGauge label="Motivasyon" value={getPlayerMotivation(player)} />
                           </TooltipContent>
                         </Tooltip>
                       ) : (
-                        <div
-                          className="w-12 h-12 rounded-full bg-white/80 flex flex-col items-center justify-center text-[8px] leading-tight"
-                        >
-                          <span className="text-[9px] font-semibold">{position}</span>
+                        <div className="flex h-12 w-12 items-center justify-center rounded-full border border-dashed border-white/50 bg-white/20 text-[9px] font-semibold uppercase tracking-wide text-white">
+                          {position}
                         </div>
                       )}
                     </div>
                   ))}
+                </div>
+              </div>
+              <div className="flex-1 space-y-4">
+                <div className="rounded-xl border border-emerald-500/20 bg-emerald-900/20 p-4 text-white shadow-inner backdrop-blur-sm">
+                  {selectedPlayer ? (
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <p className="text-xs uppercase tracking-wide text-white/70">Seçili Oyuncu</p>
+                          <h3 className="text-lg font-semibold">{selectedPlayer.name}</h3>
+                          <p className="text-xs text-white/70">
+                            {selectedPlayer.position} • Güç {Math.round(selectedPower * 100)}
+                          </p>
+                        </div>
+                        <div className="flex h-14 w-14 items-center justify-center rounded-full bg-white/20 text-lg font-semibold">
+                          {playerInitials(selectedPlayer.name)}
+                        </div>
+                      </div>
+                      <div className="space-y-3">
+                        <PerformanceGauge label="Güç" value={selectedPower} variant="dark" />
+                        <PerformanceGauge label="Kondisyon" value={getPlayerCondition(selectedPlayer)} variant="dark" />
+                        <PerformanceGauge label="Motivasyon" value={getPlayerMotivation(selectedPlayer)} variant="dark" />
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="py-8 text-center text-sm text-white/70">
+                      Formasyondaki bir oyuncuya týklayýn.
+                    </div>
+                  )}
+                </div>
+                <div className="rounded-xl border border-emerald-200/40 bg-white/80 p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900/70">
+                  <div className="mb-4 flex items-center justify-between">
+                    <h4 className="text-sm font-semibold text-emerald-700 dark:text-emerald-200">Takým Nabzý</h4>
+                    <span className="text-xs text-muted-foreground">Ýlk 11 ortalamasý</span>
+                  </div>
+                  <div className="space-y-3">
+                    <PerformanceGauge label="Takým Gücü" value={startingAverages.power} />
+                    <PerformanceGauge label="Kondisyon Ortalamasý" value={startingAverages.condition} />
+                    <PerformanceGauge label="Motivasyon Ortalamasý" value={startingAverages.motivation} />
+                  </div>
                 </div>
               </div>
             </div>
@@ -418,3 +539,7 @@ export default function TeamPlanning() {
     </div>
   );
 }
+
+
+
+

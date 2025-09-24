@@ -9,6 +9,7 @@ import { formations } from '@/lib/formations';
 const positions: Player['position'][] = ['GK','CB','LB','RB','CM','LM','RM','CAM','LW','RW','ST'];
 
 const randomAttr = () => parseFloat(Math.random().toFixed(3));
+const randomGauge = () => parseFloat((0.6 + Math.random() * 0.4).toFixed(3));
 
 const generatePlayer = (
   id: number,
@@ -47,6 +48,8 @@ const generatePlayer = (
     height: 180,
     weight: 75,
     squadRole: 'reserve',
+    condition: randomGauge(),
+    motivation: randomGauge(),
   };
 };
 

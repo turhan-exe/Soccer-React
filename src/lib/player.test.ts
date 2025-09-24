@@ -32,6 +32,8 @@ test('assigns max stats based on roles without exceeding potential', () => {
     age: 20,
     height: 180,
     weight: 75,
+    condition: 0.8,
+    motivation: 0.8,
     squadRole: 'starting',
   };
 
@@ -52,3 +54,4 @@ test('assigns max stats based on roles without exceeding potential', () => {
   // overall should match the player's potential for the main position
   expect(updated.overall).toBe(0.9);
 });
+

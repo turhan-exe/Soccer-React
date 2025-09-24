@@ -80,3 +80,20 @@ export function assignMaxStats(
     overall: calculateOverall(player.position, attributes),
   };
 }
+
+const clamp01 = (value: number): number => {
+  if (!Number.isFinite(value)) return 0;
+  if (value < 0) return 0;
+  if (value > 1) return 1;
+  return value;
+};
+
+export function calculatePowerIndex(player: Player): number {
+  const condition = clamp01(player.condition ?? 0.75);
+  const motivation = clamp01(player.motivation ?? 0.75);
+  const physical = (player.attributes.strength + player.attributes.shootPower + player.attributes.topSpeed) / 3;
+  const technical = (player.attributes.ballControl + player.attributes.passing + player.attributes.agility) / 3;
+  const rating = (player.overall + physical + technical + condition + motivation) / 5;
+  return parseFloat(rating.toFixed(3));
+}
+
