@@ -351,8 +351,9 @@ export default function TeamPlanning() {
       </div>
 
       <div className="p-4">
+        <div className="mx-auto max-w-6xl space-y-6">
         {/* Search & Filter */}
-        <Card className="mb-6 sticky top-0 z-20">
+        <Card className="sticky top-4 z-40">
           <CardContent className="p-4">
             <div className="flex gap-2">
               <div className="relative flex-1">
@@ -383,8 +384,9 @@ export default function TeamPlanning() {
           </CardContent>
         </Card>
 
-        {/* Team Formation Overview */}
-        <Card className="mb-6">
+        <div className="space-y-6 lg:grid lg:grid-cols-[minmax(0,380px)_minmax(0,1fr)] lg:items-start lg:gap-6 lg:space-y-0">
+          {/* Team Formation Overview */}
+          <Card className="sticky top-24 z-30 self-start lg:top-24 lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto">
           <CardHeader className="flex flex-col gap-2 border-b border-white/60 bg-white/70 backdrop-blur-sm sm:flex-row sm:items-center sm:justify-between dark:border-white/10 dark:bg-slate-900/80">
             <CardTitle className="flex items-center gap-2">
               <div className="w-3 h-3 bg-green-500 rounded-full"></div>
@@ -405,7 +407,7 @@ export default function TeamPlanning() {
           </CardHeader>
           <CardContent className="bg-gradient-to-br from-emerald-600/95 via-emerald-700/95 to-emerald-800/95">
             <div className="flex flex-col gap-6 lg:flex-row">
-              <div className="relative w-full max-w-md flex-shrink-0 overflow-hidden rounded-2xl bg-gradient-to-b from-emerald-600 via-emerald-700 to-emerald-800 p-5 shadow-[0_20px_45px_-25px_rgba(16,80,40,0.8)]">
+              <div className="relative z-10 w-full max-w-md flex-shrink-0 overflow-hidden rounded-2xl bg-gradient-to-b from-emerald-600 via-emerald-700 to-emerald-800 p-5 shadow-[0_20px_45px_-25px_rgba(16,80,40,0.8)]">
                 <div className="absolute inset-0 opacity-80">
                   <svg
                     viewBox="0 0 100 100"
@@ -634,6 +636,8 @@ export default function TeamPlanning() {
             )}
           </TabsContent>
         </Tabs>
+        </div>
+        </div>
       </div>
     </div>
   );
