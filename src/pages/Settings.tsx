@@ -233,7 +233,7 @@ export default function SettingsPage() {
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Geliştirici:</span>
-                <span>MGX Platform</span>
+                <span>Turhan KAYAER</span>
               </div>
             </div>
             
