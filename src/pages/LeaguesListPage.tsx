@@ -65,7 +65,7 @@ export default function LeaguesListPage() {
               }
             }}
           >
-            Test: Ligleri OluÅŸtur (AylÄ±k)
+            Test: Ligleri Oluştur (Aylık)
           </Button>
           <Button
             onClick={async () => {
@@ -78,7 +78,7 @@ export default function LeaguesListPage() {
               }
             }}
           >
-            Test: BugÃ¼nÃ¼ Oynat (TR)
+            Test: Bugünü Oynat (TR)
           </Button>
           <Button
             onClick={async () => {
@@ -91,7 +91,7 @@ export default function LeaguesListPage() {
               }
             }}
           >
-            Test: Sonraki GÃ¼nÃ¼ Oynat
+            Test: Sonraki Günü Oynat
           </Button>
         </div>
       )}
