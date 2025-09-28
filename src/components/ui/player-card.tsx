@@ -24,6 +24,7 @@ interface PlayerCardProps {
   onPromoteToTeam?: () => void;
   showActions?: boolean;
   compact?: boolean;
+  defaultCollapsed?: boolean;
   condensedStats?: boolean;
   draggable?: boolean;
   onDragStart?: (e: React.DragEvent<HTMLDivElement>) => void;
@@ -52,12 +53,13 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({
   onPromoteToTeam,
   showActions = true,
   compact = false,
+  defaultCollapsed = false,
   condensedStats = false,
   draggable = false,
   onDragStart,
   onDragEnd,
 }) => {
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(defaultCollapsed);
 
   const positionBadge = POSITION_COLOR[player.position] ?? 'bg-gray-500';
 

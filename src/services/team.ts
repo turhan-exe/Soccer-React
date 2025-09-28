@@ -94,8 +94,69 @@ export const getTeam = async (userId: string): Promise<ClubTeam | null> => {
   return snap.exists() ? (snap.data() as ClubTeam) : null;
 };
 
-export const saveTeamPlayers = async (userId: string, players: Player[]) => {
-  await setDoc(doc(db, 'teams', userId), { players }, { merge: true });
+type TeamPlanUpdate = {
+  formation?: string;
+  tactics?: Record<string, unknown>;
+  squads?: {
+    starters?: string[];
+    bench?: string[];
+    reserves?: string[];
+  };
+};
+
+export const saveTeamPlayers = async (userId: string, players: Player[], plan?: TeamPlanUpdate) => {
+  const payload: Record<string, unknown> = { players };
+
+  if (plan) {
+    const { formation, squads, tactics } = plan;
+    const dedupe = (list?: string[]) =>
+      Array.from(new Set((list ?? []).map(id => String(id)))).filter(Boolean);
+
+    const sanitizedFormation =
+      typeof formation === 'string' && formation.trim().length > 0
+        ? formation.trim()
+        : 'auto';
+
+    const sanitizedSquads = {
+      starters: dedupe(squads?.starters),
+      bench: dedupe(squads?.bench),
+      reserves: dedupe(squads?.reserves),
+    };
+
+    const rosterIds = new Set(players.map(player => String(player.id)));
+    const unknownIds = [
+      ...sanitizedSquads.starters,
+      ...sanitizedSquads.bench,
+      ...sanitizedSquads.reserves,
+    ].filter(id => !rosterIds.has(id));
+
+    if (unknownIds.length > 0) {
+      throw new Error('Unknown player ids: ' + unknownIds.join(', '));
+    }
+
+    const timestamp = new Date().toISOString();
+    const sanitizedTactics =
+      tactics && typeof tactics === 'object' ? (tactics as Record<string, unknown>) : {};
+
+    payload.plan = {
+      formation: sanitizedFormation,
+      starters: sanitizedSquads.starters,
+      bench: sanitizedSquads.bench,
+      reserves: sanitizedSquads.reserves,
+      updatedAt: timestamp,
+    };
+
+    payload.lineup = {
+      formation: sanitizedFormation,
+      tactics: sanitizedTactics,
+      starters: sanitizedSquads.starters,
+      subs: sanitizedSquads.bench,
+      reserves: sanitizedSquads.reserves,
+      updatedAt: timestamp,
+    };
+  }
+
+  await setDoc(doc(db, 'teams', userId), payload, { merge: true });
 };
 
 export const addPlayerToTeam = async (userId: string, player: Player) => {
@@ -118,13 +179,20 @@ export async function setLineupServer(params: {
   tactics?: Record<string, any>;
   starters: string[];
   subs?: string[];
+  reserves?: string[];
 }): Promise<void> {
+  const dedupe = (list?: string[]) => Array.from(new Set((list ?? []).map(String))).filter(Boolean);
+  const starters = dedupe(params.starters);
+  const subs = dedupe(params.subs);
+  const reserves = dedupe(params.reserves);
+
   const fn = httpsCallable(functions, 'setLineup');
   await fn({
     teamId: params.teamId,
     formation: params.formation || 'auto',
     tactics: params.tactics || {},
-    starters: params.starters,
-    subs: params.subs || [],
+    starters,
+    subs,
+    reserves,
   });
 }

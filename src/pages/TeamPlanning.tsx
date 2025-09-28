@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { PlayerCard } from '@/components/ui/player-card';
 import { PerformanceGauge, clampPerformanceGauge } from '@/components/ui/performance-gauge';
 import { Player } from '@/types';
-import { getTeam, saveTeamPlayers, createInitialTeam, setLineupServer } from '@/services/team';
+import { getTeam, saveTeamPlayers, createInitialTeam } from '@/services/team';
 import { useAuth } from '@/contexts/AuthContext';
 import { Search, Save, Eye, ArrowUp } from 'lucide-react';
 import { toast } from 'sonner';
@@ -135,9 +135,7 @@ export default function TeamPlanning() {
   const [players, setPlayers] = useState<Player[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [activeTab, setActiveTab] = useState('starting');
-  const [selectedFormation, setSelectedFormation] = useState(
-    formations[0].name
-  );
+  const [selectedFormation, setSelectedFormation] = useState(formations[0].name);
 
   const [draggedPlayerId, setDraggedPlayerId] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<'role' | 'overall' | 'potential'>('role');
@@ -187,22 +185,44 @@ export default function TeamPlanning() {
   const handleSave = async () => {
     if (!user) return;
     try {
-      // Persist full roster locally for client experience
-      await saveTeamPlayers(user.id, players);
+      const collectIds = (role: Player['squadRole']) =>
+        players
+          .filter(p => p.squadRole === role && p.id)
+          .map(p => String(p.id));
 
-      // Also send authoritative lineup snapshot to server (XI + bench)
-      const starters = players.filter(p => p.squadRole === 'starting').map(p => p.id);
-      const bench = players.filter(p => p.squadRole === 'bench').map(p => p.id);
-      await setLineupServer({
-        teamId: user.id,
+      const unique = (ids: string[]) => Array.from(new Set(ids.filter(Boolean)));
+
+      const starters = unique(collectIds('starting'));
+      if (starters.length !== 11) {
+        toast.error('Kadro tamamlanmadı', {
+          description: 'Kaydetmeden önce 11 oyuncuyu ilk 11 olarak belirleyin.',
+        });
+        return;
+      }
+
+      const bench = unique(collectIds('bench')).filter(id => !starters.includes(id));
+      const reserves = unique(collectIds('reserve')).filter(id => !starters.includes(id) && !bench.includes(id));
+
+      // Persist full roster and snapshot locally for Firestore
+      await saveTeamPlayers(user.id, players, {
         formation: selectedFormation,
-        starters,
-        subs: bench,
+        squads: {
+          starters,
+          bench,
+          reserves,
+        },
       });
+
       toast.success('Takım planı kaydedildi!');
-    } catch (e) {
-      console.warn('[TeamPlanning] setLineup failed', e);
-      toast.error('Sunucu hatası', { description: 'Kadro kaydı başarısız. Lütfen tekrar deneyin.' });
+    } catch (error) {
+      console.error('[TeamPlanning] saveTeamPlayers failed', error);
+      const description =
+        error && typeof error === 'object' && 'details' in error && typeof (error as { details?: unknown }).details === 'string'
+          ? String((error as { details?: unknown }).details)
+          : error && typeof error === 'object' && 'message' in error && typeof (error as { message?: unknown }).message === 'string'
+          ? String((error as { message?: unknown }).message)
+          : 'Kadro kaydı başarısız. Lütfen tekrar deneyin.';
+      toast.error('Sunucu hatası', { description });
     }
   };
 
@@ -213,7 +233,13 @@ export default function TeamPlanning() {
       if (!team) {
         team = await createInitialTeam(user.id, user.teamName, user.teamName);
       }
-      setPlayers(normalizePlayers(team.players));
+
+      const normalized = normalizePlayers(team.players);
+      setPlayers(normalized);
+
+      const remoteFormation =
+        team.plan?.formation || team.lineup?.formation || formations[0].name;
+      setSelectedFormation(remoteFormation);
     })();
   }, [user]);
 
@@ -237,9 +263,8 @@ export default function TeamPlanning() {
   const benchPlayers = players.filter(p => p.squadRole === 'bench');
   const reservePlayers = players.filter(p => p.squadRole === 'reserve');
 
-  const currentFormation = formations.find(
-    f => f.name === selectedFormation
-  )!;
+  const currentFormation =
+    formations.find(f => f.name === selectedFormation) ?? formations[0];
 
   const prioritizedPlayers = useMemo(() => {
     const indexMap = new Map(players.map((p, idx) => [p.id, idx]));
@@ -355,7 +380,7 @@ export default function TeamPlanning() {
         {/* Search & Filter */}
         <Card className="shadow-sm">
           <CardContent className="p-4">
-            <div className="flex gap-2">
+            <div className="flex flex-col gap-3 md:flex-row md:items-center">
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
@@ -371,7 +396,7 @@ export default function TeamPlanning() {
                   setSortBy(value as 'role' | 'overall' | 'potential')
                 }
               >
-              <SelectTrigger className="w-40">
+              <SelectTrigger className="w-full md:w-40">
                 <SelectValue placeholder="Sırala" />
               </SelectTrigger>
               <SelectContent>
@@ -384,16 +409,16 @@ export default function TeamPlanning() {
           </CardContent>
         </Card>
 
-        <div className="space-y-6 lg:grid lg:grid-cols-[minmax(0,380px)_minmax(0,1fr)] lg:items-start lg:gap-6 lg:space-y-0">
+        <div className="flex flex-col gap-6 xl:grid xl:grid-cols-[minmax(0,380px)_minmax(0,1fr)] xl:items-start xl:gap-6">
           {/* Team Formation Overview */}
-          <Card className="sticky top-24 z-30 self-start lg:top-24 lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto">
-          <CardHeader className="flex flex-col gap-2 border-b border-white/60 bg-white/70 backdrop-blur-sm sm:flex-row sm:items-center sm:justify-between dark:border-white/10 dark:bg-slate-900/80">
+          <Card className="order-1 xl:sticky xl:top-24 xl:z-30 xl:self-start xl:max-h-[calc(100vh-6rem)] xl:overflow-y-auto">
+          <CardHeader className="flex flex-col gap-3 border-b border-white/60 bg-white/70 backdrop-blur-sm sm:flex-row sm:items-center sm:justify-between dark:border-white/10 dark:bg-slate-900/80">
             <CardTitle className="flex items-center gap-2">
               <div className="w-3 h-3 bg-green-500 rounded-full"></div>
               Formasyon  ({selectedFormation})
             </CardTitle>
             <Select value={selectedFormation} onValueChange={setSelectedFormation}>
-              <SelectTrigger className="w-40">
+              <SelectTrigger className="w-full md:w-40">
                 <SelectValue placeholder="Formasyon" />
               </SelectTrigger>
               <SelectContent>
@@ -406,7 +431,7 @@ export default function TeamPlanning() {
             </Select>
           </CardHeader>
           <CardContent className="bg-gradient-to-br from-emerald-600/95 via-emerald-700/95 to-emerald-800/95">
-            <div className="flex flex-col gap-6 lg:flex-row">
+            <div className="flex flex-col gap-6 2xl:flex-row">
               <div className="relative z-10 w-full max-w-md flex-shrink-0 overflow-hidden rounded-2xl bg-gradient-to-b from-emerald-600 via-emerald-700 to-emerald-800 p-5 shadow-[0_20px_45px_-25px_rgba(16,80,40,0.8)]">
                 <div className="absolute inset-0 opacity-80">
                   <svg
@@ -533,15 +558,16 @@ export default function TeamPlanning() {
         </Card>
 
         {/* Player Lists */}
+        <div className="order-2 flex flex-col gap-4">
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="starting">
+          <TabsList className="grid w-full gap-2 sm:grid-cols-3">
+            <TabsTrigger value="starting" className="w-full">
               ilk 11 ({startingEleven.length})
             </TabsTrigger>
-            <TabsTrigger value="bench">
+            <TabsTrigger value="bench" className="w-full">
               Yedek ({benchPlayers.length})
             </TabsTrigger>
-            <TabsTrigger value="reserve">
+            <TabsTrigger value="reserve" className="w-full">
               Rezerv ({reservePlayers.length})
             </TabsTrigger>
           </TabsList>
@@ -563,6 +589,7 @@ export default function TeamPlanning() {
                   key={player.id}
                   player={player}
                   compact
+                  defaultCollapsed
                   draggable
                   onDragStart={e => {
                     setDraggedPlayerId(player.id);
@@ -593,6 +620,7 @@ export default function TeamPlanning() {
                   key={player.id}
                   player={player}
                   compact
+                  defaultCollapsed
                   draggable
                   onDragStart={e => {
                     setDraggedPlayerId(player.id);
@@ -623,6 +651,7 @@ export default function TeamPlanning() {
                   key={player.id}
                   player={player}
                   compact
+                  defaultCollapsed
                   draggable
                   onDragStart={e => {
                     setDraggedPlayerId(player.id);
@@ -636,6 +665,7 @@ export default function TeamPlanning() {
             )}
           </TabsContent>
         </Tabs>
+        </div>
         </div>
         </div>
       </div>
