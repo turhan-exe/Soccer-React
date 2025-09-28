@@ -180,7 +180,7 @@ export const setLineup = functions.region('europe-west1').https.onCall(async (re
   const uid = request.auth?.uid;
   if (!uid) throw new functions.https.HttpsError('unauthenticated', 'Auth required');
 
-  const { teamId, formation, tactics, starters, subs } = (request.data || {}) as any;
+  const { teamId, formation, tactics, starters, subs, reserves } = (request.data || {}) as any;
   if (!teamId || !Array.isArray(starters)) {
     throw new functions.https.HttpsError('invalid-argument', 'teamId and starters[] required');
   }
@@ -199,17 +199,26 @@ export const setLineup = functions.region('europe-west1').https.onCall(async (re
   // Validate that all players exist in team roster
   const roster: any[] = Array.isArray(team.players) ? team.players : [];
   const haveIds = new Set(roster.map((p) => String(p.id)));
-  const allIds = [...starters, ...(Array.isArray(subs) ? subs : [])].map(String);
-  const unknown = allIds.filter((id) => !haveIds.has(id));
+
+  const startersList = Array.from(new Set((Array.isArray(starters) ? starters : []).map(String)));
+  const benchList = Array.from(new Set((Array.isArray(subs) ? subs : []).map(String))).filter(
+    (id) => !startersList.includes(id)
+  );
+  const reserveList = Array.from(new Set((Array.isArray(reserves) ? reserves : []).map(String))).filter(
+    (id) => !startersList.includes(id) && !benchList.includes(id)
+  );
+
+  const unknown = [...startersList, ...benchList, ...reserveList].filter((id) => !haveIds.has(id));
   if (unknown.length) {
-    throw new functions.https.HttpsError('invalid-argument', `Unknown player ids: ${unknown.join(',')}`);
+    throw new functions.https.HttpsError('invalid-argument', 'Unknown player ids: ' + unknown.join(','));
   }
 
   const lineup = {
     formation: typeof formation === 'string' ? formation : 'auto',
     tactics: (tactics && typeof tactics === 'object') ? tactics : {},
-    starters: starters.map(String),
-    subs: Array.isArray(subs) ? subs.map(String) : [],
+    starters: startersList,
+    subs: benchList,
+    reserves: reserveList,
     updatedAt: FieldValue.serverTimestamp(),
   };
 

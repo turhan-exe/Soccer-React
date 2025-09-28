@@ -55,6 +55,21 @@ export interface ClubTeam {
   kitHome: string;
   kitAway: string;
   players: Player[];
+  plan?: {
+    formation: string;
+    starters: string[];
+    bench: string[];
+    reserves: string[];
+    updatedAt?: string;
+  };
+  lineup?: {
+    formation?: string;
+    tactics?: Record<string, unknown>;
+    starters?: string[];
+    subs?: string[];
+    reserves?: string[];
+    updatedAt?: string;
+  };
 }
 
 export interface Match {
@@ -164,3 +179,4 @@ export type { TeamDoc, Lineup } from './team';
 export type { FixtureDoc, FixtureStatus } from './fixture';
 export type { MatchPlanDoc } from './matchPlan';
 export type { TournamentParticipant, KnockoutMatch, TournamentRound, TournamentBracket, KnockoutResult } from './tournament';
+
