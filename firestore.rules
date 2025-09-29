@@ -12,18 +12,95 @@ service cloud.firestore {
       }
     }
 
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
     // Teams (aka clubs): client-owned writes allowed; league assignment is server-only
     match /teams/{teamId} {
       allow read: if true;
       // Only the owner can create their team doc and may not set leagueId
-      allow create: if request.auth != null
+      allow create: if isSignedIn()
                     && request.resource.data.ownerUid == request.auth.uid
                     && !("leagueId" in request.resource.data);
       // Only the owner can update/delete; ownerUid immutable; leagueId cannot be set/changed by clients
-      allow update, delete: if request.auth != null
+      allow update, delete: if isSignedIn()
                     && resource.data.ownerUid == request.auth.uid
                     && request.resource.data.ownerUid == resource.data.ownerUid
                     && ( !("leagueId" in request.resource.data) || request.resource.data.leagueId == resource.data.leagueId );
+    }
+
+    match /transferListings/{listingId} {
+      allow read: if true;
+
+      allow create: if isSignedIn()
+                    && request.resource.data.keys().hasOnly([
+                      'player',
+                      'playerId',
+                      'price',
+                      'sellerId',
+                      'sellerTeamName',
+                      'status',
+                      'createdAt',
+                    ])
+                    && request.resource.data.sellerId == request.auth.uid
+                    && request.resource.data.status == 'available'
+                    && request.resource.data.price is number
+                    && request.resource.data.price > 0
+                    && request.resource.data.playerId is string
+                    && request.resource.data.player is map
+                    && request.resource.data.sellerTeamName is string;
+
+      allow update: if isSignedIn()
+                    && resource.data.keys().hasOnly([
+                      'buyerId',
+                      'buyerTeamName',
+                      'createdAt',
+                      'player',
+                      'playerId',
+                      'price',
+                      'sellerId',
+                      'sellerTeamName',
+                      'soldAt',
+                      'status',
+                    ])
+                    && request.resource.data.keys().hasOnly([
+                      'buyerId',
+                      'buyerTeamName',
+                      'createdAt',
+                      'player',
+                      'playerId',
+                      'price',
+                      'sellerId',
+                      'sellerTeamName',
+                      'soldAt',
+                      'status',
+                    ])
+                    && request.resource.data.playerId == resource.data.playerId
+                    && request.resource.data.player == resource.data.player
+                    && request.resource.data.price == resource.data.price
+                    && request.resource.data.sellerId == resource.data.sellerId
+                    && request.resource.data.sellerTeamName == resource.data.sellerTeamName
+                    && (
+                      (
+                        request.auth.uid == resource.data.sellerId
+                        && resource.data.status == 'available'
+                        && request.resource.data.status == 'cancelled'
+                        && !('buyerId' in request.resource.data)
+                        && !('buyerTeamName' in request.resource.data)
+                        && !('soldAt' in request.resource.data)
+                      ) ||
+                      (
+                        request.auth.uid == request.resource.data.buyerId
+                        && resource.data.status == 'available'
+                        && request.resource.data.status == 'sold'
+                        && request.resource.data.buyerId is string
+                        && request.resource.data.buyerTeamName is string
+                        && request.resource.data.soldAt == request.time
+                      )
+                    );
+
+      allow delete: if isSignedIn() && request.auth.uid == resource.data.sellerId;
     }
 
     match /leagues/{leagueId} {
