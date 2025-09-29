@@ -19,6 +19,7 @@ import {
   Sun,
   LogOut,
   Bell,
+  ShoppingCart,
   Star
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -28,6 +29,7 @@ import { getTeam } from '@/services/team';
 const menuItems = [
   { id: 'team-planning', label: 'Takım Planı', icon: Users, color: 'bg-blue-500' },
   { id: 'youth', label: 'Altyapı', icon: UserPlus, color: 'bg-green-500' },
+  { id: 'transfer-market', label: 'Transfer Pazarı', icon: ShoppingCart, color: 'bg-teal-500' },
   { id: 'fixtures', label: 'Fikstür', icon: Calendar, color: 'bg-purple-500' },
   { id: 'leagues', label: 'Ligler', icon: Trophy, color: 'bg-yellow-500' },
   { id: 'training', label: 'Antrenman', icon: Dumbbell, color: 'bg-orange-500' },
