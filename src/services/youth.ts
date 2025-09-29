@@ -26,7 +26,9 @@ export type YouthCandidate = {
   player: Player;
 };
 
-export const YOUTH_COOLDOWN_MS = 2 * 60 * 60 * 1000; // 2 saat
+export const YOUTH_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000; // 1 hafta
+export const YOUTH_RESET_DIAMOND_COST = 100;
+export const YOUTH_AD_REDUCTION_MS = 12 * 60 * 60 * 1000; // 12 saat
 
 interface UserDoc {
   diamondBalance?: number;
@@ -75,7 +77,7 @@ export async function createYouthCandidate(
     const data = snap.data() as UserDoc | undefined;
     const nextAt = data?.youth?.nextGenerateAt?.toDate();
     if (nextAt && nextAt > now) {
-      throw new Error('2 saat beklemelisin');
+      throw new Error('1 hafta beklemelisin');
     }
     tx.set(
       userRef,
@@ -131,13 +133,40 @@ export async function resetCooldownWithDiamonds(uid: string): Promise<void> {
     const snap = await tx.get(userRef);
     const data = snap.data() as UserDoc | undefined;
     const balance = data?.diamondBalance ?? 0;
-    if (balance < 100) {
+    if (balance < YOUTH_RESET_DIAMOND_COST) {
       throw new Error('Yetersiz elmas');
     }
     tx.update(userRef, {
-      diamondBalance: increment(-100),
+      diamondBalance: increment(-YOUTH_RESET_DIAMOND_COST),
       'youth.lastGenerateAt': serverTimestamp(),
       'youth.nextGenerateAt': Timestamp.fromDate(now),
     });
+  });
+}
+
+export async function reduceCooldownWithAd(uid: string): Promise<void> {
+  const userRef = doc(db, 'users', uid);
+  const now = new Date();
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(userRef);
+    const data = snap.data() as UserDoc | undefined;
+    const nextAt = data?.youth?.nextGenerateAt?.toDate();
+    const targetDate = (() => {
+      if (!nextAt || nextAt <= now) {
+        return now;
+      }
+      const reduced = new Date(nextAt.getTime() - YOUTH_AD_REDUCTION_MS);
+      return reduced <= now ? now : reduced;
+    })();
+    tx.set(
+      userRef,
+      {
+        youth: {
+          ...(data?.youth ?? {}),
+          nextGenerateAt: Timestamp.fromDate(targetDate),
+        },
+      },
+      { merge: true },
+    );
   });
 }
