@@ -1,4 +1,4 @@
-import { Routes, Route } from 'react-router-dom';
+﻿import { Routes, Route } from 'react-router-dom';
 import MainMenu from '@/pages/MainMenu';
 import TeamPlanning from '@/pages/TeamPlanning';
 import Youth from '@/pages/Youth';
@@ -7,7 +7,9 @@ import LeaguesListPage from '@/pages/LeaguesListPage';
 import LeagueDetailPage from '@/pages/LeagueDetailPage';
 import Training from '@/pages/Training';
 import MatchPreview from '@/pages/MatchPreview';
-import MatchSimulation from '@/pages/MatchSimulation';
+import MatchSimulationLegacy from '@/pages/MatchSimulationLegacy';
+import MatchSimulationDemo from '@/pages/MatchSimulation';
+import MatchSimulationIframe from '@/pages/MatchSimulationIframe';
 import Finance from '@/pages/Finance';
 import Settings from '@/pages/Settings';
 import NotFound from '@/pages/NotFound';
@@ -29,7 +31,9 @@ export default function AppRoutes() {
       <Route path="/leagues/:leagueId" element={<LeagueDetailPage />} />
       <Route path="/training" element={<Training />} />
       <Route path="/match-preview" element={<MatchPreview />} />
-      <Route path="/match-simulation" element={<MatchSimulation />} />
+      <Route path="/match-simulation" element={<MatchSimulationLegacy />} />
+      <Route path="/match-simulation-demo" element={<MatchSimulationDemo />} />
+      <Route path="/match-simulation-iframe" element={<MatchSimulationIframe />} />
       <Route path="/match-history" element={<MyFixturesPage />} />
       <Route path="/finance" element={<Finance />} />
       <Route path="/profile" element={<Settings />} />
@@ -41,3 +45,5 @@ export default function AppRoutes() {
     </Routes>
   );
 }
+
+

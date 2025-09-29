@@ -406,13 +406,13 @@ export default function TeamPlanning() {
               </SelectContent>
             </Select>
             </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
 
-        <div className="flex flex-col gap-6 xl:grid xl:grid-cols-[minmax(0,380px)_minmax(0,1fr)] xl:items-start xl:gap-6">
+        <div className="flex flex-col gap-6 lg:grid lg:grid-cols-[minmax(0,360px)_minmax(0,1fr)] lg:items-start lg:gap-6 xl:grid-cols-[minmax(0,400px)_minmax(0,1fr)]">
           {/* Team Formation Overview */}
-          <Card className="order-1 xl:sticky xl:top-24 xl:z-30 xl:self-start xl:max-h-[calc(100vh-6rem)] xl:overflow-y-auto">
-          <CardHeader className="flex flex-col gap-3 border-b border-white/60 bg-white/70 backdrop-blur-sm sm:flex-row sm:items-center sm:justify-between dark:border-white/10 dark:bg-slate-900/80">
+          <Card className="order-1 w-full lg:sticky lg:top-24 lg:z-30 lg:self-start lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto">
+            <CardHeader className="flex flex-col gap-3 border-b border-white/60 bg-white/70 backdrop-blur-sm sm:flex-row sm:items-center sm:justify-between dark:border-white/10 dark:bg-slate-900/80">
             <CardTitle className="flex items-center gap-2">
               <div className="w-3 h-3 bg-green-500 rounded-full"></div>
               Formasyon  ({selectedFormation})
@@ -429,91 +429,97 @@ export default function TeamPlanning() {
                 ))}
               </SelectContent>
             </Select>
-          </CardHeader>
-          <CardContent className="bg-gradient-to-br from-emerald-600/95 via-emerald-700/95 to-emerald-800/95">
+            </CardHeader>
+            <CardContent className="bg-gradient-to-br from-emerald-600/95 via-emerald-700/95 to-emerald-800/95">
             <div className="flex flex-col gap-6 2xl:flex-row">
-              <div className="relative z-10 w-full max-w-md flex-shrink-0 overflow-hidden rounded-2xl bg-gradient-to-b from-emerald-600 via-emerald-700 to-emerald-800 p-5 shadow-[0_20px_45px_-25px_rgba(16,80,40,0.8)]">
-                <div className="absolute inset-0 opacity-80">
-                  <svg
-                    viewBox="0 0 100 100"
-                    className="absolute inset-0 h-full w-full text-white/60"
-                    pointerEvents="none"
-                  >
-                    <rect x="0" y="0" width="100" height="100" fill="none" stroke="currentColor" strokeWidth="2" />
-                    <line x1="0" y1="50" x2="100" y2="50" stroke="currentColor" strokeWidth="1" />
-                    <circle cx="50" cy="50" r="9" stroke="currentColor" strokeWidth="1" fill="none" />
-                    <rect x="16" y="0" width="68" height="16" stroke="currentColor" strokeWidth="1" fill="none" />
-                    <rect x="16" y="84" width="68" height="16" stroke="currentColor" strokeWidth="1" fill="none" />
-                    <rect x="30" y="0" width="40" height="6" stroke="currentColor" strokeWidth="1" fill="none" />
-                    <rect x="30" y="94" width="40" height="6" stroke="currentColor" strokeWidth="1" fill="none" />
-                    <circle cx="50" cy="11" r="1.5" fill="currentColor" />
-                    <circle cx="50" cy="89" r="1.5" fill="currentColor" />
-                  </svg>
-                </div>
-                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                  <ArrowUp className="h-24 w-24 text-white/15" />
-                </div>
-                <div className="absolute inset-0">
-                  {formationPositions.map(({ player, position, x, y }, idx) => (
-                    <div
-                      key={idx}
-                      className="absolute text-center"
-                      style={{
-                        left: `${x}%`,
-                        top: `${y}%`,
-                        transform: 'translate(-50%, -50%)',
-                      }}
-                      onDragOver={e => e.preventDefault()}
-                      onDrop={e => handlePositionDrop(e, position)}
-                    >
-                      {player ? (
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <div
-                              className={cn(
-                                'flex h-12 w-12 items-center justify-center rounded-full border border-white/30 bg-white/85 text-[9px] font-semibold text-emerald-900 shadow transition-all duration-150 cursor-grab',
-                                player.id === focusedPlayerId
-                                  ? 'ring-4 ring-white/80 ring-offset-2 ring-offset-emerald-600 shadow-lg'
-                                  : 'hover:ring-2 hover:ring-white/70'
-                              )}
-                              draggable
-                              onClick={() => setFocusedPlayerId(player.id)}
-                              onKeyDown={e => {
-                                if (e.key === 'Enter' || e.key === ' ') {
-                                  e.preventDefault();
-                                  setFocusedPlayerId(player.id);
-                                }
-                              }}
-                              role="button"
-                              tabIndex={0}
-                              onDragStart={e => {
-                                setDraggedPlayerId(player.id);
-                                e.dataTransfer.setData('text/plain', player.id);
-                              }}
-                              onDragEnd={() => setDraggedPlayerId(null)}
-                            >
-                              <span className="px-1 text-center leading-tight">
-                                {playerInitials(player.name)}
-                              </span>
-                            </div>
-                          </TooltipTrigger>
-                          <TooltipContent className="z-50 w-56 space-y-2">
-                            <div className="text-xs font-semibold">{player.name}</div>
-                            <PerformanceGauge label="GÃ¼Ã§" value={getPlayerPower(player)} />
-                            <PerformanceGauge label="Kondisyon" value={getPlayerCondition(player)} />
-                            <PerformanceGauge label="Motivasyon" value={getPlayerMotivation(player)} />
-                          </TooltipContent>
-                        </Tooltip>
-                      ) : (
-                        <div className="flex h-12 w-12 items-center justify-center rounded-full border border-dashed border-white/50 bg-white/20 text-[9px] font-semibold uppercase tracking-wide text-white">
-                          {position}
-                        </div>
-                      )}
+              <div className="relative z-10 w-full max-w-full flex-shrink-0">
+                <div className="relative aspect-[3/4] overflow-hidden rounded-2xl bg-gradient-to-b from-emerald-600 via-emerald-700 to-emerald-800 shadow-[0_20px_45px_-25px_rgba(16,80,40,0.8)] sm:aspect-[2/3] lg:aspect-[3/4]">
+                  <div className="absolute inset-0 p-5">
+                    <div className="relative h-full w-full">
+                      <div className="absolute inset-0 opacity-80">
+                        <svg
+                          viewBox="0 0 100 100"
+                          className="absolute inset-0 h-full w-full text-white/60"
+                          pointerEvents="none"
+                        >
+                          <rect x="0" y="0" width="100" height="100" fill="none" stroke="currentColor" strokeWidth="2" />
+                          <line x1="0" y1="50" x2="100" y2="50" stroke="currentColor" strokeWidth="1" />
+                          <circle cx="50" cy="50" r="9" stroke="currentColor" strokeWidth="1" fill="none" />
+                          <rect x="16" y="0" width="68" height="16" stroke="currentColor" strokeWidth="1" fill="none" />
+                          <rect x="16" y="84" width="68" height="16" stroke="currentColor" strokeWidth="1" fill="none" />
+                          <rect x="30" y="0" width="40" height="6" stroke="currentColor" strokeWidth="1" fill="none" />
+                          <rect x="30" y="94" width="40" height="6" stroke="currentColor" strokeWidth="1" fill="none" />
+                          <circle cx="50" cy="11" r="1.5" fill="currentColor" />
+                          <circle cx="50" cy="89" r="1.5" fill="currentColor" />
+                        </svg>
+                      </div>
+                      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                        <ArrowUp className="h-24 w-24 text-white/15" />
+                      </div>
+                      <div className="absolute inset-0">
+                        {formationPositions.map(({ player, position, x, y }, idx) => (
+                          <div
+                            key={idx}
+                            className="absolute text-center"
+                            style={{
+                              left: `${x}%`,
+                              top: `${y}%`,
+                              transform: 'translate(-50%, -50%)',
+                            }}
+                            onDragOver={e => e.preventDefault()}
+                            onDrop={e => handlePositionDrop(e, position)}
+                          >
+                            {player ? (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <div
+                                    className={cn(
+                                      'flex h-12 w-12 items-center justify-center rounded-full border border-white/30 bg-white/85 text-[9px] font-semibold text-emerald-900 shadow transition-all duration-150 cursor-grab',
+                                      player.id === focusedPlayerId
+                                        ? 'ring-4 ring-white/80 ring-offset-2 ring-offset-emerald-600 shadow-lg'
+                                        : 'hover:ring-2 hover:ring-white/70'
+                                    )}
+                                    draggable
+                                    onClick={() => setFocusedPlayerId(player.id)}
+                                    onKeyDown={e => {
+                                      if (e.key === 'Enter' || e.key === ' ') {
+                                        e.preventDefault();
+                                        setFocusedPlayerId(player.id);
+                                      }
+                                    }}
+                                    role="button"
+                                    tabIndex={0}
+                                    onDragStart={e => {
+                                      setDraggedPlayerId(player.id);
+                                      e.dataTransfer.setData('text/plain', player.id);
+                                    }}
+                                    onDragEnd={() => setDraggedPlayerId(null)}
+                                  >
+                                    <span className="px-1 text-center leading-tight">
+                                      {playerInitials(player.name)}
+                                    </span>
+                                  </div>
+                                </TooltipTrigger>
+                                <TooltipContent className="z-50 w-56 space-y-2">
+                                  <div className="text-xs font-semibold">{player.name}</div>
+                                  <PerformanceGauge label="Güç" value={getPlayerPower(player)} />
+                                  <PerformanceGauge label="Kondisyon" value={getPlayerCondition(player)} />
+                                  <PerformanceGauge label="Motivasyon" value={getPlayerMotivation(player)} />
+                                </TooltipContent>
+                              </Tooltip>
+                            ) : (
+                              <div className="flex h-12 w-12 items-center justify-center rounded-full border border-dashed border-white/50 bg-white/20 text-[9px] font-semibold uppercase tracking-wide text-white">
+                                {position}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                  ))}
+                  </div>
                 </div>
               </div>
-              <div className="flex-1 space-y-4">
+              <div className="flex-1 min-w-0 space-y-4">
                 <div className="rounded-xl border border-emerald-500/20 bg-emerald-900/20 p-4 text-white shadow-inner backdrop-blur-sm">
                   {selectedPlayer ? (
                     <div className="space-y-4">
@@ -558,16 +564,16 @@ export default function TeamPlanning() {
         </Card>
 
         {/* Player Lists */}
-        <div className="order-2 flex flex-col gap-4">
+        <div className="order-2 flex flex-col gap-4 min-w-0">
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full gap-2 sm:grid-cols-3">
-            <TabsTrigger value="starting" className="w-full">
+          <TabsList className="flex w-full gap-2 overflow-x-auto sm:overflow-visible">
+            <TabsTrigger value="starting" className="flex-none min-w-[140px] whitespace-nowrap sm:flex-1 sm:min-w-0 sm:w-auto">
               ilk 11 ({startingEleven.length})
             </TabsTrigger>
-            <TabsTrigger value="bench" className="w-full">
+            <TabsTrigger value="bench" className="flex-none min-w-[140px] whitespace-nowrap sm:flex-1 sm:min-w-0 sm:w-auto">
               Yedek ({benchPlayers.length})
             </TabsTrigger>
-            <TabsTrigger value="reserve" className="w-full">
+            <TabsTrigger value="reserve" className="flex-none min-w-[140px] whitespace-nowrap sm:flex-1 sm:min-w-0 sm:w-auto">
               Rezerv ({reservePlayers.length})
             </TabsTrigger>
           </TabsList>

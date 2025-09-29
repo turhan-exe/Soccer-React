@@ -57,6 +57,39 @@ export function prepareUnityIframeBridge(
 
   const log = opts?.log || (() => {});
 
+  const deliverMatch = (req: BridgeMatchRequest): boolean => {
+    const api = (childWin as any)?.MatchBridgeAPI as MatchBridgeAPI | undefined;
+    if (api && typeof api.loadByKeys === 'function') {
+      try {
+        api.loadByKeys(req);
+        return true;
+      } catch (e) {
+        log('[UnityBridge] MatchBridgeAPI.loadByKeys failed', e);
+      }
+    }
+
+    if (!unity) return false;
+    try {
+      const json = JSON.stringify(req);
+      unity.SendMessage('MatchBridge', 'LoadMatchFromJSON', json);
+      return true;
+    } catch (e) {
+      log('[UnityBridge] SendMessage failed', e);
+      return false;
+    }
+  };
+
+  const flushQueue = () => {
+    if (!queue.length) return;
+    const pending = queue.splice(0, queue.length);
+    for (const req of pending) {
+      if (!deliverMatch(req)) {
+        queue.unshift(req);
+        break;
+      }
+    }
+  };
+
   const tryResolveUnity = () => {
     if (!iframe.contentWindow) return;
     childWin = iframe.contentWindow as any;
@@ -67,11 +100,7 @@ export function prepareUnityIframeBridge(
     if (inst && typeof inst.SendMessage === 'function') {
       unity = inst;
       opts?.onReady?.(inst);
-      // Flush queue
-      while (queue.length) {
-        const req = queue.shift()!;
-        safeSend(req);
-      }
+      flushQueue();
     }
   };
 
@@ -79,10 +108,7 @@ export function prepareUnityIframeBridge(
     log('[UnityBridge] onUnityReady received');
     unity = u;
     opts?.onReady?.(u);
-    while (queue.length) {
-      const req = queue.shift()!;
-      safeSend(req);
-    }
+    flushQueue();
   };
 
   const onUnityResult = (ev: Event) => {
@@ -115,7 +141,7 @@ export function prepareUnityIframeBridge(
 
       // Pre-wait for API readiness (non-blocking)
       try {
-        waitForMatchBridgeAPI(childWin as any, 15000).then(() => log('[UnityBridge] MatchBridgeAPI ready'));
+        waitForMatchBridgeAPIOnWindow(childWin as any, 15000).then(() => log('[UnityBridge] MatchBridgeAPI ready'));
       } catch {}
 
       // In case it's already ready by now
@@ -132,22 +158,10 @@ export function prepareUnityIframeBridge(
     iframe.addEventListener('load', onLoad, { once: true });
   }
 
-  const safeSend = (req: BridgeMatchRequest): boolean => {
-    if (!unity) return false;
-    try {
-      const json = JSON.stringify(req);
-      unity.SendMessage('MatchBridge', 'LoadMatchFromJSON', json);
-      return true;
-    } catch (e) {
-      log('[UnityBridge] SendMessage failed', e);
-      return false;
-    }
-  };
-
   return {
     isReady: () => !!unity,
     sendMatch: (req) => {
-      if (unity) return safeSend(req);
+      if (deliverMatch(req)) return true;
       queue.push(req);
       // Attempt to resolve in case ready state was missed
       tryResolveUnity();
@@ -156,12 +170,19 @@ export function prepareUnityIframeBridge(
     sendTeams: (req) => {
       try {
         const api = (childWin as any)?.MatchBridgeAPI as MatchBridgeAPI | undefined;
-        if (api && typeof api.showTeams === 'function') {
-          api.showTeams(req);
-          return true;
+        if (api) {
+          if (typeof api.sendTeams === 'function') {
+            const payload = typeof req === 'string' ? req : JSON.stringify(req);
+            api.sendTeams(payload);
+            return true;
+          }
+          if (typeof api.showTeams === 'function') {
+            api.showTeams(req);
+            return true;
+          }
         }
         if (!unity) return false;
-        const json = JSON.stringify(req);
+        const json = typeof req === 'string' ? req : JSON.stringify(req);
         unity.SendMessage('MatchBridge', 'ShowTeamsFromJSON', json);
         return true;
       } catch (e) {
@@ -265,6 +286,8 @@ export type RuntimeTeam = {
   players: string[]; // 11 names, GK → FW order; Unity uses names for fallback
   playersData?: RuntimePlayer[]; // Optional: parallel array with details
   formation?: string; // Unity enum name e.g. _4_3_3, _4_2_3_1_A
+  bench?: string[]; // Optional: bench/substitute list (max 9)
+  benchData?: RuntimePlayer[]; // Optional: detailed bench data parallel to bench
   // Optional kit fields used by TeamSelection publish flow
   homeKit?: KitSpec;
   awayKit?: KitSpec;
@@ -300,9 +323,14 @@ export type PreselectMenuPayload = {
 };
 
 export type MatchBridgeAPI = {
+  sendTeams?: (json: string) => void;
+  startMatch?: () => void;
   showTeams: (payload: ShowTeamsPayload) => void;
+  loadSquads?: (payload: ShowTeamsPayload) => void;
+  loadByKeys?: (payload: BridgeMatchRequest) => void;
   publishTeams: (payload: PublishTeamsPayload) => void;
   preselectMenu: (payload: PreselectMenuPayload) => void;
+  selectTeam?: (side: 'Home' | 'Away' | 'None') => void;
   hideOverlay: () => void;
 };
 
@@ -330,20 +358,33 @@ export function toUnityFormationEnum(label?: string | null): string | undefined 
  * Wait until MatchBridgeAPI is available on a given window (top-level or iframe).
  * Useful when calling Unity APIs directly without the iframe bridge helper.
  */
-export function waitForMatchBridgeAPI(
-  win: (Window & { MatchBridgeAPI?: MatchBridgeAPI }) = (window as any),
+export function waitForMatchBridgeAPI(timeoutMs = 15000): Promise<MatchBridgeAPI> {
+  return waitForMatchBridgeAPIOnWindow(window as Window & { MatchBridgeAPI?: MatchBridgeAPI }, timeoutMs);
+}
+
+export function waitForMatchBridgeAPIOnWindow(
+  win: Window & { MatchBridgeAPI?: MatchBridgeAPI },
   timeoutMs = 15000
 ): Promise<MatchBridgeAPI> {
   return new Promise((resolve, reject) => {
     const t0 = Date.now();
     const tick = () => {
-      const api = win && (win as any).MatchBridgeAPI as MatchBridgeAPI | undefined;
-      if (api && typeof api.showTeams === 'function') return resolve(api);
+      const api = win.MatchBridgeAPI;
+      if (hasBridgeApi(api)) return resolve(api);
       if (Date.now() - t0 > timeoutMs) return reject(new Error('MatchBridgeAPI timeout'));
-      // Use RAF when present, otherwise setTimeout fallback
       if (typeof (win as any).requestAnimationFrame === 'function') (win as any).requestAnimationFrame(tick);
       else setTimeout(tick, 50);
     };
     tick();
   });
+}
+
+function hasBridgeApi(api: MatchBridgeAPI | undefined): api is MatchBridgeAPI {
+  if (!api) return false;
+  return (
+    typeof api.sendTeams === 'function' ||
+    typeof api.showTeams === 'function' ||
+    typeof api.loadByKeys === 'function' ||
+    typeof api.publishTeams === 'function'
+  );
 }

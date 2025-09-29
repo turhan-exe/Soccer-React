@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { prepareUnityIframeBridge, waitForMatchBridgeAPI, type BridgeMatchRequest, type BridgeMatchResult, type PublishTeamsPayload, type ShowTeamsPayload } from '@/services/unityBridge';
+import { prepareUnityIframeBridge, waitForMatchBridgeAPIOnWindow, type BridgeMatchRequest, type BridgeMatchResult, type PublishTeamsPayload, type ShowTeamsPayload } from '@/services/unityBridge';
 import { Card, CardContent } from '@/components/ui/card';
 
 type Props = {
@@ -43,24 +43,47 @@ export function UnityMatchLauncher({ title = 'Unity WebGL', autoPayload = null, 
 
   // Wait for MatchBridgeAPI inside the iframe window (especially important under iframe usage)
   useEffect(() => {
+    if (!ready) {
+      setApiReady(false);
+      return;
+    }
+
     let cancelled = false;
-    (async () => {
-      if (!ready) return;
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const attempt = () => {
+      if (cancelled) return;
+
       const win = iframeRef.current?.contentWindow as (Window & { MatchBridgeAPI?: any }) | null;
-      if (!win) return;
-      try {
-        await waitForMatchBridgeAPI(win, 15000);
-        if (!cancelled) setApiReady(true);
-      } catch {
-        if (!cancelled) setApiReady(false);
+      if (!win) {
+        retryTimer = window.setTimeout(attempt, 200);
+        return;
       }
-    })();
-    return () => { cancelled = true; };
+
+      waitForMatchBridgeAPIOnWindow(win, 15000)
+        .then(() => {
+          if (!cancelled) setApiReady(true);
+        })
+        .catch(() => {
+          if (cancelled) return;
+          setApiReady(false);
+          retryTimer = window.setTimeout(attempt, 500);
+        });
+    };
+
+    setApiReady(false);
+    attempt();
+
+    return () => {
+      cancelled = true;
+      if (retryTimer) window.clearTimeout(retryTimer);
+    };
   }, [ready]);
+
 
   // When Unity is ready, optionally showTeams or publishTeams first, then start match
   useEffect(() => {
-    if (!ready || !bridge) return;
+    if (!ready || !bridge || !apiReady) return;
     const derivedShow: ShowTeamsPayload | null = autoShowTeamsPayload || (autoPublishPayload && autoPublishPayload.home && autoPublishPayload.away
       ? { home: autoPublishPayload.home, away: autoPublishPayload.away, autoStart: false }
       : null);
@@ -68,16 +91,16 @@ export function UnityMatchLauncher({ title = 'Unity WebGL', autoPayload = null, 
     const pubStr = autoPublishPayload ? JSON.stringify(autoPublishPayload) : '';
     const matchStr = autoPayload ? JSON.stringify(autoPayload) : '';
 
-    // For show/publish flows, wait for MatchBridgeAPI to be ready in the iframe
-    if (apiReady) {
-      if (showStr && lastSentRef.current.show !== showStr) {
-        bridge.sendTeams(derivedShow!);
-        lastSentRef.current.show = showStr;
-      }
-      if (pubStr && lastSentRef.current.pub !== pubStr) {
-        bridge.publishTeams(autoPublishPayload!);
-        lastSentRef.current.pub = pubStr;
-      }
+    const timers: number[] = [];
+
+    if (showStr && lastSentRef.current.show !== showStr) {
+      bridge.sendTeams(derivedShow!);
+      lastSentRef.current.show = showStr;
+    }
+
+    if (pubStr && lastSentRef.current.pub !== pubStr) {
+      bridge.publishTeams(autoPublishPayload!);
+      lastSentRef.current.pub = pubStr;
     }
 
     if (matchStr && lastSentRef.current.match !== matchStr) {
@@ -85,16 +108,18 @@ export function UnityMatchLauncher({ title = 'Unity WebGL', autoPayload = null, 
         bridge.sendMatch(autoPayload!);
         lastSentRef.current.match = matchStr;
       };
-      if ((showStr || pubStr) && !apiReady) {
-        // If teams were intended to be shown/published but API isn't ready yet, delay a bit
-        setTimeout(start, 400);
-      } else if (showStr || pubStr) {
-        setTimeout(start, 200);
+      if (showStr || pubStr) {
+        timers.push(window.setTimeout(start, 200));
       } else {
         start();
       }
     }
+
+    return () => {
+      timers.forEach((t) => window.clearTimeout(t));
+    };
   }, [ready, apiReady, bridge, autoShowTeamsPayload, autoPublishPayload, autoPayload]);
+
 
   return (
     <Card>

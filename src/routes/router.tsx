@@ -1,4 +1,4 @@
-import { createBrowserRouter } from 'react-router-dom';
+﻿import { createBrowserRouter } from 'react-router-dom';
 import RootLayout from '@/layouts/RootLayout';
 
 // Pages
@@ -10,7 +10,9 @@ import LeaguesListPage from '@/pages/LeaguesListPage';
 import LeagueDetailPage from '@/pages/LeagueDetailPage';
 import Training from '@/pages/Training';
 import MatchPreview from '@/pages/MatchPreview';
-import MatchSimulation from '@/pages/MatchSimulation';
+import MatchSimulationLegacy from '@/pages/MatchSimulationLegacy';
+import MatchSimulationDemo from '@/pages/MatchSimulation';
+import MatchSimulationIframe from '@/pages/MatchSimulationIframe';
 import UnityAutoSeed from '@/pages/UnityAutoSeed';
 import LiveDebugPage from '@/pages/LiveDebugPage';
 import MatchWatcherPage from '@/pages/MatchWatcherPage';
@@ -37,7 +39,9 @@ export const router = createBrowserRouter(
         { path: '/leagues/:leagueId', element: <LeagueDetailPage /> },
         { path: '/training', element: <Training /> },
         { path: '/match-preview', element: <MatchPreview /> },
-        { path: '/match-simulation', element: <MatchSimulation /> },
+        { path: '/match-simulation', element: <MatchSimulationLegacy /> },
+        { path: '/match-simulation-demo', element: <MatchSimulationDemo /> },
+        { path: '/match-simulation-iframe', element: <MatchSimulationIframe /> },
         { path: '/unity-auto-seed', element: <UnityAutoSeed /> },
         { path: '/live-debug', element: <LiveDebugPage /> },
         { path: '/match/:id', element: <MatchWatcherPage /> },
@@ -54,8 +58,10 @@ export const router = createBrowserRouter(
   ],
   {
     future: {
-      // createBrowserRouter için bu flag geçerli (TS hatası vermeyen)
+      // createBrowserRouter iÃ§in bu flag geÃ§erli (TS hatasÄ± vermeyen)
       v7_relativeSplatPath: true,
     },
   },
 );
+
+
