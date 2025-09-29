@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
 import { Player } from '@/types';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -61,6 +61,21 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({
 }) => {
   const [collapsed, setCollapsed] = useState(defaultCollapsed);
   const cardRef = useRef<HTMLDivElement | null>(null);
+
+  const handleCardClick = (event: MouseEvent<HTMLDivElement>) => {
+    if (!collapsed) {
+      return;
+    }
+
+    // Prevent toggling when the click originates from interactive elements that
+    // should handle their own behaviour (e.g. dropdown triggers).
+    const target = event.target as HTMLElement | null;
+    if (target?.closest('[data-player-card-ignore-click]')) {
+      return;
+    }
+
+    setCollapsed(false);
+  };
 
   useEffect(() => {
     if (collapsed) {
@@ -145,6 +160,7 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({
       draggable={draggable}
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
+      onClick={handleCardClick}
       onDoubleClick={() => setCollapsed((prev) => !prev)}
     >
       <div className="flex items-start gap-3">
@@ -200,7 +216,12 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({
             {showActions && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="sm" className={cn('h-8 w-8 p-0', compact && 'h-6 w-6')}>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className={cn('h-8 w-8 p-0', compact && 'h-6 w-6')}
+                    data-player-card-ignore-click
+                  >
                     <MoreVertical className={cn('h-4 w-4', compact && 'h-3 w-3')} />
                   </Button>
                 </DropdownMenuTrigger>
