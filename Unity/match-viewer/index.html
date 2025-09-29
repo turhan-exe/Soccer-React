@@ -6,35 +6,74 @@
     <title>Unity WebGL Player | Soccer WebGl</title>
   </head>
   <body style="text-align: center; padding: 0; border: 0; margin: 0;">
-    <canvas id="unity-canvas" width=960 height=600 tabindex="-1" style="width: 960px; height: 600px; background: #231F20"></canvas>
+    <canvas id="unity-canvas" width="960" height="600" tabindex="-1" style="width: 960px; height: 600px; background: #231F20"></canvas>
+
+    <script>
+      window.__MGX__ = window.__MGX__ || {};
+
+      function onUnityCreated(unityInstance) {
+        window.__MGX__.unityInstance = unityInstance;
+
+        if (typeof window.onUnityReady === 'function') {
+          try {
+            window.onUnityReady(unityInstance);
+          } catch (e) {
+            console.error('[MatchBridgeAPI] onUnityReady handler error:', e);
+          }
+        }
+
+        window.MatchBridgeAPI = {
+          sendTeams(json) {
+            try {
+              unityInstance.SendMessage('Bridge', 'ApplyTeams', json);
+            } catch (e) {
+              console.error('[MatchBridgeAPI.sendTeams] failed:', e);
+            }
+          },
+          startMatch() {
+            try {
+              unityInstance.SendMessage('Bridge', 'StartMatch', '');
+            } catch (e) {
+              console.error('[MatchBridgeAPI.startMatch] failed:', e);
+            }
+          }
+        };
+      }
+    </script>
+
     <script src="Build/Builds.loader.js"></script>
     <script>
-      if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
-        // Mobile device style: fill the whole browser client area with the game canvas:
+      var isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+      var canvas = document.querySelector('#unity-canvas');
+
+      if (isMobile) {
         var meta = document.createElement('meta');
         meta.name = 'viewport';
         meta.content = 'width=device-width, height=device-height, initial-scale=1.0, user-scalable=no, shrink-to-fit=yes';
         document.getElementsByTagName('head')[0].appendChild(meta);
 
-        var canvas = document.querySelector("#unity-canvas");
-        canvas.style.width = "100%";
-        canvas.style.height = "100%";
-        canvas.style.position = "fixed";
+        canvas.style.width = '100%';
+        canvas.style.height = '100%';
+        canvas.style.position = 'fixed';
 
-        document.body.style.textAlign = "left";
+        document.body.style.textAlign = 'left';
       }
 
-      createUnityInstance(document.querySelector("#unity-canvas"), {
-        dataUrl: "Build/Builds.data",
-        frameworkUrl: "Build/Builds.framework.js",
-        codeUrl: "Build/Builds.wasm",
-        streamingAssetsUrl: "StreamingAssets",
-        companyName: "DefaultCompany",
-        productName: "Soccer WebGl",
-        productVersion: "1.0.0",
-        // matchWebGLToCanvasSize: false, // Uncomment this to separately control WebGL canvas render size and DOM element size.
-        // devicePixelRatio: 1, // Uncomment this to override low DPI rendering on high DPI displays.
-      });
+      var config = {
+        dataUrl: 'Build/Builds.data',
+        frameworkUrl: 'Build/Builds.framework.js',
+        codeUrl: 'Build/Builds.wasm',
+        streamingAssetsUrl: 'StreamingAssets',
+        companyName: 'DefaultCompany',
+        productName: 'Soccer WebGl',
+        productVersion: '1.0.0'
+      };
+
+      createUnityInstance(canvas, config)
+        .then(onUnityCreated)
+        .catch(function (message) {
+          alert(message);
+        });
     </script>
   </body>
 </html>
