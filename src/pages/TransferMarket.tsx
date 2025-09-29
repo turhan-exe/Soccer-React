@@ -184,7 +184,6 @@ export default function TransferMarket() {
     setIsListing(true);
     try {
       await createTransferListing({
-        sellerId: user.id,
         sellerTeamName: teamName || user.teamName || 'Takımım',
         player,
         price: priceValue,
@@ -216,7 +215,6 @@ export default function TransferMarket() {
     try {
       await purchaseTransferListing({
         listingId: listing.id,
-        buyerId: user.id,
         buyerTeamName: teamName || user.teamName || 'Takımım',
       });
       toast.success(`${listing.player.name} takımıza katıldı!`);
