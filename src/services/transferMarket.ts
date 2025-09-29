@@ -11,7 +11,7 @@ import {
   Unsubscribe,
   where,
 } from 'firebase/firestore';
-import { db } from './firebase';
+import { auth, db } from './firebase';
 import { ClubTeam, Player, TransferListing } from '@/types';
 
 const COLLECTION_PATH = 'transferListings';
@@ -33,12 +33,17 @@ const sanitizePrice = (price: number) => {
 };
 
 export async function createTransferListing(params: {
-  sellerId: string;
   sellerTeamName: string;
   player: Player;
   price: number;
 }): Promise<void> {
-  const { sellerId, sellerTeamName, player, price } = params;
+  const currentUser = auth.currentUser;
+  if (!currentUser?.uid) {
+    throw new Error('Giriş bilgisi bulunamadı.');
+  }
+
+  const sellerId = currentUser.uid;
+  const { sellerTeamName, player, price } = params;
   const normalizedPrice = sanitizePrice(price);
   if (!player?.id) {
     throw new Error('Oyuncu bilgisi eksik.');
@@ -91,10 +96,15 @@ export function listenAvailableTransferListings(
 
 export async function purchaseTransferListing(params: {
   listingId: string;
-  buyerId: string;
   buyerTeamName: string;
 }): Promise<void> {
-  const { listingId, buyerId, buyerTeamName } = params;
+  const currentUser = auth.currentUser;
+  if (!currentUser?.uid) {
+    throw new Error('Giriş bilgisi bulunamadı.');
+  }
+
+  const buyerId = currentUser.uid;
+  const { listingId, buyerTeamName } = params;
   const listingRef = doc(db, COLLECTION_PATH, listingId);
 
   await runTransaction(db, async tx => {
