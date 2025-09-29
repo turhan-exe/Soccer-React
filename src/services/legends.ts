@@ -1,6 +1,6 @@
 import { doc, setDoc, Timestamp } from 'firebase/firestore';
 import { db } from './firebase';
-import { addPlayerToTeam } from './team';
+import { addPlayerToTeam, getTeam } from './team';
 import type { LegendPlayer } from '@/features/legends/players';
 import type { Player } from '@/types';
 import { getRoles } from '@/lib/player';
@@ -38,7 +38,23 @@ function legendToPlayer(id: string, legend: LegendPlayer): Player {
     squadRole: 'reserve',
     condition: 0.96,
     motivation: 0.98,
+    avatar: legend.image,
+    uniqueId: `legend-${legend.id}`,
   };
+}
+
+export function getLegendIdFromPlayer(player: Player): number | null {
+  const uniqueMatch = player.uniqueId?.match(/^legend-(\d+)$/);
+  if (uniqueMatch) {
+    return Number(uniqueMatch[1]);
+  }
+
+  const idMatch = String(player.id).match(/^legend-(\d+)-/);
+  if (idMatch) {
+    return Number(idMatch[1]);
+  }
+
+  return null;
 }
 
 export async function rentLegend(
@@ -48,6 +64,19 @@ export async function rentLegend(
 ): Promise<Player> {
   const playerId = `legend-${legend.id}-${Date.now()}`;
   const player = legendToPlayer(playerId, legend);
+  const team = await getTeam(uid);
+  if (!team) {
+    throw new Error('Takım bulunamadı');
+  }
+
+  const hasLegend = Array.isArray(team.players)
+    ? team.players.some(existing => getLegendIdFromPlayer(existing) === legend.id)
+    : false;
+
+  if (hasLegend) {
+    throw new Error('Bu yıldız oyuncu zaten takımında');
+  }
+
   await addPlayerToTeam(uid, player);
   await setDoc(
     doc(db, 'users', uid, 'rentedLegends', playerId),
