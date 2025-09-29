@@ -160,6 +160,20 @@ export interface FinanceRecord {
   description: string;
 }
 
+export interface TransferListing {
+  id: string;
+  playerId: string;
+  player: Player;
+  price: number;
+  sellerId: string;
+  sellerTeamName: string;
+  buyerId?: string;
+  buyerTeamName?: string;
+  status: 'available' | 'sold' | 'cancelled';
+  createdAt?: FirestoreTimestamp;
+  soldAt?: FirestoreTimestamp;
+}
+
 export interface User {
   id: string;
   username: string;
