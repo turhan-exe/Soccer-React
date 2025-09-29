@@ -1,4 +1,4 @@
-﻿import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Player } from '@/types';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -60,6 +60,37 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({
   onDragEnd,
 }) => {
   const [collapsed, setCollapsed] = useState(defaultCollapsed);
+  const cardRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (collapsed) {
+      return;
+    }
+
+    const handlePointerDown = (event: MouseEvent) => {
+      const target = event.target as HTMLElement | null;
+
+      if (!target) {
+        return;
+      }
+
+      if (cardRef.current?.contains(target)) {
+        return;
+      }
+
+      if (target.closest('[data-radix-popper-content-wrapper]')) {
+        return;
+      }
+
+      setCollapsed(true);
+    };
+
+    document.addEventListener('pointerdown', handlePointerDown);
+
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown);
+    };
+  }, [collapsed]);
 
   const positionBadge = POSITION_COLOR[player.position] ?? 'bg-gray-500';
 
@@ -105,6 +136,7 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({
 
   return (
     <Card
+      ref={cardRef}
       className={cn(
         'p-4 transition-shadow hover:shadow-md',
         compact && 'p-2',
