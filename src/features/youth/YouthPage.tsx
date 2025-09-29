@@ -10,8 +10,11 @@ import {
   acceptYouthCandidate,
   releaseYouthCandidate,
   resetCooldownWithDiamonds,
+  reduceCooldownWithAd,
   YouthCandidate,
   YOUTH_COOLDOWN_MS,
+  YOUTH_AD_REDUCTION_MS,
+  YOUTH_RESET_DIAMOND_COST,
 } from '@/services/youth';
 import { db } from '@/services/firebase';
 import { generateRandomName } from '@/lib/names';
@@ -118,8 +121,30 @@ const YouthPage = () => {
     if (!user?.id) return;
     try {
       await resetCooldownWithDiamonds(user.id);
+      setNextGenerateAt(new Date());
+      toast.success('Bekleme süresi kaldırıldı');
     } catch (err) {
       console.warn(err);
+      toast.error('Elmas ile hızlandırma başarısız');
+    }
+  };
+
+  const handleWatchAd = async () => {
+    if (!user?.id) return;
+    try {
+      await reduceCooldownWithAd(user.id);
+      setNextGenerateAt((prev) => {
+        if (!prev) {
+          return new Date();
+        }
+        const reduced = new Date(prev.getTime() - YOUTH_AD_REDUCTION_MS);
+        const now = new Date();
+        return reduced > now ? reduced : now;
+      });
+      toast.success('Reklam izlendi, süre 12 saat kısaldı');
+    } catch (err) {
+      console.warn(err);
+      toast.error('Reklam izleme başarısız');
     }
   };
 
@@ -165,7 +190,9 @@ const YouthPage = () => {
       <CooldownPanel
         nextGenerateAt={nextGenerateAt}
         onReset={handleReset}
-        canReset={balance >= 100}
+        canReset={balance >= YOUTH_RESET_DIAMOND_COST && !canGenerate}
+        onWatchAd={handleWatchAd}
+        canWatchAd={!canGenerate}
       />
       <YouthList
         candidates={candidates}
