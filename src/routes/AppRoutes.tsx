@@ -1,6 +1,7 @@
 ﻿import { Routes, Route } from 'react-router-dom';
 import MainMenu from '@/pages/MainMenu';
 import TeamPlanning from '@/pages/TeamPlanning';
+import TransferMarket from '@/pages/TransferMarket';
 import Youth from '@/pages/Youth';
 import MyFixturesPage from '@/pages/MyFixturesPage';
 import LeaguesListPage from '@/pages/LeaguesListPage';
@@ -24,6 +25,7 @@ export default function AppRoutes() {
       <Route path="/" element={<MainMenu />} />
       <Route path="/team-planning" element={<TeamPlanning />} />
       <Route path="/youth" element={<Youth />} />
+      <Route path="/transfer-market" element={<TransferMarket />} />
       <Route path="/fixtures" element={<MyFixturesPage />} />
       <Route path="/my-matches" element={<MyFixturesPage />} />
       <Route path="/standings" element={<StandingsPage />} />
