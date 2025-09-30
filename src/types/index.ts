@@ -180,6 +180,7 @@ export interface TransferListing {
   status: 'available' | 'active' | 'sold' | 'cancelled';
   playerName?: string;
   position?: Position;
+  pos?: Position;
   overall?: number;
   createdAt?: FirestoreTimestamp;
   soldAt?: FirestoreTimestamp;

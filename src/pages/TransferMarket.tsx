@@ -38,7 +38,9 @@ import { getTeam } from '@/services/team';
 import {
   createTransferListing,
   listenAvailableTransferListings,
+  listenUserTransferListings,
   purchaseTransferListing,
+  type MarketSortOption,
 } from '@/services/transferMarket';
 
 const POSITIONS: Player['position'][] = [
@@ -63,6 +65,20 @@ type FilterState = {
   sortBy: SortOption;
 };
 
+const mapSortToService = (sort: SortOption): MarketSortOption => {
+  switch (sort) {
+    case 'overall-asc':
+      return 'overall_asc';
+    case 'price-asc':
+      return 'price_asc';
+    case 'price-desc':
+      return 'price_desc';
+    case 'overall-desc':
+    default:
+      return 'overall_desc';
+  }
+};
+
 const formatPrice = (value: number) =>
   `${value.toLocaleString('tr-TR')} ₺`;
 
@@ -74,10 +90,13 @@ export default function TransferMarket() {
   const [teamName, setTeamName] = useState<string>('');
   const [isLoadingTeam, setIsLoadingTeam] = useState(false);
   const [listings, setListings] = useState<TransferListing[]>([]);
+  const [myListings, setMyListings] = useState<TransferListing[]>([]);
   const [selectedPlayerId, setSelectedPlayerId] = useState<string>('');
   const [price, setPrice] = useState<string>('');
   const [isListing, setIsListing] = useState(false);
   const [purchasingId, setPurchasingId] = useState<string>('');
+  const [isListingsLoading, setIsListingsLoading] = useState(true);
+  const [isMyListingsLoading, setIsMyListingsLoading] = useState(false);
   const [filters, setFilters] = useState<FilterState>({
     position: 'all',
     maxPrice: '',
@@ -107,14 +126,81 @@ export default function TransferMarket() {
   }, [loadTeam]);
 
   useEffect(() => {
-    const unsubscribe = listenAvailableTransferListings(setListings);
-    return unsubscribe;
-  }, []);
+    if (!user) {
+      setListings([]);
+      setIsListingsLoading(false);
+      return;
+    }
 
-  const myListings = useMemo(
-    () => (user ? listings.filter(listing => listing.sellerId === user.id) : []),
-    [listings, user],
-  );
+    let isMounted = true;
+    setIsListingsLoading(true);
+
+    const rawMaxPrice = Number(filters.maxPrice);
+    const maxPrice = Number.isFinite(rawMaxPrice) && rawMaxPrice > 0 ? rawMaxPrice : undefined;
+
+    const unsubscribe = listenAvailableTransferListings(
+      {
+        pos: filters.position === 'all' ? undefined : filters.position,
+        maxPrice,
+        sort: mapSortToService(filters.sortBy),
+      },
+      list => {
+        if (!isMounted) return;
+        setListings(list);
+        setIsListingsLoading(false);
+      },
+      error => {
+        if (!isMounted) return;
+        console.error('[TransferMarket] marketplace listen error', error);
+        const message = error.message.includes('permission')
+          ? 'Pazar okunamıyor. Kuralları güncelliyor musunuz?'
+          : error.message;
+        toast.error(message);
+        setListings([]);
+        setIsListingsLoading(false);
+      },
+    );
+
+    return () => {
+      isMounted = false;
+      unsubscribe();
+    };
+  }, [filters.maxPrice, filters.position, filters.sortBy, user]);
+
+  useEffect(() => {
+    if (!user?.id) {
+      setMyListings([]);
+      setIsMyListingsLoading(false);
+      return;
+    }
+
+    let isMounted = true;
+    setIsMyListingsLoading(true);
+
+    const unsubscribe = listenUserTransferListings(
+      user.id,
+      list => {
+        if (!isMounted) return;
+        setMyListings(list);
+        setIsMyListingsLoading(false);
+      },
+      error => {
+        if (!isMounted) return;
+        console.error('[TransferMarket] my listings listen error', error);
+        const message = error.message.includes('permission')
+          ? 'Pazar okunamıyor. Kuralları güncelliyor musunuz?'
+          : error.message;
+        toast.error(message);
+        setMyListings([]);
+        setIsMyListingsLoading(false);
+      },
+    );
+
+    return () => {
+      isMounted = false;
+      unsubscribe();
+    };
+  }, [user?.id]);
 
   useEffect(() => {
     if (!user) return;
@@ -128,42 +214,6 @@ export default function TransferMarket() {
     const listedIds = new Set(myListings.map(listing => listing.playerId));
     return teamPlayers.filter(player => !listedIds.has(player.id));
   }, [myListings, teamPlayers]);
-
-  const filteredListings = useMemo(() => {
-    return listings.filter(listing => {
-      const { position, maxPrice } = filters;
-      if (position !== 'all' && listing.player.position !== position) {
-        return false;
-      }
-      if (maxPrice) {
-        const max = Number(maxPrice);
-        if (!Number.isNaN(max) && listing.price > max) {
-          return false;
-        }
-      }
-      return true;
-    });
-  }, [filters, listings]);
-
-  const sortedListings = useMemo(() => {
-    const sorted = [...filteredListings];
-    switch (filters.sortBy) {
-      case 'overall-asc':
-        sorted.sort((a, b) => a.player.overall - b.player.overall);
-        break;
-      case 'price-asc':
-        sorted.sort((a, b) => a.price - b.price);
-        break;
-      case 'price-desc':
-        sorted.sort((a, b) => b.price - a.price);
-        break;
-      case 'overall-desc':
-      default:
-        sorted.sort((a, b) => b.player.overall - a.player.overall);
-        break;
-    }
-    return sorted;
-  }, [filteredListings, filters.sortBy]);
 
   const handleCreateListing = async () => {
     if (!user) {
@@ -205,7 +255,8 @@ export default function TransferMarket() {
       toast.error('Giriş yapmalısın.');
       return;
     }
-    if (listing.sellerId === user.id) {
+    const sellerUid = listing.sellerUid ?? listing.sellerId;
+    if (sellerUid === user.id) {
       toast.error('Kendi oyuncunu satın alamazsın.');
       return;
     }
@@ -331,49 +382,68 @@ export default function TransferMarket() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {sortedListings.length === 0 ? (
+                    {isListingsLoading ? (
+                      <TableRow>
+                        <TableCell colSpan={6} className="py-12 text-center text-muted-foreground">
+                          <div className="flex items-center justify-center gap-2">
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            İlanlar yükleniyor...
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ) : listings.length === 0 ? (
                       <TableRow>
                         <TableCell colSpan={6} className="py-12 text-center text-muted-foreground">
                           Filtrenize uyan aktif ilan bulunamadı.
                         </TableCell>
                       </TableRow>
                     ) : (
-                      sortedListings.map(listing => (
-                        <TableRow key={listing.id}>
-                          <TableCell>
-                            <div className="font-semibold">{listing.player.name}</div>
-                            <div className="text-xs text-muted-foreground">
-                              Yaş {listing.player.age} · Potansiyel {formatOverall(listing.player.potential)}
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant="outline">{listing.player.position}</Badge>
-                          </TableCell>
-                          <TableCell>{formatOverall(listing.player.overall)}</TableCell>
-                          <TableCell>{listing.sellerTeamName}</TableCell>
-                          <TableCell className="font-medium text-emerald-600">
-                            {formatPrice(listing.price)}
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <Button
-                              size="sm"
-                              onClick={() => handlePurchase(listing)}
-                              disabled={
-                                listing.sellerId === user?.id || purchasingId === listing.id
-                              }
-                            >
-                              {purchasingId === listing.id ? (
-                                <>
-                                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                  İşlem Yapılıyor
-                                </>
-                              ) : (
-                                'Satın Al'
-                              )}
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      ))
+                      listings.map(listing => {
+                        const player = listing.player;
+                        const name = player?.name ?? listing.playerName ?? 'Bilinmeyen Oyuncu';
+                        const position = player?.position ?? listing.pos ?? 'N/A';
+                        const overallValue =
+                          player?.overall ?? listing.overall ?? 0;
+                        const potentialValue =
+                          player?.potential ?? overallValue;
+                        const ageDisplay = player?.age ?? '—';
+                        const sellerUid = listing.sellerUid ?? listing.sellerId;
+
+                        return (
+                          <TableRow key={listing.id}>
+                            <TableCell>
+                              <div className="font-semibold">{name}</div>
+                              <div className="text-xs text-muted-foreground">
+                                Yaş {ageDisplay} · Potansiyel {formatOverall(potentialValue)}
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant="outline">{position}</Badge>
+                            </TableCell>
+                            <TableCell>{formatOverall(overallValue)}</TableCell>
+                            <TableCell>{listing.sellerTeamName}</TableCell>
+                            <TableCell className="font-medium text-emerald-600">
+                              {formatPrice(listing.price)}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <Button
+                                size="sm"
+                                onClick={() => handlePurchase(listing)}
+                                disabled={sellerUid === user?.id || purchasingId === listing.id}
+                              >
+                                {purchasingId === listing.id ? (
+                                  <>
+                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                    İşlem Yapılıyor
+                                  </>
+                                ) : (
+                                  'Satın Al'
+                                )}
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })
                     )}
                   </TableBody>
                 </Table>
@@ -460,10 +530,10 @@ export default function TransferMarket() {
                 <CardTitle className="text-lg">Aktif İlanların</CardTitle>
               </CardHeader>
               <CardContent>
-                {isLoadingTeam ? (
+                {isMyListingsLoading ? (
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    Kadron yükleniyor...
+                    İlanların yükleniyor...
                   </div>
                 ) : myListings.length === 0 ? (
                   <p className="text-sm text-muted-foreground">
@@ -495,3 +565,8 @@ export default function TransferMarket() {
     </div>
   );
 }
+// Used path for listings: transferListings
+// Added callables: marketCreateListing, marketCancelListing
+// Updated marketplace UI/services.
+// Rules block added.
+// Indexes added.
