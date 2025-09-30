@@ -96,6 +96,14 @@ export const getTeam = async (userId: string): Promise<ClubTeam | null> => {
   return snap.exists() ? (snap.data() as ClubTeam) : null;
 };
 
+export const updateTeamName = async (userId: string, teamName: string) => {
+  await setDoc(
+    doc(db, 'teams', userId),
+    { name: teamName },
+    { merge: true },
+  );
+};
+
 export const adjustTeamBudget = async (userId: string, amount: number): Promise<number> => {
   const teamRef = doc(db, 'teams', userId);
   return runTransaction(db, async transaction => {

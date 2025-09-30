@@ -5,14 +5,33 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { Loader2, Chrome, Apple } from 'lucide-react';
 
 export default function Auth() {
-  const { login, register, loginWithGoogle, loginWithApple, isLoading } = useAuth();
+  const {
+    login,
+    register,
+    loginWithGoogle,
+    loginWithApple,
+    registerWithGoogle,
+    registerWithApple,
+    isLoading,
+  } = useAuth();
   const [loginForm, setLoginForm] = useState({ email: '', password: '' });
   const [registerForm, setRegisterForm] = useState({ email: '', password: '', teamName: '' });
+  const [socialTeamName, setSocialTeamName] = useState('');
+  const [socialProvider, setSocialProvider] = useState<'google' | 'apple' | null>(null);
+  const [isSocialDialogOpen, setIsSocialDialogOpen] = useState(false);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -33,12 +52,13 @@ export default function Auth() {
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!registerForm.email || !registerForm.password || !registerForm.teamName) {
+    const trimmedTeamName = registerForm.teamName.trim();
+    if (!registerForm.email || !registerForm.password || !trimmedTeamName) {
       toast.error('Lütfen tüm alanları doldurun');
       return;
     }
     try {
-      await register(registerForm.email, registerForm.password, registerForm.teamName);
+      await register(registerForm.email, registerForm.password, trimmedTeamName);
       toast.success('Hesap başarıyla oluşturuldu!');
     } catch (error) {
       toast.error('Kayıt başarısız');
@@ -62,6 +82,38 @@ export default function Auth() {
     } catch (error) {
       toast.error('Apple ile giriş başarısız');
       console.error('apple login error:', error);
+    }
+  };
+
+  const openSocialRegister = (provider: 'google' | 'apple') => {
+    setSocialProvider(provider);
+    setSocialTeamName('');
+    setIsSocialDialogOpen(true);
+  };
+
+  const handleSocialRegister = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!socialProvider) return;
+
+    const trimmedName = socialTeamName.trim();
+    if (!trimmedName) {
+      toast.error('Lütfen takım adınızı girin');
+      return;
+    }
+
+    try {
+      if (socialProvider === 'google') {
+        await registerWithGoogle(trimmedName);
+      } else {
+        await registerWithApple(trimmedName);
+      }
+      toast.success('Hesap başarıyla oluşturuldu!');
+      setIsSocialDialogOpen(false);
+      setSocialProvider(null);
+      setSocialTeamName('');
+    } catch (error) {
+      toast.error('Sosyal kayıt başarısız');
+      console.error('social register error:', error);
     }
   };
 
@@ -198,7 +250,7 @@ export default function Auth() {
                 <Button
                   variant="outline"
                   className="w-full"
-                  onClick={handleGoogleAuth}
+                  onClick={() => openSocialRegister('google')}
                   disabled={isLoading}
                 >
                   <Chrome className="w-4 h-4 mr-2" />
@@ -207,7 +259,7 @@ export default function Auth() {
                 <Button
                   variant="outline"
                   className="w-full"
-                  onClick={handleAppleAuth}
+                  onClick={() => openSocialRegister('apple')}
                   disabled={isLoading}
                 >
                   <Apple className="w-4 h-4 mr-2" />
@@ -230,6 +282,62 @@ export default function Auth() {
           </div>
         </CardContent>
       </Card>
+      <Dialog
+        open={isSocialDialogOpen}
+        onOpenChange={(open) => {
+          setIsSocialDialogOpen(open);
+          if (!open) {
+            setSocialProvider(null);
+            setSocialTeamName('');
+          }
+        }}
+      >
+        <DialogContent>
+          <form onSubmit={handleSocialRegister} className="space-y-4">
+            <DialogHeader>
+              <DialogTitle>
+                {socialProvider === 'google'
+                  ? 'Google ile Kayıt'
+                  : socialProvider === 'apple'
+                    ? 'Apple ile Kayıt'
+                    : 'Sosyal Kayıt'}
+              </DialogTitle>
+              <DialogDescription>
+                Takımınız için özel bir isim belirleyin.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-2">
+              <Label htmlFor="social-team-name">Takım Adı</Label>
+              <Input
+                id="social-team-name"
+                value={socialTeamName}
+                onChange={(event) => setSocialTeamName(event.target.value)}
+                placeholder="Takım adınızı girin"
+                disabled={isLoading}
+              />
+            </div>
+
+            <DialogFooter className="gap-2 sm:gap-0">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setIsSocialDialogOpen(false);
+                  setSocialProvider(null);
+                  setSocialTeamName('');
+                }}
+              >
+                Vazgeç
+              </Button>
+              <Button type="submit" disabled={isLoading}>
+                {isLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                Kayıt Ol
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
