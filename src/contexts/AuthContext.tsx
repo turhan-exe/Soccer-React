@@ -15,7 +15,7 @@ import {
   signInWithGoogle,
   signInWithApple,
 } from '@/services/auth';
-import { createInitialTeam, getTeam } from '@/services/team';
+import { createInitialTeam, getTeam, updateTeamName } from '@/services/team';
 import { requestAssign } from '@/services/leagues';
 import { generateRandomName } from '@/lib/names';
 
@@ -26,6 +26,8 @@ interface AuthContextType {
   logout: () => Promise<void>;
   loginWithGoogle: () => Promise<void>;
   loginWithApple: () => Promise<void>;
+  registerWithGoogle: (teamName: string) => Promise<void>;
+  registerWithApple: (teamName: string) => Promise<void>;
   isLoading: boolean;
 }
 
@@ -144,6 +146,61 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
+  const handleSocialRegistration = async (
+    provider: 'google' | 'apple',
+    teamName: string,
+  ) => {
+    const trimmedName = teamName.trim();
+    if (!trimmedName) {
+      throw new Error('Takım adı gerekli');
+    }
+
+    setIsLoading(true);
+    try {
+      const credential =
+        provider === 'google' ? await signInWithGoogle() : await signInWithApple();
+
+      const firebaseUser = credential.user;
+      if (!firebaseUser) {
+        return;
+      }
+
+      const team = await getTeam(firebaseUser.uid);
+      const managerName = team?.manager || generateRandomName();
+
+      await updateProfile(firebaseUser, { displayName: trimmedName });
+
+      if (!team) {
+        await createInitialTeam(firebaseUser.uid, trimmedName, managerName);
+        await requestAssign(firebaseUser.uid);
+      } else if (team.name !== trimmedName) {
+        await updateTeamName(firebaseUser.uid, trimmedName);
+      }
+
+      setUser({
+        id: firebaseUser.uid,
+        username: managerName,
+        email: firebaseUser.email || '',
+        teamName: trimmedName,
+        teamLogo: '⚽',
+        connectedAccounts: {
+          google: provider === 'google',
+          apple: provider === 'apple',
+        },
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const registerWithGoogle = async (teamName: string) => {
+    await handleSocialRegistration('google', teamName);
+  };
+
+  const registerWithApple = async (teamName: string) => {
+    await handleSocialRegistration('apple', teamName);
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -153,6 +210,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         logout,
         loginWithGoogle,
         loginWithApple,
+        registerWithGoogle,
+        registerWithApple,
         isLoading,
       }}
     >
