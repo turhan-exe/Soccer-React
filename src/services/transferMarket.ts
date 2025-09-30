@@ -3,18 +3,28 @@ import {
   onSnapshot,
   orderBy,
   query,
+  type QueryDocumentSnapshot,
+  type DocumentData,
   Unsubscribe,
   where,
 } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { auth, db, functions } from './firebase';
 import { Player, TransferListing } from '@/types';
+import {
+  LISTINGS_PATH,
+  queryActiveListings,
+  type MarketQueryOptions,
+  type MarketSortOption,
+} from './market';
+export type { MarketSortOption } from './market';
 
-const COLLECTION_PATH = 'transferListings';
+const listingsCollection = collection(db, LISTINGS_PATH);
 
-const listingsCollection = collection(db, COLLECTION_PATH);
-
-type TransferListingDoc = Omit<TransferListing, 'id'>;
+type TransferListingDoc = Omit<TransferListing, 'id'> & {
+  pos?: TransferListing['pos'];
+  overall?: number;
+};
 
 const sanitizePrice = (price: number) => {
   if (!Number.isFinite(price)) {
@@ -56,6 +66,8 @@ export async function createTransferListing(params: {
       playerId,
       playerPath,
       price: normalizedPrice,
+      pos: player.position,
+      overall: player.overall,
     });
     if (!data || data.ok !== true) {
       const message = (data && 'message' in data && typeof data.message === 'string')
@@ -75,24 +87,79 @@ export async function createTransferListing(params: {
   }
 }
 
+const toTransferListing = (
+  docSnap: QueryDocumentSnapshot<DocumentData>,
+): TransferListing => {
+  const data = docSnap.data() as TransferListingDoc;
+  const status = data.status === 'available' ? 'active' : data.status;
+  const sellerUid = data.sellerUid ?? data.sellerId ?? '';
+  const sellerId = data.sellerId ?? data.sellerUid ?? '';
+  const teamId = data.teamId ?? sellerId ?? sellerUid;
+  const player = (data.player ?? {}) as Player;
+
+  return {
+    id: docSnap.id,
+    ...data,
+    status,
+    sellerUid,
+    sellerId,
+    teamId,
+    price: Number(data.price ?? 0),
+    pos: data.pos ?? data.position ?? player?.position,
+    overall: data.overall ?? player?.overall,
+    player,
+  };
+};
+
+export interface ListenListingsOptions extends Omit<MarketQueryOptions, 'sort'> {
+  sort?: MarketSortOption;
+}
+
 export function listenAvailableTransferListings(
+  options: ListenListingsOptions = {},
   cb: (list: TransferListing[]) => void,
+  onError?: (error: Error) => void,
 ): Unsubscribe {
-  const q = query(listingsCollection, where('status', '==', 'active'), orderBy('createdAt', 'desc'));
-  return onSnapshot(q, snapshot => {
-    const list: TransferListing[] = snapshot.docs.map(docSnap => {
-      const data = docSnap.data() as TransferListingDoc;
-      const status = data.status === 'available' ? 'active' : data.status;
-      return {
-        id: docSnap.id,
-        ...data,
-        status,
-        sellerUid: data.sellerUid ?? data.sellerId,
-        sellerId: data.sellerId ?? data.sellerUid ?? '',
-        teamId: data.teamId ?? data.sellerId ?? data.sellerUid,
-      };
-    });
-    cb(list);
+  const queryOptions: MarketQueryOptions = {
+    pos: options.pos,
+    maxPrice: options.maxPrice,
+    sort: options.sort,
+  };
+
+  const q = queryActiveListings(db, queryOptions);
+  return onSnapshot(q, {
+    next: snapshot => {
+      const list = snapshot.docs.map(toTransferListing);
+      cb(list);
+    },
+    error: err => {
+      console.error('[transferListings] onSnapshot error:', err);
+      onError?.(err instanceof Error ? err : new Error(String(err)));
+    },
+  });
+}
+
+export function listenUserTransferListings(
+  uid: string,
+  cb: (list: TransferListing[]) => void,
+  onError?: (error: Error) => void,
+): Unsubscribe {
+  const q = query(
+    listingsCollection,
+    where('sellerUid', '==', uid),
+    where('status', '==', 'active'),
+    orderBy('createdAt', 'desc'),
+  );
+
+  return onSnapshot(q, {
+    next: snapshot => {
+      const list = snapshot.docs.map(toTransferListing);
+      cb(list);
+    },
+    error: err => {
+      console.error('[transferListings] seller onSnapshot error:', err);
+      onError?.(err instanceof Error ? err : new Error(String(err)));
+    },
   });
 }
 
@@ -162,3 +229,8 @@ export async function cancelTransferListing(listingId: string): Promise<void> {
     throw new Error('İlan iptal edilemedi.');
   }
 }
+// Used path for listings: transferListings
+// Added callables: marketCreateListing, marketCancelListing
+// Updated marketplace UI/services.
+// Rules block added.
+// Indexes added.

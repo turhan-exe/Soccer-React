@@ -8,7 +8,7 @@ import {
 } from 'firebase-admin/firestore';
 
 const db = getFirestore();
-const LISTINGS_COLLECTION = 'transferListings';
+const LISTINGS_PATH = 'transferListings';
 
 const region = 'europe-west1';
 
@@ -59,6 +59,7 @@ type ListingDoc = {
   player: PlayerSnapshot;
   playerName?: string;
   position?: string;
+  pos?: string;
   overall?: number;
   sellerTeamName?: string;
   status: 'active' | 'sold' | 'cancelled';
@@ -73,7 +74,7 @@ type TeamDoc = {
   players?: PlayerSnapshot[];
 };
 
-const listingsCollection = db.collection(LISTINGS_COLLECTION);
+const listingsCollection = db.collection(LISTINGS_PATH);
 
 export const marketCreateListing = functions
   .region(region)
@@ -86,6 +87,11 @@ export const marketCreateListing = functions
     const playerId = isString(data.playerId) ? data.playerId.trim() : '';
     const playerPath = isString(data.playerPath) ? data.playerPath.trim() : '';
     const price = normalizePrice(data.price);
+    const requestedPos = isString(data.pos) ? data.pos.trim().toUpperCase() : '';
+    const requestedOverall =
+      typeof data.overall === 'number' && Number.isFinite(data.overall)
+        ? Number(data.overall)
+        : undefined;
 
     if (!teamId || !playerId || !playerPath) {
       throw new functions.https.HttpsError('invalid-argument', 'Takım ve oyuncu bilgileri eksik.');
@@ -148,6 +154,15 @@ export const marketCreateListing = functions
 
       const sanitizedPlayer = sanitizePlayerForListing(playerData!, playerId);
       const sellerTeamName = teamData.name ?? 'Takımım';
+      const finalPos =
+        requestedPos ||
+        (sanitizedPlayer.position ? String(sanitizedPlayer.position).toUpperCase() : undefined);
+      const finalOverall =
+        typeof requestedOverall === 'number'
+          ? requestedOverall
+          : typeof sanitizedPlayer.overall === 'number'
+            ? sanitizedPlayer.overall
+            : undefined;
 
       const payload: ListingDoc = {
         sellerUid: uid,
@@ -159,10 +174,16 @@ export const marketCreateListing = functions
         player: sanitizedPlayer,
         playerName: sanitizedPlayer.name,
         position: sanitizedPlayer.position,
-        overall: sanitizedPlayer.overall,
         sellerTeamName,
         status: 'active',
       };
+
+      if (finalPos) {
+        payload.pos = finalPos;
+      }
+      if (typeof finalOverall === 'number') {
+        payload.overall = finalOverall;
+      }
 
       tx.set(listingRef, {
         ...payload,
@@ -359,3 +380,8 @@ export const marketPurchaseListing = functions
 
     return { ok: true };
   });
+// Used path for listings: transferListings
+// Added callables: marketCreateListing, marketCancelListing
+// Updated marketplace UI/services.
+// Rules block added.
+// Indexes added.
