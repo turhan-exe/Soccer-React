@@ -65,9 +65,15 @@ export async function createTransferListing(params: {
     throw new Error('Bu oyuncu zaten pazarda.');
   }
 
+  const playerId = String(player.id);
+  const sanitizedPlayer: Player = {
+    ...player,
+    id: playerId,
+  };
+
   const payload: TransferListingDoc = {
-    playerId: player.id,
-    player,
+    playerId,
+    player: sanitizedPlayer,
     price: normalizedPrice,
     sellerId,
     sellerTeamName,
