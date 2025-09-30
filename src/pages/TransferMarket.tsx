@@ -37,6 +37,7 @@ import { Player, TransferListing } from '@/types';
 import { adjustTeamBudget, getTeam } from '@/services/team';
 import {
   createTransferListing,
+  cancelTransferListing,
   listenAvailableTransferListings,
   listenUserTransferListings,
   purchaseTransferListing,
@@ -158,6 +159,7 @@ export default function TransferMarket() {
   const [isListingsLoading, setIsListingsLoading] = useState(true);
   const [isMyListingsLoading, setIsMyListingsLoading] = useState(false);
   const [isAddingFunds, setIsAddingFunds] = useState(false);
+  const [cancellingId, setCancellingId] = useState<string>('');
   const [filters, setFilters] = useState<FilterState>({
     position: 'all',
     maxPrice: '',
@@ -364,6 +366,26 @@ export default function TransferMarket() {
       });
     } finally {
       setIsListing(false);
+    }
+  };
+
+  const handleCancelListing = async (listingId: string) => {
+    if (!user) {
+      toast.error('Giriş yapmalısın.');
+      return;
+    }
+
+    setCancellingId(listingId);
+    try {
+      await cancelTransferListing(listingId);
+      toast.success('İlan transfer pazarından kaldırıldı.');
+      await loadTeam();
+    } catch (error) {
+      toast.error('İlan kaldırılamadı.', {
+        description: error instanceof Error ? error.message : undefined,
+      });
+    } finally {
+      setCancellingId('');
     }
   };
 
@@ -695,20 +717,44 @@ export default function TransferMarket() {
                   </p>
                 ) : (
                   <ul className="space-y-3">
-                    {myListings.map(listing => (
-                      <li
-                        key={listing.id}
-                        className="flex items-center justify-between rounded-lg border bg-white/70 px-3 py-2 text-sm dark:bg-slate-900/60"
-                      >
-                        <div className="flex flex-col">
-                          <span className="font-medium">{listing.player.name}</span>
-                          <span className="text-xs text-muted-foreground">
-                            {listing.player.position} · Overall {formatOverall(listing.player.overall)}
-                          </span>
-                        </div>
-                        <span className="font-semibold text-emerald-600">{formatPrice(listing.price)}</span>
-                      </li>
-                    ))}
+                    {myListings.map(listing => {
+                      const player = listing.player;
+                      const name = player?.name ?? listing.playerName ?? 'Bilinmeyen Oyuncu';
+                      const position = player?.position ?? listing.pos ?? 'N/A';
+                      const overallValue = player?.overall ?? listing.overall ?? 0;
+
+                      return (
+                        <li
+                          key={listing.id}
+                          className="flex items-center justify-between rounded-lg border bg-white/70 px-3 py-2 text-sm dark:bg-slate-900/60"
+                        >
+                          <div className="flex flex-col">
+                            <span className="font-medium">{name}</span>
+                            <span className="text-xs text-muted-foreground">
+                              {position} · Overall {formatOverall(overallValue)}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <span className="font-semibold text-emerald-600">{formatPrice(listing.price)}</span>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleCancelListing(listing.id)}
+                              disabled={cancellingId === listing.id}
+                            >
+                              {cancellingId === listing.id ? (
+                                <>
+                                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                  Kaldırılıyor
+                                </>
+                              ) : (
+                                'Kaldır'
+                              )}
+                            </Button>
+                          </div>
+                        </li>
+                      );
+                    })}
                   </ul>
                 )}
               </CardContent>
