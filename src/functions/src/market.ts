@@ -1,6 +1,11 @@
 import * as functions from 'firebase-functions/v1';
 import './_firebase.js';
-import { getFirestore, FieldValue } from 'firebase-admin/firestore';
+import {
+  getFirestore,
+  FieldValue,
+  DocumentReference,
+  DocumentData,
+} from 'firebase-admin/firestore';
 
 const db = getFirestore();
 const LISTINGS_COLLECTION = 'transferListings';
@@ -10,7 +15,7 @@ const region = 'europe-west1';
 const isString = (value: unknown): value is string =>
   typeof value === 'string' && value.trim().length > 0;
 
-const assertAuth = (uid: string | undefined): asserts uid is string => {
+const assertAuth: (uid: string | undefined) => asserts uid is string = uid => {
   if (!uid) {
     throw new functions.https.HttpsError('unauthenticated', 'Giriş yapmalısın.');
   }
@@ -101,7 +106,7 @@ export const marketCreateListing = functions
         throw new functions.https.HttpsError('permission-denied', 'Bu takıma erişimin yok.');
       }
 
-      let playerDocRef = db.doc(playerPath);
+      let playerDocRef: DocumentReference<DocumentData> | null = db.doc(playerPath);
       let playerDocSnap = await tx.get(playerDocRef).catch(() => null);
       let playerData: PlayerSnapshot | null = null;
       let teamPlayers: PlayerSnapshot[] | undefined;
