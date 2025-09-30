@@ -184,7 +184,6 @@ export default function TransferMarket() {
     setIsListing(true);
     try {
       await createTransferListing({
-        sellerTeamName: teamName || user.teamName || 'Takımım',
         player,
         price: priceValue,
       });
