@@ -58,6 +58,7 @@ export interface ClubTeam {
   manager: string;
   kitHome: string;
   kitAway: string;
+  budget?: number;
   players: Player[];
   plan?: {
     formation: string;
