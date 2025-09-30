@@ -22,13 +22,14 @@ const assertAuth: (uid: string | undefined) => asserts uid is string = uid => {
 };
 
 const normalizePrice = (price: unknown): number => {
-  if (typeof price !== 'number') {
+  const numeric = Number(price);
+  if (!Number.isFinite(numeric)) {
     throw new functions.https.HttpsError('invalid-argument', 'Geçerli bir fiyat belirt.');
   }
-  if (!Number.isFinite(price) || price <= 0) {
+  if (numeric <= 0) {
     throw new functions.https.HttpsError('invalid-argument', 'Fiyat sıfırdan büyük olmalı.');
   }
-  return Math.round(price);
+  return Math.round(numeric);
 };
 
 type PlayerSnapshot = Record<string, unknown> & {

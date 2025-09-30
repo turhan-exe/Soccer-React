@@ -70,6 +70,13 @@ type FirestoreErrorLike = Error & { code?: string };
 type MarketplaceErrorMessage = {
   title: string;
   description?: string;
+  action?: { label: string; onClick: () => void };
+};
+
+const extractIndexLink = (message: string): string | null => {
+  const match = message.match(/https:\/\/\S+/i);
+  if (!match) return null;
+  return match[0].replace(/[).,]$/, '');
 };
 
 const mapSortToService = (sort: SortOption): MarketSortOption => {
@@ -103,10 +110,25 @@ const resolveMarketplaceError = (error: unknown): MarketplaceErrorMessage => {
       : new Error(typeof error === 'string' ? error : String(error));
 
   if (isFirestoreIndexError(err)) {
+    const indexLink = extractIndexLink(err.message ?? '');
+
+    if (import.meta.env.DEV && indexLink) {
+      return {
+        title: 'Firestore indeksine ihtiyaç var.',
+        description: 'Eksik composite indexi oluşturmak için aşağıdaki bağlantıyı kullan.',
+        action: {
+          label: 'İndeksi Oluştur',
+          onClick: () => {
+            if (typeof window !== 'undefined') {
+              window.open(indexLink, '_blank', 'noopener,noreferrer');
+            }
+          },
+        },
+      };
+    }
+
     return {
-      title: 'Firestore indeksine ihtiyaç var.',
-      description:
-        'Transfer pazarı sorgusunu çalıştırmak için composite index oluşturmalısın. Firebase Console > Firestore Database > Indexes adımlarını izleyerek "Create index" diyebilir veya proje kökündeki firestore.indexes.json dosyasındaki transferListings tanımlarını deploy etmek için terminalde firebase deploy --only firestore:indexes komutunu çalıştırabilirsin.',
+      title: 'Veri yüklenemedi.',
     };
   }
 
@@ -198,7 +220,21 @@ export default function TransferMarket() {
         if (!isMounted) return;
         console.error('[TransferMarket] marketplace listen error', error);
         const message = resolveMarketplaceError(error);
-        toast.error(message.title, message.description ? { description: message.description } : undefined);
+        const toastOptions: Parameters<typeof toast.error>[1] = {};
+        if (message.description) {
+          toastOptions.description = message.description;
+        }
+        if (message.action) {
+          toastOptions.action = {
+            label: message.action.label,
+            onClick: message.action.onClick,
+          };
+        }
+        if (Object.keys(toastOptions).length > 0) {
+          toast.error(message.title, toastOptions);
+        } else {
+          toast.error(message.title);
+        }
         setListings([]);
         setIsListingsLoading(false);
       },
@@ -231,7 +267,21 @@ export default function TransferMarket() {
         if (!isMounted) return;
         console.error('[TransferMarket] my listings listen error', error);
         const message = resolveMarketplaceError(error);
-        toast.error(message.title, message.description ? { description: message.description } : undefined);
+        const toastOptions: Parameters<typeof toast.error>[1] = {};
+        if (message.description) {
+          toastOptions.description = message.description;
+        }
+        if (message.action) {
+          toastOptions.action = {
+            label: message.action.label,
+            onClick: message.action.onClick,
+          };
+        }
+        if (Object.keys(toastOptions).length > 0) {
+          toast.error(message.title, toastOptions);
+        } else {
+          toast.error(message.title);
+        }
         setMyListings([]);
         setIsMyListingsLoading(false);
       },
