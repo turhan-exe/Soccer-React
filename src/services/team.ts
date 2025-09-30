@@ -72,6 +72,7 @@ const generateTeamData = (id: string, name: string, manager: string): ClubTeam =
     kitHome: 'home',
     kitAway: 'away',
     budget: 0,
+    transferBudget: 0,
     players,
   };
 };
@@ -104,10 +105,14 @@ export const adjustTeamBudget = async (userId: string, amount: number): Promise<
     }
 
     const data = snapshot.data() as ClubTeam | undefined;
-    const currentBudget = Number.isFinite(data?.budget) ? Number(data?.budget) : 0;
+    const currentBudget = Number.isFinite(data?.transferBudget)
+      ? Number(data?.transferBudget)
+      : Number.isFinite(data?.budget)
+        ? Number(data?.budget)
+        : 0;
     const nextBudget = Math.max(0, Math.round(currentBudget + amount));
 
-    transaction.update(teamRef, { budget: nextBudget });
+    transaction.update(teamRef, { budget: nextBudget, transferBudget: nextBudget });
     return nextBudget;
   });
 };

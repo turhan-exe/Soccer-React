@@ -177,7 +177,12 @@ export default function TransferMarket() {
       const team = await getTeam(user.id);
       setTeamPlayers(team?.players ?? []);
       setTeamName(team?.name ?? user.teamName ?? 'Takımım');
-      setTeamBudget(Number.isFinite(team?.budget) ? Number(team?.budget) : 0);
+      const nextBudget = Number.isFinite(team?.transferBudget)
+        ? Number(team?.transferBudget)
+        : Number.isFinite(team?.budget)
+          ? Number(team?.budget)
+          : 0;
+      setTeamBudget(nextBudget);
     } catch (error) {
       console.error('[TransferMarket] takımı yükleme hatası', error);
       toast.error('Takım bilgileri alınamadı.', {
@@ -382,10 +387,7 @@ export default function TransferMarket() {
 
     setPurchasingId(listing.id);
     try {
-      await purchaseTransferListing({
-        listingId: listing.id,
-        buyerTeamName: teamName || user.teamName || 'Takımım',
-      });
+      await purchaseTransferListing(listing.id, user.id);
       toast.success(`${listing.player.name} takımıza katıldı!`);
       setTeamBudget(prev => Math.max(0, prev - listing.price));
       await loadTeam();
