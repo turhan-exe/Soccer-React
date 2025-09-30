@@ -30,6 +30,11 @@ service cloud.firestore {
                     && ( !("leagueId" in request.resource.data) || request.resource.data.leagueId == resource.data.leagueId );
     }
 
+    match /{prefix=**}/listings/{listingId} {
+      allow read: if isSignedIn();
+      allow create, update, delete: if false;
+    }
+
     match /transferListings/{listingId} {
       allow read: if isSignedIn();
       allow create, update, delete: if false;
@@ -72,3 +77,8 @@ service cloud.firestore {
     match /standings/{id} { allow read: if true; allow write: if false; }
   }
 }
+  // Used path for listings: transferListings
+  // Added callables: marketCreateListing, marketCancelListing
+  // Updated marketplace UI/services.
+  // Rules block added.
+  // Indexes added.
