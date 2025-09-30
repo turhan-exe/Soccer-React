@@ -1,84 +1,72 @@
-import type { Firestore } from 'firebase/firestore';
 import {
   collection,
+  limit,
   orderBy,
   query,
   where,
+  type Firestore,
   type QueryConstraint,
 } from 'firebase/firestore';
-import type { Position } from '@/types';
 
 export const LISTINGS_PATH = 'transferListings';
 
-export type MarketSortOption =
+export type SortKey =
   | 'overall_desc'
   | 'overall_asc'
   | 'price_asc'
   | 'price_desc'
   | 'newest';
 
-export interface MarketQueryOptions {
-  pos?: Position | 'ALL';
-  maxPrice?: number;
-  sort?: MarketSortOption;
-}
-
 const isFiniteNumber = (value: unknown): value is number =>
   typeof value === 'number' && Number.isFinite(value);
 
-export function queryActiveListings(
+const resolveTake = (take?: number) => {
+  if (!isFiniteNumber(take)) return 100;
+  const rounded = Math.floor(take);
+  return Math.min(Math.max(rounded, 1), 500);
+};
+
+export function buildTransferListingsQuery(
   db: Firestore,
-  options: MarketQueryOptions = {},
+  opts: { pos?: string | 'ALL'; maxPrice?: number; sort?: SortKey; take?: number } = {},
 ) {
-  const { pos, maxPrice, sort = 'overall_desc' } = options;
+  const { pos, maxPrice, sort = 'overall_desc', take } = opts;
+
   const constraints: QueryConstraint[] = [where('status', '==', 'active')];
 
-  if (pos && pos !== 'ALL') {
-    constraints.push(where('pos', '==', pos));
+  const normalizedPos = typeof pos === 'string' ? pos.toUpperCase() : undefined;
+
+  if (normalizedPos && normalizedPos !== 'ALL') {
+    constraints.push(where('pos', '==', normalizedPos));
   }
 
-  const hasPriceFilter = isFiniteNumber(maxPrice) && maxPrice! > 0;
-  if (hasPriceFilter) {
-    constraints.push(where('price', '<=', Number(maxPrice)));
-  }
-
-  if (hasPriceFilter) {
+  if (isFiniteNumber(maxPrice) && maxPrice >= 0) {
+    const resolvedMaxPrice = Math.max(0, maxPrice);
+    constraints.push(where('price', '<=', resolvedMaxPrice));
     constraints.push(orderBy('price', 'asc'));
+
     if (sort === 'overall_desc') {
       constraints.push(orderBy('overall', 'desc'));
-      constraints.push(orderBy('createdAt', 'desc'));
     } else if (sort === 'overall_asc') {
       constraints.push(orderBy('overall', 'asc'));
-      constraints.push(orderBy('createdAt', 'desc'));
-    } else if (sort === 'price_desc') {
-      constraints.push(orderBy('createdAt', 'desc'));
     } else {
       constraints.push(orderBy('createdAt', 'desc'));
     }
   } else {
-    switch (sort) {
-      case 'overall_asc':
-        constraints.push(orderBy('overall', 'asc'));
-        constraints.push(orderBy('createdAt', 'desc'));
-        break;
-      case 'price_asc':
-        constraints.push(orderBy('price', 'asc'));
-        constraints.push(orderBy('createdAt', 'desc'));
-        break;
-      case 'price_desc':
-        constraints.push(orderBy('price', 'desc'));
-        constraints.push(orderBy('createdAt', 'desc'));
-        break;
-      case 'newest':
-        constraints.push(orderBy('createdAt', 'desc'));
-        break;
-      case 'overall_desc':
-      default:
-        constraints.push(orderBy('overall', 'desc'));
-        constraints.push(orderBy('createdAt', 'desc'));
-        break;
+    if (sort === 'price_asc') {
+      constraints.push(orderBy('price', 'asc'));
+    } else if (sort === 'price_desc') {
+      constraints.push(orderBy('price', 'desc'));
+    } else if (sort === 'overall_asc') {
+      constraints.push(orderBy('overall', 'asc'));
+    } else if (sort === 'overall_desc') {
+      constraints.push(orderBy('overall', 'desc'));
+    } else {
+      constraints.push(orderBy('createdAt', 'desc'));
     }
   }
+
+  constraints.push(limit(resolveTake(take)));
 
   return query(collection(db, LISTINGS_PATH), ...constraints);
 }

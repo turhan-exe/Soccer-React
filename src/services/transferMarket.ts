@@ -1,8 +1,6 @@
 import {
-  collection,
   doc,
   onSnapshot,
-  orderBy,
   query,
   runTransaction,
   serverTimestamp,
@@ -16,29 +14,27 @@ import { auth, db, functions } from './firebase';
 import { Player, TransferListing, type ClubTeam } from '@/types';
 import {
   LISTINGS_PATH,
-  queryActiveListings,
-  type MarketQueryOptions,
-  type MarketSortOption,
+  buildTransferListingsQuery,
+  type SortKey,
 } from './market';
-export type { MarketSortOption } from './market';
-
-const listingsCollection = collection(db, LISTINGS_PATH);
+export type MarketSortOption = SortKey;
 
 type TransferListingDoc = Omit<TransferListing, 'id'> & {
   pos?: TransferListing['pos'];
   overall?: number;
 };
 
-const sanitizePrice = (price: number) => {
-  if (!Number.isFinite(price)) {
+const sanitizePrice = (price: unknown) => {
+  const numeric = Number(price);
+  if (!Number.isFinite(numeric)) {
     return 0;
   }
-  return Math.max(0, Math.round(price));
+  return Math.max(0, Math.round(numeric));
 };
 
 export async function createTransferListing(params: {
   player: Player;
-  price: number;
+  price: number | string;
 }): Promise<void> {
   const currentUser = auth.currentUser;
   if (!currentUser?.uid) {
@@ -114,8 +110,11 @@ const toTransferListing = (
   };
 };
 
-export interface ListenListingsOptions extends Omit<MarketQueryOptions, 'sort'> {
+export interface ListenListingsOptions {
+  pos?: TransferListing['pos'] | 'ALL';
+  maxPrice?: number;
   sort?: MarketSortOption;
+  take?: number;
 }
 
 export function listenAvailableTransferListings(
@@ -123,13 +122,12 @@ export function listenAvailableTransferListings(
   cb: (list: TransferListing[]) => void,
   onError?: (error: Error) => void,
 ): Unsubscribe {
-  const queryOptions: MarketQueryOptions = {
+  const q = buildTransferListingsQuery(db, {
     pos: options.pos,
     maxPrice: options.maxPrice,
     sort: options.sort,
-  };
-
-  const q = queryActiveListings(db, queryOptions);
+    take: options.take,
+  });
   return onSnapshot(q, {
     next: snapshot => {
       const list = snapshot.docs.map(toTransferListing);
@@ -147,12 +145,8 @@ export function listenUserTransferListings(
   cb: (list: TransferListing[]) => void,
   onError?: (error: Error) => void,
 ): Unsubscribe {
-  const q = query(
-    listingsCollection,
-    where('sellerUid', '==', uid),
-    where('status', '==', 'active'),
-    orderBy('createdAt', 'desc'),
-  );
+  const baseQuery = buildTransferListingsQuery(db, { sort: 'newest' });
+  const q = query(baseQuery, where('sellerUid', '==', uid));
 
   return onSnapshot(q, {
     next: snapshot => {
