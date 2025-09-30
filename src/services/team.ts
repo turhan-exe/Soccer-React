@@ -1,4 +1,4 @@
-import { doc, setDoc, getDoc } from 'firebase/firestore';
+import { doc, setDoc, getDoc, runTransaction } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { db, functions } from '@/services/firebase';
 import { Player, ClubTeam } from '@/types';
@@ -71,6 +71,7 @@ const generateTeamData = (id: string, name: string, manager: string): ClubTeam =
     manager,
     kitHome: 'home',
     kitAway: 'away',
+    budget: 0,
     players,
   };
 };
@@ -92,6 +93,23 @@ export const createInitialTeam = async (
 export const getTeam = async (userId: string): Promise<ClubTeam | null> => {
   const snap = await getDoc(doc(db, 'teams', userId));
   return snap.exists() ? (snap.data() as ClubTeam) : null;
+};
+
+export const adjustTeamBudget = async (userId: string, amount: number): Promise<number> => {
+  const teamRef = doc(db, 'teams', userId);
+  return runTransaction(db, async transaction => {
+    const snapshot = await transaction.get(teamRef);
+    if (!snapshot.exists()) {
+      throw new Error('Takım bulunamadı.');
+    }
+
+    const data = snapshot.data() as ClubTeam | undefined;
+    const currentBudget = Number.isFinite(data?.budget) ? Number(data?.budget) : 0;
+    const nextBudget = Math.max(0, Math.round(currentBudget + amount));
+
+    transaction.update(teamRef, { budget: nextBudget });
+    return nextBudget;
+  });
 };
 
 type TeamPlanUpdate = {

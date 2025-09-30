@@ -76,6 +76,7 @@ export function makeMockTeam(id: string, name: string, manager = 'AI Coach'): Cl
     manager,
     kitHome: 'home',
     kitAway: 'away',
+    budget: 0,
     players,
   };
 }

@@ -34,7 +34,7 @@ import { Loader2, PlusCircle, ShoppingCart, Shield } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { Player, TransferListing } from '@/types';
-import { getTeam } from '@/services/team';
+import { adjustTeamBudget, getTeam } from '@/services/team';
 import {
   createTransferListing,
   listenAvailableTransferListings,
@@ -67,6 +67,11 @@ type FilterState = {
 
 type FirestoreErrorLike = Error & { code?: string };
 
+type MarketplaceErrorMessage = {
+  title: string;
+  description?: string;
+};
+
 const mapSortToService = (sort: SortOption): MarketSortOption => {
   switch (sort) {
     case 'overall-asc':
@@ -86,30 +91,41 @@ const formatPrice = (value: number) =>
 
 const formatOverall = (value: number) => value.toFixed(3);
 
-const isFirestoreIndexError = (error: FirestoreErrorLike) =>
-  error.code === 'failed-precondition' || error.message.includes('The query requires an index');
+const isFirestoreIndexError = (error: FirestoreErrorLike) => {
+  const message = error.message ?? '';
+  return error.code === 'failed-precondition' || message.includes('The query requires an index');
+};
 
-const resolveMarketplaceErrorMessage = (error: unknown) => {
+const resolveMarketplaceError = (error: unknown): MarketplaceErrorMessage => {
   const err =
     error instanceof Error
       ? (error as FirestoreErrorLike)
       : new Error(typeof error === 'string' ? error : String(error));
 
   if (isFirestoreIndexError(err)) {
-    return 'Pazar sorgusu için Firestore indeksine ihtiyaç var. Lütfen Firebase projenizde composite indexi oluşturun.';
+    return {
+      title: 'Firestore indeksine ihtiyaç var.',
+      description:
+        'Transfer pazarı sorgusunu çalıştırmak için composite index oluşturmalısın. Firebase Console > Firestore Database > Indexes adımlarını izleyerek "Create index" diyebilir veya proje kökündeki firestore.indexes.json dosyasındaki transferListings tanımlarını deploy etmek için terminalde firebase deploy --only firestore:indexes komutunu çalıştırabilirsin.',
+    };
   }
 
   if (err.message.includes('permission')) {
-    return 'Pazar okunamıyor. Kuralları güncelliyor musunuz?';
+    return {
+      title: 'Pazar okunamıyor. Kuralları güncelliyor musunuz?',
+    };
   }
 
-  return err.message || 'Beklenmedik bir hata oluştu.';
+  return {
+    title: err.message || 'Beklenmedik bir hata oluştu.',
+  };
 };
 
 export default function TransferMarket() {
   const { user } = useAuth();
   const [teamPlayers, setTeamPlayers] = useState<Player[]>([]);
   const [teamName, setTeamName] = useState<string>('');
+  const [teamBudget, setTeamBudget] = useState<number>(0);
   const [isLoadingTeam, setIsLoadingTeam] = useState(false);
   const [listings, setListings] = useState<TransferListing[]>([]);
   const [myListings, setMyListings] = useState<TransferListing[]>([]);
@@ -119,6 +135,7 @@ export default function TransferMarket() {
   const [purchasingId, setPurchasingId] = useState<string>('');
   const [isListingsLoading, setIsListingsLoading] = useState(true);
   const [isMyListingsLoading, setIsMyListingsLoading] = useState(false);
+  const [isAddingFunds, setIsAddingFunds] = useState(false);
   const [filters, setFilters] = useState<FilterState>({
     position: 'all',
     maxPrice: '',
@@ -127,12 +144,18 @@ export default function TransferMarket() {
   const previousListingCount = useRef<number>(0);
 
   const loadTeam = useCallback(async () => {
-    if (!user) return;
+    if (!user) {
+      setTeamPlayers([]);
+      setTeamName('Takımım');
+      setTeamBudget(0);
+      return;
+    }
     setIsLoadingTeam(true);
     try {
       const team = await getTeam(user.id);
       setTeamPlayers(team?.players ?? []);
       setTeamName(team?.name ?? user.teamName ?? 'Takımım');
+      setTeamBudget(Number.isFinite(team?.budget) ? Number(team?.budget) : 0);
     } catch (error) {
       console.error('[TransferMarket] takımı yükleme hatası', error);
       toast.error('Takım bilgileri alınamadı.', {
@@ -174,8 +197,8 @@ export default function TransferMarket() {
       error => {
         if (!isMounted) return;
         console.error('[TransferMarket] marketplace listen error', error);
-        const message = resolveMarketplaceErrorMessage(error);
-        toast.error(message);
+        const message = resolveMarketplaceError(error);
+        toast.error(message.title, message.description ? { description: message.description } : undefined);
         setListings([]);
         setIsListingsLoading(false);
       },
@@ -207,8 +230,8 @@ export default function TransferMarket() {
       error => {
         if (!isMounted) return;
         console.error('[TransferMarket] my listings listen error', error);
-        const message = resolveMarketplaceErrorMessage(error);
-        toast.error(message);
+        const message = resolveMarketplaceError(error);
+        toast.error(message.title, message.description ? { description: message.description } : undefined);
         setMyListings([]);
         setIsMyListingsLoading(false);
       },
@@ -232,6 +255,27 @@ export default function TransferMarket() {
     const listedIds = new Set(myListings.map(listing => listing.playerId));
     return teamPlayers.filter(player => !listedIds.has(player.id));
   }, [myListings, teamPlayers]);
+
+  const handleAddFunds = async () => {
+    if (!user) {
+      toast.error('Giriş yapmalısın.');
+      return;
+    }
+
+    setIsAddingFunds(true);
+    try {
+      const updatedBudget = await adjustTeamBudget(user.id, 10_000);
+      setTeamBudget(updatedBudget);
+      toast.success('Takım bütçene 10.000 ₺ eklendi.');
+    } catch (error) {
+      console.error('[TransferMarket] budget adjust error', error);
+      toast.error('Bütçe güncellenemedi.', {
+        description: error instanceof Error ? error.message : undefined,
+      });
+    } finally {
+      setIsAddingFunds(false);
+    }
+  };
 
   const handleCreateListing = async () => {
     if (!user) {
@@ -279,6 +323,13 @@ export default function TransferMarket() {
       return;
     }
 
+    if (teamBudget < listing.price) {
+      toast.error('Bütçen yetersiz.', {
+        description: 'Satın alma testleri için sağdaki butondan bütçene 10.000 ₺ ekleyebilirsin.',
+      });
+      return;
+    }
+
     setPurchasingId(listing.id);
     try {
       await purchaseTransferListing({
@@ -286,6 +337,7 @@ export default function TransferMarket() {
         buyerTeamName: teamName || user.teamName || 'Takımım',
       });
       toast.success(`${listing.player.name} takımıza katıldı!`);
+      setTeamBudget(prev => Math.max(0, prev - listing.price));
       await loadTeam();
     } catch (error) {
       toast.error('Satın alma başarısız.', {
@@ -313,6 +365,7 @@ export default function TransferMarket() {
             <div>
               <p className="text-sm text-muted-foreground">Takım Adı</p>
               <p className="font-semibold">{teamName || user?.teamName || 'Takımım'}</p>
+              <p className="text-xs text-muted-foreground">Transfer bütçesi: {formatPrice(teamBudget)}</p>
             </div>
           </div>
         </div>
@@ -447,7 +500,11 @@ export default function TransferMarket() {
                               <Button
                                 size="sm"
                                 onClick={() => handlePurchase(listing)}
-                                disabled={sellerUid === user?.id || purchasingId === listing.id}
+                                disabled={
+                                  sellerUid === user?.id ||
+                                  purchasingId === listing.id ||
+                                  teamBudget < listing.price
+                                }
                               >
                                 {purchasingId === listing.id ? (
                                   <>
@@ -470,6 +527,33 @@ export default function TransferMarket() {
           </Card>
 
           <div className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Transfer Bütçen</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs font-medium uppercase text-muted-foreground">Kalan Bütçe</p>
+                    <p className="text-2xl font-semibold">{formatPrice(teamBudget)}</p>
+                  </div>
+                  <Button variant="outline" onClick={handleAddFunds} disabled={isAddingFunds || !user}>
+                    {isAddingFunds ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Ekleniyor
+                      </>
+                    ) : (
+                      '+10.000 ₺ Ekle'
+                    )}
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Test amaçlı bütçene hızlıca para eklemek için bu butonu kullanabilirsin. İşlem Firebase üzerinde kaydedilir.
+                </p>
+              </CardContent>
+            </Card>
+
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-lg">
