@@ -65,6 +65,8 @@ type FilterState = {
   sortBy: SortOption;
 };
 
+type FirestoreErrorLike = Error & { code?: string };
+
 const mapSortToService = (sort: SortOption): MarketSortOption => {
   switch (sort) {
     case 'overall-asc':
@@ -83,6 +85,26 @@ const formatPrice = (value: number) =>
   `${value.toLocaleString('tr-TR')} ₺`;
 
 const formatOverall = (value: number) => value.toFixed(3);
+
+const isFirestoreIndexError = (error: FirestoreErrorLike) =>
+  error.code === 'failed-precondition' || error.message.includes('The query requires an index');
+
+const resolveMarketplaceErrorMessage = (error: unknown) => {
+  const err =
+    error instanceof Error
+      ? (error as FirestoreErrorLike)
+      : new Error(typeof error === 'string' ? error : String(error));
+
+  if (isFirestoreIndexError(err)) {
+    return 'Pazar sorgusu için Firestore indeksine ihtiyaç var. Lütfen Firebase projenizde composite indexi oluşturun.';
+  }
+
+  if (err.message.includes('permission')) {
+    return 'Pazar okunamıyor. Kuralları güncelliyor musunuz?';
+  }
+
+  return err.message || 'Beklenmedik bir hata oluştu.';
+};
 
 export default function TransferMarket() {
   const { user } = useAuth();
@@ -152,9 +174,7 @@ export default function TransferMarket() {
       error => {
         if (!isMounted) return;
         console.error('[TransferMarket] marketplace listen error', error);
-        const message = error.message.includes('permission')
-          ? 'Pazar okunamıyor. Kuralları güncelliyor musunuz?'
-          : error.message;
+        const message = resolveMarketplaceErrorMessage(error);
         toast.error(message);
         setListings([]);
         setIsListingsLoading(false);
@@ -187,9 +207,7 @@ export default function TransferMarket() {
       error => {
         if (!isMounted) return;
         console.error('[TransferMarket] my listings listen error', error);
-        const message = error.message.includes('permission')
-          ? 'Pazar okunamıyor. Kuralları güncelliyor musunuz?'
-          : error.message;
+        const message = resolveMarketplaceErrorMessage(error);
         toast.error(message);
         setMyListings([]);
         setIsMyListingsLoading(false);
