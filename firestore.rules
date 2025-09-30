@@ -31,76 +31,8 @@ service cloud.firestore {
     }
 
     match /transferListings/{listingId} {
-      allow read: if true;
-
-      allow create: if isSignedIn()
-                    && request.resource.data.keys().hasOnly([
-                      'player',
-                      'playerId',
-                      'price',
-                      'sellerId',
-                      'sellerTeamName',
-                      'status',
-                      'createdAt',
-                    ])
-                    && request.resource.data.sellerId == request.auth.uid
-                    && request.resource.data.status == 'available'
-                    && request.resource.data.price is number
-                    && request.resource.data.price > 0
-                    && request.resource.data.playerId is string
-                    && request.resource.data.player is map
-                    && request.resource.data.sellerTeamName is string;
-
-      allow update: if isSignedIn()
-                    && resource.data.keys().hasOnly([
-                      'buyerId',
-                      'buyerTeamName',
-                      'createdAt',
-                      'player',
-                      'playerId',
-                      'price',
-                      'sellerId',
-                      'sellerTeamName',
-                      'soldAt',
-                      'status',
-                    ])
-                    && request.resource.data.keys().hasOnly([
-                      'buyerId',
-                      'buyerTeamName',
-                      'createdAt',
-                      'player',
-                      'playerId',
-                      'price',
-                      'sellerId',
-                      'sellerTeamName',
-                      'soldAt',
-                      'status',
-                    ])
-                    && request.resource.data.playerId == resource.data.playerId
-                    && request.resource.data.player == resource.data.player
-                    && request.resource.data.price == resource.data.price
-                    && request.resource.data.sellerId == resource.data.sellerId
-                    && request.resource.data.sellerTeamName == resource.data.sellerTeamName
-                    && (
-                      (
-                        request.auth.uid == resource.data.sellerId
-                        && resource.data.status == 'available'
-                        && request.resource.data.status == 'cancelled'
-                        && !('buyerId' in request.resource.data)
-                        && !('buyerTeamName' in request.resource.data)
-                        && !('soldAt' in request.resource.data)
-                      ) ||
-                      (
-                        request.auth.uid == request.resource.data.buyerId
-                        && resource.data.status == 'available'
-                        && request.resource.data.status == 'sold'
-                        && request.resource.data.buyerId is string
-                        && request.resource.data.buyerTeamName is string
-                        && request.resource.data.soldAt == request.time
-                      )
-                    );
-
-      allow delete: if isSignedIn() && request.auth.uid == resource.data.sellerId;
+      allow read: if isSignedIn();
+      allow create, update, delete: if false;
     }
 
     match /leagues/{leagueId} {
