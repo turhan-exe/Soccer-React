@@ -46,6 +46,10 @@ export interface Player {
   avatar?: string;
   uniqueId?: string;
   order?: number;
+  market?: {
+    active: boolean;
+    listingId?: string | null;
+  } | null;
 }
 
 export interface ClubTeam {
@@ -164,14 +168,22 @@ export interface TransferListing {
   id: string;
   playerId: string;
   player: Player;
+  playerPath?: string;
   price: number;
   sellerId: string;
+  sellerUid?: string;
+  teamId?: string;
   sellerTeamName: string;
   buyerId?: string;
+  buyerUid?: string;
   buyerTeamName?: string;
-  status: 'available' | 'sold' | 'cancelled';
+  status: 'available' | 'active' | 'sold' | 'cancelled';
+  playerName?: string;
+  position?: Position;
+  overall?: number;
   createdAt?: FirestoreTimestamp;
   soldAt?: FirestoreTimestamp;
+  cancelledAt?: FirestoreTimestamp;
 }
 
 export interface User {

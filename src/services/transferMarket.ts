@@ -1,29 +1,20 @@
 import {
-  addDoc,
   collection,
-  doc,
-  getDocs,
   onSnapshot,
   orderBy,
   query,
-  runTransaction,
-  serverTimestamp,
   Unsubscribe,
   where,
 } from 'firebase/firestore';
-import { auth, db } from './firebase';
-import { ClubTeam, Player, TransferListing } from '@/types';
+import { httpsCallable } from 'firebase/functions';
+import { auth, db, functions } from './firebase';
+import { Player, TransferListing } from '@/types';
 
 const COLLECTION_PATH = 'transferListings';
 
 const listingsCollection = collection(db, COLLECTION_PATH);
 
-type TransferListingDoc = Omit<TransferListing, 'id' | 'createdAt' | 'soldAt'> & {
-  createdAt?: TransferListing['createdAt'] | ReturnType<typeof serverTimestamp>;
-  soldAt?: TransferListing['soldAt'] | ReturnType<typeof serverTimestamp>;
-};
-
-type TeamDoc = Pick<ClubTeam, 'players' | 'name'>;
+type TransferListingDoc = Omit<TransferListing, 'id'>;
 
 const sanitizePrice = (price: number) => {
   if (!Number.isFinite(price)) {
@@ -33,7 +24,6 @@ const sanitizePrice = (price: number) => {
 };
 
 export async function createTransferListing(params: {
-  sellerTeamName: string;
   player: Player;
   price: number;
 }): Promise<void> {
@@ -43,7 +33,7 @@ export async function createTransferListing(params: {
   }
 
   const sellerId = currentUser.uid;
-  const { sellerTeamName, player, price } = params;
+  const { player, price } = params;
   const normalizedPrice = sanitizePrice(price);
   if (!player?.id) {
     throw new Error('Oyuncu bilgisi eksik.');
@@ -52,48 +42,54 @@ export async function createTransferListing(params: {
     throw new Error('Fiyat sıfırdan büyük olmalı.');
   }
 
-  const existingSnap = await getDocs(
-    query(
-      listingsCollection,
-      where('sellerId', '==', sellerId),
-      where('playerId', '==', player.id),
-      where('status', '==', 'available'),
-    ),
-  );
-
-  if (!existingSnap.empty) {
-    throw new Error('Bu oyuncu zaten pazarda.');
-  }
-
   const playerId = String(player.id);
-  const sanitizedPlayer: Player = {
-    ...player,
-    id: playerId,
-  };
+  const playerPath = `teams/${sellerId}/players/${playerId}`;
 
-  const payload: TransferListingDoc = {
-    playerId,
-    player: sanitizedPlayer,
-    price: normalizedPrice,
-    sellerId,
-    sellerTeamName,
-    status: 'available',
-    createdAt: serverTimestamp(),
-  };
+  const fn = httpsCallable<
+    { teamId: string; playerId: string; playerPath: string; price: number },
+    { ok?: boolean; listingId?: string; message?: string }
+  >(functions, 'marketCreateListing');
 
-  await addDoc(listingsCollection, payload);
+  try {
+    const { data } = await fn({
+      teamId: sellerId,
+      playerId,
+      playerPath,
+      price: normalizedPrice,
+    });
+    if (!data || data.ok !== true) {
+      const message = (data && 'message' in data && typeof data.message === 'string')
+        ? data.message
+        : 'İlan oluşturulamadı.';
+      throw new Error(message);
+    }
+  } catch (error) {
+    const firebaseError = error as { message?: string; code?: string } | undefined;
+    if (firebaseError && typeof firebaseError.code === 'string') {
+      throw new Error(firebaseError.message || 'İlan oluşturulamadı.');
+    }
+    if (error instanceof Error) {
+      throw error;
+    }
+    throw new Error('İlan oluşturulamadı.');
+  }
 }
 
 export function listenAvailableTransferListings(
   cb: (list: TransferListing[]) => void,
 ): Unsubscribe {
-  const q = query(listingsCollection, where('status', '==', 'available'), orderBy('createdAt', 'desc'));
+  const q = query(listingsCollection, where('status', '==', 'active'), orderBy('createdAt', 'desc'));
   return onSnapshot(q, snapshot => {
     const list: TransferListing[] = snapshot.docs.map(docSnap => {
       const data = docSnap.data() as TransferListingDoc;
+      const status = data.status === 'available' ? 'active' : data.status;
       return {
         id: docSnap.id,
         ...data,
+        status,
+        sellerUid: data.sellerUid ?? data.sellerId,
+        sellerId: data.sellerId ?? data.sellerUid ?? '',
+        teamId: data.teamId ?? data.sellerId ?? data.sellerUid,
       };
     });
     cb(list);
@@ -109,63 +105,60 @@ export async function purchaseTransferListing(params: {
     throw new Error('Giriş bilgisi bulunamadı.');
   }
 
-  const buyerId = currentUser.uid;
   const { listingId, buyerTeamName } = params;
-  const listingRef = doc(db, COLLECTION_PATH, listingId);
 
-  await runTransaction(db, async tx => {
-    const listingSnap = await tx.get(listingRef);
-    if (!listingSnap.exists()) {
-      throw new Error('İlan bulunamadı.');
+  const fn = httpsCallable<
+    { listingId: string; buyerTeamName: string },
+    { ok?: boolean; message?: string }
+  >(functions, 'marketPurchaseListing');
+
+  try {
+    const { data } = await fn({ listingId, buyerTeamName });
+    if (!data || data.ok !== true) {
+      const message = (data && 'message' in data && typeof data.message === 'string')
+        ? data.message
+        : 'Satın alma başarısız.';
+      throw new Error(message);
     }
-
-    const listing = listingSnap.data() as TransferListingDoc;
-    if (listing.status !== 'available') {
-      throw new Error('İlan satışta değil.');
+  } catch (error) {
+    const firebaseError = error as { message?: string; code?: string } | undefined;
+    if (firebaseError && typeof firebaseError.code === 'string') {
+      throw new Error(firebaseError.message || 'Satın alma başarısız.');
     }
-
-    if (listing.sellerId === buyerId) {
-      throw new Error('Kendi oyuncunu satın alamazsın.');
+    if (error instanceof Error) {
+      throw error;
     }
+    throw new Error('Satın alma başarısız.');
+  }
+}
 
-    const sellerRef = doc(db, 'teams', listing.sellerId);
-    const buyerRef = doc(db, 'teams', buyerId);
+export async function cancelTransferListing(listingId: string): Promise<void> {
+  const currentUser = auth.currentUser;
+  if (!currentUser?.uid) {
+    throw new Error('Giriş bilgisi bulunamadı.');
+  }
 
-    const [sellerSnap, buyerSnap] = await Promise.all([tx.get(sellerRef), tx.get(buyerRef)]);
+  const fn = httpsCallable<{ listingId: string }, { ok?: boolean; message?: string }>(
+    functions,
+    'marketCancelListing',
+  );
 
-    if (!sellerSnap.exists()) {
-      throw new Error('Satıcı takım kaydı bulunamadı.');
+  try {
+    const { data } = await fn({ listingId });
+    if (!data || data.ok !== true) {
+      const message = (data && 'message' in data && typeof data.message === 'string')
+        ? data.message
+        : 'İlan iptal edilemedi.';
+      throw new Error(message);
     }
-
-    if (!buyerSnap.exists()) {
-      throw new Error('Alıcı takım kaydı bulunamadı.');
+  } catch (error) {
+    const firebaseError = error as { message?: string; code?: string } | undefined;
+    if (firebaseError && typeof firebaseError.code === 'string') {
+      throw new Error(firebaseError.message || 'İlan iptal edilemedi.');
     }
-
-    const sellerData = sellerSnap.data() as TeamDoc | undefined;
-    const buyerData = buyerSnap.data() as TeamDoc | undefined;
-
-    const sellerPlayers = [...(sellerData?.players ?? [])];
-    const playerIndex = sellerPlayers.findIndex(p => String(p.id) === String(listing.playerId));
-
-    if (playerIndex === -1) {
-      throw new Error('Oyuncu satıcının kadrosunda bulunamadı.');
+    if (error instanceof Error) {
+      throw error;
     }
-
-    const [player] = sellerPlayers.splice(playerIndex, 1);
-    const transferredPlayer: Player = {
-      ...player,
-      squadRole: 'reserve',
-    };
-
-    const buyerPlayers = [...(buyerData?.players ?? []), transferredPlayer];
-
-    tx.update(sellerRef, { players: sellerPlayers });
-    tx.update(buyerRef, { players: buyerPlayers });
-    tx.update(listingRef, {
-      status: 'sold',
-      buyerId,
-      buyerTeamName,
-      soldAt: serverTimestamp(),
-    });
-  });
+    throw new Error('İlan iptal edilemedi.');
+  }
 }
