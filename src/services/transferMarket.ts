@@ -1,9 +1,6 @@
 import {
-  doc,
   onSnapshot,
   query,
-  runTransaction,
-  serverTimestamp,
   type QueryDocumentSnapshot,
   type DocumentData,
   Unsubscribe,
@@ -11,7 +8,7 @@ import {
 } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { auth, db, functions } from './firebase';
-import { Player, TransferListing, type ClubTeam } from '@/types';
+import { Player, TransferListing } from '@/types';
 import {
   LISTINGS_PATH,
   buildTransferListingsQuery,
@@ -160,138 +157,47 @@ export function listenUserTransferListings(
   });
 }
 
-async function purchaseTransferListingClient(params: {
-  listingId: string;
-  buyerUid: string;
-  buyerTeamName: string;
-}): Promise<void> {
-  const { listingId, buyerUid, buyerTeamName } = params;
-  const listingRef = doc(db, LISTINGS_PATH, listingId);
-  const buyerTeamRef = doc(db, 'teams', buyerUid);
-
-  await runTransaction(db, async transaction => {
-    const listingSnap = await transaction.get(listingRef);
-    if (!listingSnap.exists()) {
-      throw new Error('İlan bulunamadı.');
-    }
-
-    const listingData = listingSnap.data() as TransferListingDoc;
-    const status = listingData.status ?? 'active';
-    if (status !== 'active' && status !== 'available') {
-      throw new Error('İlan satışta değil.');
-    }
-
-    const playerData = (listingData.player ?? null) as Player | null;
-    const playerId = String(listingData.playerId ?? playerData?.id ?? '');
-    if (!playerData || !playerId) {
-      throw new Error('Oyuncu bilgisi eksik.');
-    }
-
-    const price = Number(listingData.price ?? 0);
-    if (!Number.isFinite(price) || price <= 0) {
-      throw new Error('İlan fiyatı geçersiz.');
-    }
-
-    const buyerSnap = await transaction.get(buyerTeamRef);
-    if (!buyerSnap.exists()) {
-      throw new Error('Takım bilgisi bulunamadı.');
-    }
-
-    const buyerData = buyerSnap.data() as ClubTeam & { players?: Player[] };
-    const buyerBudget = Number.isFinite(buyerData?.budget) ? Number(buyerData?.budget) : 0;
-    if (buyerBudget < price) {
-      throw new Error('Bütçe yetersiz.');
-    }
-
-    const buyerPlayers = Array.isArray(buyerData?.players) ? [...(buyerData.players ?? [])] : [];
-    const hasPlayer = buyerPlayers.some(existing => existing.id === playerId);
-    const normalizedPlayer: Player = {
-      ...playerData,
-      id: playerId,
-      squadRole: playerData.squadRole ?? 'reserve',
-      market: { active: false, listingId: null },
-    };
-    const updatedBuyerPlayers = hasPlayer ? buyerPlayers : [...buyerPlayers, normalizedPlayer];
-
-    transaction.update(buyerTeamRef, {
-      players: updatedBuyerPlayers,
-      budget: buyerBudget - price,
-    });
-
-    transaction.update(listingRef, {
-      status: 'sold',
-      buyerUid,
-      buyerId: buyerUid,
-      buyerTeamName,
-      soldAt: serverTimestamp(),
-      playerId,
-    });
-
-    const sellerTeamId = listingData.teamId ?? listingData.sellerId ?? listingData.sellerUid;
-    if (sellerTeamId && sellerTeamId !== buyerUid) {
-      const sellerRef = doc(db, 'teams', sellerTeamId);
-      const sellerSnap = await transaction.get(sellerRef);
-      if (sellerSnap.exists()) {
-        const sellerData = sellerSnap.data() as ClubTeam & { players?: Player[] };
-        const sellerBudget = Number.isFinite(sellerData?.budget) ? Number(sellerData?.budget) : 0;
-        const sellerPlayers = Array.isArray(sellerData?.players)
-          ? sellerData.players.filter(existing => existing.id !== playerId)
-          : [];
-
-        transaction.update(sellerRef, {
-          budget: sellerBudget + price,
-          players: sellerPlayers,
-        });
-      }
-    }
-  });
-}
-
-export async function purchaseTransferListing(params: {
-  listingId: string;
-  buyerTeamName: string;
-}): Promise<void> {
+export async function purchaseTransferListing(listingId: string, buyerTeamId: string) {
   const currentUser = auth.currentUser;
   if (!currentUser?.uid) {
     throw new Error('Giriş bilgisi bulunamadı.');
   }
 
-  const { listingId, buyerTeamName } = params;
-  const buyerUid = currentUser.uid;
+  if (!buyerTeamId) {
+    throw new Error('Satın alma için takım bilgisi gerekli.');
+  }
 
   const fn = httpsCallable<
-    { listingId: string; buyerTeamName: string },
-    { ok?: boolean; message?: string }
+    { listingId: string; buyerTeamId: string; purchaseId: string },
+    { ok?: boolean; listingId?: string; soldAt?: string }
   >(functions, 'marketPurchaseListing');
 
   try {
-    const { data } = await fn({ listingId, buyerTeamName });
+    const payload = {
+      listingId,
+      buyerTeamId,
+      purchaseId:
+        typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+          ? crypto.randomUUID()
+          : `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    };
+    const { data } = await fn(payload);
     if (!data || data.ok !== true) {
-      const message = (data && 'message' in data && typeof data.message === 'string')
-        ? data.message
-        : 'Satın alma başarısız.';
-      throw new Error(message);
+      throw new Error('Satın alma başarısız.');
     }
+    return data;
   } catch (error) {
-    const firebaseError = error as { message?: string; code?: string } | undefined;
-    const shouldFallback = firebaseError
-      ? firebaseError.code === 'functions/unimplemented' ||
-        firebaseError.code === 'functions/unavailable' ||
-        firebaseError.code === 'functions/not-found'
-      : true;
-
-    if (shouldFallback) {
-      await purchaseTransferListingClient({ listingId, buyerUid, buyerTeamName });
-      return;
-    }
-
-    if (firebaseError && typeof firebaseError.code === 'string') {
-      throw new Error(firebaseError.message || 'Satın alma başarısız.');
-    }
-    if (error instanceof Error) {
-      throw error;
-    }
-    throw new Error('Satın alma başarısız.');
+    const err = error as { code?: string; message?: string; details?: string } | undefined;
+    const code = err?.code || err?.details || 'internal';
+    const map: Record<string, string> = {
+      'resource-exhausted': 'Bütçe yetersiz.',
+      'failed-precondition': 'İlan artık satın alınamaz (satıldı veya kullanım dışı).',
+      'permission-denied': 'Bu takımla işlem yapma yetkin yok.',
+      'not-found': 'İlan veya oyuncu bulunamadı.',
+      'unauthenticated': 'Giriş yapmalısın.',
+      internal: 'Sunucu hatası. Lütfen tekrar deneyin.',
+    };
+    throw new Error(map[code] || err?.message || 'Satın alma başarısız.');
   }
 }
 

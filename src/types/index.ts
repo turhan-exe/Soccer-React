@@ -58,7 +58,9 @@ export interface ClubTeam {
   manager: string;
   kitHome: string;
   kitAway: string;
+  /** @deprecated use transferBudget */
   budget?: number;
+  transferBudget?: number;
   players: Player[];
   plan?: {
     formation: string;
