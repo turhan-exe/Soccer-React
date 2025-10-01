@@ -995,8 +995,8 @@ export default function TeamPlanning() {
                 <SelectValue placeholder="SÄ±rala" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="role">Role gÃ¶re</SelectItem>
-                <SelectItem value="overall">Ortalamaya gÃ¶re</SelectItem>
+                <SelectItem value="role">Role göre</SelectItem>
+                <SelectItem value="overall">Ortalamaya göre</SelectItem>
                 <SelectItem value="potential">Maks. potansiyel</SelectItem>
               </SelectContent>
             </Select>
