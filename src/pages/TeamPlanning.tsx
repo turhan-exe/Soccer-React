@@ -1,11 +1,11 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { PlayerCard } from '@/components/ui/player-card';
 import { PerformanceGauge, clampPerformanceGauge } from '@/components/ui/performance-gauge';
-import { Player } from '@/types';
+import { Player, CustomFormationMap } from '@/types';
 import { getTeam, saveTeamPlayers, createInitialTeam } from '@/services/team';
 import { useAuth } from '@/contexts/AuthContext';
 import { Search, Save, Eye, ArrowUp } from 'lucide-react';
@@ -23,6 +23,7 @@ import { calculatePowerIndex } from '@/lib/player';
 import { cn } from '@/lib/utils';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { BackButton } from '@/components/ui/back-button';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 const DEFAULT_GAUGE_VALUE = 0.75;
 
@@ -65,6 +66,21 @@ const POSITION_ALIAS_MAP: Record<string, Player['position']> = {
   LY: 'LB',
 };
 
+type FormationPlayerPosition = {
+  x: number;
+  y: number;
+  position: Player['position'];
+};
+
+type CustomFormationState = CustomFormationMap;
+
+const clampPercentageValue = (value: number): number => {
+  if (!Number.isFinite(value)) {
+    return 0;
+  }
+  return Math.min(100, Math.max(0, value));
+};
+
 const squadRoleWeight = (role?: Player['squadRole'] | 'youth'): number => {
   switch (role) {
     case 'starting':
@@ -92,6 +108,54 @@ const canonicalPosition = (value?: string | null): Player['position'] => {
   return 'CM';
 };
 
+const parsePercentage = (value: unknown): number => {
+  const numeric = typeof value === 'number' ? value : Number(value);
+  if (!Number.isFinite(numeric)) {
+    return 0;
+  }
+  return clampPercentageValue(numeric);
+};
+
+const sanitizeCustomFormationState = (input: unknown): CustomFormationState => {
+  if (!input || typeof input !== 'object') {
+    return {};
+  }
+
+  const sanitized: CustomFormationState = {};
+
+  Object.entries(input as Record<string, unknown>).forEach(([formationKey, layout]) => {
+    if (!layout || typeof layout !== 'object') {
+      return;
+    }
+
+    const sanitizedLayout: Record<string, FormationPlayerPosition> = {};
+
+    Object.entries(layout as Record<string, unknown>).forEach(([playerId, value]) => {
+      if (!value || typeof value !== 'object') {
+        return;
+      }
+
+      const x = parsePercentage((value as { x?: unknown }).x);
+      const y = parsePercentage((value as { y?: unknown }).y);
+      const rawPosition = (value as { position?: unknown }).position;
+      const normalizedPosition =
+        typeof rawPosition === 'string' ? canonicalPosition(rawPosition) : 'CM';
+
+      sanitizedLayout[String(playerId)] = {
+        x,
+        y,
+        position: normalizedPosition,
+      };
+    });
+
+    if (Object.keys(sanitizedLayout).length > 0) {
+      sanitized[String(formationKey)] = sanitizedLayout;
+    }
+  });
+
+  return sanitized;
+};
+
 function normalizePlayer(player: Player): Player {
   return {
     ...player,
@@ -109,6 +173,8 @@ type PromoteToStartingResult = {
   players: Player[];
   error?: string;
   updated: boolean;
+  swappedPlayerId?: string | null;
+  targetPosition?: Player['position'];
 };
 
 function promotePlayerToStartingRoster(
@@ -131,7 +197,7 @@ function promotePlayerToStartingRoster(
     (!targetPosition || player.position === targetPosition);
 
   if (isAlreadyStartingSameSpot) {
-    return { players: roster, updated: false };
+    return { players: roster, updated: false, targetPosition: canonicalTarget };
   }
 
   const startersCount = roster.filter(p => p.squadRole === 'starting').length;
@@ -151,6 +217,7 @@ function promotePlayerToStartingRoster(
   }
 
   const updatedRoster = [...roster];
+  let swappedPlayerId: string | null = null;
   updatedRoster[playerIndex] = {
     ...player,
     position: desiredPosition,
@@ -158,13 +225,19 @@ function promotePlayerToStartingRoster(
   };
 
   if (occupantIndex !== -1 && currentRole !== 'starting') {
+    swappedPlayerId = roster[occupantIndex].id;
     updatedRoster[occupantIndex] = {
       ...roster[occupantIndex],
       squadRole: currentRole,
     };
   }
 
-  return { players: normalizePlayers(updatedRoster), updated: true };
+  return {
+    players: normalizePlayers(updatedRoster),
+    updated: true,
+    swappedPlayerId,
+    targetPosition: canonicalTarget,
+  };
 }
 
 function playerInitials(name: string): string {
@@ -199,10 +272,15 @@ export default function TeamPlanning() {
   const [searchTerm, setSearchTerm] = useState('');
   const [activeTab, setActiveTab] = useState('starting');
   const [selectedFormation, setSelectedFormation] = useState(formations[0].name);
+  const [customFormations, setCustomFormations] = useState<CustomFormationState>({});
 
   const [draggedPlayerId, setDraggedPlayerId] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<'role' | 'overall' | 'potential'>('role');
   const [focusedPlayerId, setFocusedPlayerId] = useState<string | null>(null);
+  const [comparisonPlayerId, setComparisonPlayerId] = useState<string | null>(null);
+
+  const pitchRef = useRef<HTMLDivElement | null>(null);
+  const dropHandledRef = useRef(false);
 
 
   const filteredPlayers = players.filter(
@@ -238,9 +316,75 @@ export default function TeamPlanning() {
     }
   });
 
+  const removePlayerFromCustomFormations = (playerId: string) => {
+    setCustomFormations(prev => {
+      let changed = false;
+      const nextEntries: [string, Record<string, FormationPlayerPosition>][] = [];
+
+      Object.entries(prev).forEach(([formationKey, layout]) => {
+        if (!layout || typeof layout !== 'object') {
+          return;
+        }
+
+        if (playerId in layout) {
+          const { [playerId]: _removed, ...rest } = layout;
+          changed = true;
+          if (Object.keys(rest).length > 0) {
+            nextEntries.push([
+              formationKey,
+              rest as Record<string, FormationPlayerPosition>,
+            ]);
+          }
+        } else {
+          nextEntries.push([formationKey, layout]);
+        }
+      });
+
+      if (!changed) {
+        return prev;
+      }
+
+      return Object.fromEntries(nextEntries) as CustomFormationState;
+    });
+  };
+
+  const updatePlayerManualPosition = (
+    formationName: string,
+    playerId: string,
+    data: FormationPlayerPosition,
+  ) => {
+    setCustomFormations(prev => {
+      const currentFormation = prev[formationName] ?? {};
+      const normalized: FormationPlayerPosition = {
+        x: clampPercentageValue(data.x),
+        y: clampPercentageValue(data.y),
+        position: data.position,
+      };
+
+      const existing = currentFormation[playerId];
+      if (
+        existing &&
+        existing.x === normalized.x &&
+        existing.y === normalized.y &&
+        existing.position === normalized.position
+      ) {
+        return prev;
+      }
+
+      return {
+        ...prev,
+        [formationName]: {
+          ...currentFormation,
+          [playerId]: normalized,
+        },
+      };
+    });
+  };
+
   const movePlayer = (playerId: string, newRole: Player['squadRole']) => {
     let errorMessage: string | null = null;
     let changed = false;
+    let swappedPlayerId: string | null = null;
 
     setPlayers(prev => {
       const playerIndex = prev.findIndex(player => player.id === playerId);
@@ -260,6 +404,7 @@ export default function TeamPlanning() {
           return prev;
         }
         changed = true;
+        swappedPlayerId = result.swappedPlayerId ?? null;
         return result.players;
       }
 
@@ -279,8 +424,139 @@ export default function TeamPlanning() {
     if (errorMessage) {
       toast.error('lem tamamlanamad', { description: errorMessage });
     } else if (changed) {
+      if (newRole !== 'starting') {
+        removePlayerFromCustomFormations(playerId);
+      } else if (swappedPlayerId) {
+        removePlayerFromCustomFormations(swappedPlayerId);
+      }
       toast.success('Oyuncu baaryla tand');
     }
+  };
+
+  const getPitchCoordinates = (clientX: number, clientY: number): FormationPlayerPosition | null => {
+    const field = pitchRef.current;
+    if (!field) {
+      return null;
+    }
+    const rect = field.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) {
+      return null;
+    }
+
+    const relativeX = ((clientX - rect.left) / rect.width) * 100;
+    const relativeY = ((clientY - rect.top) / rect.height) * 100;
+
+    if (Number.isNaN(relativeX) || Number.isNaN(relativeY)) {
+      return null;
+    }
+
+    if (clientX < rect.left || clientX > rect.right || clientY < rect.top || clientY > rect.bottom) {
+      return null;
+    }
+
+    return {
+      x: clampPercentageValue(relativeX),
+      y: clampPercentageValue(relativeY),
+      position: 'CM',
+    };
+  };
+
+  const handlePitchDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    const playerId = e.dataTransfer.getData('text/plain') || draggedPlayerId;
+    if (!playerId) {
+      return;
+    }
+
+    const player = players.find(p => p.id === playerId);
+    if (!player) {
+      return;
+    }
+
+    const coordinates = getPitchCoordinates(e.clientX, e.clientY);
+    if (!coordinates) {
+      setDraggedPlayerId(null);
+      return;
+    }
+
+    dropHandledRef.current = true;
+
+    if (player.squadRole === 'starting') {
+      updatePlayerManualPosition(selectedFormation, playerId, {
+        x: coordinates.x,
+        y: coordinates.y,
+        position: player.position,
+      });
+      setFocusedPlayerId(playerId);
+      toast.success('Oyuncu sahada yeniden konumlandırıldı');
+      setDraggedPlayerId(null);
+      return;
+    }
+
+    let errorMessage: string | null = null;
+    let updated = false;
+    let result: PromoteToStartingResult | null = null;
+
+    setPlayers(prev => {
+      const promotion = promotePlayerToStartingRoster(prev, playerId);
+      result = promotion;
+      if (promotion.error) {
+        errorMessage = promotion.error;
+        return prev;
+      }
+      if (!promotion.updated) {
+        return prev;
+      }
+      updated = true;
+      return promotion.players;
+    });
+
+    if (errorMessage) {
+      toast.error('Oyuncu eklenemedi', { description: errorMessage });
+    } else if (updated) {
+      updatePlayerManualPosition(selectedFormation, playerId, {
+        x: coordinates.x,
+        y: coordinates.y,
+        position: player.position,
+      });
+      if (result?.swappedPlayerId) {
+        removePlayerFromCustomFormations(result.swappedPlayerId);
+      }
+      setFocusedPlayerId(playerId);
+      toast.success('Oyuncu sahada konumlandırıldı');
+    }
+
+    setDraggedPlayerId(null);
+  };
+
+  const handlePlayerDragEnd = (
+    event: React.DragEvent<HTMLDivElement>,
+    player: Player,
+  ) => {
+    setDraggedPlayerId(null);
+    if (dropHandledRef.current) {
+      dropHandledRef.current = false;
+      return;
+    }
+
+    if (player.squadRole !== 'starting') {
+      return;
+    }
+
+    if (event.clientX === 0 && event.clientY === 0) {
+      return;
+    }
+
+    const coordinates = getPitchCoordinates(event.clientX, event.clientY);
+    if (!coordinates) {
+      return;
+    }
+
+    updatePlayerManualPosition(selectedFormation, player.id, {
+      x: coordinates.x,
+      y: coordinates.y,
+      position: player.position,
+    });
   };
 
   const handleListForTransfer = (playerId: string) => {
@@ -289,6 +565,7 @@ export default function TeamPlanning() {
 
   const handleReleasePlayer = (playerId: string) => {
     let removedName: string | null = null;
+    removePlayerFromCustomFormations(playerId);
     setPlayers(prev => {
       const player = prev.find(p => p.id === playerId);
       if (!player) {
@@ -326,6 +603,32 @@ export default function TeamPlanning() {
       const bench = unique(collectIds('bench')).filter(id => !starters.includes(id));
       const reserves = unique(collectIds('reserve')).filter(id => !starters.includes(id) && !bench.includes(id));
 
+      const startersSet = new Set(starters);
+      const customForSave = Object.fromEntries(
+        Object.entries(customFormations).flatMap(([formationKey, layout]) => {
+          if (!layout || typeof layout !== 'object') {
+            return [];
+          }
+          const filteredEntries = Object.entries(layout).filter(([playerId]) =>
+            startersSet.has(playerId),
+          );
+          if (filteredEntries.length === 0) {
+            return [];
+          }
+          const sanitizedLayout = Object.fromEntries(
+            filteredEntries.map(([playerId, value]) => [
+              playerId,
+              {
+                x: clampPercentageValue(value.x),
+                y: clampPercentageValue(value.y),
+                position: value.position,
+              },
+            ]),
+          );
+          return [[formationKey, sanitizedLayout]];
+        }),
+      ) as CustomFormationState;
+
       // Persist full roster and snapshot locally for Firestore
       await saveTeamPlayers(user.id, players, {
         formation: selectedFormation,
@@ -334,6 +637,8 @@ export default function TeamPlanning() {
           bench,
           reserves,
         },
+        customFormations:
+          Object.keys(customForSave).length > 0 ? customForSave : undefined,
       });
 
       toast.success('TakÄ±m planÄ± kaydedildi!');
@@ -363,6 +668,11 @@ export default function TeamPlanning() {
       const remoteFormation =
         team.plan?.formation || team.lineup?.formation || formations[0].name;
       setSelectedFormation(remoteFormation);
+
+      const remoteCustomFormations = sanitizeCustomFormationState(
+        team.plan?.customFormations || team.lineup?.customFormations || {},
+      );
+      setCustomFormations(remoteCustomFormations);
     })();
   }, [user]);
 
@@ -382,6 +692,42 @@ export default function TeamPlanning() {
     }
   }, [players, focusedPlayerId]);
 
+  useEffect(() => {
+    if (players.length === 0) {
+      return;
+    }
+
+    setCustomFormations(prev => {
+      const startingIds = new Set(
+        players.filter(player => player.squadRole === 'starting').map(player => player.id),
+      );
+
+      let changed = false;
+      const next: CustomFormationState = {};
+
+      Object.entries(prev).forEach(([formationKey, layout]) => {
+        const filteredEntries = Object.entries(layout).filter(([playerId]) =>
+          startingIds.has(playerId),
+        );
+
+        if (filteredEntries.length > 0) {
+          next[formationKey] = Object.fromEntries(filteredEntries);
+          if (filteredEntries.length !== Object.keys(layout).length) {
+            changed = true;
+          }
+        } else if (Object.keys(layout).length > 0) {
+          changed = true;
+        }
+      });
+
+      if (!changed) {
+        return prev;
+      }
+
+      return next;
+    });
+  }, [players]);
+
   const startingEleven = players.filter(p => p.squadRole === 'starting');
   const benchPlayers = players.filter(p => p.squadRole === 'bench');
   const reservePlayers = players.filter(p => p.squadRole === 'reserve');
@@ -389,31 +735,117 @@ export default function TeamPlanning() {
   const currentFormation =
     formations.find(f => f.name === selectedFormation) ?? formations[0];
 
-  const prioritizedPlayers = useMemo(() => {
-    const indexMap = new Map(players.map((p, idx) => [p.id, idx]));
-    return [...players].sort((a, b) => {
-      const roleDiff = squadRoleWeight(a.squadRole) - squadRoleWeight(b.squadRole);
-      if (roleDiff !== 0) return roleDiff;
-      return (indexMap.get(a.id) ?? 0) - (indexMap.get(b.id) ?? 0);
-    });
-  }, [players]);
+  const manualFormation = useMemo(
+    () => customFormations[selectedFormation] ?? {},
+    [customFormations, selectedFormation],
+  );
 
   const formationPositions = useMemo(() => {
-    const used = new Set<string>();
-    return currentFormation.positions.map(pos => {
-      const target = canonicalPosition(pos.position);
-      const directMatch = prioritizedPlayers.find(
-        player => !used.has(player.id) && canonicalPosition(player.position) === target
-      );
-      const roleMatch = prioritizedPlayers.find(
-        player =>
-          !used.has(player.id) && (player.roles ?? []).some(role => canonicalPosition(role) === target)
-      );
-      const player = directMatch ?? roleMatch ?? null;
-      if (player) used.add(player.id);
-      return { ...pos, player };
+    const starters = players.filter(p => p.squadRole === 'starting');
+    const slots = currentFormation.positions;
+
+    if (starters.length === 0) {
+      return slots.map((slot, idx) => ({ ...slot, player: null, slotIndex: idx }));
+    }
+
+    const startersById = new Map(starters.map(player => [player.id, player] as const));
+    const remainingPlayerIds = new Set(starters.map(player => player.id));
+    const slotAssignments = new Map<
+      number,
+      { player: Player; manual: FormationPlayerPosition | null }
+    >();
+
+    Object.entries(manualFormation).forEach(([playerId, manual]) => {
+      const player = startersById.get(playerId);
+      if (!player) {
+        return;
+      }
+
+      const targetIndex = slots.findIndex((slot, idx) => {
+        if (slotAssignments.has(idx)) {
+          return false;
+        }
+        const canonicalSlot = canonicalPosition(slot.position);
+        const manualPosition = manual?.position ?? player.position;
+        return canonicalPosition(manualPosition) === canonicalSlot;
+      });
+
+      if (targetIndex === -1) {
+        return;
+      }
+
+      slotAssignments.set(targetIndex, { player, manual });
+      remainingPlayerIds.delete(playerId);
     });
-  }, [currentFormation, prioritizedPlayers]);
+
+    slots.forEach((slot, idx) => {
+      if (slotAssignments.has(idx)) {
+        return;
+      }
+
+      const canonicalSlot = canonicalPosition(slot.position);
+      const matchingEntry = Array.from(remainingPlayerIds).find(playerId => {
+        const candidate = startersById.get(playerId);
+        if (!candidate) return false;
+        const playerPosition = canonicalPosition(candidate.position);
+        if (playerPosition === canonicalSlot) {
+          return true;
+        }
+        return (candidate.roles ?? []).some(role => canonicalPosition(role) === canonicalSlot);
+      });
+
+      if (!matchingEntry) {
+        return;
+      }
+
+      const player = startersById.get(matchingEntry);
+      if (!player) {
+        return;
+      }
+
+      slotAssignments.set(idx, { player, manual: null });
+      remainingPlayerIds.delete(matchingEntry);
+    });
+
+    slots.forEach((slot, idx) => {
+      if (slotAssignments.has(idx) || remainingPlayerIds.size === 0) {
+        return;
+      }
+
+      const iterator = remainingPlayerIds.values().next();
+      if (iterator.done) {
+        return;
+      }
+
+      const player = startersById.get(iterator.value);
+      remainingPlayerIds.delete(iterator.value);
+      if (!player) {
+        return;
+      }
+
+      slotAssignments.set(idx, { player, manual: null });
+    });
+
+    return slots.map((slot, idx) => {
+      const assigned = slotAssignments.get(idx);
+      if (!assigned) {
+        return { ...slot, player: null, slotIndex: idx };
+      }
+
+      const { player, manual } = assigned;
+      if (!manual) {
+        return { ...slot, player, slotIndex: idx };
+      }
+
+      return {
+        position: slot.position,
+        x: clampPercentageValue(manual.x),
+        y: clampPercentageValue(manual.y),
+        player,
+        slotIndex: idx,
+      };
+    });
+  }, [currentFormation, manualFormation, players]);
 
   const selectedPlayer = useMemo(() => {
     if (!focusedPlayerId) return null;
@@ -421,6 +853,35 @@ export default function TeamPlanning() {
   }, [players, focusedPlayerId]);
 
   const selectedPower = selectedPlayer ? getPlayerPower(selectedPlayer) : 0;
+
+  const alternativePlayers = useMemo(() => {
+    if (!selectedPlayer) {
+      return [] as Player[];
+    }
+
+    const target = canonicalPosition(selectedPlayer.position);
+
+    return players.filter(player => {
+      if (player.id === selectedPlayer.id) {
+        return false;
+      }
+      if (player.squadRole !== 'bench' && player.squadRole !== 'reserve') {
+        return false;
+      }
+      const primary = canonicalPosition(player.position);
+      if (primary === target) {
+        return true;
+      }
+      return (player.roles ?? []).some(role => canonicalPosition(role) === target);
+    });
+  }, [players, selectedPlayer]);
+
+  const comparisonPlayer = useMemo(() => {
+    if (!comparisonPlayerId) {
+      return null;
+    }
+    return players.find(player => player.id === comparisonPlayerId) ?? null;
+  }, [players, comparisonPlayerId]);
 
   const startingAverages = useMemo(() => {
     const starters = players.filter(p => p.squadRole === 'starting');
@@ -446,28 +907,41 @@ export default function TeamPlanning() {
 
   const handlePositionDrop = (
     e: React.DragEvent<HTMLDivElement>,
-    targetPosition: Player['position'],
+    slot: { position: Player['position']; x: number; y: number; slotIndex: number },
   ) => {
+    e.preventDefault();
+    e.stopPropagation();
     const playerId = e.dataTransfer.getData('text/plain') || draggedPlayerId;
     if (!playerId) return;
     let errorMessage: string | null = null;
     let updated = false;
+    let result: PromoteToStartingResult | null = null;
     setPlayers(prev => {
-      const result = promotePlayerToStartingRoster(prev, playerId, targetPosition);
-      if (result.error) {
-        errorMessage = result.error;
+      const promotion = promotePlayerToStartingRoster(prev, playerId, slot.position);
+      result = promotion;
+      if (promotion.error) {
+        errorMessage = promotion.error;
         return prev;
       }
-      if (!result.updated) {
+      if (!promotion.updated) {
         return prev;
       }
       updated = true;
-      return result.players;
+      return promotion.players;
     });
 
     if (errorMessage) {
       toast.error('Pozisyon gncellenemedi', { description: errorMessage });
     } else if (updated) {
+      dropHandledRef.current = true;
+      updatePlayerManualPosition(selectedFormation, playerId, {
+        x: slot.x,
+        y: slot.y,
+        position: slot.position,
+      });
+      if (result?.swappedPlayerId) {
+        removePlayerFromCustomFormations(result.swappedPlayerId);
+      }
       setFocusedPlayerId(playerId);
       toast.success('Oyuncu ilk 11\'e tand');
     }
@@ -556,7 +1030,12 @@ export default function TeamPlanning() {
               <div className="relative z-10 w-full max-w-full flex-shrink-0">
                 <div className="relative aspect-[3/4] overflow-hidden rounded-2xl bg-gradient-to-b from-emerald-600 via-emerald-700 to-emerald-800 shadow-[0_20px_45px_-25px_rgba(16,80,40,0.8)] sm:aspect-[2/3] lg:aspect-[3/4]">
                   <div className="absolute inset-0 p-5">
-                    <div className="relative h-full w-full">
+                    <div
+                      ref={pitchRef}
+                      className="relative h-full w-full"
+                      onDragOver={e => e.preventDefault()}
+                      onDrop={handlePitchDrop}
+                    >
                       <div className="absolute inset-0 opacity-80">
                         <svg
                           viewBox="0 0 100 100"
@@ -578,24 +1057,27 @@ export default function TeamPlanning() {
                         <ArrowUp className="h-24 w-24 text-white/15" />
                       </div>
                       <div className="absolute inset-0">
-                        {formationPositions.map(({ player, position, x, y }, idx) => (
+                        {formationPositions.map(({ player, position, x, y, slotIndex }) => (
                           <div
-                            key={idx}
+                            key={slotIndex}
                             className="absolute text-center"
                             style={{
                               left: `${x}%`,
                               top: `${y}%`,
                               transform: 'translate(-50%, -50%)',
                             }}
-                            onDragOver={e => e.preventDefault()}
-                            onDrop={e => handlePositionDrop(e, position)}
+                            onDragOver={e => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                            }}
+                            onDrop={e => handlePositionDrop(e, { position, x, y, slotIndex })}
                           >
                             {player ? (
                               <Tooltip>
                                 <TooltipTrigger asChild>
                                   <div
                                     className={cn(
-                                      'flex h-12 w-12 items-center justify-center rounded-full border border-white/30 bg-white/85 text-[9px] font-semibold text-emerald-900 shadow transition-all duration-150 cursor-grab',
+                                      'flex h-16 w-16 items-center justify-center rounded-full border border-white/30 bg-white/85 px-2 text-[10px] font-semibold text-emerald-900 shadow transition-all duration-150 cursor-grab leading-tight text-center',
                                       player.id === focusedPlayerId
                                         ? 'ring-4 ring-white/80 ring-offset-2 ring-offset-emerald-600 shadow-lg'
                                         : 'hover:ring-2 hover:ring-white/70'
@@ -614,10 +1096,10 @@ export default function TeamPlanning() {
                                       setDraggedPlayerId(player.id);
                                       e.dataTransfer.setData('text/plain', player.id);
                                     }}
-                                    onDragEnd={() => setDraggedPlayerId(null)}
+                                    onDragEnd={event => handlePlayerDragEnd(event, player)}
                                   >
-                                    <span className="px-1 text-center leading-tight">
-                                      {playerInitials(player.name)}
+                                    <span className="block max-h-[3rem] overflow-hidden text-ellipsis">
+                                      {player.name}
                                     </span>
                                   </div>
                                 </TooltipTrigger>
@@ -629,7 +1111,7 @@ export default function TeamPlanning() {
                                 </TooltipContent>
                               </Tooltip>
                             ) : (
-                              <div className="flex h-12 w-12 items-center justify-center rounded-full border border-dashed border-white/50 bg-white/20 text-[9px] font-semibold uppercase tracking-wide text-white">
+                              <div className="flex h-16 w-16 items-center justify-center rounded-full border border-dashed border-white/50 bg-white/20 px-2 text-[10px] font-semibold uppercase tracking-wide text-white">
                                 {position}
                               </div>
                             )}
@@ -660,6 +1142,27 @@ export default function TeamPlanning() {
                         <PerformanceGauge label="GÃ¼Ã§" value={selectedPower} variant="dark" />
                         <PerformanceGauge label="Kondisyon" value={getPlayerCondition(selectedPlayer)} variant="dark" />
                         <PerformanceGauge label="Motivasyon" value={getPlayerMotivation(selectedPlayer)} variant="dark" />
+                      </div>
+                      <div className="space-y-2">
+                        <p className="text-xs uppercase tracking-wide text-white/70">Alternatifler</p>
+                        {alternativePlayers.length > 0 ? (
+                          <div className="flex flex-wrap gap-2">
+                            {alternativePlayers.map(alternative => (
+                              <button
+                                key={alternative.id}
+                                type="button"
+                                onClick={() => setComparisonPlayerId(alternative.id)}
+                                className="flex h-12 w-12 items-center justify-center rounded-full border border-white/30 bg-white/15 px-2 text-[10px] font-semibold text-white transition hover:border-white/60"
+                              >
+                                <span className="line-clamp-2 leading-tight">{alternative.name}</span>
+                              </button>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-xs text-white/60">
+                            Bu pozisyon için bench veya rezerv oyuncu yok.
+                          </p>
+                        )}
                       </div>
                     </div>
                   ) : (
@@ -798,6 +1301,28 @@ export default function TeamPlanning() {
         </div>
         </div>
       </div>
+      <Dialog
+        open={Boolean(comparisonPlayer)}
+        onOpenChange={open => {
+          if (!open) {
+            setComparisonPlayerId(null);
+          }
+        }}
+      >
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>{comparisonPlayer?.name}</DialogTitle>
+          </DialogHeader>
+          {comparisonPlayer ? (
+            <PlayerCard
+              player={comparisonPlayer}
+              showActions={false}
+              compact={false}
+              defaultCollapsed={false}
+            />
+          ) : null}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

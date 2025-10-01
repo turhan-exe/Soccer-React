@@ -1,12 +1,21 @@
 import { doc, setDoc, getDoc, runTransaction } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { db, functions } from '@/services/firebase';
-import { Player, ClubTeam } from '@/types';
+import { Player, ClubTeam, CustomFormationMap } from '@/types';
 import { generateRandomName } from '@/lib/names';
 import { calculateOverall, getRoles } from '@/lib/player';
 import { formations } from '@/lib/formations';
 
 const positions: Player['position'][] = ['GK','CB','LB','RB','CM','LM','RM','CAM','LW','RW','ST'];
+
+const clampPercentage = (value: unknown): number => {
+  const numeric = typeof value === 'number' ? value : Number(value);
+  if (!Number.isFinite(numeric)) {
+    return 0;
+  }
+  const clamped = Math.max(0, Math.min(100, numeric));
+  return Number(clamped.toFixed(4));
+};
 
 const randomAttr = () => parseFloat(Math.random().toFixed(3));
 const randomGauge = () => parseFloat((0.6 + Math.random() * 0.4).toFixed(3));
@@ -133,13 +142,14 @@ type TeamPlanUpdate = {
     bench?: string[];
     reserves?: string[];
   };
+  customFormations?: CustomFormationMap;
 };
 
 export const saveTeamPlayers = async (userId: string, players: Player[], plan?: TeamPlanUpdate) => {
   const payload: Record<string, unknown> = { players };
 
   if (plan) {
-    const { formation, squads, tactics } = plan;
+    const { formation, squads, tactics, customFormations } = plan;
     const dedupe = (list?: string[]) =>
       Array.from(new Set((list ?? []).map(id => String(id)))).filter(Boolean);
 
@@ -155,6 +165,7 @@ export const saveTeamPlayers = async (userId: string, players: Player[], plan?: 
     };
 
     const rosterIds = new Set(players.map(player => String(player.id)));
+    const allowedStarterIds = new Set(sanitizedSquads.starters);
     const unknownIds = [
       ...sanitizedSquads.starters,
       ...sanitizedSquads.bench,
@@ -169,12 +180,60 @@ export const saveTeamPlayers = async (userId: string, players: Player[], plan?: 
     const sanitizedTactics =
       tactics && typeof tactics === 'object' ? (tactics as Record<string, unknown>) : {};
 
+    const sanitizeCustomFormations = (
+      layouts?: CustomFormationMap,
+    ): CustomFormationMap | undefined => {
+      if (!layouts || typeof layouts !== 'object') {
+        return undefined;
+      }
+
+      const sanitized: CustomFormationMap = {};
+
+      Object.entries(layouts).forEach(([formationKey, layout]) => {
+        if (!layout || typeof layout !== 'object') {
+          return;
+        }
+
+        const sanitizedLayout: CustomFormationMap[string] = {};
+
+        Object.entries(layout).forEach(([playerId, value]) => {
+          const key = String(playerId);
+          if (!rosterIds.has(key) || !allowedStarterIds.has(key)) {
+            return;
+          }
+
+          if (!value || typeof value !== 'object') {
+            return;
+          }
+
+          const x = clampPercentage((value as { x?: unknown }).x);
+          const y = clampPercentage((value as { y?: unknown }).y);
+          const rawPosition = (value as { position?: unknown }).position;
+          const normalizedPosition =
+            typeof rawPosition === 'string' && positions.includes(rawPosition.toUpperCase() as Player['position'])
+              ? (rawPosition.toUpperCase() as Player['position'])
+              : 'CM';
+
+          sanitizedLayout[key] = { x, y, position: normalizedPosition };
+        });
+
+        if (Object.keys(sanitizedLayout).length > 0) {
+          sanitized[String(formationKey)] = sanitizedLayout;
+        }
+      });
+
+      return Object.keys(sanitized).length > 0 ? sanitized : undefined;
+    };
+
+    const sanitizedCustomFormations = sanitizeCustomFormations(customFormations);
+
     payload.plan = {
       formation: sanitizedFormation,
       starters: sanitizedSquads.starters,
       bench: sanitizedSquads.bench,
       reserves: sanitizedSquads.reserves,
       updatedAt: timestamp,
+      ...(sanitizedCustomFormations ? { customFormations: sanitizedCustomFormations } : {}),
     };
 
     payload.lineup = {
@@ -184,6 +243,7 @@ export const saveTeamPlayers = async (userId: string, players: Player[], plan?: 
       subs: sanitizedSquads.bench,
       reserves: sanitizedSquads.reserves,
       updatedAt: timestamp,
+      ...(sanitizedCustomFormations ? { customFormations: sanitizedCustomFormations } : {}),
     };
   }
 
