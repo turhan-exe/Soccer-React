@@ -641,7 +641,7 @@ export default function TeamPlanning() {
           Object.keys(customForSave).length > 0 ? customForSave : undefined,
       });
 
-      toast.success('TakÄ±m planÄ± kaydedildi!');
+      toast.success('Takım planı kaydedildi!');
     } catch (error) {
       console.error('[TeamPlanning] saveTeamPlayers failed', error);
       const description =
@@ -1265,18 +1265,16 @@ export default function TeamPlanning() {
           </TabsContent>
 
           <TabsContent value="reserve" className="space-y-4 mt-4">
-            {sortedPlayers.length === 0 ? (
-              <Card>
-                <CardContent className="p-8 text-center">
-                  <div className="text-4xl mb-4">&#9917;</div>
-                  <h3 className="font-semibold mb-2">Rezerv oyuncu yok</h3>
-                  <p className="text-muted-foreground text-sm">
-                  onListForTransfer={() => handleListForTransfer(player.id)}
-                  onReleasePlayer={() => handleReleasePlayer(player.id)}
-                    AltyapÄ±dan oyuncu transfer edin veya pazardan oyuncu satÄ±n alÄ±n
-                  </p>
-                </CardContent>
-              </Card>
+  {sortedPlayers.length === 0 ? (
+    <Card>
+      <CardContent className="p-8 text-center">
+        <div className="text-4xl mb-4">&#9917;</div>
+        <h3 className="font-semibold mb-2">Rezerv oyuncu yok</h3>
+        <p className="text-muted-foreground text-sm">
+          Altyapıdan oyuncu transfer edin veya pazardan oyuncu satın alın
+        </p>
+      </CardContent>
+    </Card>
             ) : (
               sortedPlayers.map(player => (
                 <PlayerCard
