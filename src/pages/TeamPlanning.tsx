@@ -1040,6 +1040,18 @@ export default function TeamPlanning() {
     return players.find(player => player.id === comparisonPlayerId) ?? null;
   }, [players, comparisonPlayerId]);
 
+  const handlePromoteComparisonPlayer = () => {
+    if (!comparisonPlayer) {
+      return;
+    }
+
+    const playerId = comparisonPlayer.id;
+    movePlayer(playerId, 'starting');
+    setComparisonPlayerId(null);
+    setFocusedPlayerId(playerId);
+    setActiveTab('starting');
+  };
+
   const startingAverages = useMemo(() => {
     const starters = players.filter(p => p.squadRole === 'starting');
     if (starters.length === 0) {
@@ -1180,8 +1192,8 @@ export default function TeamPlanning() {
               </div>
             </CardTitle>
             <Select value={selectedFormation} onValueChange={setSelectedFormation}>
-              <SelectTrigger className="w-full md:w-40">
-                <SelectValue placeholder="Formasyon" />
+              <SelectTrigger className="w-full md:w-40" aria-label="Formasyon">
+                <span className="truncate">{displayFormationName}</span>
               </SelectTrigger>
               <SelectContent>
                 {formations.map(f => (
@@ -1512,12 +1524,22 @@ export default function TeamPlanning() {
             <DialogTitle>{comparisonPlayer?.name}</DialogTitle>
           </DialogHeader>
           {comparisonPlayer ? (
-            <PlayerCard
-              player={comparisonPlayer}
-              showActions={false}
-              compact={false}
-              defaultCollapsed={false}
-            />
+            <>
+              <PlayerCard
+                player={comparisonPlayer}
+                showActions={false}
+                compact={false}
+                defaultCollapsed={false}
+              />
+              {comparisonPlayer.squadRole !== 'starting' ? (
+                <div className="mt-4 flex justify-end">
+                  <Button onClick={handlePromoteComparisonPlayer}>
+                    <ArrowUp className="mr-2 h-4 w-4" />
+                    İlk 11'e Taşı
+                  </Button>
+                </div>
+              ) : null}
+            </>
           ) : null}
         </DialogContent>
       </Dialog>
