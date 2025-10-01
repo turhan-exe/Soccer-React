@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { finishTrainingWithDiamonds } from './training';
+import { finishTrainingWithDiamonds, TRAINING_FINISH_COST } from './training';
 
 vi.mock('./firebase', () => ({ db: {} }));
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
@@ -68,7 +68,9 @@ describe('finishTrainingWithDiamonds', () => {
         delete: vi.fn(),
       });
     });
-    await expect(finishTrainingWithDiamonds('uid')).rejects.toThrow('Yetersiz elmas');
+    await expect(
+      finishTrainingWithDiamonds('uid', TRAINING_FINISH_COST),
+    ).rejects.toThrow('Yetersiz elmas');
   });
 
   it('deducts diamonds and clears session', async () => {
@@ -76,6 +78,7 @@ describe('finishTrainingWithDiamonds', () => {
     docMock.mockReturnValueOnce('trainingRef');
     const updateMock = vi.fn();
     const deleteMock = vi.fn();
+    const cost = TRAINING_FINISH_COST + 30;
     runTransactionMock.mockImplementationOnce(async (_db, fn) => {
       return await fn({
         get: async (ref: unknown) => {
@@ -84,14 +87,20 @@ describe('finishTrainingWithDiamonds', () => {
           }
           return {
             exists: () => true,
-            data: () => ({ playerId: 'p', trainingId: 't', startAt: {}, endAt: {} }),
+            data: () => ({
+              playerIds: ['p'],
+              trainingIds: ['t'],
+              startAt: {},
+              durationSeconds: 600,
+            }),
           };
         },
         update: updateMock,
         delete: deleteMock,
       });
     });
-    await finishTrainingWithDiamonds('uid');
+    await finishTrainingWithDiamonds('uid', cost);
+    expect(incrementMock).toHaveBeenCalledWith(-cost);
     expect(updateMock).toHaveBeenCalled();
     expect(deleteMock).toHaveBeenCalled();
   });
