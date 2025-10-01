@@ -11,6 +11,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { calculatePowerIndex } from '@/lib/player';
@@ -22,6 +23,8 @@ interface PlayerCardProps {
   onMoveToBench?: () => void;
   onMoveToReserve?: () => void;
   onPromoteToTeam?: () => void;
+  onListForTransfer?: () => void;
+  onReleasePlayer?: () => void;
   showActions?: boolean;
   compact?: boolean;
   defaultCollapsed?: boolean;
@@ -51,6 +54,8 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({
   onMoveToBench,
   onMoveToReserve,
   onPromoteToTeam,
+  onListForTransfer,
+  onReleasePlayer,
   showActions = true,
   compact = false,
   defaultCollapsed = false,
@@ -237,6 +242,13 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({
                   )}
                   {player.squadRole !== 'reserve' && onMoveToReserve && (
                     <DropdownMenuItem onClick={onMoveToReserve}>Rezerve Al</DropdownMenuItem>
+                  )}
+                  {(onListForTransfer || onReleasePlayer) && <DropdownMenuSeparator />}
+                  {onListForTransfer && (
+                    <DropdownMenuItem onClick={onListForTransfer}>Oyuncuyu Pazara Koy</DropdownMenuItem>
+                  )}
+                  {onReleasePlayer && (
+                    <DropdownMenuItem onClick={onReleasePlayer}>Serbest Bırak</DropdownMenuItem>
                   )}
                   {player.squadRole === 'youth' && onPromoteToTeam && (
                     <DropdownMenuItem onClick={onPromoteToTeam}>Takıma Al</DropdownMenuItem>

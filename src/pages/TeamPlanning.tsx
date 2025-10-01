@@ -104,6 +104,69 @@ function normalizePlayers(list: Player[]): Player[] {
   return list.map(normalizePlayer);
 }
 
+
+type PromoteToStartingResult = {
+  players: Player[];
+  error?: string;
+  updated: boolean;
+};
+
+function promotePlayerToStartingRoster(
+  roster: Player[],
+  playerId: string,
+  targetPosition?: Player['position'],
+): PromoteToStartingResult {
+  const playerIndex = roster.findIndex(player => player.id === playerId);
+  if (playerIndex === -1) {
+    return { players: roster, error: 'Oyuncu bulunamad.', updated: false };
+  }
+
+  const player = roster[playerIndex];
+  const currentRole = player.squadRole;
+  const desiredPosition = targetPosition ?? player.position;
+  const canonicalTarget = canonicalPosition(desiredPosition);
+  const isAlreadyStartingSameSpot =
+    currentRole === 'starting' &&
+    canonicalPosition(player.position) === canonicalTarget &&
+    (!targetPosition || player.position === targetPosition);
+
+  if (isAlreadyStartingSameSpot) {
+    return { players: roster, updated: false };
+  }
+
+  const startersCount = roster.filter(p => p.squadRole === 'starting').length;
+  const occupantIndex = roster.findIndex(
+    candidate =>
+      candidate.id !== playerId &&
+      candidate.squadRole === 'starting' &&
+      canonicalPosition(candidate.position) === canonicalTarget,
+  );
+
+  if (currentRole !== 'starting' && startersCount >= 11 && occupantIndex === -1) {
+    return {
+      players: roster,
+      error: 'lk 11 dolu. Ayn mevkideki bir oyuncuyu karmadan yeni oyuncu ekleyemezsin.',
+      updated: false,
+    };
+  }
+
+  const updatedRoster = [...roster];
+  updatedRoster[playerIndex] = {
+    ...player,
+    position: desiredPosition,
+    squadRole: 'starting',
+  };
+
+  if (occupantIndex !== -1 && currentRole !== 'starting') {
+    updatedRoster[occupantIndex] = {
+      ...roster[occupantIndex],
+      squadRole: currentRole,
+    };
+  }
+
+  return { players: normalizePlayers(updatedRoster), updated: true };
+}
+
 function playerInitials(name: string): string {
   return name
     .split(' ')
@@ -176,10 +239,70 @@ export default function TeamPlanning() {
   });
 
   const movePlayer = (playerId: string, newRole: Player['squadRole']) => {
-    setPlayers(prev => prev.map(player =>
-      player.id === playerId ? { ...player, squadRole: newRole } : player
-    ));
-    toast.success('Oyuncu başarıyla taşındı');
+    let errorMessage: string | null = null;
+    let changed = false;
+
+    setPlayers(prev => {
+      const playerIndex = prev.findIndex(player => player.id === playerId);
+      if (playerIndex === -1) {
+        errorMessage = 'Oyuncu bulunamad.';
+        return prev;
+      }
+
+      const player = prev[playerIndex];
+      if (newRole === 'starting') {
+        const result = promotePlayerToStartingRoster(prev, playerId);
+        if (result.error) {
+          errorMessage = result.error;
+          return prev;
+        }
+        if (!result.updated) {
+          return prev;
+        }
+        changed = true;
+        return result.players;
+      }
+
+      if (player.squadRole === newRole) {
+        return prev;
+      }
+
+      const next = [...prev];
+      next[playerIndex] = {
+        ...player,
+        squadRole: newRole,
+      };
+      changed = true;
+      return normalizePlayers(next);
+    });
+
+    if (errorMessage) {
+      toast.error('lem tamamlanamad', { description: errorMessage });
+    } else if (changed) {
+      toast.success('Oyuncu baaryla tand');
+    }
+  };
+
+  const handleListForTransfer = (playerId: string) => {
+    navigate('/transfer-market', { state: { listPlayerId: playerId } });
+  };
+
+  const handleReleasePlayer = (playerId: string) => {
+    let removedName: string | null = null;
+    setPlayers(prev => {
+      const player = prev.find(p => p.id === playerId);
+      if (!player) {
+        return prev;
+      }
+      removedName = player.name;
+      return prev.filter(p => p.id !== playerId);
+    });
+    if (removedName) {
+      setFocusedPlayerId(current => (current === playerId ? null : current));
+      toast.success(`${removedName} serbest brakld`, {
+        description: 'Deiiklikleri kaydetmeyi unutmayn.',
+      });
+    }
   };
 
   const handleSave = async () => {
@@ -194,8 +317,8 @@ export default function TeamPlanning() {
 
       const starters = unique(collectIds('starting'));
       if (starters.length !== 11) {
-        toast.error('Kadro tamamlanmadı', {
-          description: 'Kaydetmeden önce 11 oyuncuyu ilk 11 olarak belirleyin.',
+        toast.error('Kadro tamamlanmadÄ±', {
+          description: 'Kaydetmeden Ã¶nce 11 oyuncuyu ilk 11 olarak belirleyin.',
         });
         return;
       }
@@ -213,7 +336,7 @@ export default function TeamPlanning() {
         },
       });
 
-      toast.success('Takım planı kaydedildi!');
+      toast.success('TakÄ±m planÄ± kaydedildi!');
     } catch (error) {
       console.error('[TeamPlanning] saveTeamPlayers failed', error);
       const description =
@@ -221,8 +344,8 @@ export default function TeamPlanning() {
           ? String((error as { details?: unknown }).details)
           : error && typeof error === 'object' && 'message' in error && typeof (error as { message?: unknown }).message === 'string'
           ? String((error as { message?: unknown }).message)
-          : 'Kadro kaydı başarısız. Lütfen tekrar deneyin.';
-      toast.error('Sunucu hatası', { description });
+          : 'Kadro kaydÄ± baÅŸarÄ±sÄ±z. LÃ¼tfen tekrar deneyin.';
+      toast.error('Sunucu hatasÄ±', { description });
     }
   };
 
@@ -327,29 +450,27 @@ export default function TeamPlanning() {
   ) => {
     const playerId = e.dataTransfer.getData('text/plain') || draggedPlayerId;
     if (!playerId) return;
+    let errorMessage: string | null = null;
+    let updated = false;
     setPlayers(prev => {
-      const draggedIndex = prev.findIndex(p => p.id === playerId);
-      if (draggedIndex === -1) return prev;
-      const draggedPlayer = prev[draggedIndex];
-      const targetIndex = prev.findIndex(
-        p => p.position === targetPosition && p.squadRole === 'starting',
-      );
-      const updated = [...prev];
-      if (targetIndex !== -1) {
-        const targetPlayer = prev[targetIndex];
-        updated[targetIndex] = {
-          ...targetPlayer,
-          squadRole: draggedPlayer.squadRole,
-        };
+      const result = promotePlayerToStartingRoster(prev, playerId, targetPosition);
+      if (result.error) {
+        errorMessage = result.error;
+        return prev;
       }
-      updated[draggedIndex] = {
-        ...draggedPlayer,
-        position: targetPosition,
-        squadRole: 'starting',
-      };
-      return normalizePlayers(updated);
+      if (!result.updated) {
+        return prev;
+      }
+      updated = true;
+      return result.players;
     });
-    setFocusedPlayerId(playerId);
+
+    if (errorMessage) {
+      toast.error('Pozisyon gncellenemedi', { description: errorMessage });
+    } else if (updated) {
+      setFocusedPlayerId(playerId);
+      toast.success('Oyuncu ilk 11\'e tand');
+    }
     setDraggedPlayerId(null);
   };
 
@@ -360,7 +481,7 @@ export default function TeamPlanning() {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <BackButton />
-            <h1 className="text-xl font-bold">Takım Planı</h1>
+            <h1 className="text-xl font-bold">TakÄ±m PlanÄ±</h1>
           </div>
           <div className="flex gap-2">
             <Button variant="outline" size="sm">
@@ -397,11 +518,11 @@ export default function TeamPlanning() {
                 }
               >
               <SelectTrigger className="w-full md:w-40">
-                <SelectValue placeholder="Sırala" />
+                <SelectValue placeholder="SÄ±rala" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="role">Role göre</SelectItem>
-                <SelectItem value="overall">Ortalamaya göre</SelectItem>
+                <SelectItem value="role">Role gÃ¶re</SelectItem>
+                <SelectItem value="overall">Ortalamaya gÃ¶re</SelectItem>
                 <SelectItem value="potential">Maks. potansiyel</SelectItem>
               </SelectContent>
             </Select>
@@ -502,7 +623,7 @@ export default function TeamPlanning() {
                                 </TooltipTrigger>
                                 <TooltipContent className="z-50 w-56 space-y-2">
                                   <div className="text-xs font-semibold">{player.name}</div>
-                                  <PerformanceGauge label="G��" value={getPlayerPower(player)} />
+                                  <PerformanceGauge label="Güç" value={getPlayerPower(player)} />
                                   <PerformanceGauge label="Kondisyon" value={getPlayerCondition(player)} />
                                   <PerformanceGauge label="Motivasyon" value={getPlayerMotivation(player)} />
                                 </TooltipContent>
@@ -525,10 +646,10 @@ export default function TeamPlanning() {
                     <div className="space-y-4">
                       <div className="flex items-center justify-between gap-3">
                         <div>
-                          <p className="text-xs uppercase tracking-wide text-white/70">Seçili Oyuncu</p>
+                          <p className="text-xs uppercase tracking-wide text-white/70">SeÃ§ili Oyuncu</p>
                           <h3 className="text-lg font-semibold">{selectedPlayer.name}</h3>
                           <p className="text-xs text-white/70">
-                            {selectedPlayer.position} - Güç {Math.round(selectedPower * 100)}
+                            {selectedPlayer.position} - GÃ¼Ã§ {Math.round(selectedPower * 100)}
                           </p>
                         </div>
                         <div className="flex h-14 w-14 items-center justify-center rounded-full bg-white/20 text-lg font-semibold">
@@ -536,26 +657,26 @@ export default function TeamPlanning() {
                         </div>
                       </div>
                       <div className="space-y-3">
-                        <PerformanceGauge label="Güç" value={selectedPower} variant="dark" />
+                        <PerformanceGauge label="GÃ¼Ã§" value={selectedPower} variant="dark" />
                         <PerformanceGauge label="Kondisyon" value={getPlayerCondition(selectedPlayer)} variant="dark" />
                         <PerformanceGauge label="Motivasyon" value={getPlayerMotivation(selectedPlayer)} variant="dark" />
                       </div>
                     </div>
                   ) : (
                     <div className="py-8 text-center text-sm text-white/70">
-                      Formasyondaki bir oyuncuya tıklayın.
+                      Formasyondaki bir oyuncuya tÄ±klayÄ±n.
                     </div>
                   )}
                 </div>
                 <div className="rounded-xl border border-emerald-200/40 bg-white/80 p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900/70">
                   <div className="mb-4 flex items-center justify-between">
-                    <h4 className="text-sm font-semibold text-emerald-700 dark:text-emerald-200">Takım Nabzı</h4>
-                    <span className="text-xs text-muted-foreground">ilk 11 ortalaması</span>
+                    <h4 className="text-sm font-semibold text-emerald-700 dark:text-emerald-200">TakÄ±m NabzÄ±</h4>
+                    <span className="text-xs text-muted-foreground">ilk 11 ortalamasÄ±</span>
                   </div>
                   <div className="space-y-3">
-                    <PerformanceGauge label="Takım Gücü" value={startingAverages.power} />
-                    <PerformanceGauge label="Kondisyon Ortalaması" value={startingAverages.condition} />
-                    <PerformanceGauge label="Motivasyon Ortalaması" value={startingAverages.motivation} />
+                    <PerformanceGauge label="TakÄ±m GÃ¼cÃ¼" value={startingAverages.power} />
+                    <PerformanceGauge label="Kondisyon OrtalamasÄ±" value={startingAverages.condition} />
+                    <PerformanceGauge label="Motivasyon OrtalamasÄ±" value={startingAverages.motivation} />
                   </div>
                 </div>
               </div>
@@ -583,9 +704,9 @@ export default function TeamPlanning() {
               <Card>
                 <CardContent className="p-8 text-center">
                   <div className="text-4xl mb-4">&#9917;</div>
-                  <h3 className="font-semibold mb-2">ilk 11'inizi oluşturun</h3>
+                  <h3 className="font-semibold mb-2">ilk 11'inizi oluÅŸturun</h3>
                   <p className="text-muted-foreground text-sm">
-                    Yedek kulübesinden oyuncularınızı ilk 11'e taşıyın
+                    Yedek kulÃ¼besinden oyuncularÄ±nÄ±zÄ± ilk 11'e taÅŸÄ±yÄ±n
                   </p>
                 </CardContent>
               </Card>
@@ -614,9 +735,9 @@ export default function TeamPlanning() {
               <Card>
                 <CardContent className="p-8 text-center">
                   <div className="text-4xl mb-4">&#9917;</div>
-                  <h3 className="font-semibold mb-2">Yedek kulübesi boş</h3>
+                  <h3 className="font-semibold mb-2">Yedek kulÃ¼besi boÅŸ</h3>
                   <p className="text-muted-foreground text-sm">
-                    Rezervden oyuncularınızı yedek kulübesine taşıyın
+                    Rezervden oyuncularÄ±nÄ±zÄ± yedek kulÃ¼besine taÅŸÄ±yÄ±n
                   </p>
                 </CardContent>
               </Card>
@@ -647,7 +768,9 @@ export default function TeamPlanning() {
                   <div className="text-4xl mb-4">&#9917;</div>
                   <h3 className="font-semibold mb-2">Rezerv oyuncu yok</h3>
                   <p className="text-muted-foreground text-sm">
-                    Altyapıdan oyuncu transfer edin veya pazardan oyuncu satın alın
+                  onListForTransfer={() => handleListForTransfer(player.id)}
+                  onReleasePlayer={() => handleReleasePlayer(player.id)}
+                    AltyapÄ±dan oyuncu transfer edin veya pazardan oyuncu satÄ±n alÄ±n
                   </p>
                 </CardContent>
               </Card>
