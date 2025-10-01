@@ -136,6 +136,7 @@ export const adjustTeamBudget = async (userId: string, amount: number): Promise<
 
 type TeamPlanUpdate = {
   formation?: string;
+  shape?: string;
   tactics?: Record<string, unknown>;
   squads?: {
     starters?: string[];
@@ -149,7 +150,7 @@ export const saveTeamPlayers = async (userId: string, players: Player[], plan?: 
   const payload: Record<string, unknown> = { players };
 
   if (plan) {
-    const { formation, squads, tactics, customFormations } = plan;
+    const { formation, shape, squads, tactics, customFormations } = plan;
     const dedupe = (list?: string[]) =>
       Array.from(new Set((list ?? []).map(id => String(id)))).filter(Boolean);
 
@@ -157,6 +158,11 @@ export const saveTeamPlayers = async (userId: string, players: Player[], plan?: 
       typeof formation === 'string' && formation.trim().length > 0
         ? formation.trim()
         : 'auto';
+
+    const sanitizedShape =
+      typeof shape === 'string' && shape.trim().length > 0
+        ? shape.trim()
+        : undefined;
 
     const sanitizedSquads = {
       starters: dedupe(squads?.starters),
@@ -233,6 +239,7 @@ export const saveTeamPlayers = async (userId: string, players: Player[], plan?: 
       bench: sanitizedSquads.bench,
       reserves: sanitizedSquads.reserves,
       updatedAt: timestamp,
+      ...(sanitizedShape ? { shape: sanitizedShape } : {}),
       ...(sanitizedCustomFormations ? { customFormations: sanitizedCustomFormations } : {}),
     };
 
@@ -243,6 +250,7 @@ export const saveTeamPlayers = async (userId: string, players: Player[], plan?: 
       subs: sanitizedSquads.bench,
       reserves: sanitizedSquads.reserves,
       updatedAt: timestamp,
+      ...(sanitizedShape ? { shape: sanitizedShape } : {}),
       ...(sanitizedCustomFormations ? { customFormations: sanitizedCustomFormations } : {}),
     };
   }

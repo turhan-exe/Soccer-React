@@ -249,6 +249,108 @@ function playerInitials(name: string): string {
     .join('');
 }
 
+type FormationSnapshot = {
+  player: Player | null;
+  x: number;
+  y: number;
+};
+
+const LINE_GROUP_TOLERANCE = 10;
+
+const deriveFormationShape = (positions: FormationSnapshot[]): string | null => {
+  const outfieldY = positions
+    .filter(entry => entry.player && canonicalPosition(entry.player.position) !== 'GK')
+    .map(entry => clampPercentageValue(entry.y))
+    .sort((a, b) => b - a);
+
+  if (outfieldY.length === 0) {
+    return null;
+  }
+
+  const groups: { count: number; average: number }[] = [];
+
+  outfieldY.forEach(value => {
+    const lastGroup = groups[groups.length - 1];
+    if (lastGroup && Math.abs(lastGroup.average - value) <= LINE_GROUP_TOLERANCE) {
+      const nextCount = lastGroup.count + 1;
+      lastGroup.average = (lastGroup.average * lastGroup.count + value) / nextCount;
+      lastGroup.count = nextCount;
+      return;
+    }
+
+    groups.push({ count: 1, average: value });
+  });
+
+  const counts = groups.map(group => group.count).filter(count => count > 0);
+  if (counts.length === 0) {
+    return null;
+  }
+
+  const totalOutfield = counts.reduce((sum, current) => sum + current, 0);
+  if (totalOutfield === 0) {
+    return null;
+  }
+
+  return counts.join('-');
+};
+
+type AlternativePlayerBubbleProps = {
+  player: Player;
+  onSelect: (playerId: string) => void;
+  variant?: 'pitch' | 'panel';
+};
+
+const AlternativePlayerBubble: React.FC<AlternativePlayerBubbleProps> = ({
+  player,
+  onSelect,
+  variant = 'pitch',
+}) => {
+  const badgeLabel =
+    player.squadRole === 'bench'
+      ? 'YDK'
+      : player.squadRole === 'reserve'
+        ? 'RZV'
+        : 'KDR';
+  const badgeTitle =
+    player.squadRole === 'bench'
+      ? 'Yedek'
+      : player.squadRole === 'reserve'
+        ? 'Rezerv'
+        : 'Kadrodışı';
+
+  const variantClasses =
+    variant === 'panel'
+      ? 'border-white/30 bg-white/15 text-white hover:border-white/60'
+      : 'border-white/40 bg-white/20 text-white hover:border-white/80';
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          type="button"
+          onClick={() => onSelect(player.id)}
+          className={cn(
+            'relative flex h-12 w-12 flex-col items-center justify-center rounded-full text-[10px] font-semibold uppercase tracking-tight transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/80',
+            variantClasses,
+          )}
+        >
+          <span>{canonicalPosition(player.position)}</span>
+          <span className="text-[8px] font-normal text-white/70">
+            {playerInitials(player.name)}
+          </span>
+          <span className="absolute -bottom-1 right-0 rounded-full bg-emerald-400 px-1 text-[8px] font-bold text-emerald-950 shadow">
+            {badgeLabel}
+          </span>
+        </button>
+      </TooltipTrigger>
+      <TooltipContent className="z-50 space-y-1">
+        <div className="text-xs font-semibold">{player.name}</div>
+        <div className="text-[11px] text-muted-foreground">{badgeTitle}</div>
+      </TooltipContent>
+    </Tooltip>
+  );
+};
+
 function getPlayerCondition(player: Player): number {
   return clampPerformanceGauge(player.condition, DEFAULT_GAUGE_VALUE);
 }
@@ -278,6 +380,7 @@ export default function TeamPlanning() {
   const [sortBy, setSortBy] = useState<'role' | 'overall' | 'potential'>('role');
   const [focusedPlayerId, setFocusedPlayerId] = useState<string | null>(null);
   const [comparisonPlayerId, setComparisonPlayerId] = useState<string | null>(null);
+  const [savedFormationShape, setSavedFormationShape] = useState<string | null>(null);
 
   const pitchRef = useRef<HTMLDivElement | null>(null);
   const dropHandledRef = useRef(false);
@@ -629,9 +732,18 @@ export default function TeamPlanning() {
         }),
       ) as CustomFormationState;
 
+      const fallbackShape =
+        (derivedFormationShape && derivedFormationShape.trim().length > 0
+          ? derivedFormationShape
+          : savedFormationShape && savedFormationShape.trim().length > 0
+            ? savedFormationShape
+            : selectedFormation) ?? selectedFormation;
+      const shapeForSave = fallbackShape.trim();
+
       // Persist full roster and snapshot locally for Firestore
       await saveTeamPlayers(user.id, players, {
         formation: selectedFormation,
+        shape: shapeForSave,
         squads: {
           starters,
           bench,
@@ -641,6 +753,7 @@ export default function TeamPlanning() {
           Object.keys(customForSave).length > 0 ? customForSave : undefined,
       });
 
+      setSavedFormationShape(shapeForSave);
       toast.success('Takım planı kaydedildi!');
     } catch (error) {
       console.error('[TeamPlanning] saveTeamPlayers failed', error);
@@ -673,6 +786,18 @@ export default function TeamPlanning() {
         team.plan?.customFormations || team.lineup?.customFormations || {},
       );
       setCustomFormations(remoteCustomFormations);
+
+      const rawPlanShape =
+        typeof team.plan?.shape === 'string' ? team.plan.shape.trim() : '';
+      const rawLineupShape =
+        typeof team.lineup?.shape === 'string' ? team.lineup.shape.trim() : '';
+      const normalizedShape =
+        rawPlanShape && rawPlanShape.toLowerCase() !== 'auto'
+          ? rawPlanShape
+          : rawLineupShape && rawLineupShape.toLowerCase() !== 'auto'
+            ? rawLineupShape
+            : '';
+      setSavedFormationShape(normalizedShape || null);
     })();
   }, [user]);
 
@@ -847,6 +972,30 @@ export default function TeamPlanning() {
     });
   }, [currentFormation, manualFormation, players]);
 
+  const derivedFormationShape = useMemo(
+    () => deriveFormationShape(formationPositions),
+    [formationPositions],
+  );
+
+  const displayFormationName = useMemo(() => {
+    const manualShape = derivedFormationShape?.trim();
+    if (manualShape) {
+      return manualShape;
+    }
+    const savedShape = savedFormationShape?.trim();
+    if (savedShape) {
+      return savedShape;
+    }
+    return selectedFormation;
+  }, [derivedFormationShape, savedFormationShape, selectedFormation]);
+
+  const manualShapeDiffers = useMemo(() => {
+    if (!derivedFormationShape) {
+      return false;
+    }
+    return derivedFormationShape.trim() !== selectedFormation.trim();
+  }, [derivedFormationShape, selectedFormation]);
+
   const selectedPlayer = useMemo(() => {
     if (!focusedPlayerId) return null;
     return players.find(p => p.id === focusedPlayerId) ?? null;
@@ -861,7 +1010,7 @@ export default function TeamPlanning() {
 
     const target = canonicalPosition(selectedPlayer.position);
 
-    return players.filter(player => {
+    const alternatives = players.filter(player => {
       if (player.id === selectedPlayer.id) {
         return false;
       }
@@ -873,6 +1022,14 @@ export default function TeamPlanning() {
         return true;
       }
       return (player.roles ?? []).some(role => canonicalPosition(role) === target);
+    });
+
+    return alternatives.sort((a, b) => {
+      const roleDiff = squadRoleWeight(a.squadRole) - squadRoleWeight(b.squadRole);
+      if (roleDiff !== 0) {
+        return roleDiff;
+      }
+      return b.overall - a.overall;
     });
   }, [players, selectedPlayer]);
 
@@ -1008,9 +1165,19 @@ export default function TeamPlanning() {
           {/* Team Formation Overview */}
           <Card className="order-1 w-full lg:sticky lg:top-24 lg:z-30 lg:self-start lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto">
             <CardHeader className="flex flex-col gap-3 border-b border-white/60 bg-white/70 backdrop-blur-sm sm:flex-row sm:items-center sm:justify-between dark:border-white/10 dark:bg-slate-900/80">
-            <CardTitle className="flex items-center gap-2">
-              <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-              Formasyon  ({selectedFormation})
+            <CardTitle className="flex items-center gap-3">
+              <div className="h-3 w-3 rounded-full bg-green-500" />
+              <div className="flex flex-col text-left">
+                <span>Formasyon</span>
+                <span className="text-sm font-normal text-emerald-900 dark:text-emerald-100">
+                  {displayFormationName}
+                </span>
+                {manualShapeDiffers ? (
+                  <span className="text-xs font-normal text-emerald-700 dark:text-emerald-200/80">
+                    Şablon: {selectedFormation}
+                  </span>
+                ) : null}
+              </div>
             </CardTitle>
             <Select value={selectedFormation} onValueChange={setSelectedFormation}>
               <SelectTrigger className="w-full md:w-40">
@@ -1121,6 +1288,36 @@ export default function TeamPlanning() {
                     </div>
                   </div>
                 </div>
+                {selectedPlayer ? (
+                  <div className="mt-4 rounded-2xl border border-white/25 bg-white/10 p-4 text-white shadow-inner">
+                    <div className="mb-3 flex items-center justify-between">
+                      <span className="text-xs uppercase tracking-wide text-white/80">
+                        {canonicalPosition(selectedPlayer.position)} için alternatifler
+                      </span>
+                      <span className="text-[10px] text-white/70">Yedek & Rezerv</span>
+                    </div>
+                    {alternativePlayers.length > 0 ? (
+                      <div className="flex flex-wrap gap-2">
+                        {alternativePlayers.map(alternative => (
+                          <AlternativePlayerBubble
+                            key={alternative.id}
+                            player={alternative}
+                            onSelect={setComparisonPlayerId}
+                            variant="pitch"
+                          />
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-white/70">
+                        Bu pozisyon için bench veya rezerv oyuncu bulunmuyor.
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <div className="mt-4 rounded-2xl border border-white/20 bg-white/5 p-4 text-center text-xs text-white/70">
+                    Sahadaki bir oyuncuyu seçtiğinizde uygun alternatifler burada listelenecek.
+                  </div>
+                )}
               </div>
               <div className="flex-1 min-w-0 space-y-4">
                 <div className="rounded-xl border border-emerald-500/20 bg-emerald-900/20 p-4 text-white shadow-inner backdrop-blur-sm">
@@ -1146,18 +1343,21 @@ export default function TeamPlanning() {
                       <div className="space-y-2">
                         <p className="text-xs uppercase tracking-wide text-white/70">Alternatifler</p>
                         {alternativePlayers.length > 0 ? (
-                          <div className="flex flex-wrap gap-2">
-                            {alternativePlayers.map(alternative => (
-                              <button
-                                key={alternative.id}
-                                type="button"
-                                onClick={() => setComparisonPlayerId(alternative.id)}
-                                className="flex h-12 w-12 items-center justify-center rounded-full border border-white/30 bg-white/15 px-2 text-[10px] font-semibold text-white transition hover:border-white/60"
-                              >
-                                <span className="line-clamp-2 leading-tight">{alternative.name}</span>
-                              </button>
-                            ))}
-                          </div>
+                          <>
+                            <div className="flex flex-wrap gap-2">
+                              {alternativePlayers.map(alternative => (
+                                <AlternativePlayerBubble
+                                  key={alternative.id}
+                                  player={alternative}
+                                  onSelect={setComparisonPlayerId}
+                                  variant="panel"
+                                />
+                              ))}
+                            </div>
+                            <p className="text-[10px] text-white/60">
+                              Kartını görmek için alternatiflerden birine tıklayın.
+                            </p>
+                          </>
                         ) : (
                           <p className="text-xs text-white/60">
                             Bu pozisyon için bench veya rezerv oyuncu yok.
