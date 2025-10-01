@@ -78,6 +78,7 @@ export interface ClubTeam {
     starters: string[];
     bench: string[];
     reserves: string[];
+    shape?: string;
     updatedAt?: string;
     customFormations?: CustomFormationMap;
   };
@@ -87,6 +88,7 @@ export interface ClubTeam {
     starters?: string[];
     subs?: string[];
     reserves?: string[];
+    shape?: string;
     updatedAt?: string;
     customFormations?: CustomFormationMap;
   };
