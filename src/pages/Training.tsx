@@ -40,7 +40,13 @@ import { getTeam, saveTeamPlayers } from '@/services/team';
 import {
   addTrainingRecord,
   getTrainingHistory,
+  ActiveTrainingSession,
+  getActiveTraining,
+  setActiveTraining,
+  clearActiveTraining,
   TrainingHistoryRecord,
+  TRAINING_FINISH_COST,
+  finishTrainingWithDiamonds,
 } from '@/services/training';
 import {
   Clock,
@@ -56,11 +62,14 @@ import { toast } from 'sonner';
 const BASE_SESSION_DURATION = 15;
 const EXTRA_PLAYER_DURATION = 5;
 const EXTRA_TRAINING_DURATION = 8;
-const EXTRA_SLOT_DIAMOND_COST = 15;
+const EXTRA_ASSIGNMENT_DIAMOND_COST = 15;
+const FINISH_COST_PER_ASSIGNMENT = 12;
 
 interface ActiveBulkSession {
   players: Player[];
   trainings: Training[];
+  durationSeconds: number;
+  startedAt: Timestamp;
 }
 
 export default function TrainingPage() {
@@ -77,12 +86,31 @@ export default function TrainingPage() {
   const [isTraining, setIsTraining] = useState(false);
   const [timeLeft, setTimeLeft] = useState(0);
   const [activeSession, setActiveSession] = useState<ActiveBulkSession | null>(null);
+  const [pendingActiveSession, setPendingActiveSession] = useState<ActiveTrainingSession | null>(null);
   const [history, setHistory] = useState<TrainingHistoryRecord[]>([]);
   const [filterPlayer, setFilterPlayer] = useState('all');
   const [filterTrainingType, setFilterTrainingType] = useState('all');
   const [filterResult, setFilterResult] = useState('all');
+  const [isFinishingWithDiamonds, setIsFinishingWithDiamonds] = useState(false);
 
   const intervalRef = useRef<number | null>(null);
+
+  const startCountdown = useCallback((initialSeconds: number) => {
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+
+    if (initialSeconds <= 0) {
+      setTimeLeft(0);
+      return;
+    }
+
+    setTimeLeft(initialSeconds);
+    intervalRef.current = window.setInterval(() => {
+      setTimeLeft(prev => (prev <= 1 ? 0 : prev - 1));
+    }, 1000);
+  }, []);
 
   useEffect(() => {
     const fetchPlayers = async () => {
@@ -105,12 +133,76 @@ export default function TrainingPage() {
   }, [user]);
 
   useEffect(() => {
+    const loadActive = async () => {
+      if (!user) return;
+      try {
+        const session = await getActiveTraining(user.id);
+        if (session) {
+          setPendingActiveSession(session);
+        }
+      } catch (err) {
+        console.warn('Aktif antrenman yüklenemedi', err);
+      }
+    };
+
+    void loadActive();
+  }, [user]);
+
+  useEffect(() => {
     return () => {
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
       }
     };
   }, []);
+
+  useEffect(() => {
+    if (!pendingActiveSession) return;
+
+    const sessionPlayers = pendingActiveSession.playerIds
+      .map(id => players.find(player => player.id === id))
+      .filter((player): player is Player => Boolean(player));
+
+    const sessionTrainings = pendingActiveSession.trainingIds
+      .map(id => trainings.find(training => training.id === id))
+      .filter((training): training is Training => Boolean(training));
+
+    if (sessionPlayers.length === 0 || sessionTrainings.length === 0) {
+      return;
+    }
+
+    if (sessionPlayers.length !== pendingActiveSession.playerIds.length) {
+      console.warn('Eksik oyuncular bulundu, antrenman eksik verilerle devam edecek');
+    }
+
+    if (sessionTrainings.length !== pendingActiveSession.trainingIds.length) {
+      console.warn('Eksik antrenman kartları bulundu, antrenman eksik verilerle devam edecek');
+    }
+
+    const { durationSeconds, startAt } = pendingActiveSession;
+    const elapsedSeconds = Math.floor(
+      (Date.now() - startAt.toDate().getTime()) / 1000,
+    );
+    const remaining = Math.max(durationSeconds - elapsedSeconds, 0);
+
+    setSelectedPlayers(sessionPlayers);
+    setSelectedTrainings(sessionTrainings);
+    setActiveSession({
+      players: sessionPlayers,
+      trainings: sessionTrainings,
+      durationSeconds,
+      startedAt: startAt,
+    });
+    setIsTraining(true);
+
+    if (remaining > 0) {
+      startCountdown(remaining);
+    } else {
+      setTimeLeft(0);
+    }
+
+    setPendingActiveSession(null);
+  }, [pendingActiveSession, players, startCountdown, trainings]);
 
   const filteredPlayers = useMemo(() => {
     const query = playerSearch.toLowerCase();
@@ -143,18 +235,23 @@ export default function TrainingPage() {
   }, [selectedPlayers.length, selectedTrainings.length]);
 
   const diamondCost = useMemo(() => {
-    const playersCount = selectedPlayers.length;
-    const trainingsCount = selectedTrainings.length;
-    if (playersCount === 0 || trainingsCount === 0) return 0;
-
-    const extras = Math.max(0, playersCount - 1) + Math.max(0, trainingsCount - 1);
-    return extras * EXTRA_SLOT_DIAMOND_COST;
+    const totalCombos = selectedPlayers.length * selectedTrainings.length;
+    if (totalCombos <= 1) return 0;
+    return (totalCombos - 1) * EXTRA_ASSIGNMENT_DIAMOND_COST;
   }, [selectedPlayers.length, selectedTrainings.length]);
 
   const totalAssignments = useMemo(
     () => selectedPlayers.length * selectedTrainings.length,
     [selectedPlayers.length, selectedTrainings.length],
   );
+
+  const finishDiamondCost = useMemo(() => {
+    const sessionPlayersCount = activeSession?.players.length ?? selectedPlayers.length;
+    const sessionTrainingsCount = activeSession?.trainings.length ?? selectedTrainings.length;
+    const totalCombos = sessionPlayersCount * sessionTrainingsCount;
+    if (totalCombos === 0) return TRAINING_FINISH_COST;
+    return TRAINING_FINISH_COST + Math.max(0, totalCombos - 1) * FINISH_COST_PER_ASSIGNMENT;
+  }, [activeSession, selectedPlayers.length, selectedTrainings.length]);
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60)
@@ -273,21 +370,64 @@ export default function TrainingPage() {
       return;
     }
 
+    const sessionPlayers = [...selectedPlayers];
+    const sessionTrainings = [...selectedTrainings];
+    const startedAt = Timestamp.now();
+
+    try {
+      await setActiveTraining(user.id, {
+        playerIds: sessionPlayers.map(player => player.id),
+        trainingIds: sessionTrainings.map(training => training.id),
+        startAt: startedAt,
+        durationSeconds,
+      });
+    } catch (err) {
+      console.warn('Aktif antrenman kaydedilemedi', err);
+      toast.error('Antrenman başlatılamadı');
+      return;
+    }
+
     setActiveSession({
-      players: selectedPlayers,
-      trainings: selectedTrainings,
+      players: sessionPlayers,
+      trainings: sessionTrainings,
+      durationSeconds,
+      startedAt,
     });
     setIsTraining(true);
-    setTimeLeft(durationSeconds);
+    startCountdown(durationSeconds);
+    toast.success('Antrenman başlatıldı');
+  };
 
+  const handleFinishWithDiamonds = async () => {
+    if (!user || !activeSession || isFinishingWithDiamonds) {
+      return;
+    }
+
+    const cost = finishDiamondCost;
+    if (balance < cost) {
+      toast.error('Yetersiz elmas bakiyesi');
+      return;
+    }
+
+    const remainingBeforeFinish = timeLeft;
     if (intervalRef.current) {
       clearInterval(intervalRef.current);
+      intervalRef.current = null;
     }
-    intervalRef.current = window.setInterval(() => {
-      setTimeLeft(prev => (prev <= 1 ? 0 : prev - 1));
-    }, 1000);
 
-    toast.success('Antrenman başlatıldı');
+    setIsFinishingWithDiamonds(true);
+    try {
+      await finishTrainingWithDiamonds(user.id, cost);
+      await completeSession();
+    } catch (err) {
+      console.warn('Antrenman elmasla tamamlanamadı', err);
+      toast.error('Elmasla bitirme başarısız');
+      if (isTraining && remainingBeforeFinish > 0) {
+        startCountdown(remainingBeforeFinish);
+      }
+    } finally {
+      setIsFinishingWithDiamonds(false);
+    }
   };
 
   const completeSession = useCallback(async () => {
@@ -386,12 +526,19 @@ export default function TrainingPage() {
           console.warn('Antrenman kaydı eklenemedi', err);
         }
       }
+
+      try {
+        await clearActiveTraining(user.id);
+      } catch (err) {
+        console.warn('Aktif antrenman temizlenemedi', err);
+      }
     }
 
     setHistory(prev => [...prev, ...records]);
     setIsTraining(false);
     setTimeLeft(0);
     setActiveSession(null);
+    setPendingActiveSession(null);
     setSelectedPlayers([]);
     setSelectedTrainings([]);
     toast.success('Antrenman tamamlandı');
@@ -704,6 +851,15 @@ export default function TrainingPage() {
                     </div>
                     <span className="font-semibold">{diamondCost}</span>
                   </div>
+                  {isTraining && (
+                    <div className="mt-2 flex items-center justify-between">
+                      <div className="flex items-center gap-2 text-muted-foreground">
+                        <Diamond className="h-4 w-4" />
+                        <span>Erken Bitirme Ücreti</span>
+                      </div>
+                      <span className="font-semibold">{finishDiamondCost}</span>
+                    </div>
+                  )}
                   {diamondCost === 0 && (
                     <p className="mt-2 text-xs text-muted-foreground">
                       Bir oyuncu + bir antrenman kombinasyonu ücretsizdir.
@@ -718,6 +874,16 @@ export default function TrainingPage() {
                 >
                   {isTraining ? formatTime(timeLeft) : 'Antrenmanı Başlat'}
                 </Button>
+                {isTraining && (
+                  <Button
+                    onClick={handleFinishWithDiamonds}
+                    variant="outline"
+                    className="w-full"
+                    disabled={isFinishingWithDiamonds}
+                  >
+                    <Diamond className="mr-2 h-4 w-4" /> Elmasla Bitir ({finishDiamondCost})
+                  </Button>
+                )}
                 {isTraining && (
                   <p className="text-center text-xs text-muted-foreground">
                     Antrenman devam ederken seçimler kilitlenir.

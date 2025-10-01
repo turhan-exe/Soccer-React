@@ -14,13 +14,10 @@ import { db } from '@/services/firebase';
 import { toast } from 'sonner';
 
 export interface ActiveTrainingSession {
-  playerId: string;
-  playerName: string;
-  trainingId: string;
-  trainingName: string;
+  playerIds: string[];
+  trainingIds: string[];
   startAt: Timestamp;
-  endAt: Timestamp;
-  boost?: boolean;
+  durationSeconds: number;
 }
 
 export interface TrainingHistoryRecord {
@@ -70,6 +67,7 @@ export const TRAINING_BOOST_COST = 20;
 
 export async function finishTrainingWithDiamonds(
   uid: string,
+  diamondCost: number,
 ): Promise<ActiveTrainingSession> {
   const userRef = doc(db, 'users', uid);
   const sessionRef = trainingDoc(uid);
@@ -86,17 +84,16 @@ export async function finishTrainingWithDiamonds(
 
       const balance = (userSnap.data() as { diamondBalance?: number })
         .diamondBalance ?? 0;
-      if (balance < TRAINING_FINISH_COST) {
+      if (balance < diamondCost) {
         throw new Error('Yetersiz elmas');
       }
 
-      tx.update(userRef, { diamondBalance: increment(-TRAINING_FINISH_COST) });
+      tx.update(userRef, { diamondBalance: increment(-diamondCost) });
       tx.delete(sessionRef);
 
       return sessionSnap.data() as ActiveTrainingSession;
     });
 
-    toast.success('Antrenman tamamlandı');
     return session;
   } catch (err) {
     console.warn(err);
