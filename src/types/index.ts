@@ -52,6 +52,17 @@ export interface Player {
   } | null;
 }
 
+export type CustomFormationLayout = Record<
+  string,
+  {
+    x: number;
+    y: number;
+    position: Position;
+  }
+>;
+
+export type CustomFormationMap = Record<string, CustomFormationLayout>;
+
 export interface ClubTeam {
   id: string;
   name: string;
@@ -68,6 +79,7 @@ export interface ClubTeam {
     bench: string[];
     reserves: string[];
     updatedAt?: string;
+    customFormations?: CustomFormationMap;
   };
   lineup?: {
     formation?: string;
@@ -76,6 +88,7 @@ export interface ClubTeam {
     subs?: string[];
     reserves?: string[];
     updatedAt?: string;
+    customFormations?: CustomFormationMap;
   };
 }
 
