@@ -1112,7 +1112,7 @@ export default function TeamPlanning() {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <BackButton />
-            <h1 className="text-xl font-bold">TakÄ±m PlanÄ±</h1>
+            <h1 className="text-xl font-bold">Takım Planı</h1>
           </div>
           <div className="flex gap-2">
             <Button variant="outline" size="sm">
