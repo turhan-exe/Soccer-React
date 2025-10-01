@@ -33,6 +33,7 @@ import { BackButton } from '@/components/ui/back-button';
 import { Loader2, PlusCircle, ShoppingCart, Shield } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { Player, TransferListing } from '@/types';
 import { adjustTeamBudget, getTeam } from '@/services/team';
 import {
@@ -68,6 +69,10 @@ type FilterState = {
   maxPrice: string;
   sortBy: SortOption;
 };
+
+type TransferMarketLocationState = {
+  listPlayerId?: string;
+} | null;
 
 type FirestoreErrorLike = Error & { code?: string };
 
@@ -149,6 +154,8 @@ const resolveMarketplaceError = (error: unknown): MarketplaceErrorMessage => {
 
 export default function TransferMarket() {
   const { user } = useAuth();
+  const location = useLocation();
+  const navigate = useNavigate();
   const [teamPlayers, setTeamPlayers] = useState<Player[]>([]);
   const [teamName, setTeamName] = useState<string>('');
   const [teamBudget, setTeamBudget] = useState<number>(0);
@@ -170,6 +177,9 @@ export default function TransferMarket() {
   });
   const [expandedListingId, setExpandedListingId] = useState<string | null>(null);
   const previousListingCount = useRef<number>(0);
+
+  const locationState = location.state as TransferMarketLocationState;
+  const targetPlayerFromState = locationState?.listPlayerId ?? '';
 
   const loadTeam = useCallback(async () => {
     if (!user) {
@@ -319,6 +329,26 @@ export default function TransferMarket() {
     const listedIds = new Set(myListings.map(listing => listing.playerId));
     return teamPlayers.filter(player => !listedIds.has(player.id));
   }, [myListings, teamPlayers]);
+
+  useEffect(() => {
+    if (!targetPlayerFromState) {
+      return;
+    }
+    if (teamPlayers.length === 0) {
+      return;
+    }
+
+    if (availablePlayers.some(player => player.id === targetPlayerFromState)) {
+      setSelectedPlayerId(targetPlayerFromState);
+      setPrice('');
+    } else {
+      toast.error('Oyuncu pazara eklenemiyor.', {
+        description: 'Oyuncu zaten listede olabilir veya kadroda bulunmuyor.',
+      });
+    }
+
+    navigate(location.pathname, { replace: true, state: null });
+  }, [availablePlayers, location.pathname, navigate, targetPlayerFromState, teamPlayers.length]);
 
   const handleAddFunds = async () => {
     if (!user) {
