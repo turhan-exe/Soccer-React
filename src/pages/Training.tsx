@@ -37,6 +37,8 @@ import { Player, Training } from '@/types';
 import { useAuth } from '@/contexts/AuthContext';
 import { useDiamonds } from '@/contexts/DiamondContext';
 import { getTeam, saveTeamPlayers } from '@/services/team';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { PlayerStatusCard } from '@/components/ui/player-status-card';
 import {
   addTrainingRecord,
   getTrainingHistory,
@@ -92,6 +94,7 @@ export default function TrainingPage() {
   const [filterTrainingType, setFilterTrainingType] = useState('all');
   const [filterResult, setFilterResult] = useState('all');
   const [isFinishingWithDiamonds, setIsFinishingWithDiamonds] = useState(false);
+  const [expandedPlayerId, setExpandedPlayerId] = useState<string | null>(null);
 
   const intervalRef = useRef<number | null>(null);
 
@@ -131,6 +134,18 @@ export default function TrainingPage() {
 
     loadHistory();
   }, [user]);
+
+  useEffect(() => {
+    if (expandedPlayerId && !players.some(player => player.id === expandedPlayerId)) {
+      setExpandedPlayerId(null);
+    }
+  }, [players, expandedPlayerId]);
+
+  useEffect(() => {
+    if (isTraining) {
+      setExpandedPlayerId(null);
+    }
+  }, [isTraining]);
 
   useEffect(() => {
     const loadActive = async () => {
@@ -675,38 +690,72 @@ export default function TrainingPage() {
                   Eşleşen oyuncu bulunamadı.
                 </p>
               )}
-              {filteredPlayers.map(player => (
-                <Card
-                  key={player.id}
-                  draggable={!isTraining}
-                  onDragStart={event => handleDragStart(event, 'player', player.id)}
-                  onDragEnd={handleDragEnd}
-                  onDoubleClick={() => {
-                    if (!isTraining) {
-                      setSelectedPlayers(prev =>
-                        prev.some(item => item.id === player.id) ? prev : [...prev, player],
-                      );
-                    }
-                  }}
-                  className={cn(
-                    'cursor-grab select-none border-emerald-100 transition hover:border-emerald-300 dark:border-emerald-900/50 dark:hover:border-emerald-700',
-                    isTraining && 'pointer-events-none opacity-60',
-                  )}
-                >
-                  <CardContent className="flex items-center justify-between gap-3 p-4">
-                    <div>
-                      <p className="font-semibold">{player.name}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {player.position} • Genel {Math.round(player.overall * 100)}
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-xs text-muted-foreground">Motivasyon</p>
-                      <p className="font-semibold">{Math.round(player.motivation * 100)}%</p>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
+              {filteredPlayers.map(player => {
+                const isExpanded = expandedPlayerId === player.id;
+
+                return (
+                  <Popover
+                    key={player.id}
+                    open={isExpanded}
+                    onOpenChange={open => {
+                      setExpandedPlayerId(prev => {
+                        if (open) {
+                          return player.id;
+                        }
+                        return prev === player.id ? null : prev;
+                      });
+                    }}
+                  >
+                    <PopoverTrigger asChild>
+                      <Card
+                        draggable={!isTraining}
+                        onDragStart={event => {
+                          setExpandedPlayerId(null);
+                          handleDragStart(event, 'player', player.id);
+                        }}
+                        onDragEnd={handleDragEnd}
+                        onClick={() => {
+                          setExpandedPlayerId(prev => (prev === player.id ? null : player.id));
+                        }}
+                        onDoubleClick={() => {
+                          if (!isTraining) {
+                            setSelectedPlayers(prev =>
+                              prev.some(item => item.id === player.id) ? prev : [...prev, player],
+                            );
+                          }
+                          setExpandedPlayerId(null);
+                        }}
+                        className={cn(
+                          'cursor-pointer select-none border-emerald-100 transition hover:border-emerald-300 dark:border-emerald-900/50 dark:hover:border-emerald-700',
+                          isTraining && 'pointer-events-none opacity-60',
+                          isExpanded && 'border-emerald-300 ring-2 ring-emerald-200/70 dark:border-emerald-700',
+                        )}
+                      >
+                        <CardContent className="flex items-center justify-between gap-3 p-4">
+                          <div>
+                            <p className="font-semibold">{player.name}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {player.position} • Genel {Math.round(player.overall * 100)}
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-xs text-muted-foreground">Motivasyon</p>
+                            <p className="font-semibold">{Math.round(player.motivation * 100)}%</p>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </PopoverTrigger>
+                    <PopoverContent
+                      align="start"
+                      side="right"
+                      sideOffset={12}
+                      className="w-auto border-none bg-transparent p-0 shadow-none"
+                    >
+                      <PlayerStatusCard player={player} />
+                    </PopoverContent>
+                  </Popover>
+                );
+              })}
             </CardContent>
           </Card>
 

@@ -43,6 +43,9 @@ import {
   purchaseTransferListing,
   type MarketSortOption,
 } from '@/services/transferMarket';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { PlayerStatusCard } from '@/components/ui/player-status-card';
+import { cn } from '@/lib/utils';
 
 const POSITIONS: Player['position'][] = [
   'GK',
@@ -165,6 +168,7 @@ export default function TransferMarket() {
     maxPrice: '',
     sortBy: 'overall-desc',
   });
+  const [expandedListingId, setExpandedListingId] = useState<string | null>(null);
   const previousListingCount = useRef<number>(0);
 
   const loadTeam = useCallback(async () => {
@@ -221,6 +225,9 @@ export default function TransferMarket() {
       list => {
         if (!isMounted) return;
         setListings(list);
+        setExpandedListingId(prev =>
+          prev && list.some(item => item.id === prev) ? prev : null,
+        );
         setIsListingsLoading(false);
       },
       error => {
@@ -407,6 +414,7 @@ export default function TransferMarket() {
       return;
     }
 
+    setExpandedListingId(prev => (prev === listing.id ? null : prev));
     setPurchasingId(listing.id);
     try {
       await purchaseTransferListing(listing.id, user.id);
@@ -553,14 +561,62 @@ export default function TransferMarket() {
                           player?.potential ?? overallValue;
                         const ageDisplay = player?.age ?? '—';
                         const sellerUid = listing.sellerUid ?? listing.sellerId;
+                        const isExpanded = expandedListingId === listing.id;
 
                         return (
-                          <TableRow key={listing.id}>
+                          <TableRow
+                            key={listing.id}
+                            className={cn(
+                              isExpanded && 'bg-emerald-50/50 dark:bg-emerald-900/30',
+                            )}
+                          >
                             <TableCell>
-                              <div className="font-semibold">{name}</div>
-                              <div className="text-xs text-muted-foreground">
-                                Yaş {ageDisplay} · Potansiyel {formatOverall(potentialValue)}
-                              </div>
+                              {player ? (
+                                <Popover
+                                  open={isExpanded}
+                                  onOpenChange={open => {
+                                    setExpandedListingId(prev => {
+                                      if (open) {
+                                        return listing.id;
+                                      }
+                                      return prev === listing.id ? null : prev;
+                                    });
+                                  }}
+                                >
+                                  <PopoverTrigger asChild>
+                                    <button
+                                      type="button"
+                                      className={cn(
+                                        'group flex w-full flex-col items-start rounded-md border border-transparent px-0 py-1 text-left transition focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/60',
+                                        isExpanded &&
+                                          'border-emerald-200 bg-emerald-50/70 dark:border-emerald-800 dark:bg-emerald-900/40',
+                                      )}
+                                    >
+                                      <span className="font-semibold text-foreground transition-colors group-hover:text-emerald-700 dark:group-hover:text-emerald-200">
+                                        {name}
+                                      </span>
+                                      <span className="text-xs text-muted-foreground">
+                                        Yaş {ageDisplay} · Potansiyel {formatOverall(potentialValue)}
+                                      </span>
+                                    </button>
+                                  </PopoverTrigger>
+                                  <PopoverContent
+                                    align="start"
+                                    side="right"
+                                    sideOffset={16}
+                                    className="w-auto border-none bg-transparent p-0 shadow-none"
+                                  >
+                                    <PlayerStatusCard player={player} />
+                                  </PopoverContent>
+                                </Popover>
+                              ) : (
+                                <div>
+                                  <div className="font-semibold">{name}</div>
+                                  <div className="text-xs text-muted-foreground">
+                                    Yaş {ageDisplay} · Potansiyel {formatOverall(potentialValue)}
+                                  </div>
+                                </div>
+                              )}
                             </TableCell>
                             <TableCell>
                               <Badge variant="outline">{position}</Badge>
