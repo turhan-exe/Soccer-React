@@ -1,6 +1,7 @@
 import { doc, setDoc, getDoc, runTransaction } from 'firebase/firestore';
+import { FirebaseError } from 'firebase/app';
 import { httpsCallable } from 'firebase/functions';
-import { db, functions } from '@/services/firebase';
+import { auth, db, functions } from '@/services/firebase';
 import { Player, ClubTeam, CustomFormationMap } from '@/types';
 import { generateRandomName } from '@/lib/names';
 import { calculateOverall, getRoles } from '@/lib/player';
@@ -118,10 +119,32 @@ export const createInitialTeam = async (
 ): Promise<ClubTeam> => {
   const team = generateTeamData(userId, teamName, manager);
   // Firestore security rules require ownerUid on create and forbid setting leagueId from client
-  await setDoc(
-    doc(db, 'teams', userId),
-    { ...team, ownerUid: userId },
-  );
+  const teamRef = doc(db, 'teams', userId);
+  const payload = { ...team, ownerUid: userId };
+
+  const tryWrite = () => setDoc(teamRef, payload);
+
+  try {
+    await tryWrite();
+  } catch (error) {
+    const firebaseError = error as FirebaseError;
+    if (firebaseError.code === 'permission-denied') {
+      const currentUser = auth.currentUser;
+      if (currentUser && currentUser.uid === userId) {
+        try {
+          await currentUser.getIdToken(true);
+          await tryWrite();
+        } catch (retryError) {
+          console.error('[team.createInitialTeam] Retry after token refresh failed', retryError);
+          throw retryError;
+        }
+      } else {
+        throw firebaseError;
+      }
+    } else {
+      throw firebaseError;
+    }
+  }
   return team;
 };
 
