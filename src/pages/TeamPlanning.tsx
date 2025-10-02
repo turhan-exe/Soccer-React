@@ -213,11 +213,21 @@ function normalizePlayer(player: Player): Player {
     extensions: player.contract?.extensions ?? 0,
   });
 
-  const fallbackRename = (): NonNullable<Player['rename']> => ({
-    adAvailableAt: new Date(0).toISOString(),
-    lastMethod: player.rename?.lastMethod,
-    lastUpdatedAt: player.rename?.lastUpdatedAt,
-  });
+  const fallbackRename = (): NonNullable<Player['rename']> => {
+    const details: NonNullable<Player['rename']> = {
+      adAvailableAt: new Date(0).toISOString(),
+    };
+
+    if (player.rename?.lastUpdatedAt) {
+      details.lastUpdatedAt = player.rename.lastUpdatedAt;
+    }
+
+    if (player.rename?.lastMethod === 'ad' || player.rename?.lastMethod === 'purchase') {
+      details.lastMethod = player.rename.lastMethod;
+    }
+
+    return details;
+  };
 
   return {
     ...player,
