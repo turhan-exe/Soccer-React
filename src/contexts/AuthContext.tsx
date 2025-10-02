@@ -98,14 +98,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       if (cred.user) {
         const managerName = generateRandomName();
         try {
-          // Profil ve takım oluşturmayı tamamla
-          await updateProfile(cred.user, { displayName: teamName });
-          await createInitialTeam(cred.user.uid, teamName, managerName);
-          // Slot tabanlı atama
-          await requestAssign(cred.user.uid);
+          await updateProfile(cred.user, { displayName: teamName }).catch((err) => {
+            console.warn('[AuthContext] Failed to update profile after sign up', err);
+          });
 
-          // ÖNEMLİ: Kayıttan hemen sonra UI'da takım adını anında göstermek için
-          // context'teki kullanıcıyı güncelle (sayfa yenilemeden çalışır)
+          await createInitialTeam(cred.user.uid, teamName, managerName);
+
+          // UI'yı gecikmesiz güncelle
           setUser({
             id: cred.user.uid,
             username: managerName,
@@ -114,8 +113,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             teamLogo: '⚽',
             connectedAccounts: { google: false, apple: false },
           });
+
+          // Lig atamasını arka planda tetikle; başarısız olursa yalnızca logla
+          void requestAssign(cred.user.uid).catch((err) => {
+            console.warn('[AuthContext] League assignment failed after registration', err);
+          });
         } catch (err) {
           console.error('Post-register setup failed:', err);
+          throw err;
         }
       }
     } finally {
@@ -172,7 +177,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       if (!team) {
         await createInitialTeam(firebaseUser.uid, trimmedName, managerName);
-        await requestAssign(firebaseUser.uid);
+        void requestAssign(firebaseUser.uid).catch((err) => {
+          console.warn('[AuthContext] League assignment failed after social registration', err);
+        });
       } else if (team.name !== trimmedName) {
         await updateTeamName(firebaseUser.uid, trimmedName);
       }
