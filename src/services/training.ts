@@ -14,6 +14,10 @@ import {
   writeBatch,
 } from 'firebase/firestore';
 import { db } from '@/services/firebase';
+import { getTeam, saveTeamPlayers } from '@/services/team';
+import { trainings } from '@/lib/data';
+import { runTrainingSimulation } from '@/lib/trainingSession';
+import type { Player, Training } from '@/types';
 import { toast } from 'sonner';
 
 type FirestoreLikeError = { code?: string };
@@ -204,5 +208,84 @@ export async function reduceTrainingTimeWithAd(
     console.warn(err);
     toast.error((err as Error).message || 'İşlem başarısız');
     throw err;
+  }
+}
+
+export async function finalizeExpiredTrainingSession(uid: string): Promise<boolean> {
+  const session = await getActiveTraining(uid);
+  if (!session) {
+    return false;
+  }
+
+  const startDate = session.startAt.toDate();
+  const elapsedSeconds = Math.max(
+    0,
+    Math.floor((Date.now() - startDate.getTime()) / 1000),
+  );
+
+  if (elapsedSeconds < session.durationSeconds) {
+    return false;
+  }
+
+  try {
+    const team = await getTeam(uid);
+    if (!team) {
+      await clearActiveTraining(uid);
+      return true;
+    }
+
+    const sessionPlayers = session.playerIds
+      .map(id => team.players.find(player => player.id === id))
+      .filter((player): player is Player => Boolean(player));
+
+    const sessionTrainings = session.trainingIds
+      .map(id => trainings.find(training => training.id === id))
+      .filter((training): training is Training => Boolean(training));
+
+    if (sessionPlayers.length === 0 || sessionTrainings.length === 0) {
+      await clearActiveTraining(uid);
+      return true;
+    }
+
+    const { updatedPlayers, records } = runTrainingSimulation(
+      sessionPlayers,
+      sessionTrainings,
+    );
+
+    const mergedPlayers = team.players.map(player => {
+      const updated = updatedPlayers.find(p => p.id === player.id);
+      return updated ?? player;
+    });
+
+    try {
+      await saveTeamPlayers(uid, mergedPlayers);
+    } catch (error) {
+      console.warn('[training.finalizeExpiredTrainingSession] save players failed', error);
+    }
+
+    const completionTime = Timestamp.now();
+
+    for (const record of records) {
+      try {
+        await addTrainingRecord(uid, {
+          ...record,
+          completedAt: completionTime,
+          viewed: false,
+        });
+      } catch (error) {
+        console.warn('[training.finalizeExpiredTrainingSession] record persist failed', error);
+      }
+    }
+
+    try {
+      await clearActiveTraining(uid);
+    } catch (error) {
+      console.warn('[training.finalizeExpiredTrainingSession] clear active failed', error);
+    }
+
+    return true;
+  } catch (error) {
+    console.warn('[training.finalizeExpiredTrainingSession] failed', error);
+    return false;
   }
 }

@@ -25,7 +25,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { getMyLeagueId, listLeagueStandings, getFixturesForTeam } from '@/services/leagues';
 import { getTeam } from '@/services/team';
-import { getUnviewedTrainingCount } from '@/services/training';
+import { finalizeExpiredTrainingSession, getUnviewedTrainingCount } from '@/services/training';
 import { getYouthCandidates } from '@/services/youth';
 
 const menuItems = [
@@ -126,6 +126,12 @@ export default function MainMenu() {
         setHasUnseenTrainingResults(false);
         setHasYouthCandidates(false);
         return;
+      }
+
+      try {
+        await finalizeExpiredTrainingSession(user.id);
+      } catch (err) {
+        console.warn('[MainMenu] finalize training failed', err);
       }
 
       try {
