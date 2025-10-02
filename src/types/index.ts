@@ -13,6 +13,10 @@ export type Position =
   | 'RW'
   | 'ST';
 
+export type InjuryStatus = 'healthy' | 'injured';
+
+export type KitType = 'energy' | 'morale' | 'health';
+
 export interface Player {
   id: string;
   name: string;
@@ -42,6 +46,7 @@ export interface Player {
   weight: number;
   condition: number;
   motivation: number;
+  injuryStatus?: InjuryStatus;
   squadRole: SquadRole | 'youth';
   avatar?: string;
   uniqueId?: string;

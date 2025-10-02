@@ -197,6 +197,11 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({
                 <Badge variant="secondary" className={cn('text-xs', compact && 'text-[10px]')}>
                   {player.age} yaş
                 </Badge>
+                {player.injuryStatus === 'injured' && (
+                  <Badge variant="destructive" className={cn('text-xs', compact && 'text-[10px]')}>
+                    Sakat
+                  </Badge>
+                )}
                 <div className={cn('flex items-center gap-1 text-muted-foreground', compact && 'gap-0.5')}>
                   <TrendingUp className={cn('h-3 w-3', compact && 'h-2.5 w-2.5')} />
                   <Tooltip>

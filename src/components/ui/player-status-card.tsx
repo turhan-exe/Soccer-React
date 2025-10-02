@@ -72,6 +72,11 @@ export function PlayerStatusCard({ player, className }: PlayerStatusCardProps) {
             <Badge variant="outline" className="text-[11px]">
               Potansiyel {Math.round(player.potential * 100)}
             </Badge>
+            {player.injuryStatus === 'injured' && (
+              <Badge variant="destructive" className="text-[11px]">
+                Sakat
+              </Badge>
+            )}
             {player.roles?.map(role => (
               <Badge key={role} variant="outline" className="text-[11px]">
                 {role}

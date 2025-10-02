@@ -161,6 +161,7 @@ function normalizePlayer(player: Player): Player {
     ...player,
     condition: clampPerformanceGauge(player.condition, DEFAULT_GAUGE_VALUE),
     motivation: clampPerformanceGauge(player.motivation, DEFAULT_GAUGE_VALUE),
+    injuryStatus: player.injuryStatus ?? 'healthy',
   };
 }
 

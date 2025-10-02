@@ -60,6 +60,9 @@ const player: Player = {
   height: 180,
   weight: 70,
   squadRole: 'youth',
+  condition: 0.7,
+  motivation: 0.7,
+  injuryStatus: 'healthy',
 };
 
 beforeEach(() => {
