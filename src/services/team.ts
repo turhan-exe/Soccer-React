@@ -171,8 +171,24 @@ type TeamPlanUpdate = {
   customFormations?: CustomFormationMap;
 };
 
+const sanitizeFirestoreData = <T>(value: T): T => {
+  if (Array.isArray(value)) {
+    return value.map(item => sanitizeFirestoreData(item)) as unknown as T;
+  }
+
+  if (value && typeof value === 'object') {
+    const entries = Object.entries(value as Record<string, unknown>)
+      .filter(([, itemValue]) => itemValue !== undefined)
+      .map(([key, itemValue]) => [key, sanitizeFirestoreData(itemValue)] as const);
+
+    return Object.fromEntries(entries) as T;
+  }
+
+  return value;
+};
+
 export const saveTeamPlayers = async (userId: string, players: Player[], plan?: TeamPlanUpdate) => {
-  const payload: Record<string, unknown> = { players };
+  const payload: Record<string, unknown> = { players: sanitizeFirestoreData(players) };
 
   if (plan) {
     const { formation, shape, squads, tactics, customFormations } = plan;
@@ -280,7 +296,7 @@ export const saveTeamPlayers = async (userId: string, players: Player[], plan?: 
     };
   }
 
-  await setDoc(doc(db, 'teams', userId), payload, { merge: true });
+  await setDoc(doc(db, 'teams', userId), sanitizeFirestoreData(payload), { merge: true });
 };
 
 export const addPlayerToTeam = async (userId: string, player: Player) => {
