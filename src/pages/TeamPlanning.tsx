@@ -646,6 +646,7 @@ export default function TeamPlanning() {
       return;
     }
 
+    const userId = user.id;
     const trimmed = renameInput.trim();
     if (trimmed.length < 2) {
       toast.error('İsim en az 2 karakter olmalı');
@@ -712,7 +713,7 @@ export default function TeamPlanning() {
       );
 
       setPlayers(updatedPlayers);
-      await saveTeamPlayers(user.id, updatedPlayers);
+      await saveTeamPlayers(userId, updatedPlayers);
       toast.success('Oyuncu adı güncellendi');
       setRenamePlayerId(null);
     } catch (error) {
@@ -731,6 +732,7 @@ export default function TeamPlanning() {
     if (!user || isProcessingContract) {
       return;
     }
+    const userId = user.id;
     const target = players.find(player => player.id === playerId);
     if (!target) {
       return;
@@ -766,7 +768,7 @@ export default function TeamPlanning() {
 
     setPlayers(updatedPlayers);
     try {
-      await saveTeamPlayers(user.id, updatedPlayers);
+      await saveTeamPlayers(userId, updatedPlayers);
       toast.success(`${target.name} ile sözleşme uzatıldı`);
       finalizeContractDecision(playerId);
     } catch (error) {
@@ -782,6 +784,7 @@ export default function TeamPlanning() {
     if (!user || isProcessingContract) {
       return;
     }
+    const userId = user.id;
     const target = players.find(player => player.id === playerId);
     if (!target) {
       return;
@@ -815,7 +818,7 @@ export default function TeamPlanning() {
 
     setPlayers(updatedPlayers);
     try {
-      await saveTeamPlayers(user.id, updatedPlayers);
+      await saveTeamPlayers(userId, updatedPlayers);
       toast.info(`${target.name} serbest bırakıldı ve transfer listesine eklendi`);
       finalizeContractDecision(playerId);
     } catch (error) {
@@ -832,6 +835,7 @@ export default function TeamPlanning() {
       return;
     }
 
+    const userId = user.id;
     const target = players.find(player => player.id === playerId);
     if (!target) {
       return;
