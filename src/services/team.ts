@@ -59,6 +59,7 @@ const generatePlayer = (
     squadRole: 'reserve',
     condition: randomGauge(),
     motivation: randomGauge(),
+    injuryStatus: 'healthy',
   };
 };
 
@@ -263,7 +264,7 @@ export const addPlayerToTeam = async (userId: string, player: Player) => {
   if (!team) return;
   const updatedPlayers = [
     ...team.players,
-    { ...player, squadRole: 'reserve' as const },
+    { ...player, injuryStatus: player.injuryStatus ?? 'healthy', squadRole: 'reserve' as const },
   ];
   await setDoc(doc(db, 'teams', userId), { players: updatedPlayers }, { merge: true });
   return updatedPlayers;
