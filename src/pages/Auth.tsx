@@ -16,6 +16,30 @@ import {
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { Loader2, Chrome, Apple } from 'lucide-react';
+import { FirebaseError } from 'firebase/app';
+
+const getRegisterErrorMessage = (error: unknown): string => {
+  if (error instanceof FirebaseError) {
+    const map: Record<string, string> = {
+      'auth/email-already-in-use': 'Bu e-posta adresi zaten kullanımda.',
+      'auth/invalid-email': 'Geçerli bir e-posta adresi girin.',
+      'auth/weak-password': 'Şifreniz en az 6 karakter olmalı.',
+      'auth/operation-not-allowed': 'Kayıt işlemi devre dışı. Lütfen daha sonra tekrar deneyin.',
+      'permission-denied': 'Takım oluşturulamadı. Lütfen tekrar deneyin.',
+    };
+    const friendly = map[error.code];
+    if (friendly) {
+      return friendly;
+    }
+    if (error.message) {
+      return error.message;
+    }
+  }
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+  return 'Kayıt başarısız';
+};
 
 export default function Auth() {
   const {
@@ -61,7 +85,8 @@ export default function Auth() {
       await register(registerForm.email, registerForm.password, trimmedTeamName);
       toast.success('Hesap başarıyla oluşturuldu!');
     } catch (error) {
-      toast.error('Kayıt başarısız');
+      console.error('register error:', error);
+      toast.error(getRegisterErrorMessage(error));
     }
   };
 

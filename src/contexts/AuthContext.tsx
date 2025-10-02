@@ -5,7 +5,7 @@ import React, {
   ReactNode,
   useEffect,
 } from 'react';
-import { onAuthStateChanged, updateProfile } from 'firebase/auth';
+import { onAuthStateChanged, updateProfile, User as FirebaseUser } from 'firebase/auth';
 import { User } from '@/types';
 import { auth } from '@/services/firebase';
 import {
@@ -87,6 +87,39 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
+  const waitForFirebaseUser = async (
+    expectedUid: string,
+    timeoutMs = 5000,
+  ): Promise<void> => {
+    if (auth.currentUser?.uid === expectedUid) {
+      return;
+    }
+
+    await new Promise<void>((resolve, reject) => {
+      let unsubscribe: () => void = () => {};
+      const timeout = setTimeout(() => {
+        unsubscribe();
+        resolve();
+      }, timeoutMs);
+
+      unsubscribe = onAuthStateChanged(
+        auth,
+        (firebaseUser) => {
+          if (firebaseUser?.uid === expectedUid) {
+            clearTimeout(timeout);
+            unsubscribe();
+            resolve();
+          }
+        },
+        (error) => {
+          clearTimeout(timeout);
+          unsubscribe();
+          reject(error);
+        },
+      );
+    });
+  };
+
   const register = async (
     email: string,
     password: string,
@@ -95,33 +128,69 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setIsLoading(true);
     try {
       const cred = await signUp(email, password);
-      if (cred.user) {
+      const firebaseUser = cred.user;
+      if (firebaseUser) {
+        // Ensure auth state is fully ready before attempting Firestore writes
+        try {
+          await waitForFirebaseUser(firebaseUser.uid);
+        } catch (waitError) {
+          console.warn('[AuthContext] Waiting for auth state after sign up failed', waitError);
+        }
+
         // Ensure Firestore has a fresh ID token – without it writes can fail on first sign up.
         try {
-          await cred.user.getIdToken(true);
+          await firebaseUser.getIdToken(true);
         } catch (tokenError) {
           console.warn('[AuthContext] Failed to refresh ID token after sign up', tokenError);
         }
         const managerName = generateRandomName();
         try {
-          await updateProfile(cred.user, { displayName: teamName }).catch((err) => {
+          await updateProfile(firebaseUser, { displayName: teamName }).catch((err) => {
             console.warn('[AuthContext] Failed to update profile after sign up', err);
           });
 
-          await createInitialTeam(cred.user.uid, teamName, managerName);
+          const attemptCreateInitialTeam = async (
+            user: FirebaseUser,
+          ): Promise<void> => {
+            const MAX_ATTEMPTS = 3;
+            for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
+              try {
+                await createInitialTeam(user.uid, teamName, managerName);
+                return;
+              } catch (createError) {
+                const errorMessage = createError instanceof Error ? createError.message : '';
+                const shouldRetry =
+                  attempt < MAX_ATTEMPTS &&
+                  (/uid/i.test(errorMessage) || /permission/i.test(errorMessage));
+                if (!shouldRetry) {
+                  throw createError;
+                }
+
+                try {
+                  await user.getIdToken(true);
+                } catch (refreshError) {
+                  console.warn('[AuthContext] Retrying team creation token refresh failed', refreshError);
+                }
+
+                await new Promise((resolve) => setTimeout(resolve, 200 * attempt));
+              }
+            }
+          };
+
+          await attemptCreateInitialTeam(firebaseUser);
 
           // UI'yı gecikmesiz güncelle
           setUser({
-            id: cred.user.uid,
+            id: firebaseUser.uid,
             username: managerName,
-            email: cred.user.email || email,
+            email: firebaseUser.email || email,
             teamName,
             teamLogo: '⚽',
             connectedAccounts: { google: false, apple: false },
           });
 
           // Lig atamasını arka planda tetikle; başarısız olursa yalnızca logla
-          void requestAssign(cred.user.uid).catch((err) => {
+          void requestAssign(firebaseUser.uid).catch((err) => {
             console.warn('[AuthContext] League assignment failed after registration', err);
           });
         } catch (err) {
