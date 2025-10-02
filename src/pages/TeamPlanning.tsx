@@ -8,6 +8,7 @@ import { PerformanceGauge, clampPerformanceGauge } from '@/components/ui/perform
 import { Player, CustomFormationMap } from '@/types';
 import { getTeam, saveTeamPlayers, createInitialTeam } from '@/services/team';
 import { useAuth } from '@/contexts/AuthContext';
+import { useDiamonds } from '@/contexts/DiamondContext';
 import { Search, Save, Eye, ArrowUp } from 'lucide-react';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
@@ -23,9 +24,13 @@ import { calculatePowerIndex } from '@/lib/player';
 import { cn } from '@/lib/utils';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { BackButton } from '@/components/ui/back-button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 const DEFAULT_GAUGE_VALUE = 0.75;
+
+const PLAYER_RENAME_DIAMOND_COST = 25;
+const PLAYER_RENAME_AD_COOLDOWN_HOURS = 24;
+const CONTRACT_EXTENSION_MONTHS = 18;
 
 const KNOWN_POSITIONS: Player['position'][] = ['GK', 'CB', 'LB', 'RB', 'CM', 'LM', 'RM', 'CAM', 'LW', 'RW', 'ST'];
 
@@ -156,12 +161,71 @@ const sanitizeCustomFormationState = (input: unknown): CustomFormationState => {
   return sanitized;
 };
 
+const HOURS_IN_MS = 60 * 60 * 1000;
+
+const addMonths = (date: Date, months: number): Date => {
+  const result = new Date(date);
+  const targetMonth = result.getMonth() + months;
+  result.setMonth(targetMonth);
+  return result;
+};
+
+const getContractExpiration = (player: Player): Date | null => {
+  if (!player.contract?.expiresAt) {
+    return null;
+  }
+  const expires = new Date(player.contract.expiresAt);
+  return Number.isNaN(expires.getTime()) ? null : expires;
+};
+
+const isContractExpired = (player: Player): boolean => {
+  if (!player.contract || player.contract.status === 'released') {
+    return false;
+  }
+  const expires = getContractExpiration(player);
+  if (!expires) {
+    return false;
+  }
+  return expires.getTime() <= Date.now();
+};
+
+const getRenameAdAvailability = (player: Player): Date | null => {
+  if (!player.rename?.adAvailableAt) {
+    return null;
+  }
+  const date = new Date(player.rename.adAvailableAt);
+  return Number.isNaN(date.getTime()) ? null : date;
+};
+
+const isRenameAdReady = (player: Player): boolean => {
+  const next = getRenameAdAvailability(player);
+  if (!next) {
+    return true;
+  }
+  return next.getTime() <= Date.now();
+};
+
 function normalizePlayer(player: Player): Player {
+  const fallbackContract = (): NonNullable<Player['contract']> => ({
+    expiresAt: addMonths(new Date(), CONTRACT_EXTENSION_MONTHS).toISOString(),
+    status: 'active',
+    salary: player.contract?.salary ?? 0,
+    extensions: player.contract?.extensions ?? 0,
+  });
+
+  const fallbackRename = (): NonNullable<Player['rename']> => ({
+    adAvailableAt: new Date(0).toISOString(),
+    lastMethod: player.rename?.lastMethod,
+    lastUpdatedAt: player.rename?.lastUpdatedAt,
+  });
+
   return {
     ...player,
     condition: clampPerformanceGauge(player.condition, DEFAULT_GAUGE_VALUE),
     motivation: clampPerformanceGauge(player.motivation, DEFAULT_GAUGE_VALUE),
     injuryStatus: player.injuryStatus ?? 'healthy',
+    contract: player.contract ?? fallbackContract(),
+    rename: player.rename ?? fallbackRename(),
   };
 }
 
@@ -371,6 +435,7 @@ function getPlayerPower(player: Player): number {
 export default function TeamPlanning() {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { balance, spend } = useDiamonds();
   const [players, setPlayers] = useState<Player[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [activeTab, setActiveTab] = useState('starting');
@@ -382,9 +447,16 @@ export default function TeamPlanning() {
   const [focusedPlayerId, setFocusedPlayerId] = useState<string | null>(null);
   const [comparisonPlayerId, setComparisonPlayerId] = useState<string | null>(null);
   const [savedFormationShape, setSavedFormationShape] = useState<string | null>(null);
+  const [renamePlayerId, setRenamePlayerId] = useState<string | null>(null);
+  const [renameInput, setRenameInput] = useState('');
+  const [isRenamingPlayer, setIsRenamingPlayer] = useState(false);
+  const [pendingContractIds, setPendingContractIds] = useState<string[]>([]);
+  const [activeContractId, setActiveContractId] = useState<string | null>(null);
+  const [isProcessingContract, setIsProcessingContract] = useState(false);
 
   const pitchRef = useRef<HTMLDivElement | null>(null);
   const dropHandledRef = useRef(false);
+  const handledContractsRef = useRef<Set<string>>(new Set());
 
 
   const filteredPlayers = players.filter(
@@ -419,6 +491,21 @@ export default function TeamPlanning() {
         );
     }
   });
+
+  const renamePlayer = useMemo(
+    () => players.find(player => player.id === renamePlayerId) ?? null,
+    [players, renamePlayerId],
+  );
+
+  const activeContractPlayer = useMemo(
+    () => players.find(player => player.id === activeContractId) ?? null,
+    [players, activeContractId],
+  );
+
+  const isRenameAdAvailable = renamePlayer ? isRenameAdReady(renamePlayer) : true;
+  const renameAdAvailableAt = renamePlayer
+    ? getRenameAdAvailability(renamePlayer)
+    : null;
 
   const removePlayerFromCustomFormations = (playerId: string) => {
     setCustomFormations(prev => {
@@ -485,6 +572,12 @@ export default function TeamPlanning() {
     });
   };
 
+  const finalizeContractDecision = (playerId: string) => {
+    handledContractsRef.current.add(playerId);
+    setPendingContractIds(prev => prev.filter(id => id !== playerId));
+    setActiveContractId(prev => (prev === playerId ? null : prev));
+  };
+
   const movePlayer = (playerId: string, newRole: Player['squadRole']) => {
     let errorMessage: string | null = null;
     let changed = false;
@@ -534,6 +627,216 @@ export default function TeamPlanning() {
         removePlayerFromCustomFormations(swappedPlayerId);
       }
       toast.success('Oyuncu baaryla tand');
+    }
+  };
+
+  const handleRenamePlayer = async (method: 'ad' | 'purchase') => {
+    if (!user || !renamePlayer) {
+      return;
+    }
+
+    const trimmed = renameInput.trim();
+    if (trimmed.length < 2) {
+      toast.error('İsim en az 2 karakter olmalı');
+      return;
+    }
+
+    if (trimmed === renamePlayer.name) {
+      toast.info('Oyuncu adı değişmedi');
+      return;
+    }
+
+    if (method === 'ad' && !isRenameAdAvailable) {
+      const availableAt = getRenameAdAvailability(renamePlayer);
+      const message = availableAt
+        ? `Reklam ${availableAt.toLocaleString('tr-TR')} sonrasında tekrar izlenebilir.`
+        : 'Reklam hakkı şu anda kullanılamıyor.';
+      toast.error(message);
+      return;
+    }
+
+    if (method === 'purchase' && balance < PLAYER_RENAME_DIAMOND_COST) {
+      toast.error('Yetersiz elmas bakiyesi');
+      return;
+    }
+
+    const previousPlayers = players.map(player => ({ ...player }));
+    let diamondsSpent = false;
+
+    setIsRenamingPlayer(true);
+
+    try {
+      if (method === 'purchase') {
+        await spend(PLAYER_RENAME_DIAMOND_COST);
+        diamondsSpent = true;
+      } else {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+
+      const now = new Date();
+      const adCooldown = new Date(
+        now.getTime() + PLAYER_RENAME_AD_COOLDOWN_HOURS * HOURS_IN_MS,
+      );
+
+      const updatedPlayers = players.map(player => {
+        if (player.id !== renamePlayer.id) {
+          return player;
+        }
+        const currentRename = player.rename ?? { adAvailableAt: new Date(0).toISOString() };
+        return {
+          ...player,
+          name: trimmed,
+          rename: {
+            ...currentRename,
+            lastUpdatedAt: now.toISOString(),
+            lastMethod: method === 'purchase' ? 'purchase' : 'ad',
+            adAvailableAt:
+              method === 'ad'
+                ? adCooldown.toISOString()
+                : currentRename.adAvailableAt ?? now.toISOString(),
+          },
+        };
+      });
+
+      setPlayers(updatedPlayers);
+      await saveTeamPlayers(user.id, updatedPlayers);
+      toast.success('Oyuncu adı güncellendi');
+      setRenamePlayerId(null);
+    } catch (error) {
+      console.error('[TeamPlanning] player rename failed', error);
+      toast.error('Oyuncu adı güncellenemedi');
+      setPlayers(previousPlayers);
+      if (method === 'purchase' && diamondsSpent) {
+        toast.error('Elmas harcaması yapıldı, lütfen destek ekibiyle iletişime geçin.');
+      }
+    } finally {
+      setIsRenamingPlayer(false);
+    }
+  };
+
+  const handleExtendContract = async (playerId: string) => {
+    if (!user || isProcessingContract) {
+      return;
+    }
+    const target = players.find(player => player.id === playerId);
+    if (!target) {
+      return;
+    }
+
+    setIsProcessingContract(true);
+    const previousPlayers = players.map(player => ({ ...player }));
+    const now = new Date();
+    const currentExpiry = getContractExpiration(target);
+    const baseDate = currentExpiry && currentExpiry.getTime() > now.getTime() ? currentExpiry : now;
+    const newExpiry = addMonths(baseDate, CONTRACT_EXTENSION_MONTHS);
+
+    const updatedPlayers = players.map(player => {
+      if (player.id !== playerId) {
+        return player;
+      }
+      const existingContract = player.contract ?? {
+        expiresAt: newExpiry.toISOString(),
+        status: 'active',
+        salary: 0,
+        extensions: 0,
+      };
+      return {
+        ...player,
+        contract: {
+          ...existingContract,
+          status: 'active',
+          expiresAt: newExpiry.toISOString(),
+          extensions: (existingContract.extensions ?? 0) + 1,
+        },
+      };
+    });
+
+    setPlayers(updatedPlayers);
+    try {
+      await saveTeamPlayers(user.id, updatedPlayers);
+      toast.success(`${target.name} ile sözleşme uzatıldı`);
+      finalizeContractDecision(playerId);
+    } catch (error) {
+      console.error('[TeamPlanning] extend contract failed', error);
+      toast.error('Sözleşme uzatılamadı');
+      setPlayers(previousPlayers);
+    } finally {
+      setIsProcessingContract(false);
+    }
+  };
+
+  const handleReleaseContract = async (playerId: string) => {
+    if (!user || isProcessingContract) {
+      return;
+    }
+    const target = players.find(player => player.id === playerId);
+    if (!target) {
+      return;
+    }
+
+    setIsProcessingContract(true);
+    const previousPlayers = players.map(player => ({ ...player }));
+    const updatedPlayers = players.map(player => {
+      if (player.id !== playerId) {
+        return player;
+      }
+      const currentContract = player.contract ?? {
+        expiresAt: new Date().toISOString(),
+        status: 'expired',
+        salary: 0,
+        extensions: 0,
+      };
+      return {
+        ...player,
+        squadRole: player.squadRole === 'starting' ? 'reserve' : player.squadRole,
+        contract: {
+          ...currentContract,
+          status: 'released',
+        },
+        market: {
+          ...(player.market ?? { active: false, listingId: null }),
+          active: true,
+        },
+      };
+    });
+
+    setPlayers(updatedPlayers);
+    try {
+      await saveTeamPlayers(user.id, updatedPlayers);
+      toast.info(`${target.name} serbest bırakıldı ve transfer listesine eklendi`);
+      finalizeContractDecision(playerId);
+    } catch (error) {
+      console.error('[TeamPlanning] release contract failed', error);
+      toast.error('Oyuncu serbest bırakılamadı');
+      setPlayers(previousPlayers);
+    } finally {
+      setIsProcessingContract(false);
+    }
+  };
+
+  const handleFirePlayer = async (playerId: string) => {
+    if (!user) {
+      return;
+    }
+
+    const target = players.find(player => player.id === playerId);
+    if (!target) {
+      return;
+    }
+
+    const previousPlayers = players.map(player => ({ ...player }));
+    const updatedPlayers = players.filter(player => player.id !== playerId);
+
+    setPlayers(updatedPlayers);
+    try {
+      await saveTeamPlayers(user.id, updatedPlayers);
+      removePlayerFromCustomFormations(playerId);
+      toast.success(`${target.name} takımdan gönderildi`);
+      finalizeContractDecision(playerId);
+    } catch (error) {
+      console.error('[TeamPlanning] fire player failed', error);
+      toast.error('Oyuncu kovulamadı');
+      setPlayers(previousPlayers);
     }
   };
 
@@ -817,6 +1120,51 @@ export default function TeamPlanning() {
       setFocusedPlayerId(fallback.id);
     }
   }, [players, focusedPlayerId]);
+
+  useEffect(() => {
+    if (renamePlayer) {
+      setRenameInput(renamePlayer.name);
+    } else {
+      setRenameInput('');
+    }
+  }, [renamePlayer]);
+
+  useEffect(() => {
+    const expiredIds = new Set(
+      players.filter(player => isContractExpired(player)).map(player => player.id),
+    );
+
+    handledContractsRef.current.forEach(id => {
+      if (!expiredIds.has(id)) {
+        handledContractsRef.current.delete(id);
+      }
+    });
+
+    setPendingContractIds(prev => {
+      const existing = new Set(prev);
+      const next = [...prev];
+      players.forEach(player => {
+        if (!expiredIds.has(player.id)) {
+          return;
+        }
+        if (handledContractsRef.current.has(player.id)) {
+          return;
+        }
+        if (!existing.has(player.id)) {
+          next.push(player.id);
+        }
+      });
+      return next;
+    });
+  }, [players]);
+
+  useEffect(() => {
+    if (pendingContractIds.length === 0) {
+      setActiveContractId(null);
+      return;
+    }
+    setActiveContractId(prev => (prev && pendingContractIds.includes(prev) ? prev : pendingContractIds[0]));
+  }, [pendingContractIds]);
 
   useEffect(() => {
     if (players.length === 0) {
@@ -1441,6 +1789,8 @@ export default function TeamPlanning() {
                   onDragEnd={() => setDraggedPlayerId(null)}
                   onMoveToBench={() => movePlayer(player.id, 'bench')}
                   onMoveToReserve={() => movePlayer(player.id, 'reserve')}
+                  onRenamePlayer={() => setRenamePlayerId(player.id)}
+                  onFirePlayer={() => handleFirePlayer(player.id)}
                 />
               ))
             )}
@@ -1472,6 +1822,8 @@ export default function TeamPlanning() {
                   onDragEnd={() => setDraggedPlayerId(null)}
                   onMoveToStarting={() => movePlayer(player.id, 'starting')}
                   onMoveToReserve={() => movePlayer(player.id, 'reserve')}
+                  onRenamePlayer={() => setRenamePlayerId(player.id)}
+                  onFirePlayer={() => handleFirePlayer(player.id)}
                 />
               ))
             )}
@@ -1503,6 +1855,8 @@ export default function TeamPlanning() {
                   onDragEnd={() => setDraggedPlayerId(null)}
                   onMoveToStarting={() => movePlayer(player.id, 'starting')}
                   onMoveToBench={() => movePlayer(player.id, 'bench')}
+                  onRenamePlayer={() => setRenamePlayerId(player.id)}
+                  onFirePlayer={() => handleFirePlayer(player.id)}
                 />
               ))
             )}
@@ -1512,6 +1866,103 @@ export default function TeamPlanning() {
         </div>
         </div>
       </div>
+      <Dialog
+        open={Boolean(renamePlayer)}
+        onOpenChange={open => {
+          if (!open) {
+            setRenamePlayerId(null);
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Oyuncu Adını Özelleştir</DialogTitle>
+            <DialogDescription>
+              {renamePlayer
+                ? `${renamePlayer.name} için yeni bir isim belirleyin.`
+                : 'Oyuncu adını güncelleyin.'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <Input
+              value={renameInput}
+              onChange={event => setRenameInput(event.target.value)}
+              placeholder="Yeni oyuncu adı"
+              disabled={isRenamingPlayer}
+              autoFocus
+            />
+            <p className="text-xs text-muted-foreground">
+              Reklam seçeneği {PLAYER_RENAME_AD_COOLDOWN_HOURS} saatte bir kullanılabilir. Elmas seçeneği {PLAYER_RENAME_DIAMOND_COST} elmas
+              harcar. Bakiyeniz: {balance}
+            </p>
+            {!isRenameAdAvailable && renameAdAvailableAt && (
+              <p className="text-xs text-amber-600 dark:text-amber-400">
+                Bir sonraki reklam hakkı {renameAdAvailableAt.toLocaleString('tr-TR')} tarihinde yenilenecek.
+              </p>
+            )}
+          </div>
+          <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:justify-end">
+            <Button
+              variant="secondary"
+              disabled={!isRenameAdAvailable || isRenamingPlayer}
+              onClick={() => handleRenamePlayer('ad')}
+            >
+              Reklam İzle ve Aç
+            </Button>
+            <Button disabled={isRenamingPlayer} onClick={() => handleRenamePlayer('purchase')}>
+              {PLAYER_RENAME_DIAMOND_COST} Elmasla Onayla
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={Boolean(activeContractPlayer)} onOpenChange={() => {}}>
+        <DialogContent
+          className="sm:max-w-md"
+          onInteractOutside={event => event.preventDefault()}
+          onEscapeKeyDown={event => event.preventDefault()}
+        >
+          <DialogHeader>
+            <DialogTitle>Sözleşme Yenileme Kararı</DialogTitle>
+            <DialogDescription>
+              {activeContractPlayer
+                ? `${activeContractPlayer.name} için sözleşme süresi doldu.`
+                : 'Sözleşme süresi dolan oyuncu bulunamadı.'}
+            </DialogDescription>
+          </DialogHeader>
+          {activeContractPlayer ? (
+            <div className="space-y-3">
+              <div className="rounded-md border border-muted bg-muted/40 p-3 text-sm">
+                <p>Bitiş Tarihi: {getContractExpiration(activeContractPlayer)?.toLocaleDateString('tr-TR') ?? '-'}</p>
+                <p>Mevcut Rol: {activeContractPlayer.squadRole}</p>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Sözleşmeyi uzatırsanız oyuncu takımda kalmaya devam eder. Aksi halde serbest bırakılarak transfer listesine düşer.
+              </p>
+            </div>
+          ) : null}
+          <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:justify-end">
+            {activeContractPlayer && (
+              <Button
+                variant="secondary"
+                disabled={isProcessingContract}
+                onClick={() => handleReleaseContract(activeContractPlayer.id)}
+              >
+                Serbest Bırak
+              </Button>
+            )}
+            {activeContractPlayer && (
+              <Button
+                disabled={isProcessingContract}
+                onClick={() => handleExtendContract(activeContractPlayer.id)}
+              >
+                Sözleşmeyi Uzat
+              </Button>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <Dialog
         open={Boolean(comparisonPlayer)}
         onOpenChange={open => {

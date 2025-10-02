@@ -55,6 +55,17 @@ export interface Player {
     active: boolean;
     listingId?: string | null;
   } | null;
+  contract?: {
+    expiresAt: string;
+    status?: 'active' | 'expired' | 'released';
+    salary?: number;
+    extensions?: number;
+  } | null;
+  rename?: {
+    lastUpdatedAt?: string;
+    lastMethod?: 'ad' | 'purchase';
+    adAvailableAt?: string;
+  } | null;
 }
 
 export type CustomFormationLayout = Record<
