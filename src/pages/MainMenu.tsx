@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { 
@@ -200,33 +201,38 @@ export default function MainMenu() {
             <Button variant="ghost" size="sm" onClick={toggleTheme}>
               {theme === 'light' ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
             </Button>
-            <Button variant="ghost" size="sm">
-              <div className="relative">
-                <Bell className="h-4 w-4" />
-                {notifications.length > 0 && (
-                  <span className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-red-500" />
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="ghost" size="sm">
+                  <div className="relative">
+                    <Bell className="h-4 w-4" />
+                    {notifications.length > 0 && (
+                      <span className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-red-500" />
+                    )}
+                  </div>
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent align="end" className="w-64 p-2">
+                {notifications.length > 0 ? (
+                  <ul className="space-y-2">
+                    {notifications.map(({ id, message, icon: Icon }) => (
+                      <li key={id} className="flex items-start gap-2 text-sm">
+                        <Icon className="mt-0.5 h-4 w-4 text-primary" />
+                        <span className="text-muted-foreground">{message}</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-sm text-muted-foreground">Yeni bildiriminiz bulunmuyor.</p>
                 )}
-              </div>
-            </Button>
+              </PopoverContent>
+            </Popover>
             <Button variant="ghost" size="sm" onClick={logout}>
               <LogOut className="h-4 w-4" />
             </Button>
           </div>
         </div>
       </div>
-
-      {notifications.length > 0 && (
-        <div className="bg-blue-50 dark:bg-blue-950/30 border-b border-blue-200 dark:border-blue-800 p-3">
-          <div className="flex flex-col gap-2 text-sm">
-            {notifications.map(({ id, message, icon: Icon }) => (
-              <div key={id} className="flex items-center gap-2 text-blue-800 dark:text-blue-200">
-                <Icon className="h-4 w-4" />
-                <span>{message}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
 
       {/* Menu Grid */}
       <div className="p-4">
