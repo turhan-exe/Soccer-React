@@ -25,6 +25,8 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { getMyLeagueId, listLeagueStandings, getFixturesForTeam } from '@/services/leagues';
 import { getTeam } from '@/services/team';
+import { getUnviewedTrainingCount } from '@/services/training';
+import { getYouthCandidates } from '@/services/youth';
 
 const menuItems = [
   { id: 'team-planning', label: 'Takım Planı', icon: Users, color: 'bg-blue-500' },
@@ -52,6 +54,8 @@ export default function MainMenu() {
   const [hoursToNextMatch, setHoursToNextMatch] = useState<number | null>(null);
   const [teamOverall, setTeamOverall] = useState<number | null>(null);
   const [teamForm, setTeamForm] = useState<string | null>(null);
+  const [hasUnseenTrainingResults, setHasUnseenTrainingResults] = useState(false);
+  const [hasYouthCandidates, setHasYouthCandidates] = useState(false);
 
   useEffect(() => {
     const loadQuickStats = async () => {
@@ -116,6 +120,56 @@ export default function MainMenu() {
     loadQuickStats();
   }, [user]);
 
+  useEffect(() => {
+    const loadNotifications = async () => {
+      if (!user) {
+        setHasUnseenTrainingResults(false);
+        setHasYouthCandidates(false);
+        return;
+      }
+
+      try {
+        const unseenCount = await getUnviewedTrainingCount(user.id);
+        setHasUnseenTrainingResults(unseenCount > 0);
+      } catch (err) {
+        console.warn('[MainMenu] training notifications failed', err);
+        setHasUnseenTrainingResults(false);
+      }
+
+      try {
+        const youthList = await getYouthCandidates(user.id);
+        setHasYouthCandidates(youthList.length > 0);
+      } catch (err) {
+        console.warn('[MainMenu] youth notifications failed', err);
+        setHasYouthCandidates(false);
+      }
+    };
+
+    loadNotifications();
+  }, [user]);
+
+  const notifications: {
+    id: string;
+    message: string;
+    icon: React.ComponentType<{ className?: string }>;
+  }[] = [];
+
+  if (hasUnseenTrainingResults) {
+    notifications.push({
+      id: 'training',
+      message: 'Görmediğiniz antrenman sonuçları hazır.',
+      icon: Dumbbell,
+    });
+  }
+
+  if (hasYouthCandidates) {
+    notifications.push({
+      id: 'youth',
+      message: 'Altyapıdan takıma katılabilecek oyuncular var.',
+      icon: UserPlus,
+    });
+  }
+
   const handleMenuClick = (itemId: string) => {
     navigate(`/${itemId}`);
   };
@@ -141,7 +195,12 @@ export default function MainMenu() {
               {theme === 'light' ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
             </Button>
             <Button variant="ghost" size="sm">
-              <Bell className="h-4 w-4" />
+              <div className="relative">
+                <Bell className="h-4 w-4" />
+                {notifications.length > 0 && (
+                  <span className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-red-500" />
+                )}
+              </div>
             </Button>
             <Button variant="ghost" size="sm" onClick={logout}>
               <LogOut className="h-4 w-4" />
@@ -150,15 +209,18 @@ export default function MainMenu() {
         </div>
       </div>
 
-      {/* Notification Banner */}
-      <div className="bg-blue-50 dark:bg-blue-950/30 border-b border-blue-200 dark:border-blue-800 p-3">
-        <div className="flex items-center gap-2 text-sm">
-          <Bell className="h-4 w-4 text-blue-600" />
-          <span className="text-blue-800 dark:text-blue-200">
-            Yeni antrenman sonuçları hazır! Oyuncularınızın gelişimini kontrol edin.
-          </span>
+      {notifications.length > 0 && (
+        <div className="bg-blue-50 dark:bg-blue-950/30 border-b border-blue-200 dark:border-blue-800 p-3">
+          <div className="flex flex-col gap-2 text-sm">
+            {notifications.map(({ id, message, icon: Icon }) => (
+              <div key={id} className="flex items-center gap-2 text-blue-800 dark:text-blue-200">
+                <Icon className="h-4 w-4" />
+                <span>{message}</span>
+              </div>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Menu Grid */}
       <div className="p-4">
