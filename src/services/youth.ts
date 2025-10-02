@@ -14,10 +14,21 @@ import {
   runTransaction,
   increment,
   addDoc,
+  QuerySnapshot,
+  QueryDocumentSnapshot,
+  DocumentData,
 } from 'firebase/firestore';
 import { db } from './firebase';
 import { Player } from '@/types';
 import { addPlayerToTeam } from './team';
+
+type FirestoreLikeError = { code?: string };
+
+const isFirestoreIndexError = (error: unknown): boolean =>
+  typeof error === 'object' && error !== null && 'code' in error && (error as FirestoreLikeError).code === 'failed-precondition';
+
+const isFirestorePermissionError = (error: unknown): boolean =>
+  typeof error === 'object' && error !== null && 'code' in error && (error as FirestoreLikeError).code === 'permission-denied';
 
 export type YouthCandidate = {
   id: string;
@@ -39,12 +50,35 @@ interface UserDoc {
 
 export async function getYouthCandidates(uid: string): Promise<YouthCandidate[]> {
   const col = collection(db, 'users', uid, 'youthCandidates');
-  const q = query(col, where('status', '==', 'pending'), orderBy('createdAt', 'desc'));
-  const snap = await getDocs(q);
-  return snap.docs.map((d) => ({
-    id: d.id,
-    ...(d.data() as Omit<YouthCandidate, 'id'>),
-  }));
+
+  const mapSnapshot = (snap: QuerySnapshot<DocumentData>): YouthCandidate[] =>
+    snap.docs
+      .map((d) => ({ id: d.id, ...(d.data() as Omit<YouthCandidate, 'id'>) }))
+      .filter((candidate) => candidate.status === 'pending')
+      .sort((a, b) => {
+        const getMs = (value: Timestamp | undefined) =>
+          value?.toMillis?.() ?? 0;
+        return getMs(b.createdAt) - getMs(a.createdAt);
+      });
+
+  try {
+    const q = query(col, where('status', '==', 'pending'), orderBy('createdAt', 'desc'));
+    const snap = await getDocs(q);
+    return mapSnapshot(snap);
+  } catch (error) {
+    if (isFirestoreIndexError(error)) {
+      console.warn('[youth.getYouthCandidates] Missing index, falling back to client sort');
+      const snap = await getDocs(col);
+      return mapSnapshot(snap);
+    }
+
+    if (isFirestorePermissionError(error)) {
+      console.warn('[youth.getYouthCandidates] Permission denied', error);
+      return [];
+    }
+
+    throw error;
+  }
 }
 
 export function listenYouthCandidates(
@@ -52,14 +86,58 @@ export function listenYouthCandidates(
   cb: (list: YouthCandidate[]) => void,
 ): Unsubscribe {
   const col = collection(db, 'users', uid, 'youthCandidates');
-  const q = query(col, where('status', '==', 'pending'), orderBy('createdAt', 'desc'));
-  return onSnapshot(q, (snap) => {
-    const list: YouthCandidate[] = snap.docs.map((d) => ({
-      id: d.id,
-      ...(d.data() as Omit<YouthCandidate, 'id'>),
-    }));
-    cb(list);
-  });
+
+  const mapDocs = (docs: QueryDocumentSnapshot<DocumentData>[]): YouthCandidate[] =>
+    docs
+      .map((d) => ({ id: d.id, ...(d.data() as Omit<YouthCandidate, 'id'>) }))
+      .filter((candidate) => candidate.status === 'pending')
+      .sort((a, b) => {
+        const getMs = (value: Timestamp | undefined) => value?.toMillis?.() ?? 0;
+        return getMs(b.createdAt) - getMs(a.createdAt);
+      });
+
+  const startFallbackListener = () =>
+    onSnapshot(col, (snap) => {
+      cb(mapDocs(snap.docs));
+    });
+
+  let fallbackUnsubscribe: Unsubscribe | null = null;
+  let primaryUnsubscribe: Unsubscribe = () => {};
+
+  const attachPrimaryListener = () => {
+    primaryUnsubscribe = onSnapshot(
+      query(col, where('status', '==', 'pending'), orderBy('createdAt', 'desc')),
+      (snap) => {
+        cb(mapDocs(snap.docs));
+      },
+      (error) => {
+        if (isFirestoreIndexError(error)) {
+          console.warn('[youth.listenYouthCandidates] Missing index, using fallback listener');
+          primaryUnsubscribe();
+          fallbackUnsubscribe = startFallbackListener();
+          return;
+        }
+
+        if (isFirestorePermissionError(error)) {
+          console.warn('[youth.listenYouthCandidates] Permission denied', error);
+          cb([]);
+          return;
+        }
+
+        console.error('[youth.listenYouthCandidates] Snapshot failed', error);
+      },
+    );
+  };
+
+  attachPrimaryListener();
+
+  return () => {
+    primaryUnsubscribe();
+    if (fallbackUnsubscribe) {
+      fallbackUnsubscribe();
+      fallbackUnsubscribe = null;
+    }
+  };
 }
 
 export async function createYouthCandidate(
