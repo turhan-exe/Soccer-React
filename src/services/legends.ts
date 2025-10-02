@@ -38,6 +38,7 @@ function legendToPlayer(id: string, legend: LegendPlayer): Player {
     squadRole: 'reserve',
     condition: 0.96,
     motivation: 0.98,
+    injuryStatus: 'healthy',
     avatar: legend.image,
     uniqueId: `legend-${legend.id}`,
   };

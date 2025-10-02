@@ -93,7 +93,9 @@ export function calculatePowerIndex(player: Player): number {
   const motivation = clamp01(player.motivation ?? 0.75);
   const physical = (player.attributes.strength + player.attributes.shootPower + player.attributes.topSpeed) / 3;
   const technical = (player.attributes.ballControl + player.attributes.passing + player.attributes.agility) / 3;
-  const rating = (player.overall + physical + technical + condition + motivation) / 5;
-  return parseFloat(rating.toFixed(3));
+  const baseRating = (player.overall + physical + technical + condition + motivation) / 5;
+  const injuryPenalty = player.injuryStatus === 'injured' ? 0.1 : 0;
+  const adjusted = Math.max(0, baseRating - injuryPenalty);
+  return parseFloat(adjusted.toFixed(3));
 }
 

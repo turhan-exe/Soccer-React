@@ -6,6 +6,7 @@ import { AuthProvider } from '@/contexts/AuthContext';
 import { ThemeProvider } from '@/contexts/ThemeContext';
 import { DiamondProvider } from '@/contexts/DiamondContext';
 import { router } from '@/routes/router';
+import { InventoryProvider } from '@/contexts/InventoryContext';
 
 const queryClient = new QueryClient();
 
@@ -14,13 +15,15 @@ const App = () => (
     <ThemeProvider>
       <AuthProvider>
         <DiamondProvider>
-          <TooltipProvider>
-            <Toaster />
-            <RouterProvider
-              router={router}
-              future={{ v7_startTransition: true }} // v7 uyarısını burada sustur
-            />
-          </TooltipProvider>
+          <InventoryProvider>
+            <TooltipProvider>
+              <Toaster />
+              <RouterProvider
+                router={router}
+                future={{ v7_startTransition: true }} // v7 uyarısını burada sustur
+              />
+            </TooltipProvider>
+          </InventoryProvider>
         </DiamondProvider>
       </AuthProvider>
     </ThemeProvider>
