@@ -34,6 +34,7 @@ test('assigns max stats based on roles without exceeding potential', () => {
     weight: 75,
     condition: 0.8,
     motivation: 0.8,
+    injuryStatus: 'healthy',
     squadRole: 'starting',
   };
 
