@@ -7,6 +7,7 @@ import { PlayerCard } from '@/components/ui/player-card';
 import { PerformanceGauge, clampPerformanceGauge } from '@/components/ui/performance-gauge';
 import { Player, CustomFormationMap } from '@/types';
 import { getTeam, saveTeamPlayers, createInitialTeam } from '@/services/team';
+import { auth } from '@/services/firebase';
 import { useAuth } from '@/contexts/AuthContext';
 import { useDiamonds } from '@/contexts/DiamondContext';
 import { Search, Save, Eye, ArrowUp } from 'lucide-react';
@@ -1086,7 +1087,9 @@ export default function TeamPlanning() {
     (async () => {
       let team = await getTeam(user.id);
       if (!team) {
-        team = await createInitialTeam(user.id, user.teamName, user.teamName);
+        team = await createInitialTeam(user.id, user.teamName, user.teamName, {
+          authUser: auth.currentUser,
+        });
       }
 
       const normalized = normalizePlayers(team.players);

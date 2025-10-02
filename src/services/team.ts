@@ -1,5 +1,6 @@
 import { doc, setDoc, getDoc, runTransaction } from 'firebase/firestore';
 import { FirebaseError } from 'firebase/app';
+import type { User as FirebaseAuthUser } from 'firebase/auth';
 import { httpsCallable } from 'firebase/functions';
 import { auth, db, functions } from '@/services/firebase';
 import { Player, ClubTeam, CustomFormationMap } from '@/types';
@@ -112,10 +113,19 @@ const generateTeamData = (id: string, name: string, manager: string): ClubTeam =
   };
 };
 
+type CreateInitialTeamOptions = {
+  /**
+   * Explicit Firebase user instance to use for token refresh.
+   * Useful immediately after sign-up when `auth.currentUser` may still be `null`.
+   */
+  authUser?: FirebaseAuthUser | null;
+};
+
 export const createInitialTeam = async (
   userId: string,
   teamName: string,
   manager: string,
+  options?: CreateInitialTeamOptions,
 ): Promise<ClubTeam> => {
   const team = generateTeamData(userId, teamName, manager);
   // Firestore security rules require ownerUid on create and forbid setting leagueId from client
@@ -128,21 +138,47 @@ export const createInitialTeam = async (
     await tryWrite();
   } catch (error) {
     const firebaseError = error as FirebaseError;
-    if (firebaseError.code === 'permission-denied') {
-      const currentUser = auth.currentUser;
-      if (currentUser && currentUser.uid === userId) {
-        try {
-          await currentUser.getIdToken(true);
-          await tryWrite();
-        } catch (retryError) {
-          console.error('[team.createInitialTeam] Retry after token refresh failed', retryError);
-          throw retryError;
-        }
-      } else {
-        throw firebaseError;
-      }
-    } else {
+    if (firebaseError.code !== 'permission-denied') {
       throw firebaseError;
+    }
+
+    const candidates: (FirebaseAuthUser | null | undefined)[] = [
+      auth.currentUser,
+      options?.authUser,
+    ];
+
+    let lastError: Error | FirebaseError | null = firebaseError;
+
+    for (const candidate of candidates) {
+      if (!candidate || candidate.uid !== userId) {
+        continue;
+      }
+
+      try {
+        await candidate.getIdToken(true);
+      } catch (refreshError) {
+        lastError =
+          refreshError instanceof Error
+            ? refreshError
+            : new Error(String((refreshError as { message?: unknown })?.message ?? refreshError ?? 'token refresh failed'));
+        continue;
+      }
+
+      try {
+        await tryWrite();
+        lastError = null;
+        break;
+      } catch (retryError) {
+        lastError =
+          retryError instanceof Error
+            ? retryError
+            : new Error(String((retryError as { message?: unknown })?.message ?? retryError ?? 'team write retry failed'));
+      }
+    }
+
+    if (lastError) {
+      console.error('[team.createInitialTeam] Token refresh retry failed', lastError);
+      throw lastError;
     }
   }
   return team;
