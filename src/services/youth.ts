@@ -3,7 +3,6 @@ import {
   onSnapshot,
   query,
   where,
-  orderBy,
   doc,
   getDoc,
   getDocs,
@@ -23,9 +22,6 @@ import { Player } from '@/types';
 import { addPlayerToTeam } from './team';
 
 type FirestoreLikeError = { code?: string };
-
-const isFirestoreIndexError = (error: unknown): boolean =>
-  typeof error === 'object' && error !== null && 'code' in error && (error as FirestoreLikeError).code === 'failed-precondition';
 
 const isFirestorePermissionError = (error: unknown): boolean =>
   typeof error === 'object' && error !== null && 'code' in error && (error as FirestoreLikeError).code === 'permission-denied';
@@ -62,16 +58,10 @@ export async function getYouthCandidates(uid: string): Promise<YouthCandidate[]>
       });
 
   try {
-    const q = query(col, where('status', '==', 'pending'), orderBy('createdAt', 'desc'));
+    const q = query(col, where('status', '==', 'pending'));
     const snap = await getDocs(q);
     return mapSnapshot(snap);
   } catch (error) {
-    if (isFirestoreIndexError(error)) {
-      console.warn('[youth.getYouthCandidates] Missing index, falling back to client sort');
-      const snap = await getDocs(col);
-      return mapSnapshot(snap);
-    }
-
     if (isFirestorePermissionError(error)) {
       console.warn('[youth.getYouthCandidates] Permission denied', error);
       return [];
@@ -96,47 +86,24 @@ export function listenYouthCandidates(
         return getMs(b.createdAt) - getMs(a.createdAt);
       });
 
-  const startFallbackListener = () =>
-    onSnapshot(col, (snap) => {
+  const unsubscribe = onSnapshot(
+    query(col, where('status', '==', 'pending')),
+    (snap) => {
       cb(mapDocs(snap.docs));
-    });
+    },
+    (error) => {
+      if (isFirestorePermissionError(error)) {
+        console.warn('[youth.listenYouthCandidates] Permission denied', error);
+        cb([]);
+        return;
+      }
 
-  let fallbackUnsubscribe: Unsubscribe | null = null;
-  let primaryUnsubscribe: Unsubscribe = () => {};
-
-  const attachPrimaryListener = () => {
-    primaryUnsubscribe = onSnapshot(
-      query(col, where('status', '==', 'pending'), orderBy('createdAt', 'desc')),
-      (snap) => {
-        cb(mapDocs(snap.docs));
-      },
-      (error) => {
-        if (isFirestoreIndexError(error)) {
-          console.warn('[youth.listenYouthCandidates] Missing index, using fallback listener');
-          primaryUnsubscribe();
-          fallbackUnsubscribe = startFallbackListener();
-          return;
-        }
-
-        if (isFirestorePermissionError(error)) {
-          console.warn('[youth.listenYouthCandidates] Permission denied', error);
-          cb([]);
-          return;
-        }
-
-        console.error('[youth.listenYouthCandidates] Snapshot failed', error);
-      },
-    );
-  };
-
-  attachPrimaryListener();
+      console.error('[youth.listenYouthCandidates] Snapshot failed', error);
+    },
+  );
 
   return () => {
-    primaryUnsubscribe();
-    if (fallbackUnsubscribe) {
-      fallbackUnsubscribe();
-      fallbackUnsubscribe = null;
-    }
+    unsubscribe();
   };
 }
 
