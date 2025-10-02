@@ -31,7 +31,7 @@ import {
 } from '@/components/ui/sheet';
 import { BackButton } from '@/components/ui/back-button';
 import { trainings } from '@/lib/data';
-import { calculateOverall } from '@/lib/player';
+import { runTrainingSimulation } from '@/lib/trainingSession';
 import { cn } from '@/lib/utils';
 import { Player, Training } from '@/types';
 import { useAuth } from '@/contexts/AuthContext';
@@ -240,10 +240,13 @@ export default function TrainingPage() {
       startCountdown(remaining);
     } else {
       setTimeLeft(0);
+      setTimeout(() => {
+        void completeSession();
+      }, 0);
     }
 
     setPendingActiveSession(null);
-  }, [pendingActiveSession, players, startCountdown, trainings]);
+  }, [completeSession, pendingActiveSession, players, startCountdown, trainings]);
 
   const filteredPlayers = useMemo(() => {
     const query = playerSearch.toLowerCase();
@@ -542,86 +545,41 @@ export default function TrainingPage() {
       return;
     }
 
-    const updatedPlayers = [...players];
-    const recordsToPersist: TrainingHistoryRecord[] = [];
-    const createdRecords: TrainingHistoryRecord[] = [];
-    const recordIdsToMark: string[] = [];
+    const { updatedPlayers: sessionUpdatedPlayers, records } = runTrainingSimulation(
+      activeSession.players,
+      activeSession.trainings,
+    );
 
-    for (const sessionPlayer of activeSession.players) {
-      const playerIndex = updatedPlayers.findIndex(p => p.id === sessionPlayer.id);
-      if (playerIndex === -1) continue;
+    const mergedPlayers = players.map(player => {
+      const updated = sessionUpdatedPlayers.find(p => p.id === player.id);
+      return updated ?? player;
+    });
 
-      let playerSnapshot = updatedPlayers[playerIndex];
-
-      for (const training of activeSession.trainings) {
-        const attributeKey = training.type;
-        const currentValue = playerSnapshot.attributes[attributeKey];
-        let gain = 0;
-        let result: 'success' | 'average' | 'fail' = 'fail';
-
-        if (currentValue < 1) {
-          const improvement = 0.005 + Math.random() * 0.03;
-          const successRoll = Math.random() * 100;
-
-          if (successRoll > 75) {
-            gain = improvement;
-            result = 'success';
-          } else if (successRoll > 45) {
-            gain = improvement * 0.5;
-            result = 'average';
-          } else {
-            result = 'fail';
-          }
-
-          if (gain > 0) {
-            const newValue = Math.min(currentValue + gain, 1);
-            const newAttributes = {
-              ...playerSnapshot.attributes,
-              [attributeKey]: newValue,
-            };
-            playerSnapshot = {
-              ...playerSnapshot,
-              attributes: newAttributes,
-              overall: Math.min(
-                calculateOverall(playerSnapshot.position, newAttributes),
-                playerSnapshot.potential,
-              ),
-            };
-          }
-        } else {
-          result = 'fail';
-          gain = 0;
-        }
-
-        recordsToPersist.push({
-          playerId: playerSnapshot.id,
-          playerName: playerSnapshot.name,
-          trainingId: training.id,
-          trainingName: training.name,
-          result,
-          gain,
-          completedAt: Timestamp.now(),
-          viewed: false,
-        });
-      }
-
-      updatedPlayers[playerIndex] = playerSnapshot;
-    }
-
-    setPlayers(updatedPlayers);
+    setPlayers(mergedPlayers);
 
     if (user) {
       try {
-        await saveTeamPlayers(user.id, updatedPlayers);
+        await saveTeamPlayers(user.id, mergedPlayers);
       } catch (err) {
         console.warn('Oyuncular kaydedilirken hata oluştu', err);
       }
 
-      for (const record of recordsToPersist) {
+      const createdRecords: TrainingHistoryRecord[] = [];
+      const completionTime = Timestamp.now();
+
+      for (const record of records) {
         try {
-          const recordId = await addTrainingRecord(user.id, record);
-          recordIdsToMark.push(recordId);
-          createdRecords.push({ ...record, id: recordId, viewed: true });
+          const recordId = await addTrainingRecord(user.id, {
+            ...record,
+            completedAt: completionTime,
+            viewed: true,
+          });
+          createdRecords.push({
+            ...record,
+            id: recordId,
+            completedAt: completionTime,
+            viewed: true,
+          });
         } catch (err) {
           console.warn('Antrenman kaydı eklenemedi', err);
         }
@@ -633,16 +591,8 @@ export default function TrainingPage() {
         console.warn('Aktif antrenman temizlenemedi', err);
       }
 
-      if (recordIdsToMark.length > 0) {
-        try {
-          await markTrainingRecordsViewed(user.id, recordIdsToMark);
-        } catch (err) {
-          console.warn('Antrenman kayıtları görüldü olarak işaretlenemedi', err);
-        }
-      }
+      setHistory(prev => [...prev, ...createdRecords]);
     }
-
-    setHistory(prev => [...prev, ...createdRecords]);
     setIsTraining(false);
     setTimeLeft(0);
     setActiveSession(null);
