@@ -8,6 +8,28 @@ import { formations } from '@/lib/formations';
 
 const positions: Player['position'][] = ['GK','CB','LB','RB','CM','LM','RM','CAM','LW','RW','ST'];
 
+const CONTRACT_MIN_YEARS = 2;
+const CONTRACT_MAX_YEARS = 4;
+
+const createInitialContract = (): NonNullable<Player['contract']> => {
+  const current = new Date();
+  const years = Math.floor(Math.random() * (CONTRACT_MAX_YEARS - CONTRACT_MIN_YEARS + 1)) + CONTRACT_MIN_YEARS;
+  const base = new Date(current);
+  base.setFullYear(base.getFullYear() + years);
+  return {
+    expiresAt: base.toISOString(),
+    status: 'active',
+    salary: Math.floor(1500 + Math.random() * 3500),
+    extensions: 0,
+  };
+};
+
+const createInitialRenameState = (): NonNullable<Player['rename']> => ({
+  adAvailableAt: new Date(0).toISOString(),
+  lastMethod: undefined,
+  lastUpdatedAt: undefined,
+});
+
 const clampPercentage = (value: unknown): number => {
   const numeric = typeof value === 'number' ? value : Number(value);
   if (!Number.isFinite(numeric)) {
@@ -60,6 +82,8 @@ const generatePlayer = (
     condition: randomGauge(),
     motivation: randomGauge(),
     injuryStatus: 'healthy',
+    contract: createInitialContract(),
+    rename: createInitialRenameState(),
   };
 };
 

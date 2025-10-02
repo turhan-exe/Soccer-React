@@ -25,6 +25,8 @@ interface PlayerCardProps {
   onPromoteToTeam?: () => void;
   onListForTransfer?: () => void;
   onReleasePlayer?: () => void;
+  onRenamePlayer?: () => void;
+  onFirePlayer?: () => void;
   showActions?: boolean;
   compact?: boolean;
   defaultCollapsed?: boolean;
@@ -56,6 +58,8 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({
   onPromoteToTeam,
   onListForTransfer,
   onReleasePlayer,
+  onRenamePlayer,
+  onFirePlayer,
   showActions = true,
   compact = false,
   defaultCollapsed = false,
@@ -116,6 +120,24 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({
 
   const condition = clampPerformanceGauge(player.condition);
   const motivation = clampPerformanceGauge(player.motivation);
+  const contractExpiresAt = player.contract?.expiresAt
+    ? new Date(player.contract.expiresAt)
+    : null;
+  const contractStatus = player.contract?.status ?? 'active';
+  const isContractExpired =
+    contractExpiresAt !== null && contractExpiresAt.getTime() <= Date.now();
+  const contractBadgeVariant =
+    contractStatus === 'released'
+      ? 'secondary'
+      : isContractExpired
+        ? 'destructive'
+        : 'outline';
+  const contractLabel =
+    contractStatus === 'released'
+      ? 'Serbest'
+      : contractExpiresAt
+        ? `Söz.: ${contractExpiresAt.toLocaleDateString('tr-TR')}`
+        : 'Söz.: -';
   const power = useMemo(
     () =>
       calculatePowerIndex({
@@ -197,6 +219,14 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({
                 <Badge variant="secondary" className={cn('text-xs', compact && 'text-[10px]')}>
                   {player.age} yaş
                 </Badge>
+                {player.contract && (
+                  <Badge
+                    variant={contractBadgeVariant}
+                    className={cn('text-xs', compact && 'text-[10px]')}
+                  >
+                    {contractLabel}
+                  </Badge>
+                )}
                 {player.injuryStatus === 'injured' && (
                   <Badge variant="destructive" className={cn('text-xs', compact && 'text-[10px]')}>
                     Sakat
@@ -248,12 +278,22 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({
                   {player.squadRole !== 'reserve' && onMoveToReserve && (
                     <DropdownMenuItem onClick={onMoveToReserve}>Rezerve Al</DropdownMenuItem>
                   )}
-                  {(onListForTransfer || onReleasePlayer) && <DropdownMenuSeparator />}
+                  {(onRenamePlayer || onListForTransfer || onReleasePlayer || onFirePlayer) && (
+                    <DropdownMenuSeparator />
+                  )}
+                  {onRenamePlayer && (
+                    <DropdownMenuItem onClick={onRenamePlayer}>İsim Özelleştir</DropdownMenuItem>
+                  )}
                   {onListForTransfer && (
                     <DropdownMenuItem onClick={onListForTransfer}>Oyuncuyu Pazara Koy</DropdownMenuItem>
                   )}
                   {onReleasePlayer && (
                     <DropdownMenuItem onClick={onReleasePlayer}>Serbest Bırak</DropdownMenuItem>
+                  )}
+                  {onFirePlayer && (
+                    <DropdownMenuItem className="text-destructive" onClick={onFirePlayer}>
+                      Oyuncuyu Kov
+                    </DropdownMenuItem>
                   )}
                   {player.squadRole === 'youth' && onPromoteToTeam && (
                     <DropdownMenuItem onClick={onPromoteToTeam}>Takıma Al</DropdownMenuItem>
