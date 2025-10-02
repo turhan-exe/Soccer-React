@@ -65,7 +65,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           connectedAccounts: { google: false, apple: false },
         });
         if (!team) {
-          await createInitialTeam(firebaseUser.uid, teamName, username);
+          await createInitialTeam(firebaseUser.uid, teamName, username, {
+            authUser: firebaseUser,
+          });
           // Slot tabanlı: sıradaki ligde rastgele bir BOT'un yerine geç
           await requestAssign(firebaseUser.uid);
         } else if (!(team as any)?.leagueId) {
@@ -155,7 +157,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             const MAX_ATTEMPTS = 3;
             for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
               try {
-                await createInitialTeam(user.uid, teamName, managerName);
+                await createInitialTeam(user.uid, teamName, managerName, {
+                  authUser: user,
+                });
                 return;
               } catch (createError) {
                 const errorMessage = createError instanceof Error ? createError.message : '';
@@ -257,7 +261,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       await updateProfile(firebaseUser, { displayName: trimmedName });
 
       if (!team) {
-        await createInitialTeam(firebaseUser.uid, trimmedName, managerName);
+        await createInitialTeam(firebaseUser.uid, trimmedName, managerName, {
+          authUser: firebaseUser,
+        });
         void requestAssign(firebaseUser.uid).catch((err) => {
           console.warn('[AuthContext] League assignment failed after social registration', err);
         });
