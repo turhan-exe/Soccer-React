@@ -101,6 +101,21 @@ export default function TrainingPage() {
   const [expandedPlayerId, setExpandedPlayerId] = useState<string | null>(null);
 
   const intervalRef = useRef<number | null>(null);
+  const completionTriggeredRef = useRef(false);
+  const completeSessionRef = useRef<(() => Promise<void>) | null>(null);
+
+  const triggerCompletion = useCallback(() => {
+    if (completionTriggeredRef.current) {
+      return;
+    }
+    completionTriggeredRef.current = true;
+    setTimeout(() => {
+      const handler = completeSessionRef.current;
+      if (handler) {
+        void handler();
+      }
+    }, 0);
+  }, []);
 
   const startCountdown = useCallback((initialSeconds: number) => {
     if (intervalRef.current) {
@@ -108,16 +123,29 @@ export default function TrainingPage() {
       intervalRef.current = null;
     }
 
+    completionTriggeredRef.current = false;
+
     if (initialSeconds <= 0) {
       setTimeLeft(0);
+      triggerCompletion();
       return;
     }
 
     setTimeLeft(initialSeconds);
     intervalRef.current = window.setInterval(() => {
-      setTimeLeft(prev => (prev <= 1 ? 0 : prev - 1));
+      setTimeLeft(prev => {
+        if (prev <= 1) {
+          if (intervalRef.current) {
+            clearInterval(intervalRef.current);
+            intervalRef.current = null;
+          }
+          triggerCompletion();
+          return 0;
+        }
+        return prev - 1;
+      });
     }, 1000);
-  }, []);
+  }, [triggerCompletion]);
 
   useEffect(() => {
     const fetchPlayers = async () => {
@@ -198,6 +226,8 @@ export default function TrainingPage() {
   }, []);
 
   const completeSession = useCallback(async () => {
+    completionTriggeredRef.current = true;
+
     if (intervalRef.current) {
       clearInterval(intervalRef.current);
       intervalRef.current = null;
@@ -272,6 +302,10 @@ export default function TrainingPage() {
   }, [activeSession, isTraining, players, user]);
 
   useEffect(() => {
+    completeSessionRef.current = completeSession;
+  }, [completeSession]);
+
+  useEffect(() => {
     if (!pendingActiveSession) return;
 
     const sessionPlayers = pendingActiveSession.playerIds
@@ -310,14 +344,7 @@ export default function TrainingPage() {
     });
     setIsTraining(true);
 
-    if (remaining > 0) {
-      startCountdown(remaining);
-    } else {
-      setTimeLeft(0);
-      setTimeout(() => {
-        void completeSession();
-      }, 0);
-    }
+    startCountdown(remaining);
 
     setPendingActiveSession(null);
   }, [completeSession, pendingActiveSession, players, startCountdown, trainings]);
@@ -604,9 +631,9 @@ export default function TrainingPage() {
 
   useEffect(() => {
     if (isTraining && timeLeft <= 0) {
-      void completeSession();
+      triggerCompletion();
     }
-  }, [isTraining, timeLeft, completeSession]);
+  }, [isTraining, timeLeft, triggerCompletion]);
 
   const continueToMatch = () => {
     navigate('/match-preview');
