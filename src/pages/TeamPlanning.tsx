@@ -689,25 +689,27 @@ export default function TeamPlanning() {
         now.getTime() + PLAYER_RENAME_AD_COOLDOWN_HOURS * HOURS_IN_MS,
       );
 
-      const updatedPlayers = players.map(player => {
-        if (player.id !== renamePlayer.id) {
-          return player;
-        }
-        const currentRename = player.rename ?? { adAvailableAt: new Date(0).toISOString() };
-        return {
-          ...player,
-          name: trimmed,
-          rename: {
-            ...currentRename,
-            lastUpdatedAt: now.toISOString(),
-            lastMethod: method === 'purchase' ? 'purchase' : 'ad',
-            adAvailableAt:
-              method === 'ad'
-                ? adCooldown.toISOString()
-                : currentRename.adAvailableAt ?? now.toISOString(),
-          },
-        };
-      });
+      const updatedPlayers = normalizePlayers(
+        players.map(player => {
+          if (player.id !== renamePlayer.id) {
+            return player;
+          }
+          const currentRename = player.rename ?? { adAvailableAt: new Date(0).toISOString() };
+          return {
+            ...player,
+            name: trimmed,
+            rename: {
+              ...currentRename,
+              lastUpdatedAt: now.toISOString(),
+              lastMethod: method === 'purchase' ? 'purchase' : 'ad',
+              adAvailableAt:
+                method === 'ad'
+                  ? adCooldown.toISOString()
+                  : currentRename.adAvailableAt ?? now.toISOString(),
+            },
+          };
+        }),
+      );
 
       setPlayers(updatedPlayers);
       await saveTeamPlayers(user.id, updatedPlayers);
@@ -2011,6 +2013,7 @@ export default function TeamPlanning() {
     </div>
   );
 }
+
 
 
 

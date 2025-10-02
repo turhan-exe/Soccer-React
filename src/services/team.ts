@@ -131,8 +131,9 @@ export const createInitialTeam = async (
   // Firestore security rules require ownerUid on create and forbid setting leagueId from client
   const teamRef = doc(db, 'teams', userId);
   const payload = { ...team, ownerUid: userId };
+  const sanitizedPayload = sanitizeFirestoreData(payload);
 
-  const tryWrite = () => setDoc(teamRef, payload);
+  const tryWrite = () => setDoc(teamRef, sanitizedPayload);
 
   try {
     await tryWrite();
