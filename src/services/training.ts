@@ -9,6 +9,9 @@ import {
   collection,
   addDoc,
   getDocs,
+  query,
+  where,
+  writeBatch,
 } from 'firebase/firestore';
 import { db } from '@/services/firebase';
 import { toast } from 'sonner';
@@ -29,11 +32,14 @@ export interface TrainingHistoryRecord {
   result: 'success' | 'average' | 'fail';
   gain: number;
   completedAt: Timestamp;
+  viewed?: boolean;
 }
 
 const trainingDoc = (uid: string) => doc(db, 'users', uid, 'training', 'active');
 const trainingHistoryCol = (uid: string) =>
   collection(db, 'users', uid, 'trainingHistory');
+const trainingHistoryDoc = (uid: string, id: string) =>
+  doc(db, 'users', uid, 'trainingHistory', id);
 
 export async function getActiveTraining(uid: string): Promise<ActiveTrainingSession | null> {
   const snap = await getDoc(trainingDoc(uid));
@@ -51,15 +57,19 @@ export async function clearActiveTraining(uid: string): Promise<void> {
 export async function addTrainingRecord(
   uid: string,
   record: TrainingHistoryRecord,
-): Promise<void> {
-  await addDoc(trainingHistoryCol(uid), record);
+): Promise<string> {
+  const ref = await addDoc(trainingHistoryCol(uid), record);
+  return ref.id;
 }
 
 export async function getTrainingHistory(
   uid: string,
 ): Promise<TrainingHistoryRecord[]> {
   const snap = await getDocs(trainingHistoryCol(uid));
-  return snap.docs.map((d) => ({ id: d.id, ...(d.data() as TrainingHistoryRecord) }));
+  return snap.docs.map((d) => {
+    const data = d.data() as TrainingHistoryRecord;
+    return { id: d.id, ...data, viewed: data.viewed ?? false };
+  });
 }
 
 export const TRAINING_FINISH_COST = 50;
@@ -114,6 +124,69 @@ export async function purchaseTrainingBoost(uid: string): Promise<void> {
       }
       tx.update(userRef, { diamondBalance: increment(-TRAINING_BOOST_COST) });
     });
+  } catch (err) {
+    console.warn(err);
+    toast.error((err as Error).message || 'İşlem başarısız');
+    throw err;
+  }
+}
+
+export async function markTrainingRecordsViewed(
+  uid: string,
+  recordIds: string[],
+): Promise<void> {
+  if (!recordIds.length) return;
+
+  const batch = writeBatch(db);
+  for (const id of recordIds) {
+    batch.update(trainingHistoryDoc(uid, id), { viewed: true });
+  }
+
+  await batch.commit();
+}
+
+export async function getUnviewedTrainingCount(uid: string): Promise<number> {
+  const q = query(trainingHistoryCol(uid), where('viewed', '==', false));
+  const snap = await getDocs(q);
+  return snap.size;
+}
+
+export async function reduceTrainingTimeWithAd(
+  uid: string,
+): Promise<ActiveTrainingSession> {
+  const sessionRef = trainingDoc(uid);
+
+  try {
+    const session = await runTransaction(db, async tx => {
+      const snap = await tx.get(sessionRef);
+      if (!snap.exists()) {
+        throw new Error('Aktif antrenman yok');
+      }
+
+      const data = snap.data() as ActiveTrainingSession;
+      const startDate = data.startAt.toDate();
+      const elapsedSeconds = Math.max(
+        0,
+        Math.floor((Date.now() - startDate.getTime()) / 1000),
+      );
+      const remainingSeconds = Math.max(data.durationSeconds - elapsedSeconds, 0);
+
+      if (remainingSeconds <= 0) {
+        throw new Error('Antrenman zaten tamamlanmış');
+      }
+
+      const reductionSeconds = Math.max(1, Math.floor(remainingSeconds * 0.25));
+      const newDurationSeconds = Math.max(
+        elapsedSeconds,
+        data.durationSeconds - reductionSeconds,
+      );
+
+      tx.update(sessionRef, { durationSeconds: newDurationSeconds });
+
+      return { ...data, durationSeconds: newDurationSeconds };
+    });
+
+    return session;
   } catch (err) {
     console.warn(err);
     toast.error((err as Error).message || 'İşlem başarısız');

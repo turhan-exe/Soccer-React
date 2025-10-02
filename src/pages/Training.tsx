@@ -49,6 +49,8 @@ import {
   TrainingHistoryRecord,
   TRAINING_FINISH_COST,
   finishTrainingWithDiamonds,
+  markTrainingRecordsViewed,
+  reduceTrainingTimeWithAd,
 } from '@/services/training';
 import {
   Clock,
@@ -58,6 +60,7 @@ import {
   Users,
   ClipboardList,
   X,
+  Clapperboard,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -94,6 +97,7 @@ export default function TrainingPage() {
   const [filterTrainingType, setFilterTrainingType] = useState('all');
   const [filterResult, setFilterResult] = useState('all');
   const [isFinishingWithDiamonds, setIsFinishingWithDiamonds] = useState(false);
+  const [isWatchingAd, setIsWatchingAd] = useState(false);
   const [expandedPlayerId, setExpandedPlayerId] = useState<string | null>(null);
 
   const intervalRef = useRef<number | null>(null);
@@ -128,8 +132,30 @@ export default function TrainingPage() {
   useEffect(() => {
     const loadHistory = async () => {
       if (!user) return;
-      const records = await getTrainingHistory(user.id);
-      setHistory(records);
+      try {
+        const records = await getTrainingHistory(user.id);
+        let finalRecords = records;
+        const unseenIds = records
+          .filter(record => !record.viewed && Boolean(record.id))
+          .map(record => record.id!)
+          .filter(Boolean);
+
+        if (unseenIds.length > 0) {
+          try {
+            await markTrainingRecordsViewed(user.id, unseenIds);
+            const unseenSet = new Set(unseenIds);
+            finalRecords = records.map(record =>
+              unseenSet.has(record.id ?? '') ? { ...record, viewed: true } : record,
+            );
+          } catch (err) {
+            console.warn('Antrenman kayıtları görüldü olarak işaretlenemedi', err);
+          }
+        }
+
+        setHistory(finalRecords);
+      } catch (err) {
+        console.warn('Antrenman geçmişi yüklenemedi', err);
+      }
     };
 
     loadHistory();
@@ -418,6 +444,11 @@ export default function TrainingPage() {
       return;
     }
 
+    if (timeLeft <= 0) {
+      toast.info('Antrenman zaten tamamlanmış');
+      return;
+    }
+
     const cost = finishDiamondCost;
     if (balance < cost) {
       toast.error('Yetersiz elmas bakiyesi');
@@ -445,6 +476,55 @@ export default function TrainingPage() {
     }
   };
 
+  const handleWatchAd = async () => {
+    if (!user || !activeSession || isWatchingAd) {
+      return;
+    }
+
+    if (timeLeft <= 0) {
+      toast.info('Antrenman zaten tamamlanmış');
+      return;
+    }
+
+    const remainingBeforeAd = timeLeft;
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+
+    setIsWatchingAd(true);
+    try {
+      const session = await reduceTrainingTimeWithAd(user.id);
+      setActiveSession(prev =>
+        prev ? { ...prev, durationSeconds: session.durationSeconds } : prev,
+      );
+
+      const startAtDate = activeSession.startedAt.toDate();
+      const elapsedSeconds = Math.max(
+        0,
+        Math.floor((Date.now() - startAtDate.getTime()) / 1000),
+      );
+      const newRemaining = Math.max(session.durationSeconds - elapsedSeconds, 0);
+
+      if (newRemaining <= 0) {
+        setTimeLeft(0);
+        toast.success('Antrenman süresi %25 azaltıldı');
+        await completeSession();
+      } else {
+        startCountdown(newRemaining);
+        toast.success('Antrenman süresi %25 azaltıldı');
+      }
+    } catch (err) {
+      console.warn('Antrenman reklamla hızlandırılamadı', err);
+      toast.error((err as Error).message || 'Reklam izleme başarısız');
+      if (isTraining && remainingBeforeAd > 0) {
+        startCountdown(remainingBeforeAd);
+      }
+    } finally {
+      setIsWatchingAd(false);
+    }
+  };
+
   const completeSession = useCallback(async () => {
     if (intervalRef.current) {
       clearInterval(intervalRef.current);
@@ -463,7 +543,9 @@ export default function TrainingPage() {
     }
 
     const updatedPlayers = [...players];
-    const records: TrainingHistoryRecord[] = [];
+    const recordsToPersist: TrainingHistoryRecord[] = [];
+    const createdRecords: TrainingHistoryRecord[] = [];
+    const recordIdsToMark: string[] = [];
 
     for (const sessionPlayer of activeSession.players) {
       const playerIndex = updatedPlayers.findIndex(p => p.id === sessionPlayer.id);
@@ -511,7 +593,7 @@ export default function TrainingPage() {
           gain = 0;
         }
 
-        records.push({
+        recordsToPersist.push({
           playerId: playerSnapshot.id,
           playerName: playerSnapshot.name,
           trainingId: training.id,
@@ -519,6 +601,7 @@ export default function TrainingPage() {
           result,
           gain,
           completedAt: Timestamp.now(),
+          viewed: false,
         });
       }
 
@@ -534,9 +617,11 @@ export default function TrainingPage() {
         console.warn('Oyuncular kaydedilirken hata oluştu', err);
       }
 
-      for (const record of records) {
+      for (const record of recordsToPersist) {
         try {
-          await addTrainingRecord(user.id, record);
+          const recordId = await addTrainingRecord(user.id, record);
+          recordIdsToMark.push(recordId);
+          createdRecords.push({ ...record, id: recordId, viewed: true });
         } catch (err) {
           console.warn('Antrenman kaydı eklenemedi', err);
         }
@@ -547,9 +632,17 @@ export default function TrainingPage() {
       } catch (err) {
         console.warn('Aktif antrenman temizlenemedi', err);
       }
+
+      if (recordIdsToMark.length > 0) {
+        try {
+          await markTrainingRecordsViewed(user.id, recordIdsToMark);
+        } catch (err) {
+          console.warn('Antrenman kayıtları görüldü olarak işaretlenemedi', err);
+        }
+      }
     }
 
-    setHistory(prev => [...prev, ...records]);
+    setHistory(prev => [...prev, ...createdRecords]);
     setIsTraining(false);
     setTimeLeft(0);
     setActiveSession(null);
@@ -924,19 +1017,31 @@ export default function TrainingPage() {
                   {isTraining ? formatTime(timeLeft) : 'Antrenmanı Başlat'}
                 </Button>
                 {isTraining && (
-                  <Button
-                    onClick={handleFinishWithDiamonds}
-                    variant="outline"
-                    className="w-full"
-                    disabled={isFinishingWithDiamonds}
-                  >
-                    <Diamond className="mr-2 h-4 w-4" /> Elmasla Bitir ({finishDiamondCost})
-                  </Button>
-                )}
-                {isTraining && (
-                  <p className="text-center text-xs text-muted-foreground">
-                    Antrenman devam ederken seçimler kilitlenir.
-                  </p>
+                  <div className="space-y-2">
+                    {timeLeft > 0 && (
+                      <>
+                        <Button
+                          onClick={handleFinishWithDiamonds}
+                          variant="outline"
+                          className="w-full"
+                          disabled={isFinishingWithDiamonds}
+                        >
+                          <Diamond className="mr-2 h-4 w-4" /> Elmasla Bitir ({finishDiamondCost})
+                        </Button>
+                        <Button
+                          onClick={handleWatchAd}
+                          variant="secondary"
+                          className="w-full"
+                          disabled={isWatchingAd}
+                        >
+                          <Clapperboard className="mr-2 h-4 w-4" /> Reklam İzle (%25 Daha Hızlı)
+                        </Button>
+                      </>
+                    )}
+                    <p className="text-center text-xs text-muted-foreground">
+                      Antrenman devam ederken seçimler kilitlenir.
+                    </p>
+                  </div>
                 )}
               </CardContent>
             </Card>
