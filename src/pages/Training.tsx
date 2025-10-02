@@ -197,6 +197,80 @@ export default function TrainingPage() {
     };
   }, []);
 
+  const completeSession = useCallback(async () => {
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+
+    if (!isTraining) {
+      return;
+    }
+
+    if (!user || !activeSession) {
+      setIsTraining(false);
+      setTimeLeft(0);
+      setActiveSession(null);
+      return;
+    }
+
+    const { updatedPlayers: sessionUpdatedPlayers, records } = runTrainingSimulation(
+      activeSession.players,
+      activeSession.trainings,
+    );
+
+    const mergedPlayers = players.map(player => {
+      const updated = sessionUpdatedPlayers.find(p => p.id === player.id);
+      return updated ?? player;
+    });
+
+    setPlayers(mergedPlayers);
+
+    if (user) {
+      try {
+        await saveTeamPlayers(user.id, mergedPlayers);
+      } catch (err) {
+        console.warn('Oyuncular kaydedilirken hata oluştu', err);
+      }
+
+      const createdRecords: TrainingHistoryRecord[] = [];
+      const completionTime = Timestamp.now();
+
+      for (const record of records) {
+        try {
+          const recordId = await addTrainingRecord(user.id, {
+            ...record,
+            completedAt: completionTime,
+            viewed: true,
+          });
+          createdRecords.push({
+            ...record,
+            id: recordId,
+            completedAt: completionTime,
+            viewed: true,
+          });
+        } catch (err) {
+          console.warn('Antrenman kaydı eklenemedi', err);
+        }
+      }
+
+      try {
+        await clearActiveTraining(user.id);
+      } catch (err) {
+        console.warn('Aktif antrenman temizlenemedi', err);
+      }
+
+      setHistory(prev => [...prev, ...createdRecords]);
+    }
+    setIsTraining(false);
+    setTimeLeft(0);
+    setActiveSession(null);
+    setPendingActiveSession(null);
+    setSelectedPlayers([]);
+    setSelectedTrainings([]);
+    toast.success('Antrenman tamamlandı');
+  }, [activeSession, isTraining, players, user]);
+
   useEffect(() => {
     if (!pendingActiveSession) return;
 
@@ -527,80 +601,6 @@ export default function TrainingPage() {
       setIsWatchingAd(false);
     }
   };
-
-  const completeSession = useCallback(async () => {
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-      intervalRef.current = null;
-    }
-
-    if (!isTraining) {
-      return;
-    }
-
-    if (!user || !activeSession) {
-      setIsTraining(false);
-      setTimeLeft(0);
-      setActiveSession(null);
-      return;
-    }
-
-    const { updatedPlayers: sessionUpdatedPlayers, records } = runTrainingSimulation(
-      activeSession.players,
-      activeSession.trainings,
-    );
-
-    const mergedPlayers = players.map(player => {
-      const updated = sessionUpdatedPlayers.find(p => p.id === player.id);
-      return updated ?? player;
-    });
-
-    setPlayers(mergedPlayers);
-
-    if (user) {
-      try {
-        await saveTeamPlayers(user.id, mergedPlayers);
-      } catch (err) {
-        console.warn('Oyuncular kaydedilirken hata oluştu', err);
-      }
-
-      const createdRecords: TrainingHistoryRecord[] = [];
-      const completionTime = Timestamp.now();
-
-      for (const record of records) {
-        try {
-          const recordId = await addTrainingRecord(user.id, {
-            ...record,
-            completedAt: completionTime,
-            viewed: true,
-          });
-          createdRecords.push({
-            ...record,
-            id: recordId,
-            completedAt: completionTime,
-            viewed: true,
-          });
-        } catch (err) {
-          console.warn('Antrenman kaydı eklenemedi', err);
-        }
-      }
-
-      try {
-        await clearActiveTraining(user.id);
-      } catch (err) {
-        console.warn('Aktif antrenman temizlenemedi', err);
-      }
-
-      setHistory(prev => [...prev, ...createdRecords]);
-    }
-    setIsTraining(false);
-    setTimeLeft(0);
-    setActiveSession(null);
-    setPendingActiveSession(null);
-    setSelectedPlayers([]);
-    setSelectedTrainings([]);
-    toast.success('Antrenman tamamlandı');
-  }, [activeSession, isTraining, players, user]);
 
   useEffect(() => {
     if (isTraining && timeLeft <= 0) {
