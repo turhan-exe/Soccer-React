@@ -96,6 +96,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     try {
       const cred = await signUp(email, password);
       if (cred.user) {
+        // Ensure Firestore has a fresh ID token – without it writes can fail on first sign up.
+        try {
+          await cred.user.getIdToken(true);
+        } catch (tokenError) {
+          console.warn('[AuthContext] Failed to refresh ID token after sign up', tokenError);
+        }
         const managerName = generateRandomName();
         try {
           await updateProfile(cred.user, { displayName: teamName }).catch((err) => {
@@ -168,6 +174,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       const firebaseUser = credential.user;
       if (!firebaseUser) {
         return;
+      }
+
+      try {
+        await firebaseUser.getIdToken(true);
+      } catch (tokenError) {
+        console.warn('[AuthContext] Failed to refresh ID token after social registration', tokenError);
       }
 
       const team = await getTeam(firebaseUser.uid);
