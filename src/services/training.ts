@@ -16,6 +16,11 @@ import {
 import { db } from '@/services/firebase';
 import { toast } from 'sonner';
 
+type FirestoreLikeError = { code?: string };
+
+const isPermissionError = (error: unknown): boolean =>
+  typeof error === 'object' && error !== null && 'code' in error && (error as FirestoreLikeError).code === 'permission-denied';
+
 export interface ActiveTrainingSession {
   playerIds: string[];
   trainingIds: string[];
@@ -146,9 +151,17 @@ export async function markTrainingRecordsViewed(
 }
 
 export async function getUnviewedTrainingCount(uid: string): Promise<number> {
-  const q = query(trainingHistoryCol(uid), where('viewed', '==', false));
-  const snap = await getDocs(q);
-  return snap.size;
+  try {
+    const q = query(trainingHistoryCol(uid), where('viewed', '==', false));
+    const snap = await getDocs(q);
+    return snap.size;
+  } catch (error) {
+    if (isPermissionError(error)) {
+      console.warn('[training.getUnviewedTrainingCount] Permission denied', error);
+      return 0;
+    }
+    throw error;
+  }
 }
 
 export async function reduceTrainingTimeWithAd(
