@@ -43,7 +43,7 @@ const YouthCandidateCard: React.FC<Props> = ({ candidate, onAccept, onRelease })
   return (
     <Card
       data-testid={`youth-candidate-${candidate.id}`}
-      className="group relative flex h-full min-h-[280px] flex-col overflow-hidden rounded-2xl border border-white/10 bg-slate-900/75 p-4 text-slate-100 shadow-lg backdrop-blur transition-all duration-300 hover:-translate-y-1 hover:border-cyan-400/40 hover:shadow-2xl sm:p-5 md:min-h-[320px] xl:min-w-[260px]"
+      className="group relative flex h-full min-h-[280px] flex-col overflow-hidden rounded-2xl border border-white/10 bg-slate-900/75 p-4 text-slate-100 shadow-lg backdrop-blur transition-all duration-300 hover:-translate-y-1 hover:border-cyan-400/40 hover:shadow-2xl sm:p-5 md:min-h-[320px] xl:min-w-0"
     >
       <div className="absolute inset-0 opacity-0 transition-opacity duration-300 group-hover:opacity-100">
         <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/10 via-transparent to-emerald-500/20" />
