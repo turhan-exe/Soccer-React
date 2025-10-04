@@ -236,14 +236,14 @@ export default function MainMenu() {
 
       {/* Menu Grid */}
       <div className="p-4">
-        <div className="grid grid-cols-2 gap-4 max-w-2xl mx-auto">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 max-w-5xl mx-auto">
           {menuItems.map((item) => (
-            <Card 
+            <Card
               key={item.id}
               className="hover:shadow-lg transition-all duration-200 cursor-pointer hover:scale-105"
               onClick={() => handleMenuClick(item.id)}
             >
-              <CardContent className="p-6 text-center">
+              <CardContent className="p-5 sm:p-6 text-center">
                 <div className={`w-12 h-12 ${item.color} rounded-full flex items-center justify-center mx-auto mb-3`}>
                   <item.icon className="h-6 w-6 text-white" />
                 </div>
@@ -254,9 +254,9 @@ export default function MainMenu() {
         </div>
 
         {/* Quick Stats */}
-        <div className="mt-8 max-w-2xl mx-auto">
+        <div className="mt-8 max-w-4xl mx-auto">
           <h2 className="text-lg font-semibold mb-4">Hızlı Bakış</h2>
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <Card>
               <CardContent className="p-4 text-center">
                 <div className="text-2xl font-bold text-green-600">{leaguePosition ?? '-'}{leaguePosition ? '.' : ''}</div>
