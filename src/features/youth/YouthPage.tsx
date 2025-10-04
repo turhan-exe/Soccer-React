@@ -256,12 +256,25 @@ const YouthPage = () => {
   ];
 
   return (
-    <div className="p-4">
-      <div className="relative mx-auto max-w-6xl overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 px-6 py-8 text-slate-100 shadow-2xl">
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(56,189,248,0.25),_transparent_60%)]" />
-        <div className="pointer-events-none absolute -left-24 bottom-0 h-72 w-72 rounded-full bg-emerald-500/20 blur-3xl" />
-        <div className="pointer-events-none absolute right-[-10%] top-[-20%] h-72 w-72 rounded-full bg-cyan-500/25 blur-3xl" />
-        <div className="relative space-y-10">
+    <div className="relative min-h-screen overflow-hidden bg-slate-950 text-slate-100">
+      <div
+        className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(56,189,248,0.18),_transparent_65%)]"
+        aria-hidden
+      />
+      <div
+        className="pointer-events-none absolute -left-32 top-24 h-96 w-96 rounded-full bg-emerald-500/15 blur-3xl"
+        aria-hidden
+      />
+      <div
+        className="pointer-events-none absolute right-[-18%] bottom-[-10%] h-[28rem] w-[28rem] rounded-full bg-cyan-500/15 blur-[140px]"
+        aria-hidden
+      />
+      <div className="relative z-10 px-4 py-10 sm:px-6 lg:px-8">
+        <div className="relative mx-auto max-w-6xl rounded-3xl border border-white/10 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 px-6 py-8 shadow-2xl">
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(56,189,248,0.25),_transparent_60%)]" />
+          <div className="pointer-events-none absolute -left-24 bottom-0 h-72 w-72 rounded-full bg-emerald-500/20 blur-3xl" />
+          <div className="pointer-events-none absolute right-[-10%] top-[-20%] h-72 w-72 rounded-full bg-cyan-500/25 blur-3xl" />
+          <div className="relative space-y-10">
           <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex flex-col gap-4">
               <div className="flex items-center gap-3">
@@ -347,6 +360,7 @@ const YouthPage = () => {
                 </ul>
               </div>
             </aside>
+          </div>
           </div>
         </div>
       </div>
