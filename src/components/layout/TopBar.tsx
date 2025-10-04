@@ -226,7 +226,7 @@ const TopBar = () => {
   };
 
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 border-b bg-background/60 p-4 backdrop-blur-sm">
+    <div className="sticky top-0 z-30 flex w-full flex-wrap items-center justify-between gap-3 border-b bg-background/80 p-4 backdrop-blur-sm">
       <div className="flex flex-wrap items-center gap-4">
         <button
           type="button"
@@ -345,4 +345,5 @@ const TopBar = () => {
 };
 
 export default TopBar;
+
 
