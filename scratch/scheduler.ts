@@ -87,9 +87,9 @@ export const cronWatchdog = functions
     const snap = await db.doc(`ops_heartbeats/${day}`).get();
     const hb = snap.exists ? (snap.data() as any) : {};
     const problems: string[] = [];
-    if (!hb.batchOk) problems.push('createDailyBatch Ã§alÄ±ÅŸmadÄ±');
+    if (!hb.batchOk) problems.push('createDailyBatch Ã§alışmadı');
     // If you require Unity job heartbeat, uncomment:
-    // if (!hb.unityJobOk) problems.push('Unity job Ã§alÄ±ÅŸmadÄ±');
+    // if (!hb.unityJobOk) problems.push('Unity job Ã§alışmadı');
     if (problems.length) {
       await sendSlack(`ğŸš¨ Watchdog ${day} 19:10: ${problems.join(' â€¢ ')}`);
       return res.status(500).json({ ok: false, problems });

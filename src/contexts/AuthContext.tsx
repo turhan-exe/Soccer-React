@@ -28,6 +28,7 @@ interface AuthContextType {
   loginWithApple: () => Promise<void>;
   registerWithGoogle: (teamName: string) => Promise<void>;
   registerWithApple: (teamName: string) => Promise<void>;
+  isAuthReady: boolean;
   isLoading: boolean;
 }
 
@@ -48,36 +49,56 @@ interface AuthProviderProps {
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isAuthReady, setIsAuthReady] = useState(false);
 
   useEffect(() => {
+    let isActive = true;
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      if (firebaseUser) {
-        const team = await getTeam(firebaseUser.uid);
-        const usernameFallback = firebaseUser.email?.split('@')[0] || 'Kullanıcı';
-        const teamName = team?.name || firebaseUser.displayName || usernameFallback || 'Takımım';
-        const username = team?.manager || usernameFallback;
-        setUser({
-          id: firebaseUser.uid,
-          username,
-          email: firebaseUser.email || '',
-          teamName,
-          teamLogo: '⚽',
-          connectedAccounts: { google: false, apple: false },
-        });
-        if (!team) {
-          await createInitialTeam(firebaseUser.uid, teamName, username, {
-            authUser: firebaseUser,
-          });
-          // Slot tabanlı: sıradaki ligde rastgele bir BOT'un yerine geç
-          await requestAssign(firebaseUser.uid);
-        } else if (!(team as any)?.leagueId) {
-          try { await requestAssign(firebaseUser.uid); } catch {}
+      try {
+        if (firebaseUser) {
+          const team = await getTeam(firebaseUser.uid);
+          const usernameFallback = firebaseUser.email?.split('@')[0] || 'Kullanici';
+          const teamName = team?.name || firebaseUser.displayName || usernameFallback || 'Takimim';
+          const username = team?.manager || usernameFallback;
+          if (isActive) {
+            setUser({
+              id: firebaseUser.uid,
+              username,
+              email: firebaseUser.email || '',
+              teamName,
+              teamLogo: '⚽',
+              connectedAccounts: { google: false, apple: false },
+            });
+          }
+          if (!team) {
+            await createInitialTeam(firebaseUser.uid, teamName, username, {
+              authUser: firebaseUser,
+            });
+            // Slot tabanli: siradaki ligde rastgele bir BOT'un yerine gec
+            await requestAssign(firebaseUser.uid);
+          } else if (!(team as any)?.leagueId) {
+            try {
+              await requestAssign(firebaseUser.uid);
+            } catch {}
+          }
+        } else if (isActive) {
+          setUser(null);
         }
-      } else {
-        setUser(null);
+      } catch (err) {
+        console.error('[AuthContext] Failed to handle auth state change', err);
+        if (isActive) {
+          setUser(null);
+        }
+      } finally {
+        if (isActive) {
+          setIsAuthReady(true);
+        }
       }
     });
-    return unsubscribe;
+    return () => {
+      isActive = false;
+      unsubscribe();
+    };
   }, []);
 
   const login = async (email: string, password: string) => {
@@ -306,6 +327,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         loginWithApple,
         registerWithGoogle,
         registerWithApple,
+        isAuthReady,
         isLoading,
       }}
     >

@@ -1,41 +1,129 @@
 .legend-card-wrapper {
-  width: 300px;
-  height: 450px;
+  width: min(320px, 90vw);
+  aspect-ratio: 2 / 3;
   margin: 0 auto;
-  perspective: 1000px;
+  perspective: 1200px;
+  display: flex;
+  align-items: stretch;
 }
 
 .legend-card {
+  position: relative;
   width: 100%;
   height: 100%;
-  background: #2f2f2f;
-  color: #fff;
-  border-radius: 10px;
+  border-radius: 20px;
+  overflow: hidden;
   transform-style: preserve-3d;
   transition: transform 1s ease, box-shadow 1s ease;
-  text-align: center;
-  padding-top: 150px;
-  box-shadow: 0 0 0 rgba(0, 0, 0, 0);
+  box-shadow: 0 24px 60px rgba(4, 9, 24, 0.45);
+  background: #0f172a;
+  color: #f8fafc;
 }
 
 .legend-card.reveal {
   transform: rotateY(180deg);
-  box-shadow: 0 0 50px rgba(255, 215, 0, 0.8);
+  box-shadow: 0 0 50px rgba(255, 215, 0, 0.65);
 }
 
 .legend-card.show {
   transform: rotateY(0deg);
-  box-shadow: 0 0 20px rgba(255, 255, 255, 0.5);
 }
 
-.legend-card.legend {
-  background: gold;
+.legend-card-bg {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  transform: scale(1.03);
+  transition: transform 0.8s ease, filter 0.5s ease;
+  filter: saturate(1.05) contrast(1.05);
 }
 
-.legend-card.rare {
-  background: purple;
+.legend-card.show .legend-card-bg {
+  transform: scale(1);
 }
 
-.legend-card.common {
-  background: silver;
+.legend-card:hover .legend-card-bg {
+  transform: scale(1.08);
+  filter: saturate(1.2) contrast(1.1);
+}
+
+.legend-card-content {
+  position: relative;
+  z-index: 1;
+  height: 100%;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 1.75rem;
+}
+
+.legend-card-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+.legend-card-tag,
+.legend-card-rarity {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.45rem 0.9rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-weight: 600;
+  background: rgba(6, 11, 25, 0.6);
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 12px 30px rgba(3, 8, 20, 0.35);
+}
+
+.legend-card-rarity.legend {
+  color: #ffe082;
+  border-color: rgba(255, 215, 0, 0.6);
+}
+
+.legend-card-rarity.rare {
+  color: #c9b6ff;
+  border-color: rgba(196, 181, 253, 0.5);
+}
+
+.legend-card-rarity.common {
+  color: #d1d9e6;
+  border-color: rgba(226, 232, 240, 0.45);
+}
+
+.legend-card-actions {
+  margin-top: auto;
+  display: flex;
+  gap: 0.75rem;
+  padding: 0.85rem 1rem;
+  border-radius: 999px;
+  background: rgba(7, 12, 30, 0.58);
+  backdrop-filter: blur(16px);
+  box-shadow: 0 18px 40px rgba(5, 8, 20, 0.45);
+}
+
+.legend-card-actions button {
+  flex: 1 1 auto;
+  min-width: 0;
+  backdrop-filter: none;
+}
+
+@media (min-width: 640px) {
+  .legend-card-wrapper {
+    width: 340px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .legend-card-wrapper {
+    width: 360px;
+  }
 }

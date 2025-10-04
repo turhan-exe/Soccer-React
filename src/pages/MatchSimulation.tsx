@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+﻿import { useEffect, useState } from 'react';
 import { waitForMatchBridgeAPI, type MatchBridgeAPI } from '@/services/unityBridge';
 
 export default function MatchSimulation() {
@@ -50,8 +50,8 @@ export default function MatchSimulation() {
   }
 
   return (
-    <div className="p-4">
-      <button onClick={sendTeams} disabled={!api}>
+    <div className="flex min-h-screen w-full flex-col items-center justify-center gap-4 overflow-x-hidden p-6">
+      <button onClick={sendTeams} disabled={!api} className="rounded border border-primary px-4 py-2 font-semibold text-primary transition hover:bg-primary/10 disabled:cursor-not-allowed disabled:opacity-60">
         Send Teams & Start
       </button>
     </div>

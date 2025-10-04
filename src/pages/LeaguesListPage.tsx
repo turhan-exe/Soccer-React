@@ -59,7 +59,7 @@ export default function LeaguesListPage() {
                 await requestBootstrap();
                 const ls = await listLeagues();
                 setLeagues(ls);
-                toast({ description: 'AylÄ±k ligler oluÅŸturuldu/yenilendi.' });
+                toast({ description: 'Aylık ligler oluşturuldu/yenilendi.' });
               } catch (e: any) {
                 toast({ description: e?.message || 'Bootstrap hata', });
               }
@@ -72,9 +72,9 @@ export default function LeaguesListPage() {
               const dayKey = formatInTimeZone(new Date(), 'Europe/Istanbul', 'yyyy-MM-dd');
               try {
                 const r = await playAllForDay(dayKey, { instant: true });
-                toast({ description: `BugÃ¼n (${dayKey}) maÃ§lar: ${r?.started ?? 0}/${r?.total ?? 0}` });
+                toast({ description: `Buün (${dayKey}) maÃ§lar: ${r?.started ?? 0}/${r?.total ?? 0}` });
               } catch (e: any) {
-                toast({ description: e?.message || 'BugÃ¼n oynatma hata' });
+                toast({ description: e?.message || 'Buün oynatma hata' });
               }
             }}
           >
@@ -84,10 +84,10 @@ export default function LeaguesListPage() {
             onClick={async () => {
               try {
                 const r = await playNextScheduledDay();
-                if (!r) { toast({ description: 'PlanlÄ± maÃ§ bulunamadÄ±.' }); return; }
-                toast({ description: `GÃ¼n (${r.dayKey}) maÃ§lar: ${r.started ?? 0}/${r.total ?? 0}` });
+                if (!r) { toast({ description: 'Planlı maÃ§ bulunamadı.' }); return; }
+                toast({ description: `ün (${r.dayKey}) maÃ§lar: ${r.started ?? 0}/${r.total ?? 0}` });
               } catch (e: any) {
-                toast({ description: e?.message || 'Sonraki gÃ¼nÃ¼ oynatma hata' });
+                toast({ description: e?.message || 'Sonraki ünü oynatma hata' });
               }
             }}
           >
@@ -107,12 +107,12 @@ export default function LeaguesListPage() {
           data-testid="no-leagues-message"
           className="text-sm text-muted-foreground"
         >
-          HenÃ¼z lig oluÅŸturulmamÄ±ÅŸ.
+          Henüz lig oluşturulmamış.
         </p>
       )}
       {myLeague && (
         <div className="mb-6">
-          <h2 className="font-semibold mb-2">TakÄ±mÄ±nÄ±n Ligi</h2>
+          <h2 className="font-semibold mb-2">Takımının Ligi</h2>
           <Card
             key={myLeague.id}
             data-testid={`league-row-${myLeague.id}`}
@@ -127,7 +127,7 @@ export default function LeaguesListPage() {
                 </div>
                 {myLeague.teams && myLeague.teams.length > 0 && (
                   <div className="text-xs text-muted-foreground mt-1">
-                    TakÄ±mlar: {myLeague.teams.map((t) => t.name).join(', ')}
+                    Takımlar: {myLeague.teams.map((t) => t.name).join(', ')}
                   </div>
                 )}
               </div>
@@ -154,7 +154,7 @@ export default function LeaguesListPage() {
                   </div>
                   {l.teams && l.teams.length > 0 && (
                     <div className="text-xs text-muted-foreground mt-1">
-                      TakÄ±mlar: {l.teams.map((t) => t.name).join(', ')}
+                      Takımlar: {l.teams.map((t) => t.name).join(', ')}
                     </div>
                   )}
                 </div>
