@@ -270,7 +270,7 @@ const YouthPage = () => {
         aria-hidden
       />
       <div className="relative z-10 px-4 py-10 sm:px-6 lg:px-8">
-        <div className="relative mx-auto max-w-6xl rounded-3xl border border-white/10 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 px-6 py-8 shadow-2xl">
+        <div className="relative mx-auto max-w-7xl rounded-3xl border border-white/10 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 px-6 py-8 shadow-2xl">
           <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(56,189,248,0.25),_transparent_60%)]" />
           <div className="pointer-events-none absolute -left-24 bottom-0 h-72 w-72 rounded-full bg-emerald-500/20 blur-3xl" />
           <div className="pointer-events-none absolute right-[-10%] top-[-20%] h-72 w-72 rounded-full bg-cyan-500/25 blur-3xl" />

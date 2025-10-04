@@ -43,28 +43,29 @@ const YouthCandidateCard: React.FC<Props> = ({ candidate, onAccept, onRelease })
   return (
     <Card
       data-testid={`youth-candidate-${candidate.id}`}
- className="group relative flex h-full min-h-[340px] flex-col overflow-hidden rounded-3xl border border-white/10 bg-slate-900/75 p-6 text-slate-100 shadow-xl backdrop-blur transition-all duration-300 hover:-translate-y-1 hover:border-cyan-400/40 hover:shadow-2xl sm:p-7 md:min-h-[380px] xl:min-w-[320px]"    >
+      className="group relative flex h-full min-h-[250px] flex-col overflow-hidden rounded-2xl border border-white/10 bg-slate-900/75 p-3 text-slate-100 shadow-lg backdrop-blur transition-all duration-300 hover:-translate-y-1 hover:border-cyan-400/40 hover:shadow-2xl sm:p-4 md:min-h-[300px] xl:min-w-[230px]"
+    >
       <div className="absolute inset-0 opacity-0 transition-opacity duration-300 group-hover:opacity-100">
         <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/10 via-transparent to-emerald-500/20" />
       </div>
-      <div className="relative flex flex-1 flex-col gap-4 sm:flex-row sm:items-start">
+      <div className="relative flex flex-1 flex-col gap-2.5 sm:flex-row sm:items-start">
         <div className="relative shrink-0">
-          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-cyan-500 to-emerald-500 text-lg font-semibold text-white shadow-lg shadow-cyan-500/20">
+          <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-cyan-500 to-emerald-500 text-sm font-semibold uppercase tracking-wide text-white shadow-lg shadow-cyan-500/20">
             {initials}
           </div>
-          <div className="absolute -bottom-1 -right-1 flex h-7 w-7 items-center justify-center rounded-full border border-white/20 bg-slate-950/80 text-[11px] font-bold text-cyan-100 shadow-md shadow-cyan-500/20">
+          <div className="absolute -bottom-1 -right-1 flex h-[1.4rem] w-[1.4rem] items-center justify-center rounded-full border border-white/20 bg-slate-950/80 text-[9px] font-bold uppercase text-cyan-100 shadow-md shadow-cyan-500/20">
             {player.position}
           </div>
         </div>
         <div className="min-w-0 flex flex-1 flex-col">
-  <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div className="flex flex-col gap-2.5 lg:flex-row lg:items-start lg:justify-between">
             <div>
-              <h3 className="truncate text-base font-semibold tracking-tight">{player.name}</h3>
-              <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+              <h3 className="truncate text-sm font-semibold tracking-tight text-white/95 sm:text-base">{player.name}</h3>
+              <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[11px]">
                 <Badge variant="secondary" className="border-white/20 bg-white/10 text-white backdrop-blur">
                   {player.age} yaş
                 </Badge>
-                <div className="flex items-center gap-1 rounded-full border border-white/10 bg-white/10 px-2 py-1 text-[11px] font-medium text-cyan-100 shadow-inner shadow-cyan-500/10">
+                <div className="flex items-center gap-1 rounded-full border border-white/10 bg-white/10 px-1.5 py-0.5 text-[10px] font-medium text-cyan-100 shadow-inner shadow-cyan-500/10">
                   <TrendingUp className="h-3 w-3" />
                   <Tooltip>
                     <TooltipTrigger asChild>
@@ -82,7 +83,7 @@ const YouthCandidateCard: React.FC<Props> = ({ candidate, onAccept, onRelease })
                     <Badge
                       key={role}
                       variant="outline"
-                      className="border-white/20 bg-transparent text-cyan-100"
+                      className="border-white/20 bg-transparent px-1.5 py-0 text-[10px] font-medium text-cyan-100"
                     >
                       {role}
                     </Badge>
@@ -90,13 +91,13 @@ const YouthCandidateCard: React.FC<Props> = ({ candidate, onAccept, onRelease })
                 </div>
               </div>
             </div>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-1.5">
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={() => onAccept(candidate.id)}
                 data-testid={`youth-accept-${candidate.id}`}
-                className="rounded-full border border-transparent bg-white/5 px-4 text-xs font-semibold text-cyan-100 shadow-sm transition hover:border-cyan-400/60 hover:bg-cyan-500/20 hover:text-white"
+                className="rounded-full border border-transparent bg-white/5 px-3 py-1 text-[11px] font-semibold text-cyan-100 shadow-sm transition hover:border-cyan-400/60 hover:bg-cyan-500/20 hover:text-white"
               >
                 Takıma Al
               </Button>
@@ -105,27 +106,27 @@ const YouthCandidateCard: React.FC<Props> = ({ candidate, onAccept, onRelease })
                 size="sm"
                 onClick={() => onRelease(candidate.id)}
                 data-testid={`youth-release-${candidate.id}`}
-                className="rounded-full border border-transparent bg-white/5 px-4 text-xs font-semibold text-slate-200 shadow-sm transition hover:border-rose-500/60 hover:bg-rose-500/20 hover:text-white"
+                className="rounded-full border border-transparent bg-white/5 px-3 py-1 text-[11px] font-semibold text-slate-200 shadow-sm transition hover:border-rose-500/60 hover:bg-rose-500/20 hover:text-white"
               >
                 Serbest Bırak
               </Button>
             </div>
           </div>
-          <div className="mt-4 flex flex-1 flex-col justify-between">
+          <div className="mt-3 flex flex-1 flex-col justify-between">
             <div className="space-y-1">
               {basicStats.map(([label, value]) => (
                 <StatBar key={label} label={label} value={value} className="text-slate-200" />
               ))}
             </div>
-            <div className="mt-3 hidden space-y-1 text-xs text-slate-300 group-hover:block">
+            <div className="mt-2 hidden space-y-1 text-[10px] text-slate-300 group-hover:block">
               {extraStats.map(([label, value]) => (
                 <StatBar key={label} label={label} value={value} className="text-slate-200" />
               ))}
-              <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] uppercase tracking-wide text-slate-300/90">
-                <span className="rounded-full border border-white/10 bg-white/5 px-2 py-1">
+              <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[10px] uppercase tracking-wide text-slate-300/90">
+                <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5">
                   Boy: {player.height} cm
                 </span>
-                <span className="rounded-full border border-white/10 bg-white/5 px-2 py-1">
+                <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5">
                   Kilo: {player.weight} kg
                 </span>
               </div>
