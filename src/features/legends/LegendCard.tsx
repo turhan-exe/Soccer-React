@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { LegendPlayer } from './players';
 import { Button } from '@/components/ui/button';
 import './legend-card.css';
@@ -24,13 +24,17 @@ export default function LegendCard({ player, onRent, onRelease }: Props) {
   }, [player]);
 
   const rarityLabel = RARITY_LABELS[player.rarity];
+  const backgroundImage = useMemo(
+    () => `url("${encodeURI(player.image)}")`,
+    [player.image],
+  );
 
   return (
     <div className="legend-card-wrapper">
       <div className={`legend-card ${show ? 'show' : 'reveal'} ${player.rarity}`}>
         <div
           className="legend-card-bg"
-          style={{ backgroundImage: `url(${player.image})` }}
+          style={{ backgroundImage }}
           aria-hidden
         />
         <div className="legend-card-content">
