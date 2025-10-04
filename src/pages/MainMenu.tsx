@@ -186,17 +186,14 @@ export default function MainMenu() {
       {/* Header */}
       <div className="bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm border-b p-4">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <div className="text-2xl">{user?.teamLogo}</div>
-            <div>
-              <h1 className="font-bold text-lg">{user?.teamName}</h1>
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Badge variant="secondary">Overall: {teamOverall ?? '-'}</Badge>
-                <Badge variant="outline">Form: {teamForm ?? '-'}</Badge>
-              </div>
+            <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+              <h1 className="font-bold text-lg text-foreground">{user?.teamName}</h1>
+              <Badge variant="secondary">Overall: {teamOverall ?? '-'}</Badge>
+              <Badge variant="outline">Form: {teamForm ?? '-'}</Badge>
             </div>
           </div>
-          
           <div className="flex items-center gap-2">
             <Button variant="ghost" size="sm" onClick={toggleTheme}>
               {theme === 'light' ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
