@@ -43,13 +43,13 @@ const YouthCandidateCard: React.FC<Props> = ({ candidate, onAccept, onRelease })
   return (
     <Card
       data-testid={`youth-candidate-${candidate.id}`}
-      className="group relative overflow-hidden border border-white/10 bg-slate-900/70 p-5 text-slate-100 shadow-lg backdrop-blur transition-all duration-300 hover:-translate-y-1 hover:border-cyan-400/40 hover:shadow-xl"
+      className="group relative flex h-full flex-col overflow-hidden border border-white/10 bg-slate-900/70 p-5 text-slate-100 shadow-lg backdrop-blur transition-all duration-300 hover:-translate-y-1 hover:border-cyan-400/40 hover:shadow-xl"
     >
       <div className="absolute inset-0 opacity-0 transition-opacity duration-300 group-hover:opacity-100">
         <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/10 via-transparent to-emerald-500/20" />
       </div>
-      <div className="relative flex items-start gap-4">
-        <div className="relative">
+      <div className="relative flex flex-1 flex-col gap-4 sm:flex-row sm:items-start">
+        <div className="relative shrink-0">
           <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-cyan-500 to-emerald-500 text-lg font-semibold text-white shadow-lg shadow-cyan-500/20">
             {initials}
           </div>
@@ -57,7 +57,7 @@ const YouthCandidateCard: React.FC<Props> = ({ candidate, onAccept, onRelease })
             {player.position}
           </div>
         </div>
-        <div className="flex-1 min-w-0">
+        <div className="min-w-0 flex flex-1 flex-col">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
             <div>
               <h3 className="truncate text-base font-semibold tracking-tight">{player.name}</h3>
@@ -112,10 +112,12 @@ const YouthCandidateCard: React.FC<Props> = ({ candidate, onAccept, onRelease })
               </Button>
             </div>
           </div>
-          <div className="space-y-1">
-            {basicStats.map(([label, value]) => (
-              <StatBar key={label} label={label} value={value} className="text-slate-200" />
-            ))}
+          <div className="mt-4 flex flex-1 flex-col justify-between">
+            <div className="space-y-1">
+              {basicStats.map(([label, value]) => (
+                <StatBar key={label} label={label} value={value} className="text-slate-200" />
+              ))}
+            </div>
             <div className="mt-3 hidden space-y-1 text-xs text-slate-300 group-hover:block">
               {extraStats.map(([label, value]) => (
                 <StatBar key={label} label={label} value={value} className="text-slate-200" />
