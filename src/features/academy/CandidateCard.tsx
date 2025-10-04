@@ -3,13 +3,7 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { StatBar } from '@/components/ui/stat-bar';
 import { Button } from '@/components/ui/button';
-import { MoreVertical, TrendingUp } from 'lucide-react';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+import { TrendingUp } from 'lucide-react';
 import { getRoles } from '@/lib/player';
 import type { Player } from '@/types';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -38,72 +32,137 @@ const CandidateCard: React.FC<Props> = ({ candidate, onAccept, onRelease }) => {
     .map((n) => n[0])
     .join('');
 
-  const avatarClass =
-    'w-12 h-12 bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-800 rounded-full flex items-center justify-center text-lg font-semibold';
-  const positionBadgeClass =
-    'absolute -bottom-1 -right-1 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white bg-gray-500';
+  const attributes = player.attributes as Partial<Player['attributes']>;
+  const primaryStats: [string, number][] = [
+    ['Hız', attributes.topSpeed ?? player.overall ?? 0],
+    ['Şut', attributes.shooting ?? player.overall ?? 0],
+  ];
+
+  const secondaryStatKeys: Array<keyof Player['attributes']> = [
+    'strength',
+    'acceleration',
+    'dribbleSpeed',
+    'jump',
+    'tackling',
+    'ballKeeping',
+    'passing',
+    'longBall',
+    'agility',
+    'shootPower',
+    'positioning',
+    'reaction',
+    'ballControl',
+  ];
+
+  const attributeLabelMap: Record<keyof Player['attributes'], string> = {
+    strength: 'Güç',
+    acceleration: 'İvme',
+    topSpeed: 'Hız',
+    dribbleSpeed: 'Top Sürme',
+    jump: 'Zıplama',
+    tackling: 'Savunma',
+    ballKeeping: 'Top Saklama',
+    passing: 'Pas',
+    longBall: 'Uzun Pas',
+    agility: 'Çeviklik',
+    shooting: 'Şut',
+    shootPower: 'Şut Gücü',
+    positioning: 'Pozisyon Alma',
+    reaction: 'Reaksiyon',
+    ballControl: 'Top Kontrolü',
+  };
+
+  const secondaryStats = secondaryStatKeys
+    .map<[string, number] | null>((key) => {
+      const value = attributes?.[key];
+      if (typeof value !== 'number') {
+        return null;
+      }
+      return [attributeLabelMap[key], value];
+    })
+    .filter((entry): entry is [string, number] => entry !== null);
 
   return (
     <Card
       data-testid={`academy-candidate-${candidate.id}`}
-      className="p-4 hover:shadow-md transition-shadow"
+      className="group relative flex h-full flex-col overflow-hidden border border-white/10 bg-slate-900/70 p-5 text-slate-100 shadow-lg backdrop-blur transition-all duration-300 hover:-translate-y-1 hover:border-cyan-400/40 hover:shadow-xl"
     >
-      <div className="flex items-start gap-3">
-        <div className="relative">
-          <div className={avatarClass}>{initials}</div>
-          <div className={positionBadgeClass}>{player.position}</div>
-        </div>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center justify-between mb-2">
-            <div>
-              <h3 className="font-semibold text-sm truncate">{player.name}</h3>
-              <div className="flex items-center gap-2 mt-1">
-                <Badge variant="secondary" className="text-xs">
+      <div className="absolute inset-0 opacity-0 transition-opacity duration-300 group-hover:opacity-100">
+        <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/10 via-transparent to-emerald-500/20" />
+      </div>
+      <div className="relative flex flex-1 flex-col gap-4">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div className="flex items-start gap-4">
+            <div className="relative">
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-cyan-500 to-emerald-500 text-lg font-semibold text-white shadow-lg shadow-cyan-500/20">
+                {initials}
+              </div>
+              <div className="absolute -bottom-1 -right-1 flex h-7 w-7 items-center justify-center rounded-full border border-white/20 bg-slate-950/80 text-[11px] font-bold text-cyan-100 shadow-md shadow-cyan-500/20">
+                {player.position}
+              </div>
+            </div>
+            <div className="min-w-0">
+              <h3 className="truncate text-base font-semibold tracking-tight">{player.name}</h3>
+              <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+                <Badge variant="secondary" className="border-white/20 bg-white/10 text-white backdrop-blur">
                   {player.age} yaş
                 </Badge>
-                <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                  <TrendingUp className="w-3 h-3" />
+                <div className="flex items-center gap-1 rounded-full border border-white/10 bg-white/10 px-2 py-1 text-[11px] font-medium text-cyan-100 shadow-inner shadow-cyan-500/10">
+                  <TrendingUp className="h-3 w-3" />
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <span className="font-semibold">
-                        {Math.round(player.overall * 100)}
-                      </span>
+                      <span className="font-semibold">{Math.round(player.overall * 100)}</span>
                     </TooltipTrigger>
                     <TooltipContent>
                       Maks. Potansiyel: {Math.round(player.potential * 100)}
                     </TooltipContent>
                   </Tooltip>
                 </div>
-                <div className="flex gap-1">
+                <div className="flex flex-wrap gap-1">
                   {roles.map((role) => (
-                    <Badge key={role} variant="outline" className="text-xs">
+                    <Badge
+                      key={role}
+                      variant="outline"
+                      className="border-white/20 bg-transparent text-cyan-100"
+                    >
                       {role}
                     </Badge>
                   ))}
                 </div>
               </div>
             </div>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                  <MoreVertical className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => onAccept(candidate.id)}>
-                  Takıma Al
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => onRelease(candidate.id)}>
-                  Serbest Bırak
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
           </div>
-          <div className="space-y-1">
-            <StatBar label="Hız" value={player.attributes.topSpeed} />
-            <StatBar label="Şut" value={player.attributes.shooting} />
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => onAccept(candidate.id)}
+              className="rounded-full border border-transparent bg-white/5 px-4 text-xs font-semibold text-cyan-100 shadow-sm transition hover:border-cyan-400/60 hover:bg-cyan-500/20 hover:text-white"
+            >
+              Takıma Al
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => onRelease(candidate.id)}
+              className="rounded-full border border-transparent bg-white/5 px-4 text-xs font-semibold text-slate-200 shadow-sm transition hover:border-rose-500/60 hover:bg-rose-500/20 hover:text-white"
+            >
+              Serbest Bırak
+            </Button>
           </div>
         </div>
+        <div className="space-y-1">
+          {primaryStats.map(([label, value]) => (
+            <StatBar key={label} label={label} value={value} className="text-slate-200" />
+          ))}
+        </div>
+        {secondaryStats.length > 0 && (
+          <div className="mt-2 hidden space-y-1 text-xs text-slate-300 group-hover:block">
+            {secondaryStats.map(([label, value]) => (
+              <StatBar key={label} label={label} value={value} className="text-slate-200" />
+            ))}
+          </div>
+        )}
       </div>
     </Card>
   );
