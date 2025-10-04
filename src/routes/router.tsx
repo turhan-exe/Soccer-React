@@ -60,7 +60,7 @@ export const router = createBrowserRouter(
   ],
   {
     future: {
-      // createBrowserRouter iÃ§in bu flag geÃ§erli (TS hatasÄ± vermeyen)
+      // createBrowserRouter iÃ§in bu flag geÃ§erli (TS hatası vermeyen)
       v7_relativeSplatPath: true,
     },
   },

@@ -18,7 +18,7 @@ export const LEGEND_PLAYERS: LegendPlayer[] = [
     rarity: 'legend',
     weight: 1,
     image:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/b/b8/Pele_1970.jpg/64px-Pele_1970.jpg',
+      '/legend-images/Pelé.png',
     position: 'ST',
   },
   {
@@ -28,7 +28,7 @@ export const LEGEND_PLAYERS: LegendPlayer[] = [
     rarity: 'legend',
     weight: 1,
     image:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/1/1c/Diego_Maradona_2017.jpg/64px-Diego_Maradona_2017.jpg',
+      '/legend-images/Diego Maradona.png',
     position: 'CAM',
   },
   {
@@ -38,7 +38,7 @@ export const LEGEND_PLAYERS: LegendPlayer[] = [
     rarity: 'legend',
     weight: 1,
     image:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/7/70/Johan_Cruyff_1974.jpg/64px-Johan_Cruyff_1974.jpg',
+      '/legend-images/Johan Cruyff.png',
     position: 'LW',
   },
   {
@@ -48,7 +48,7 @@ export const LEGEND_PLAYERS: LegendPlayer[] = [
     rarity: 'legend',
     weight: 1,
     image:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/1/1a/Franz_Beckenbauer_1966.jpg/64px-Franz_Beckenbauer_1966.jpg',
+      '/legend-images/Franz Beckenbauer.png',
     position: 'CB',
   },
   {
@@ -58,7 +58,7 @@ export const LEGEND_PLAYERS: LegendPlayer[] = [
     rarity: 'legend',
     weight: 1,
     image:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/d/d2/Zinedine_Zidane_2015.jpg/64px-Zinedine_Zidane_2015.jpg',
+      '/legend-images/Zinedine Zidane.png',
     position: 'CM',
   },
   {
@@ -68,7 +68,7 @@ export const LEGEND_PLAYERS: LegendPlayer[] = [
     rarity: 'legend',
     weight: 1,
     image:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/1/16/Ronaldo_Nazario_2019.jpg/64px-Ronaldo_Nazario_2019.jpg',
+      '/legend-images/Ronaldo Nazário.png',
     position: 'ST',
   },
   {
@@ -78,7 +78,7 @@ export const LEGEND_PLAYERS: LegendPlayer[] = [
     rarity: 'legend',
     weight: 1,
     image:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/5/52/Ronaldinho_2019.jpg/64px-Ronaldinho_2019.jpg',
+      '/legend-images/Ronaldinho.png',
     position: 'CAM',
   },
   {
@@ -88,7 +88,7 @@ export const LEGEND_PLAYERS: LegendPlayer[] = [
     rarity: 'legend',
     weight: 1,
     image:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/e/ea/George_Best_1976.jpg/64px-George_Best_1976.jpg',
+      '/legend-images/George Best.png',
     position: 'RW',
   },
   {
@@ -98,7 +98,7 @@ export const LEGEND_PLAYERS: LegendPlayer[] = [
     rarity: 'legend',
     weight: 1,
     image:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/d/de/Ferenc_Pusk%C3%A1s_1990.jpg/64px-Ferenc_Pusk%C3%A1s_1990.jpg',
+      '/legend-images/Ferenc Puskás.png',
     position: 'ST',
   },
   {
@@ -108,7 +108,7 @@ export const LEGEND_PLAYERS: LegendPlayer[] = [
     rarity: 'legend',
     weight: 1,
     image:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/7/7f/Lev_Yashin_1966.jpg/64px-Lev_Yashin_1966.jpg',
+      '/legend-images/Lev Yashin.png',
     position: 'GK',
   },
   {
@@ -118,7 +118,7 @@ export const LEGEND_PLAYERS: LegendPlayer[] = [
     rarity: 'legend',
     weight: 1,
     image:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/6/6f/Paolo_Maldini_2014.jpg/64px-Paolo_Maldini_2014.jpg',
+      '/legend-images/Paolo Maldini.png',
     position: 'CB',
   },
   {
@@ -128,7 +128,7 @@ export const LEGEND_PLAYERS: LegendPlayer[] = [
     rarity: 'legend',
     weight: 1,
     image:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/a/a0/Roberto_Baggio_2014.jpg/64px-Roberto_Baggio_2014.jpg',
+      '/legend-images/Roberto Baggio.png',
     position: 'CAM',
   },
   {
@@ -138,7 +138,7 @@ export const LEGEND_PLAYERS: LegendPlayer[] = [
     rarity: 'legend',
     weight: 1,
     image:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/8/8a/Thierry_Henry_%282014%29.jpg/64px-Thierry_Henry_%282014%29.jpg',
+      '/legend-images/Thierry Henry.png',
     position: 'ST',
   },
   {
@@ -148,7 +148,7 @@ export const LEGEND_PLAYERS: LegendPlayer[] = [
     rarity: 'legend',
     weight: 1,
     image:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/1/12/Xavi_Hernandez_2011.jpg/64px-Xavi_Hernandez_2011.jpg',
+      '/legend-images/Xavi.png',
     position: 'CM',
   },
   {
@@ -158,7 +158,7 @@ export const LEGEND_PLAYERS: LegendPlayer[] = [
     rarity: 'legend',
     weight: 1,
     image:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/d/d4/Andr%C3%A9s_Iniesta_2017.jpg/64px-Andr%C3%A9s_Iniesta_2017.jpg',
+      '/legend-images/Andrés Iniesta.png',
     position: 'CM',
   },
   {
@@ -168,7 +168,7 @@ export const LEGEND_PLAYERS: LegendPlayer[] = [
     rarity: 'rare',
     weight: 3,
     image:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/b/b9/Eric_Cantona_2011.jpg/64px-Eric_Cantona_2011.jpg',
+      '/legend-images/Eric Cantona.png',
     position: 'ST',
   },
   {
@@ -178,7 +178,7 @@ export const LEGEND_PLAYERS: LegendPlayer[] = [
     rarity: 'rare',
     weight: 3,
     image:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/e/e5/Zico_1981.jpg/64px-Zico_1981.jpg',
+      '/legend-images/Zico.png',
     position: 'CAM',
   },
   {
@@ -188,7 +188,7 @@ export const LEGEND_PLAYERS: LegendPlayer[] = [
     rarity: 'rare',
     weight: 3,
     image:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/e/ec/Lothar_Matth%C3%A4us_2014.jpg/64px-Lothar_Matth%C3%A4us_2014.jpg',
+      '/legend-images/Lothar Matthäus.png',
     position: 'CM',
   },
   {
@@ -198,7 +198,7 @@ export const LEGEND_PLAYERS: LegendPlayer[] = [
     rarity: 'rare',
     weight: 3,
     image:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/3/3b/Marco_Van_Basten_in_2014.jpg/64px-Marco_Van_Basten_in_2014.jpg',
+      '/legend-images/Marco van Basten.png',
     position: 'ST',
   },
   {
@@ -208,7 +208,7 @@ export const LEGEND_PLAYERS: LegendPlayer[] = [
     rarity: 'rare',
     weight: 3,
     image:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/4/42/Michel_Platini_2010.jpg/64px-Michel_Platini_2010.jpg',
+      '/legend-images/Michel Platini.png',
     position: 'CAM',
   },
   {
@@ -218,7 +218,7 @@ export const LEGEND_PLAYERS: LegendPlayer[] = [
     rarity: 'rare',
     weight: 3,
     image:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/5/5c/Garrincha_1962.jpg/64px-Garrincha_1962.jpg',
+      '/legend-images/Garrincha.png',
     position: 'RW',
   },
   {
@@ -228,7 +228,7 @@ export const LEGEND_PLAYERS: LegendPlayer[] = [
     rarity: 'rare',
     weight: 3,
     image:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/5/5c/Eusebio_%281963%29.jpg/64px-Eusebio_%281963%29.jpg',
+      '/legend-images/Eusébio.png',
     position: 'ST',
   },
   {
@@ -238,7 +238,7 @@ export const LEGEND_PLAYERS: LegendPlayer[] = [
     rarity: 'rare',
     weight: 3,
     image:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/9/9d/Gerd_M%C3%BCller_2006_1.jpg/64px-Gerd_M%C3%BCller_2006_1.jpg',
+      '/legend-images/Gerd Müller.png',
     position: 'ST',
   },
   {
@@ -248,7 +248,7 @@ export const LEGEND_PLAYERS: LegendPlayer[] = [
     rarity: 'rare',
     weight: 3,
     image:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/8/8b/Bobby_Charlton_in_1969.jpg/64px-Bobby_Charlton_in_1969.jpg',
+      '/legend-images/Bobby Charlton.png',
     position: 'CM',
   },
   {
@@ -258,7 +258,7 @@ export const LEGEND_PLAYERS: LegendPlayer[] = [
     rarity: 'rare',
     weight: 3,
     image:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/a/a8/Ruud_Gullit_2016.jpg/64px-Ruud_Gullit_2016.jpg',
+      '/legend-images/Ruud Gullit.png',
     position: 'CM',
   },
   {
@@ -268,7 +268,7 @@ export const LEGEND_PLAYERS: LegendPlayer[] = [
     rarity: 'rare',
     weight: 3,
     image:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/7/7b/Hristo_Stoichkov_2012_2.jpg/64px-Hristo_Stoichkov_2012_2.jpg',
+      '/legend-images/Hristo Stoichkov.png',
     position: 'LW',
   },
   {
@@ -278,7 +278,7 @@ export const LEGEND_PLAYERS: LegendPlayer[] = [
     rarity: 'rare',
     weight: 3,
     image:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/4/49/Rivaldo_2014.jpg/64px-Rivaldo_2014.jpg',
+      '/legend-images/Rivaldo.png',
     position: 'CAM',
   },
   {
@@ -288,7 +288,7 @@ export const LEGEND_PLAYERS: LegendPlayer[] = [
     rarity: 'rare',
     weight: 3,
     image:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/0/0c/Kak%C3%A1_2018.jpg/64px-Kak%C3%A1_2018.jpg',
+      '/legend-images/Kaká.png',
     position: 'CAM',
   },
   {
@@ -298,7 +298,7 @@ export const LEGEND_PLAYERS: LegendPlayer[] = [
     rarity: 'rare',
     weight: 3,
     image:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/1/1f/Ryan_Giggs_2010.jpg/64px-Ryan_Giggs_2010.jpg',
+      '/legend-images/Ryan Giggs.png',
     position: 'LM',
   },
   {
@@ -308,7 +308,7 @@ export const LEGEND_PLAYERS: LegendPlayer[] = [
     rarity: 'rare',
     weight: 3,
     image:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/a/a3/Dennis_Bergkamp_2006_%28cropped%29.jpg/64px-Dennis_Bergkamp_2006_%28cropped%29.jpg',
+      '/legend-images/Dennis Bergkamp.png',
     position: 'ST',
   },
   {
@@ -318,7 +318,7 @@ export const LEGEND_PLAYERS: LegendPlayer[] = [
     rarity: 'rare',
     weight: 3,
     image:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/6/65/Patrick_Vieira_2010_%28cropped%29.jpg/64px-Patrick_Vieira_2010_%28cropped%29.jpg',
+      '/legend-images/Patrick Vieira.png',
     position: 'CM',
   },
   {
@@ -328,7 +328,7 @@ export const LEGEND_PLAYERS: LegendPlayer[] = [
     rarity: 'rare',
     weight: 3,
     image:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/1/1d/Peter_Schmeichel_2013.jpg/64px-Peter_Schmeichel_2013.jpg',
+      '/legend-images/Peter Schmeichel.png',
     position: 'GK',
   },
   {
@@ -338,7 +338,7 @@ export const LEGEND_PLAYERS: LegendPlayer[] = [
     rarity: 'rare',
     weight: 3,
     image:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/2/24/Franco_Baresi_2012_cropped.jpg/64px-Franco_Baresi_2012_cropped.jpg',
+      '/legend-images/Franco Baresi.png',
     position: 'CB',
   },
   {
@@ -348,7 +348,7 @@ export const LEGEND_PLAYERS: LegendPlayer[] = [
     rarity: 'rare',
     weight: 3,
     image:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/d/d7/Andrea_Pirlo_2012_%28cropped%29.jpg/64px-Andrea_Pirlo_2012_%28cropped%29.jpg',
+      '/legend-images/Andrea Pirlo.png',
     position: 'CM',
   },
   {
@@ -358,7 +358,7 @@ export const LEGEND_PLAYERS: LegendPlayer[] = [
     rarity: 'rare',
     weight: 3,
     image:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/4/4b/Oliver_Kahn_2012.jpg/64px-Oliver_Kahn_2012.jpg',
+      '/legend-images/Oliver Kahn.png',
     position: 'GK',
   },
   {
@@ -368,7 +368,7 @@ export const LEGEND_PLAYERS: LegendPlayer[] = [
     rarity: 'rare',
     weight: 3,
     image:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/d/dd/Del_Piero_at_Celebrity_Cup_2014.jpg/64px-Del_Piero_at_Celebrity_Cup_2014.jpg',
+      '/legend-images/Alessandro Del Piero.png',
     position: 'ST',
   },
   {
@@ -378,7 +378,7 @@ export const LEGEND_PLAYERS: LegendPlayer[] = [
     rarity: 'rare',
     weight: 3,
     image:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/b/b5/Kenny_Dalglish_2010.jpg/64px-Kenny_Dalglish_2010.jpg',
+      '/legend-images/Kenny Dalglish.png',
     position: 'ST',
   },
   {
@@ -388,7 +388,7 @@ export const LEGEND_PLAYERS: LegendPlayer[] = [
     rarity: 'common',
     weight: 6,
     image:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/4/4e/David_Beckham_2019.jpg/64px-David_Beckham_2019.jpg',
+      '/legend-images/David Beckham.png',
     position: 'RM',
   },
   {
@@ -398,7 +398,7 @@ export const LEGEND_PLAYERS: LegendPlayer[] = [
     rarity: 'common',
     weight: 6,
     image:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/a/a1/Cafu%2C_2014.jpg/64px-Cafu%2C_2014.jpg',
+      '/legend-images/Cafu.png',
     position: 'RB',
   },
   {
@@ -408,7 +408,7 @@ export const LEGEND_PLAYERS: LegendPlayer[] = [
     rarity: 'common',
     weight: 6,
     image:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/1/11/Roberto_Carlos_in_May_2011.jpg/64px-Roberto_Carlos_in_May_2011.jpg',
+      '/legend-images/Roberto Carlos.png',
     position: 'LB',
   },
   {
@@ -418,7 +418,7 @@ export const LEGEND_PLAYERS: LegendPlayer[] = [
     rarity: 'common',
     weight: 6,
     image:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/8/81/Carles_Puyol_in_2010.jpg/64px-Carles_Puyol_in_2010.jpg',
+      '/legend-images/Carles Puyol.png',
     position: 'CB',
   },
   {
@@ -428,7 +428,7 @@ export const LEGEND_PLAYERS: LegendPlayer[] = [
     rarity: 'common',
     weight: 6,
     image:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/8/83/Fernando_Hierro_2017.jpg/64px-Fernando_Hierro_2017.jpg',
+      '/legend-images/Fernando Hierro.png',
     position: 'CB',
   },
   {
@@ -438,7 +438,7 @@ export const LEGEND_PLAYERS: LegendPlayer[] = [
     rarity: 'common',
     weight: 6,
     image:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/9/90/Clarence_Seedorf_2012.jpg/64px-Clarence_Seedorf_2012.jpg',
+      '/legend-images/Clarence Seedorf.png',
     position: 'CM',
   },
   {
@@ -448,7 +448,7 @@ export const LEGEND_PLAYERS: LegendPlayer[] = [
     rarity: 'common',
     weight: 6,
     image:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/f/fa/Pavel_Nedv%C4%9Bd_2019.jpg/64px-Pavel_Nedv%C4%9Bd_2019.jpg',
+      '/legend-images/Pavel Nedvěd.png',
     position: 'LM',
   },
   {
@@ -458,7 +458,7 @@ export const LEGEND_PLAYERS: LegendPlayer[] = [
     rarity: 'common',
     weight: 6,
     image:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/2/28/Jay-Jay_Okocha_2014.jpg/64px-Jay-Jay_Okocha_2014.jpg',
+      '/legend-images/Jay-Jay Okocha.png',
     position: 'CAM',
   },
   {
@@ -468,7 +468,7 @@ export const LEGEND_PLAYERS: LegendPlayer[] = [
     rarity: 'common',
     weight: 6,
     image:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/b/b5/Gheorghe_Hagi_2008.jpg/64px-Gheorghe_Hagi_2008.jpg',
+      '/legend-images/Gheorghe Hagi.png',
     position: 'CAM',
   },
   {
@@ -478,7 +478,7 @@ export const LEGEND_PLAYERS: LegendPlayer[] = [
     rarity: 'common',
     weight: 6,
     image:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/4/4e/Henrik_Larsson_2014.jpg/64px-Henrik_Larsson_2014.jpg',
+      '/legend-images/Henrik Larsson.png',
     position: 'ST',
   },
   {
@@ -488,7 +488,7 @@ export const LEGEND_PLAYERS: LegendPlayer[] = [
     rarity: 'common',
     weight: 6,
     image:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/1/1a/Didier_Drogba_in_2017.jpg/64px-Didier_Drogba_in_2017.jpg',
+      '/legend-images/Didier Drogba.png',
     position: 'ST',
   },
   {
@@ -498,7 +498,7 @@ export const LEGEND_PLAYERS: LegendPlayer[] = [
     rarity: 'common',
     weight: 6,
     image:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/f/f4/Claude_Makelele_2019.jpg/64px-Claude_Makelele_2019.jpg',
+      '/legend-images/Claude Makélélé.png',
     position: 'CM',
   },
   {
@@ -508,7 +508,7 @@ export const LEGEND_PLAYERS: LegendPlayer[] = [
     rarity: 'common',
     weight: 6,
     image:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/0/07/Socrates_2010.jpg/64px-Socrates_2010.jpg',
+      '/legend-images/Sócrates.png',
     position: 'CM',
   },
 ];

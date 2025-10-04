@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+﻿import React, { useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { useNavigate } from 'react-router-dom';
@@ -316,7 +316,7 @@ export default function MatchSimulation() {
 
   if (loading) {
     return (
-      <div className="min-h-screen">
+      <div className="flex min-h-screen w-full flex-col overflow-x-hidden bg-muted/10">
         {header}
         <div className="p-4">Yükleniyor…</div>
       </div>
@@ -325,7 +325,7 @@ export default function MatchSimulation() {
 
   if (!nextFixture || !leagueId) {
     return (
-      <div className="min-h-screen">
+      <div className="flex min-h-screen w-full flex-col overflow-x-hidden bg-muted/10">
         {header}
         <div className="p-4">
           <Card>
@@ -339,9 +339,9 @@ export default function MatchSimulation() {
   }
 
   return (
-    <div className="min-h-screen">
+    <div className="flex min-h-screen w-full flex-col overflow-x-hidden bg-muted/10">
       {header}
-      <div className="p-4 space-y-4">
+      <div className="flex-1 w-full px-4 py-4 space-y-4 sm:px-6 lg:px-8">
         <Card>
           <CardContent className="p-4 flex items-center justify-between">
             <div className="text-sm">
@@ -350,7 +350,7 @@ export default function MatchSimulation() {
               </div>
               <div className="text-muted-foreground">Id: {nextFixture.id}</div>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <Button variant="outline" size="sm" onClick={() => navigate('/team-planning')}>Kadroyu Ayarla</Button>
               <Button variant="ghost" size="sm" onClick={() => navigate('/fixtures')}>Fikstür</Button>
             </div>
@@ -360,7 +360,7 @@ export default function MatchSimulation() {
         <Card>
           <CardContent className="p-4 space-y-3">
             <div className="font-semibold">Simülasyon</div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <Button
                 onClick={() => {
                   if (!nextFixture) return;

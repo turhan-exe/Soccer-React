@@ -177,6 +177,30 @@ export default function TransferMarket() {
   });
   const [expandedListingId, setExpandedListingId] = useState<string | null>(null);
   const previousListingCount = useRef<number>(0);
+  const [isDesktop, setIsDesktop] = useState(() => {
+    if (typeof window === 'undefined') {
+      return true;
+    }
+    return window.matchMedia('(min-width: 768px)').matches;
+  });
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const query = window.matchMedia('(min-width: 768px)');
+    const handleChange = (event: MediaQueryListEvent) => setIsDesktop(event.matches);
+    const handleChangeFallback = () => setIsDesktop(query.matches);
+
+    setIsDesktop(query.matches);
+
+    if (typeof query.addEventListener === 'function') {
+      query.addEventListener('change', handleChange);
+      return () => query.removeEventListener('change', handleChange);
+    }
+
+    query.addListener(handleChangeFallback);
+    return () => query.removeListener(handleChangeFallback);
+  }, []);
+
 
   const locationState = location.state as TransferMarketLocationState;
   const targetPlayerFromState = locationState?.listPlayerId ?? '';
@@ -350,6 +374,206 @@ export default function TransferMarket() {
     navigate(location.pathname, { replace: true, state: null });
   }, [availablePlayers, location.pathname, navigate, targetPlayerFromState, teamPlayers.length]);
 
+  const renderDesktopListings = () => {
+    if (isListingsLoading) {
+      return (
+        <TableRow>
+          <TableCell colSpan={6} className="py-12 text-center text-muted-foreground">
+            <div className="flex items-center justify-center gap-2">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              İlanlar yükleniyor...
+            </div>
+          </TableCell>
+        </TableRow>
+      );
+    }
+
+    if (listings.length === 0) {
+      return (
+        <TableRow>
+          <TableCell colSpan={6} className="py-12 text-center text-muted-foreground">
+            Filtrenize uyan aktif ilan bulunamadı.
+          </TableCell>
+        </TableRow>
+      );
+    }
+
+    return listings.map(listing => {
+      const player = listing.player;
+      const name = player?.name ?? listing.playerName ?? 'Bilinmeyen Oyuncu';
+      const position = player?.position ?? listing.pos ?? 'N/A';
+      const overallValue = player?.overall ?? listing.overall ?? 0;
+      const potentialValue = player?.potential ?? overallValue;
+      const ageDisplay = player?.age ?? '—';
+      const sellerUid = listing.sellerUid ?? listing.sellerId;
+      const isExpanded = expandedListingId === listing.id;
+
+      return (
+        <TableRow
+          key={listing.id}
+          className={cn(
+            isExpanded && 'bg-emerald-50/50 dark:bg-emerald-900/30',
+          )}
+        >
+          <TableCell>
+            {player ? (
+              <Popover
+                open={isExpanded}
+                onOpenChange={open => {
+                  setExpandedListingId(prev => {
+                    if (open) {
+                      return listing.id;
+                    }
+                    return prev === listing.id ? null : prev;
+                  });
+                }}
+              >
+                <PopoverTrigger asChild>
+                  <button
+                    type="button"
+                    className={cn(
+                      'group flex w-full flex-col items-start rounded-md border border-transparent px-0 py-1 text-left transition focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/60',
+                      isExpanded &&
+                        'border-emerald-200 bg-emerald-50/70 dark:border-emerald-800 dark:bg-emerald-900/40',
+                    )}
+                  >
+                    <span className="font-semibold text-foreground transition-colors group-hover:text-emerald-700 dark:group-hover:text-emerald-200">
+                      {name}
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      Yaş {ageDisplay} · Potansiyel {formatOverall(potentialValue)}
+                    </span>
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent
+                  align={isDesktop ? 'start' : 'center'}
+                  side={isDesktop ? 'right' : 'bottom'}
+                  sideOffset={isDesktop ? 16 : 8}
+                  className="w-[min(320px,80vw)] border-none bg-transparent p-0 shadow-none"
+                >
+                  <PlayerStatusCard player={player} />
+                </PopoverContent>
+              </Popover>
+            ) : (
+              <div>
+                <div className="font-semibold">{name}</div>
+                <div className="text-xs text-muted-foreground">
+                  Yaş {ageDisplay} · Potansiyel {formatOverall(potentialValue)}
+                </div>
+              </div>
+            )}
+          </TableCell>
+          <TableCell>
+            <Badge variant="outline">{position}</Badge>
+          </TableCell>
+          <TableCell>{formatOverall(overallValue)}</TableCell>
+          <TableCell>{listing.sellerTeamName}</TableCell>
+          <TableCell className="font-medium text-emerald-600">
+            {formatPrice(listing.price)}
+          </TableCell>
+          <TableCell className="text-right">
+            <Button
+              size="sm"
+              onClick={() => handlePurchase(listing)}
+              disabled={
+                sellerUid === user?.id ||
+                purchasingId === listing.id ||
+                teamBudget < listing.price
+              }
+            >
+              {purchasingId === listing.id ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  İşlem Yapılıyor
+                </>
+              ) : (
+                'Satın Al'
+              )}
+            </Button>
+          </TableCell>
+        </TableRow>
+      );
+    });
+  };
+
+  const renderMobileListings = () => {
+    if (isListingsLoading) {
+      return (
+        <div className="flex items-center justify-center gap-2 rounded-lg border border-dashed border-muted-foreground/40 bg-white/70 py-6 text-sm text-muted-foreground dark:bg-slate-900/40">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          İlanlar yükleniyor...
+        </div>
+      );
+    }
+
+    if (listings.length === 0) {
+      return (
+        <div className="rounded-lg border border-dashed border-muted-foreground/40 bg-white/70 p-4 text-center text-sm text-muted-foreground dark:bg-slate-900/40">
+          Filtrenize uyan aktif ilan bulunamadı.
+        </div>
+      );
+    }
+
+    return listings.map(listing => {
+      const player = listing.player;
+      const name = player?.name ?? listing.playerName ?? 'Bilinmeyen Oyuncu';
+      const position = player?.position ?? listing.pos ?? 'N/A';
+      const overallValue = player?.overall ?? listing.overall ?? 0;
+      const potentialValue = player?.potential ?? overallValue;
+      const ageDisplay = player?.age ?? '—';
+      const sellerUid = listing.sellerUid ?? listing.sellerId;
+
+      return (
+        <div
+          key={listing.id}
+          className="rounded-xl border border-emerald-100 bg-white/70 p-4 shadow-sm dark:border-emerald-900/50 dark:bg-slate-900/60"
+        >
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <div className="text-base font-semibold text-foreground">{name}</div>
+              <div className="text-xs text-muted-foreground">
+                Yaş {ageDisplay} · Potansiyel {formatOverall(potentialValue)}
+              </div>
+            </div>
+            <Badge variant="outline">{position}</Badge>
+          </div>
+          <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 text-xs text-muted-foreground">
+            <div>
+              <span className="font-medium text-foreground">Güç Ortalaması</span>
+              <div>{formatOverall(overallValue)}</div>
+            </div>
+            <div>
+              <span className="font-medium text-foreground">Satıcı</span>
+              <div>{listing.sellerTeamName}</div>
+            </div>
+            <div>
+              <span className="font-medium text-foreground">Fiyat</span>
+              <div className="text-sm font-semibold text-emerald-600">{formatPrice(listing.price)}</div>
+            </div>
+          </div>
+          <Button
+            className="mt-4 w-full"
+            onClick={() => handlePurchase(listing)}
+            disabled={
+              sellerUid === user?.id ||
+              purchasingId === listing.id ||
+              teamBudget < listing.price
+            }
+          >
+            {purchasingId === listing.id ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                İşlem Yapılıyor
+              </>
+            ) : (
+              'Satın Al'
+            )}
+          </Button>
+        </div>
+      );
+    });
+  };
+
   const handleAddFunds = async () => {
     if (!user) {
       toast.error('Giriş yapmalısın.');
@@ -461,9 +685,9 @@ export default function TransferMarket() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-slate-50 to-blue-50 dark:from-emerald-950 dark:via-slate-950 dark:to-blue-950">
-      <div className="max-w-6xl mx-auto px-4 py-8 space-y-6">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+    <div className="flex min-h-screen w-full flex-col overflow-x-hidden bg-gradient-to-br from-emerald-50 via-slate-50 to-blue-50 dark:from-emerald-950 dark:via-slate-950 dark:to-blue-950">
+      <div className="flex w-full flex-1 flex-col gap-6 px-4 py-8 sm:px-6 lg:px-10">
+        <div className="flex w-full flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="space-y-2">
             <BackButton />
             <h1 className="text-3xl font-bold">Transfer Pazarı</h1>
@@ -552,137 +776,27 @@ export default function TransferMarket() {
               </div>
             </CardHeader>
             <CardContent className="p-0">
-              <div className="overflow-hidden">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Oyuncu</TableHead>
-                      <TableHead>Mevki</TableHead>
-                      <TableHead>Güç Ortalaması</TableHead>
-                      <TableHead>Satıcı</TableHead>
-                      <TableHead>Fiyat</TableHead>
-                      <TableHead className="text-right">İşlem</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {isListingsLoading ? (
+              {isDesktop ? (
+                <div className="w-full overflow-x-auto">
+                  <Table>
+                    <TableHeader>
                       <TableRow>
-                        <TableCell colSpan={6} className="py-12 text-center text-muted-foreground">
-                          <div className="flex items-center justify-center gap-2">
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                            İlanlar yükleniyor...
-                          </div>
-                        </TableCell>
+                        <TableHead>Oyuncu</TableHead>
+                        <TableHead>Mevki</TableHead>
+                        <TableHead>Güç Ortalaması</TableHead>
+                        <TableHead>Satıcı</TableHead>
+                        <TableHead>Fiyat</TableHead>
+                        <TableHead className="text-right">İşlem</TableHead>
                       </TableRow>
-                    ) : listings.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={6} className="py-12 text-center text-muted-foreground">
-                          Filtrenize uyan aktif ilan bulunamadı.
-                        </TableCell>
-                      </TableRow>
-                    ) : (
-                      listings.map(listing => {
-                        const player = listing.player;
-                        const name = player?.name ?? listing.playerName ?? 'Bilinmeyen Oyuncu';
-                        const position = player?.position ?? listing.pos ?? 'N/A';
-                        const overallValue =
-                          player?.overall ?? listing.overall ?? 0;
-                        const potentialValue =
-                          player?.potential ?? overallValue;
-                        const ageDisplay = player?.age ?? '—';
-                        const sellerUid = listing.sellerUid ?? listing.sellerId;
-                        const isExpanded = expandedListingId === listing.id;
-
-                        return (
-                          <TableRow
-                            key={listing.id}
-                            className={cn(
-                              isExpanded && 'bg-emerald-50/50 dark:bg-emerald-900/30',
-                            )}
-                          >
-                            <TableCell>
-                              {player ? (
-                                <Popover
-                                  open={isExpanded}
-                                  onOpenChange={open => {
-                                    setExpandedListingId(prev => {
-                                      if (open) {
-                                        return listing.id;
-                                      }
-                                      return prev === listing.id ? null : prev;
-                                    });
-                                  }}
-                                >
-                                  <PopoverTrigger asChild>
-                                    <button
-                                      type="button"
-                                      className={cn(
-                                        'group flex w-full flex-col items-start rounded-md border border-transparent px-0 py-1 text-left transition focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/60',
-                                        isExpanded &&
-                                          'border-emerald-200 bg-emerald-50/70 dark:border-emerald-800 dark:bg-emerald-900/40',
-                                      )}
-                                    >
-                                      <span className="font-semibold text-foreground transition-colors group-hover:text-emerald-700 dark:group-hover:text-emerald-200">
-                                        {name}
-                                      </span>
-                                      <span className="text-xs text-muted-foreground">
-                                        Yaş {ageDisplay} · Potansiyel {formatOverall(potentialValue)}
-                                      </span>
-                                    </button>
-                                  </PopoverTrigger>
-                                  <PopoverContent
-                                    align="start"
-                                    side="right"
-                                    sideOffset={16}
-                                    className="w-auto border-none bg-transparent p-0 shadow-none"
-                                  >
-                                    <PlayerStatusCard player={player} />
-                                  </PopoverContent>
-                                </Popover>
-                              ) : (
-                                <div>
-                                  <div className="font-semibold">{name}</div>
-                                  <div className="text-xs text-muted-foreground">
-                                    Yaş {ageDisplay} · Potansiyel {formatOverall(potentialValue)}
-                                  </div>
-                                </div>
-                              )}
-                            </TableCell>
-                            <TableCell>
-                              <Badge variant="outline">{position}</Badge>
-                            </TableCell>
-                            <TableCell>{formatOverall(overallValue)}</TableCell>
-                            <TableCell>{listing.sellerTeamName}</TableCell>
-                            <TableCell className="font-medium text-emerald-600">
-                              {formatPrice(listing.price)}
-                            </TableCell>
-                            <TableCell className="text-right">
-                              <Button
-                                size="sm"
-                                onClick={() => handlePurchase(listing)}
-                                disabled={
-                                  sellerUid === user?.id ||
-                                  purchasingId === listing.id ||
-                                  teamBudget < listing.price
-                                }
-                              >
-                                {purchasingId === listing.id ? (
-                                  <>
-                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                    İşlem Yapılıyor
-                                  </>
-                                ) : (
-                                  'Satın Al'
-                                )}
-                              </Button>
-                            </TableCell>
-                          </TableRow>
-                        );
-                      })
-                    )}
-                  </TableBody>
-                </Table>
-              </div>
+                    </TableHeader>
+                    <TableBody>{renderDesktopListings()}</TableBody>
+                  </Table>
+                </div>
+              ) : (
+                <div className="flex w-full flex-col gap-3 p-4">
+                  {renderMobileListings()}
+                </div>
+              )}
             </CardContent>
           </Card>
 

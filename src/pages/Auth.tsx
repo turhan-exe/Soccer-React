@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
@@ -148,7 +148,7 @@ export default function Auth() {
         <CardHeader className="text-center">
           <div className="text-4xl mb-2">⚽</div>
           <CardTitle className="text-2xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
-            Futbol Menajerliği
+            FHS FUTBOL MENEJERLİK
           </CardTitle>
           <CardDescription>
             Takımınızı yönetin ve şampiyonluğa ulaşın

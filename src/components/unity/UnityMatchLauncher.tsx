@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { prepareUnityIframeBridge, waitForMatchBridgeAPIOnWindow, type BridgeMatchRequest, type BridgeMatchResult, type PublishTeamsPayload, type ShowTeamsPayload } from '@/services/unityBridge';
 import { Card, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 
 type Props = {
   title?: string;
@@ -17,11 +19,15 @@ type Props = {
  */
 export function UnityMatchLauncher({ title = 'Unity WebGL', autoPayload = null, autoPublishPayload = null, autoShowTeamsPayload = null, onResult }: Props) {
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
   const [ready, setReady] = useState(false);
   const [apiReady, setApiReady] = useState(false);
   const [lastResult, setLastResult] = useState<BridgeMatchResult | null>(null);
   const [bridge, setBridge] = useState<ReturnType<typeof prepareUnityIframeBridge> | null>(null);
   const lastSentRef = useRef<{ pub?: string; match?: string; show?: string }>({});
+  const [useCssFullscreen, setUseCssFullscreen] = useState(false);
+  const [nativeFullscreen, setNativeFullscreen] = useState(false);
+  const [placeholderHeight, setPlaceholderHeight] = useState<number | null>(null);
 
   const src = useMemo(() => {
     // Use clean viewer, no special params required for SendMessage bridge
@@ -30,16 +36,80 @@ export function UnityMatchLauncher({ title = 'Unity WebGL', autoPayload = null, 
 
   useEffect(() => {
     if (!iframeRef.current) return;
-    const b = prepareUnityIframeBridge(iframeRef.current, {
+    const bridgeInstance = prepareUnityIframeBridge(iframeRef.current, {
       onReady: () => setReady(true),
       onResult: (res) => {
         setLastResult(res);
         onResult?.(res);
       },
     });
-    setBridge(b);
-    return () => b.dispose();
+    setBridge(bridgeInstance);
+    return () => bridgeInstance.dispose();
   }, [onResult]);
+
+  // Listen to native fullscreen changes so we can update UI state
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      const target = containerRef.current;
+      const isNative = Boolean(target && document.fullscreenElement === target);
+      setNativeFullscreen(isNative);
+      if (!document.fullscreenElement) {
+        setUseCssFullscreen(false);
+      }
+    };
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  }, []);
+
+  useEffect(() => {
+    if (!useCssFullscreen) {
+      setPlaceholderHeight(null);
+      return;
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setUseCssFullscreen(false);
+      }
+    };
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    document.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [useCssFullscreen]);
+
+  const exitFullscreen = () => {
+    if (document.fullscreenElement && document.exitFullscreen) {
+      document.exitFullscreen().catch(() => {});
+    }
+    setUseCssFullscreen(false);
+  };
+
+  const toggleFullscreen = () => {
+    const element = containerRef.current;
+    if (!element) return;
+
+    if (nativeFullscreen || useCssFullscreen) {
+      exitFullscreen();
+      return;
+    }
+
+    const attemptNative = element.requestFullscreen?.();
+    if (attemptNative && typeof attemptNative.then === 'function') {
+      attemptNative.catch(() => {
+        setPlaceholderHeight(element.getBoundingClientRect().height);
+        setUseCssFullscreen(true);
+      });
+    } else {
+      setPlaceholderHeight(element.getBoundingClientRect().height);
+      setUseCssFullscreen(true);
+    }
+  };
 
   // Wait for MatchBridgeAPI inside the iframe window (especially important under iframe usage)
   useEffect(() => {
@@ -80,7 +150,6 @@ export function UnityMatchLauncher({ title = 'Unity WebGL', autoPayload = null, 
     };
   }, [ready]);
 
-
   // When Unity is ready, optionally showTeams or publishTeams first, then start match
   useEffect(() => {
     if (!ready || !bridge || !apiReady) return;
@@ -120,23 +189,60 @@ export function UnityMatchLauncher({ title = 'Unity WebGL', autoPayload = null, 
     };
   }, [ready, apiReady, bridge, autoShowTeamsPayload, autoPublishPayload, autoPayload]);
 
+  const fullscreenActive = nativeFullscreen || useCssFullscreen;
+  const statusLabel = ready ? 'Hazır' : 'Yükleniyor...';
+  const fullscreenLabel = fullscreenActive ? 'Tam Ekrandan Çık' : 'Tam Ekran';
 
   return (
-    <Card>
-      <CardContent className="p-4 space-y-2">
-        <div className="flex items-center justify-between">
-          <div className="font-semibold">{title}</div>
-          <div className="text-xs text-muted-foreground">{ready ? 'Hazır' : 'Yükleniyor...'}</div>
-        </div>
-        <div className="w-full h-[480px] border rounded overflow-hidden bg-black">
-          <iframe ref={iframeRef} src={src} title="Unity Bridge Iframe" className="w-full h-full" allowFullScreen />
-        </div>
-        {lastResult && (
-          <div className="text-xs text-muted-foreground">
-            Sonuç: {lastResult.homeTeam} {lastResult.homeGoals}-{lastResult.awayGoals} {lastResult.awayTeam}
-          </div>
+    <>
+      {useCssFullscreen && placeholderHeight ? (
+        <div style={{ height: placeholderHeight }} aria-hidden="true" />
+      ) : null}
+      <div
+        ref={containerRef}
+        className={cn(
+          'relative z-10 flex w-full flex-col',
+          useCssFullscreen && 'fixed inset-0 z-50 bg-black/95 p-4 md:p-8',
+          fullscreenActive && 'text-white'
         )}
-      </CardContent>
-    </Card>
+      >
+        <Card
+          className={cn(
+            'flex h-full w-full flex-col border border-border/80 shadow-md',
+            fullscreenActive && 'bg-black text-white border-white/30 shadow-2xl'
+          )}
+        >
+          <CardContent className={cn('flex h-full flex-col gap-4 p-4 sm:p-6', fullscreenActive && 'text-white')}>
+            <div className="flex items-center justify-between gap-3">
+              <div className="font-semibold text-base">{title}</div>
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <span className={cn(fullscreenActive && 'text-white/80')}>{statusLabel}</span>
+                <Button
+                  variant={fullscreenActive ? 'secondary' : 'outline'}
+                  size="sm"
+                  onClick={toggleFullscreen}
+                  className={cn('h-8 px-3', fullscreenActive && 'border-white/50 bg-white/10 text-white hover:bg-white/20')}
+                >
+                  {fullscreenLabel}
+                </Button>
+              </div>
+            </div>
+            <div
+              className={cn(
+                'relative w-full overflow-hidden rounded-xl border bg-black',
+                fullscreenActive ? 'flex-1 min-h-[420px] md:min-h-[520px]' : 'aspect-[16/9] min-h-[360px] sm:min-h-[420px] md:min-h-[520px]'
+              )}
+            >
+              <iframe ref={iframeRef} src={src} title="Unity Bridge Iframe" className="h-full w-full" allowFullScreen />
+            </div>
+            {lastResult && (
+              <div className={cn('text-xs text-muted-foreground', fullscreenActive && 'text-white/70')}>
+                Sonuç: {lastResult.homeTeam} {lastResult.homeGoals}-{lastResult.awayGoals} {lastResult.awayTeam}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    </>
   );
 }

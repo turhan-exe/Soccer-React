@@ -10,9 +10,11 @@ import { drawLegend } from './drawLegend';
 import { getLegendIdFromPlayer, rentLegend } from '@/services/legends';
 import { getTeam } from '@/services/team';
 import type { Player } from '@/types';
+import './legend-pack.css';
 
 const PACK_COST = 1;
 const LEAGUE_DURATION_MS = 1000 * 60 * 60 * 24 * 90;
+const TOTAL_LEGENDS = LEGEND_PLAYERS.length;
 
 interface RentedLegend extends LegendPlayer {
   expiresAt: Date;
@@ -81,6 +83,8 @@ const LegendPackPage = () => {
     [ownedLegendSet],
   );
 
+  const ownedCount = ownedLegendIds.length;
+
   const handleOpen = async () => {
     if (!user) {
       toast.error('Giriş yapmalısın');
@@ -133,46 +137,101 @@ const LegendPackPage = () => {
   };
 
   return (
-    <div className="p-4 space-y-4">
-      <div className="flex items-center gap-2">
-        <BackButton />
-        <h1 className="text-2xl font-bold">Nostalji Paket</h1>
+    <div className="legend-pack-page">
+      <div className="legend-pack-gradient" aria-hidden />
+      <div className="legend-pack-orb legend-pack-orb--left" aria-hidden />
+      <div className="legend-pack-orb legend-pack-orb--right" aria-hidden />
+      <div className="legend-pack-noise" aria-hidden />
+
+      <div className="legend-pack-shell">
+        <header className="legend-pack-header">
+          <div className="legend-pack-header-main">
+            <BackButton />
+            <div>
+              <p className="legend-pack-title">Nostalji Paketi</p>
+              <p className="legend-pack-subtitle">
+                80'ler ve 90'ların efsanelerini kulübüne yeniden kazandır. Paketi aç, rastgele bir
+                ikon kadrona katılsın.
+              </p>
+            </div>
+          </div>
+          <div className="legend-pack-balance">
+            <label>Elmas</label>
+            <strong>{balance}</strong>
+          </div>
+        </header>
+
+        <main className="legend-pack-main">
+          <section className="legend-pack-panel">
+            <h2>Yeni bir efsane keşfet</h2>
+            <p>
+              Her paket açılışında henüz sahip olmadığın bir efsaneyi kadrona kiralayabilir ve 90
+              gün boyunca şampiyonluk mücadelesinde kullanabilirsin.
+            </p>
+            <div className="legend-pack-metrics">
+              <div className="legend-pack-metric">
+                <span>Toplanan kart</span>
+                <strong>
+                  {ownedCount}/{TOTAL_LEGENDS}
+                </strong>
+              </div>
+              <div className="legend-pack-metric">
+                <span>Kira süresi</span>
+                <strong>90 gün</strong>
+              </div>
+            </div>
+            <Button
+              size="lg"
+              className="w-full"
+              onClick={handleOpen}
+              disabled={balance < PACK_COST || allCollected || isLoadingTeam}
+            >
+              Paket Aç (1 Elmas)
+            </Button>
+            {isLoadingTeam ? (
+              <p className="text-sm text-slate-300/80">Takım bilgileri yükleniyor...</p>
+            ) : allCollected ? (
+              <p className="text-sm text-emerald-200">Tüm nostalji efsanelerine sahipsin!</p>
+            ) : (
+              <p className="text-sm text-slate-300/80">
+                Eksik kartlarını tamamlamak için paket açmaya devam et.
+              </p>
+            )}
+          </section>
+
+          <section className="legend-pack-card-slot">
+            {current ? (
+              <LegendCard player={current} onRent={handleRent} onRelease={handleRelease} />
+            ) : (
+              <div className="legend-pack-placeholder">
+                Yeni bir efsane için paketi aç ve kartı kulübüne kat.
+              </div>
+            )}
+          </section>
+        </main>
+
+        <section className="legend-pack-rented">
+          <header>
+            <p className="legend-pack-rented-title">Kiralanan efsaneler</p>
+            <span className="legend-pack-rented-count">{rented.length} aktif</span>
+          </header>
+          {rented.length > 0 ? (
+            <div className="legend-pack-rented-list">
+              {rented.map((p) => (
+                <div key={p.id} className="legend-pack-rented-item">
+                  <strong>{p.name}</strong>
+                  <span>Bitiş tarihi</span>
+                  <time>{p.expiresAt.toLocaleDateString()}</time>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="legend-pack-empty">
+              Şu anda kiralanmış efsane oyuncun yok. Paketi açarak kadronu güçlendirebilirsin.
+            </p>
+          )}
+        </section>
       </div>
-      <div>Elmas: {balance}</div>
-      <Button
-        onClick={handleOpen}
-        disabled={balance < PACK_COST || allCollected || isLoadingTeam}
-      >
-        Paket Aç (1💎)
-      </Button>
-      {isLoadingTeam && (
-        <p className="text-sm text-muted-foreground">Takım bilgileri yükleniyor...</p>
-      )}
-      {allCollected && (
-        <p className="text-sm text-muted-foreground">
-          Tüm nostalji efsanelerine sahipsin!
-        </p>
-      )}
-      {current && (
-        <LegendCard
-          player={current}
-          onRent={handleRent}
-          onRelease={handleRelease}
-        />
-      )}
-      {rented.length > 0 && (
-        <div className="pt-4">
-          <h2 className="text-xl font-semibold">Kiralanan Oyuncular</h2>
-          <ul className="list-disc list-inside">
-            {rented.map((p) => (
-              <li key={p.id}>
-                {p.name} - Sözleşme bitiş:{' '}
-                {p.expiresAt.toLocaleDateString()}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
     </div>
   );
 };

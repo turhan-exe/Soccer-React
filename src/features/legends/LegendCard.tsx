@@ -3,6 +3,12 @@ import type { LegendPlayer } from './players';
 import { Button } from '@/components/ui/button';
 import './legend-card.css';
 
+const RARITY_LABELS: Record<LegendPlayer['rarity'], string> = {
+  legend: 'Efsane',
+  rare: 'Nadir',
+  common: 'Klasik',
+};
+
 interface Props {
   player: LegendPlayer;
   onRent?: (p: LegendPlayer) => void;
@@ -17,29 +23,33 @@ export default function LegendCard({ player, onRent, onRelease }: Props) {
     return () => clearTimeout(id);
   }, [player]);
 
+  const rarityLabel = RARITY_LABELS[player.rarity];
+
   return (
     <div className="legend-card-wrapper">
       <div className={`legend-card ${show ? 'show' : 'reveal'} ${player.rarity}`}>
-        <div className="flex flex-col items-center gap-2">
-          <img
-            src={player.image}
-            alt={player.name}
-            className="w-16 h-16 rounded-full object-cover"
-          />
-          <h3 className="flex items-center gap-2">{player.name}</h3>
-        </div>
-        <p>Güç: {player.rating}</p>
-        <div className="mt-4 flex justify-center gap-2">
-          {onRent && (
-            <Button size="sm" onClick={() => onRent(player)}>
-              Oyuncuyu kirala
-            </Button>
-          )}
-          {onRelease && (
-            <Button size="sm" variant="secondary" onClick={() => onRelease(player)}>
-              Serbest bırak
-            </Button>
-          )}
+        <div
+          className="legend-card-bg"
+          style={{ backgroundImage: `url(${player.image})` }}
+          aria-hidden
+        />
+        <div className="legend-card-content">
+          <div className="legend-card-meta">
+            <span className="legend-card-tag">Güç {player.rating}</span>
+            <span className={`legend-card-rarity ${player.rarity}`}>{rarityLabel}</span>
+          </div>
+          <div className="legend-card-actions">
+            {onRent && (
+              <Button size="sm" onClick={() => onRent(player)}>
+                Oyuncuyu kirala
+              </Button>
+            )}
+            {onRelease && (
+              <Button size="sm" variant="secondary" onClick={() => onRelease(player)}>
+                Serbest bırak
+              </Button>
+            )}
+          </div>
         </div>
       </div>
     </div>
