@@ -43,7 +43,7 @@ const YouthCandidateCard: React.FC<Props> = ({ candidate, onAccept, onRelease })
   return (
     <Card
       data-testid={`youth-candidate-${candidate.id}`}
-      className="group relative flex h-full flex-col overflow-hidden border border-white/10 bg-slate-900/70 p-5 text-slate-100 shadow-lg backdrop-blur transition-all duration-300 hover:-translate-y-1 hover:border-cyan-400/40 hover:shadow-xl"
+      className="group relative flex h-full min-h-[320px] flex-col overflow-hidden border border-white/10 bg-slate-900/70 p-6 text-slate-100 shadow-lg backdrop-blur transition-all duration-300 hover:-translate-y-1 hover:border-cyan-400/40 hover:shadow-xl md:min-h-[360px]"
     >
       <div className="absolute inset-0 opacity-0 transition-opacity duration-300 group-hover:opacity-100">
         <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/10 via-transparent to-emerald-500/20" />
@@ -91,13 +91,13 @@ const YouthCandidateCard: React.FC<Props> = ({ candidate, onAccept, onRelease })
                 </div>
               </div>
             </div>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-end">
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={() => onAccept(candidate.id)}
                 data-testid={`youth-accept-${candidate.id}`}
-                className="rounded-full border border-transparent bg-white/5 px-4 text-xs font-semibold text-cyan-100 shadow-sm transition hover:border-cyan-400/60 hover:bg-cyan-500/20 hover:text-white"
+                className="w-full rounded-full border border-transparent bg-white/5 px-4 text-xs font-semibold text-cyan-100 shadow-sm transition hover:border-cyan-400/60 hover:bg-cyan-500/20 hover:text-white sm:w-auto"
               >
                 Takıma Al
               </Button>
@@ -106,7 +106,7 @@ const YouthCandidateCard: React.FC<Props> = ({ candidate, onAccept, onRelease })
                 size="sm"
                 onClick={() => onRelease(candidate.id)}
                 data-testid={`youth-release-${candidate.id}`}
-                className="rounded-full border border-transparent bg-white/5 px-4 text-xs font-semibold text-slate-200 shadow-sm transition hover:border-rose-500/60 hover:bg-rose-500/20 hover:text-white"
+                className="w-full rounded-full border border-transparent bg-white/5 px-4 text-xs font-semibold text-slate-200 shadow-sm transition hover:border-rose-500/60 hover:bg-rose-500/20 hover:text-white sm:w-auto"
               >
                 Serbest Bırak
               </Button>
