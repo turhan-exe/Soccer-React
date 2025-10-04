@@ -1369,8 +1369,6 @@ export default function TeamPlanning() {
     return players.find(p => p.id === focusedPlayerId) ?? null;
   }, [players, focusedPlayerId]);
 
-  const selectedPower = selectedPlayer ? getPlayerPower(selectedPlayer) : 0;
-
   const alternativePlayers = useMemo(() => {
     if (!selectedPlayer) {
       return [] as Player[];
@@ -1419,28 +1417,6 @@ export default function TeamPlanning() {
     setFocusedPlayerId(playerId);
     setActiveTab('starting');
   };
-
-  const startingAverages = useMemo(() => {
-    const starters = players.filter(p => p.squadRole === 'starting');
-    if (starters.length === 0) {
-      return { condition: 0, motivation: 0, power: 0 };
-    }
-    const totals = starters.reduce(
-      (acc, player) => {
-        acc.condition += getPlayerCondition(player);
-        acc.motivation += getPlayerMotivation(player);
-        acc.power += getPlayerPower(player);
-        return acc;
-      },
-      { condition: 0, motivation: 0, power: 0 }
-    );
-    return {
-      condition: totals.condition / starters.length,
-      motivation: totals.motivation / starters.length,
-      power: totals.power / starters.length,
-    };
-  }, [players]);
-
 
   const handlePositionDrop = (
     e: React.DragEvent<HTMLDivElement>,
@@ -1698,70 +1674,6 @@ export default function TeamPlanning() {
                     Sahadaki bir oyuncuyu seçtiğinizde uygun alternatifler burada listelenecek.
                   </div>
                 )}
-              </div>
-              <div className="flex-1 min-w-0 space-y-4">
-                <div className="rounded-xl border border-emerald-500/20 bg-emerald-900/20 p-4 text-white shadow-inner backdrop-blur-sm">
-                  {selectedPlayer ? (
-                    <div className="space-y-4">
-                      <div className="flex items-center justify-between gap-3">
-                        <div>
-                          <p className="text-xs uppercase tracking-wide text-white/70">SeÃ§ili Oyuncu</p>
-                          <h3 className="text-lg font-semibold">{selectedPlayer.name}</h3>
-                          <p className="text-xs text-white/70">
-                            {selectedPlayer.position} - GÃ¼Ã§ {Math.round(selectedPower * 100)}
-                          </p>
-                        </div>
-                        <div className="flex h-14 w-14 items-center justify-center rounded-full bg-white/20 text-lg font-semibold">
-                          {playerInitials(selectedPlayer.name)}
-                        </div>
-                      </div>
-                      <div className="space-y-3">
-                        <PerformanceGauge label="GÃ¼Ã§" value={selectedPower} variant="dark" />
-                        <PerformanceGauge label="Kondisyon" value={getPlayerCondition(selectedPlayer)} variant="dark" />
-                        <PerformanceGauge label="Motivasyon" value={getPlayerMotivation(selectedPlayer)} variant="dark" />
-                      </div>
-                      <div className="space-y-2">
-                        <p className="text-xs uppercase tracking-wide text-white/70">Alternatifler</p>
-                        {alternativePlayers.length > 0 ? (
-                          <>
-                            <div className="flex flex-wrap gap-2">
-                              {alternativePlayers.map(alternative => (
-                                <AlternativePlayerBubble
-                                  key={alternative.id}
-                                  player={alternative}
-                                  onSelect={setComparisonPlayerId}
-                                  variant="panel"
-                                />
-                              ))}
-                            </div>
-                            <p className="text-[10px] text-white/60">
-                              Kartını görmek için alternatiflerden birine tıklayın.
-                            </p>
-                          </>
-                        ) : (
-                          <p className="text-xs text-white/60">
-                            Bu pozisyon için bench veya rezerv oyuncu yok.
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="py-8 text-center text-sm text-white/70">
-                      Formasyondaki bir oyuncuya tÄ±klayÄ±n.
-                    </div>
-                  )}
-                </div>
-                <div className="rounded-xl border border-emerald-200/40 bg-white/80 p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900/70">
-                  <div className="mb-4 flex items-center justify-between">
-                    <h4 className="text-sm font-semibold text-emerald-700 dark:text-emerald-200">TakÄ±m NabzÄ±</h4>
-                    <span className="text-xs text-muted-foreground">ilk 11 ortalamasÄ±</span>
-                  </div>
-                  <div className="space-y-3">
-                    <PerformanceGauge label="TakÄ±m GÃ¼cÃ¼" value={startingAverages.power} />
-                    <PerformanceGauge label="Kondisyon OrtalamasÄ±" value={startingAverages.condition} />
-                    <PerformanceGauge label="Motivasyon OrtalamasÄ±" value={startingAverages.motivation} />
-                  </div>
-                </div>
               </div>
             </div>
           </CardContent>
