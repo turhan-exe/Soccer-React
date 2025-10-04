@@ -15,6 +15,9 @@ import './legend-pack.css';
 const PACK_COST = 1;
 const LEAGUE_DURATION_MS = 1000 * 60 * 60 * 24 * 90;
 const TOTAL_LEGENDS = LEGEND_PLAYERS.length;
+const STORAGE_KEY_PREFIX = 'legend-pack-current';
+
+const getStorageKey = (userId: string) => `${STORAGE_KEY_PREFIX}:${userId}`;
 
 interface RentedLegend extends LegendPlayer {
   expiresAt: Date;
@@ -101,6 +104,46 @@ const LegendPackPage = () => {
   }, [legendById, user]);
 
   const ownedLegendSet = useMemo(() => new Set(ownedLegendIds), [ownedLegendIds]);
+
+  useEffect(() => {
+    if (!user || typeof window === 'undefined') {
+      return;
+    }
+
+    const key = getStorageKey(user.id);
+    const storedId = window.localStorage.getItem(key);
+    if (!storedId) {
+      return;
+    }
+
+    const legendId = Number.parseInt(storedId, 10);
+    if (Number.isNaN(legendId) || ownedLegendSet.has(legendId)) {
+      window.localStorage.removeItem(key);
+      return;
+    }
+
+    const legend = legendById.get(legendId);
+    if (!legend) {
+      window.localStorage.removeItem(key);
+      return;
+    }
+
+    setCurrent((prev) => (prev?.id === legend.id ? prev : legend));
+  }, [legendById, ownedLegendSet, user]);
+
+  useEffect(() => {
+    if (!user || typeof window === 'undefined') {
+      return;
+    }
+
+    const key = getStorageKey(user.id);
+    if (current) {
+      window.localStorage.setItem(key, String(current.id));
+    } else {
+      window.localStorage.removeItem(key);
+    }
+  }, [current, user]);
+
   const allCollected = useMemo(
     () => LEGEND_PLAYERS.every((legend) => ownedLegendSet.has(legend.id)),
     [ownedLegendSet],
@@ -111,6 +154,10 @@ const LegendPackPage = () => {
   const handleOpen = async () => {
     if (!user) {
       toast.error('Giriş yapmalısın');
+      return;
+    }
+    if (current) {
+      toast.info('Önce mevcut kartın için karar vermelisin');
       return;
     }
     if (balance < PACK_COST) {
@@ -210,12 +257,19 @@ const LegendPackPage = () => {
               size="lg"
               className="w-full"
               onClick={handleOpen}
-              disabled={balance < PACK_COST || allCollected || isLoadingTeam}
+              disabled={
+                balance < PACK_COST || allCollected || isLoadingTeam || Boolean(current)
+              }
             >
               Paket Aç (1 Elmas)
             </Button>
             {isLoadingTeam ? (
               <p className="text-sm text-slate-300/80">Takım bilgileri yükleniyor...</p>
+            ) : current ? (
+              <p className="text-sm text-amber-200">
+                Çektiğin kart seni bekliyor. Kabul etmeden veya serbest bırakmadan yeni paket
+                açamazsın.
+              </p>
             ) : allCollected ? (
               <p className="text-sm text-emerald-200">Tüm nostalji efsanelerine sahipsin!</p>
             ) : (
