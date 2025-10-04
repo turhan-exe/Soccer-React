@@ -7,7 +7,7 @@ import { toast } from 'sonner';
 import LegendCard from './LegendCard';
 import { LEGEND_PLAYERS, type LegendPlayer } from './players';
 import { drawLegend } from './drawLegend';
-import { getLegendIdFromPlayer, rentLegend } from '@/services/legends';
+import { getLegendIdFromPlayer, getRentedLegends, rentLegend } from '@/services/legends';
 import { getTeam } from '@/services/team';
 import type { Player } from '@/types';
 import './legend-pack.css';
@@ -27,6 +27,14 @@ const LegendPackPage = () => {
   const [rented, setRented] = useState<RentedLegend[]>([]);
   const [ownedLegendIds, setOwnedLegendIds] = useState<number[]>([]);
   const [isLoadingTeam, setIsLoadingTeam] = useState(false);
+
+  const legendById = useMemo(() => {
+    const map = new Map<number, LegendPlayer>();
+    LEGEND_PLAYERS.forEach(legend => {
+      map.set(legend.id, legend);
+    });
+    return map;
+  }, []);
 
   useEffect(() => {
     let isActive = true;
@@ -51,16 +59,31 @@ const LegendPackPage = () => {
     setRented([]);
     setCurrent(null);
 
-    const loadTeam = async () => {
+    const loadData = async () => {
       try {
-        const team = await getTeam(user.id);
+        const [team, rentals] = await Promise.all([
+          getTeam(user.id),
+          getRentedLegends(user.id),
+        ]);
         if (!isActive) return;
         if (!team?.players) {
           setOwnedLegendIds([]);
-          return;
+        } else {
+          const legendIds = extractLegendIds(team.players);
+          setOwnedLegendIds(legendIds);
         }
-        const legendIds = extractLegendIds(team.players);
-        setOwnedLegendIds(legendIds);
+
+        const normalizedRentals = rentals
+          .map(({ legendId, expiresAt }) => {
+            const legend = legendById.get(legendId);
+            if (!legend) {
+              return null;
+            }
+            return { ...legend, expiresAt } as RentedLegend;
+          })
+          .filter((value): value is RentedLegend => Boolean(value))
+          .sort((a, b) => a.expiresAt.getTime() - b.expiresAt.getTime());
+        setRented(normalizedRentals);
       } catch (err) {
         console.warn(err);
       } finally {
@@ -70,12 +93,12 @@ const LegendPackPage = () => {
       }
     };
 
-    loadTeam();
+    loadData();
 
     return () => {
       isActive = false;
     };
-  }, [user]);
+  }, [legendById, user]);
 
   const ownedLegendSet = useMemo(() => new Set(ownedLegendIds), [ownedLegendIds]);
   const allCollected = useMemo(
@@ -118,7 +141,10 @@ const LegendPackPage = () => {
     const expiresAt = new Date(Date.now() + LEAGUE_DURATION_MS);
     try {
       await rentLegend(user.id, player, expiresAt);
-      setRented((prev) => [...prev, { ...player, expiresAt }]);
+      setRented(prev => {
+        const next = [...prev, { ...player, expiresAt }];
+        return next.sort((a, b) => a.expiresAt.getTime() - b.expiresAt.getTime());
+      });
       setOwnedLegendIds((prev) =>
         prev.includes(player.id) ? prev : [...prev, player.id].sort((a, b) => a - b),
       );

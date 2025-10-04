@@ -1,4 +1,4 @@
-import { doc, setDoc, Timestamp } from 'firebase/firestore';
+import { collection, doc, getDocs, setDoc, Timestamp } from 'firebase/firestore';
 import { db } from './firebase';
 import { addPlayerToTeam, getTeam } from './team';
 import type { LegendPlayer } from '@/features/legends/players';
@@ -84,5 +84,42 @@ export async function rentLegend(
     { legendId: legend.id, expiresAt: Timestamp.fromDate(expiresAt) },
   );
   return player;
+}
+
+export type RentedLegendRecord = {
+  legendId: number;
+  expiresAt: Date;
+};
+
+export async function getRentedLegends(uid: string): Promise<RentedLegendRecord[]> {
+  const snapshot = await getDocs(collection(db, 'users', uid, 'rentedLegends'));
+  const rented: RentedLegendRecord[] = [];
+
+  snapshot.forEach(docSnap => {
+    const data = docSnap.data() as { legendId?: unknown; expiresAt?: unknown };
+    if (typeof data.legendId !== 'number') {
+      return;
+    }
+
+    let expiresAt: Date | null = null;
+    const rawExpiresAt = data.expiresAt;
+
+    if (rawExpiresAt instanceof Timestamp) {
+      expiresAt = rawExpiresAt.toDate();
+    } else if (typeof rawExpiresAt === 'string' || typeof rawExpiresAt === 'number') {
+      const parsed = new Date(rawExpiresAt);
+      if (!Number.isNaN(parsed.getTime())) {
+        expiresAt = parsed;
+      }
+    }
+
+    if (!expiresAt) {
+      return;
+    }
+
+    rented.push({ legendId: data.legendId, expiresAt });
+  });
+
+  return rented.sort((a, b) => a.expiresAt.getTime() - b.expiresAt.getTime());
 }
 
