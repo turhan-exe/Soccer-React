@@ -44,13 +44,23 @@ export default function LegendCard({ player, onRent, onRelease }: Props) {
           </div>
           <div className="legend-card-actions">
             {onRent && (
-              <Button size="sm" onClick={() => onRent(player)}>
-                Oyuncuyu kirala
+              <Button
+                size="sm"
+                variant="ghost"
+                className="legend-card-accept"
+                onClick={() => onRent(player)}
+              >
+                Kabul Et
               </Button>
             )}
             {onRelease && (
-              <Button size="sm" variant="secondary" onClick={() => onRelease(player)}>
-                Serbest bırak
+              <Button
+                size="sm"
+                variant="ghost"
+                className="legend-card-release"
+                onClick={() => onRelease(player)}
+              >
+                Serbest Bırak
               </Button>
             )}
           </div>
