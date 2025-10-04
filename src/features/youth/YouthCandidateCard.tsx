@@ -48,7 +48,7 @@ const YouthCandidateCard: React.FC<Props> = ({ candidate, onAccept, onRelease })
       <div className="absolute inset-0 opacity-0 transition-opacity duration-300 group-hover:opacity-100">
         <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/10 via-transparent to-emerald-500/20" />
       </div>
-      <div className="relative flex flex-1 flex-col gap-3 sm:flex-row sm:items-start">
+      <div className="relative flex flex-1 flex-col gap-3 xl:flex-row xl:items-start">
         <div className="relative shrink-0">
           <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-cyan-500 to-emerald-500 text-base font-semibold text-white shadow-lg shadow-cyan-500/20">
             {initials}
@@ -58,7 +58,7 @@ const YouthCandidateCard: React.FC<Props> = ({ candidate, onAccept, onRelease })
           </div>
         </div>
         <div className="min-w-0 flex flex-1 flex-col">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+          <div className="flex flex-col gap-3 xl:flex-row xl:flex-wrap xl:items-start xl:justify-between">
             <div>
               <h3 className="truncate text-base font-semibold tracking-tight">{player.name}</h3>
               <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs">
@@ -91,7 +91,7 @@ const YouthCandidateCard: React.FC<Props> = ({ candidate, onAccept, onRelease })
                 </div>
               </div>
             </div>
-            <div className="flex flex-wrap gap-1.5">
+            <div className="flex flex-wrap gap-1.5 xl:justify-end">
               <Button
                 variant="ghost"
                 size="sm"
