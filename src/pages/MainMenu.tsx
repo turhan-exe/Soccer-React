@@ -17,21 +17,22 @@ import {
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { getMyLeagueId, listLeagueStandings, getFixturesForTeam } from '@/services/leagues';
+import '@/styles/nostalgia-theme.css';
 
 const menuItems = [
-  { id: 'team-planning', label: 'Takim Plani', icon: Users, color: 'bg-blue-500' },
-  { id: 'youth', label: 'Altyapi', icon: UserPlus, color: 'bg-green-500' },
-  { id: 'transfer-market', label: 'Transfer Pazari', icon: ShoppingCart, color: 'bg-teal-500' },
-  { id: 'fixtures', label: 'Fikstur', icon: Calendar, color: 'bg-purple-500' },
-  { id: 'leagues', label: 'Ligler', icon: Trophy, color: 'bg-yellow-500' },
-  { id: 'training', label: 'Antrenman', icon: Dumbbell, color: 'bg-orange-500' },
-  { id: 'match-preview', label: 'Mac Onizleme', icon: Play, color: 'bg-red-500' },
-  { id: 'match-simulation', label: 'Mac Simulasyonu', icon: Play, color: 'bg-red-600' },
-  { id: 'match-history', label: 'Gecmis Maclar', icon: History, color: 'bg-gray-500' },
-  { id: 'finance', label: 'Finans', icon: DollarSign, color: 'bg-emerald-500' },
-  { id: 'profile', label: 'Kisisel Bilgiler', icon: User, color: 'bg-indigo-500' },
-  { id: 'settings', label: 'Ayarlar', icon: Settings, color: 'bg-slate-500' },
-  { id: 'legend-pack', label: 'Nostalji Paket', icon: Star, color: 'bg-pink-500' },
+  { id: 'team-planning', label: 'Takim Plani', icon: Users, accent: 'sky' },
+  { id: 'youth', label: 'Altyapi', icon: UserPlus, accent: 'emerald' },
+  { id: 'transfer-market', label: 'Transfer Pazari', icon: ShoppingCart, accent: 'teal' },
+  { id: 'fixtures', label: 'Fikstur', icon: Calendar, accent: 'violet' },
+  { id: 'leagues', label: 'Ligler', icon: Trophy, accent: 'gold' },
+  { id: 'training', label: 'Antrenman', icon: Dumbbell, accent: 'orange' },
+  { id: 'match-preview', label: 'Mac Onizleme', icon: Play, accent: 'rose' },
+  { id: 'match-simulation', label: 'Mac Simulasyonu', icon: Play, accent: 'purple' },
+  { id: 'match-history', label: 'Gecmis Maclar', icon: History, accent: 'slate' },
+  { id: 'finance', label: 'Finans', icon: DollarSign, accent: 'cyan' },
+  { id: 'profile', label: 'Kisisel Bilgiler', icon: User, accent: 'indigo' },
+  { id: 'settings', label: 'Ayarlar', icon: Settings, accent: 'teal' },
+  { id: 'legend-pack', label: 'Nostalji Paket', icon: Star, accent: 'pink' },
 ];
 
 export default function MainMenu() {
@@ -88,49 +89,58 @@ export default function MainMenu() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-green-50 via-emerald-50 to-teal-50 dark:from-green-950 dark:via-emerald-950 dark:to-teal-950">
-      <div className="p-4">
-        <div className="grid grid-cols-2 gap-4 max-w-2xl mx-auto">
+    <div className="nostalgia-screen">
+      <div className="nostalgia-screen__gradient" aria-hidden />
+      <div className="nostalgia-screen__orb nostalgia-screen__orb--left" aria-hidden />
+      <div className="nostalgia-screen__orb nostalgia-screen__orb--right" aria-hidden />
+      <div className="nostalgia-screen__noise" aria-hidden />
+      <div className="nostalgia-screen__content">
+        <header className="nostalgia-main-menu__header">
+          <div>
+            <h1 className="nostalgia-main-menu__title">Ana Menü</h1>
+            <p className="nostalgia-main-menu__subtitle">
+              Kulübünün tüm kritik operasyonlarına tek ekrandan ulaş.
+            </p>
+          </div>
+        </header>
+
+        <section className="nostalgia-main-menu__grid">
           {menuItems.map((item) => (
             <Card
               key={item.id}
-              className="hover:shadow-lg transition-all duration-200 cursor-pointer hover:scale-105"
+              className="nostalgia-card cursor-pointer"
               onClick={() => handleMenuClick(item.id)}
             >
-              <CardContent className="p-6 text-center">
-                <div className={`w-12 h-12 ${item.color} rounded-full flex items-center justify-center mx-auto mb-3`}>
-
-                  <item.icon className="h-6 w-6 text-white" />
+              <CardContent className="nostalgia-card__content">
+                <div className={`nostalgia-menu-icon nostalgia-menu-icon--${item.accent}`}>
+                  <item.icon />
                 </div>
-                <h3 className="font-semibold text-sm">{item.label}</h3>
+                <h3 className="nostalgia-card__label">{item.label}</h3>
               </CardContent>
             </Card>
           ))}
-        </div>
+        </section>
 
-        <div className="mt-8 max-w-2xl mx-auto">
-          <h2 className="text-lg font-semibold mb-4">Hizli Bakis</h2>
-          <div className="grid grid-cols-3 gap-4">
-            <Card>
-              <CardContent className="p-4 text-center">
-                <div className="text-2xl font-bold text-green-600">{leaguePosition ?? '-'}{leaguePosition ? '.' : ''}</div>
-                <div className="text-sm text-muted-foreground">Lig Sirasi</div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="p-4 text-center">
-                <div className="text-2xl font-bold text-blue-600">{leaguePoints ?? '-'}</div>
-                <div className="text-sm text-muted-foreground">Puan</div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="p-4 text-center">
-                <div className="text-2xl font-bold text-purple-600">{hoursToNextMatch ?? '-'}</div>
-                <div className="text-sm text-muted-foreground">Saat Sonra</div>
-              </CardContent>
-            </Card>
+        <section className="nostalgia-quick-panel">
+          <h2 className="nostalgia-quick-panel__title">Hızlı Bakış</h2>
+          <div className="nostalgia-quick-grid">
+            <div className="nostalgia-quick-card">
+              <span className="nostalgia-quick-card__value text-emerald-300">
+                {leaguePosition ?? '-'}
+                {leaguePosition ? '.' : ''}
+              </span>
+              <span className="nostalgia-quick-card__label">Lig Sırası</span>
+            </div>
+            <div className="nostalgia-quick-card">
+              <span className="nostalgia-quick-card__value text-sky-300">{leaguePoints ?? '-'}</span>
+              <span className="nostalgia-quick-card__label">Puan</span>
+            </div>
+            <div className="nostalgia-quick-card">
+              <span className="nostalgia-quick-card__value text-fuchsia-300">{hoursToNextMatch ?? '-'}</span>
+              <span className="nostalgia-quick-card__label">Saat Sonra</span>
+            </div>
           </div>
-        </div>
+        </section>
       </div>
     </div>
   );
