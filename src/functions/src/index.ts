@@ -27,7 +27,7 @@ export { assignRealTeamToFirstAvailableBotSlot, assignRealTeamToFirstAvailableBo
 export { resetSeasonMonthly } from './schedule.js';
 export { runDailyMatchesAt19TR } from './runner.js';
 // User lifecycle triggers
-export { assignTeamOnUserCreate } from './user.js';
+export { assignTeamOnUserCreate, cleanupInactiveUsers } from './user.js';
 // Data sync helpers
 export { syncTeamName } from './user.js';
 

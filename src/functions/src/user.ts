@@ -1,9 +1,10 @@
 import * as functions from 'firebase-functions/v1';
 import { assignIntoRandomBotSlot } from './assign.js';
 import './_firebase.js';
-import { getFirestore, FieldValue } from 'firebase-admin/firestore';
+import { getFirestore, FieldValue, type DocumentReference, type QuerySnapshot } from 'firebase-admin/firestore';
+import { getAuth, UserRecord } from 'firebase-admin/auth';
 
-const db =getFirestore();
+const db = getFirestore();
 
 // When a user signs up, assign their team to the first available league.
 export const assignTeamOnUserCreate = functions
@@ -74,3 +75,371 @@ export const syncTeamName = functions
       await batch.commit();
     }
   });
+
+type CleanupResult = {
+  hadTeam: boolean;
+  leagueId?: string | null;
+  slotIndex?: number | null;
+};
+
+const INACTIVITY_MONTHS = 6;
+const MAX_DELETES_PER_RUN = 25;
+const BATCH_WRITE_LIMIT = 450;
+const PROTECTED_CUSTOM_CLAIMS = ['admin', 'staff', 'moderator', 'superadmin', 'superAdmin'];
+
+const authAdmin = getAuth();
+
+const parseTimestamp = (value?: string | null): number | null => {
+  if (!value) return null;
+  const ts = Date.parse(value);
+  return Number.isFinite(ts) ? ts : null;
+};
+
+const shouldSkipCleanup = (user: UserRecord): boolean => {
+  const claims = user.customClaims as Record<string, unknown> | undefined;
+  if (!claims) {
+    return false;
+  }
+  for (const key of PROTECTED_CUSTOM_CLAIMS) {
+    if (claims[key]) {
+      return true;
+    }
+  }
+  if (claims['skipCleanup']) {
+    return true;
+  }
+  return false;
+};
+
+const cleanupTransferListings = async (uid: string): Promise<number> => {
+  const listingsRef = db.collection('transferListings');
+  const [sellerSnap, teamSnap] = await Promise.all([
+    listingsRef.where('sellerUid', '==', uid).get(),
+    listingsRef.where('teamId', '==', uid).get(),
+  ]);
+  const refs = new Map<string, DocumentReference>();
+  for (const doc of sellerSnap.docs) refs.set(doc.id, doc.ref);
+  for (const doc of teamSnap.docs) refs.set(doc.id, doc.ref);
+  if (refs.size === 0) return 0;
+  let batch = db.batch();
+  let ops = 0;
+  for (const ref of refs.values()) {
+    batch.delete(ref);
+    ops++;
+    if (ops >= BATCH_WRITE_LIMIT) {
+      await batch.commit();
+      batch = db.batch();
+      ops = 0;
+    }
+  }
+  if (ops > 0) {
+    await batch.commit();
+  }
+  return refs.size;
+};
+
+const clearFixturesForTeam = async (leagueId: string, teamId: string): Promise<number> => {
+  const leagueRef = db.collection('leagues').doc(leagueId);
+  const fixturesRef = leagueRef.collection('fixtures');
+  const [homeSnap, awaySnap] = await Promise.all([
+    fixturesRef.where('homeTeamId', '==', teamId).get(),
+    fixturesRef.where('awayTeamId', '==', teamId).get(),
+  ]);
+  let batch = db.batch();
+  let ops = 0;
+  let updated = 0;
+
+  const apply = async (
+    snap: QuerySnapshot,
+    field: 'homeTeamId' | 'awayTeamId',
+  ) => {
+    for (const doc of snap.docs) {
+      const data = doc.data() as Record<string, unknown>;
+      let home = (data['homeTeamId'] as string | null) ?? null;
+      let away = (data['awayTeamId'] as string | null) ?? null;
+      if (field === 'homeTeamId') {
+        home = null;
+      } else {
+        away = null;
+      }
+      batch.update(doc.ref, {
+        [field]: null,
+        participants: [home, away].filter(Boolean),
+      });
+      ops++;
+      updated++;
+      if (ops >= BATCH_WRITE_LIMIT) {
+        await batch.commit();
+        batch = db.batch();
+        ops = 0;
+      }
+    }
+  };
+
+  await apply(homeSnap, 'homeTeamId');
+  await apply(awaySnap, 'awayTeamId');
+
+  if (ops > 0) {
+    await batch.commit();
+  }
+
+  return updated;
+};
+
+const cleanupLeagueMirrors = async (teamId: string, preferredLeagueId: string | null): Promise<number> => {
+  const memberships = await db
+    .collectionGroup('teams')
+    .where('teamId', '==', teamId)
+    .get();
+
+  const leagueIds = new Set<string>();
+  let removed = 0;
+
+  if (!memberships.empty) {
+    let batch = db.batch();
+    let ops = 0;
+    for (const doc of memberships.docs) {
+      batch.delete(doc.ref);
+      ops++;
+      removed++;
+      const parent = doc.ref.parent.parent;
+      if (parent) {
+        leagueIds.add(parent.id);
+      }
+      if (ops >= BATCH_WRITE_LIMIT) {
+        await batch.commit();
+        batch = db.batch();
+        ops = 0;
+      }
+    }
+    if (ops > 0) {
+      await batch.commit();
+    }
+  }
+
+  if (preferredLeagueId) {
+    leagueIds.add(preferredLeagueId);
+  }
+
+  for (const leagueId of leagueIds) {
+    const standingsSnap = await db
+      .collection('leagues')
+      .doc(leagueId)
+      .collection('standings')
+      .where('teamId', '==', teamId)
+      .get();
+    if (standingsSnap.empty) {
+      continue;
+    }
+    let batch = db.batch();
+    let ops = 0;
+    for (const st of standingsSnap.docs) {
+      batch.set(
+        st.ref,
+        { teamId: null, updatedAt: FieldValue.serverTimestamp() },
+        { merge: true },
+      );
+      ops++;
+      if (ops >= BATCH_WRITE_LIMIT) {
+        await batch.commit();
+        batch = db.batch();
+        ops = 0;
+      }
+    }
+    if (ops > 0) {
+      await batch.commit();
+    }
+  }
+
+  return removed;
+};
+
+const cleanupUserData = async (uid: string): Promise<CleanupResult> => {
+  const result = await db.runTransaction(async tx => {
+    const teamRef = db.collection('teams').doc(uid);
+    const teamSnap = await tx.get(teamRef);
+    if (!teamSnap.exists) {
+      return { hadTeam: false } as CleanupResult;
+    }
+
+    const teamData = teamSnap.data() as Record<string, unknown>;
+    const leagueId = (teamData['leagueId'] as string | null) ?? null;
+
+    tx.delete(teamRef);
+
+    if (!leagueId) {
+      return { hadTeam: true } as CleanupResult;
+    }
+
+    const leagueRef = db.collection('leagues').doc(leagueId);
+    const leagueSnap = await tx.get(leagueRef);
+
+    let slotIndex: number | null = null;
+
+    const slotQuery = leagueRef
+      .collection('slots')
+      .where('teamId', '==', uid)
+      .limit(1);
+    const slotSnap = await tx.get(slotQuery);
+    if (!slotSnap.empty) {
+      const slotDoc = slotSnap.docs[0];
+      const slotData = slotDoc.data() as Record<string, unknown>;
+      const rawIndex = slotData['slotIndex'];
+      slotIndex = typeof rawIndex === 'number' ? rawIndex : Number(slotDoc.id) || null;
+      const rawBotId = slotData['botId'];
+      const fallbackBotId =
+        typeof rawBotId === 'string' && rawBotId.trim()
+          ? rawBotId
+          : `cleanup-bot-${slotDoc.id}`;
+      tx.update(slotDoc.ref, {
+        type: 'bot',
+        teamId: null,
+        botId: fallbackBotId,
+        lockedAt: FieldValue.serverTimestamp(),
+      });
+    }
+
+    const standingsQuery = leagueRef
+      .collection('standings')
+      .where('teamId', '==', uid);
+    const standingsSnap = await tx.get(standingsQuery);
+    const fallbackName = slotIndex != null ? `Bot ${slotIndex}` : 'Bos Slot';
+    for (const st of standingsSnap.docs) {
+      const current = st.data() as Record<string, unknown>;
+      const name = (current['name'] as string | undefined) || fallbackName;
+      tx.set(
+        st.ref,
+        {
+          teamId: null,
+          name,
+          updatedAt: FieldValue.serverTimestamp(),
+        },
+        { merge: true },
+      );
+    }
+    tx.delete(leagueRef.collection('standings').doc(uid));
+
+    const leagueTeamsQuery = leagueRef
+      .collection('teams')
+      .where('teamId', '==', uid);
+    const leagueTeamsSnap = await tx.get(leagueTeamsQuery);
+    for (const lt of leagueTeamsSnap.docs) {
+      tx.delete(lt.ref);
+    }
+    tx.delete(leagueRef.collection('teams').doc(uid));
+
+    if (leagueSnap.exists) {
+      const leagueData = leagueSnap.data() as Record<string, unknown>;
+      const rawTeams = Array.isArray(leagueData['teams'])
+        ? (leagueData['teams'] as Record<string, unknown>[])
+        : [];
+      const filteredTeams = rawTeams.filter(entry => entry?.id !== uid);
+      const sanitizedTeams = filteredTeams
+        .map(entry => ({
+          id: entry?.id,
+          name: entry?.name,
+        }))
+        .filter(entry => typeof entry.id === 'string');
+      tx.set(
+        leagueRef,
+        {
+          teams: sanitizedTeams,
+          teamCount: sanitizedTeams.length,
+          updatedAt: FieldValue.serverTimestamp(),
+        },
+        { merge: true },
+      );
+    }
+
+    return { hadTeam: true, leagueId, slotIndex } as CleanupResult;
+  });
+
+  if (result.leagueId) {
+    await clearFixturesForTeam(result.leagueId, uid);
+  }
+
+  await cleanupTransferListings(uid);
+  await cleanupLeagueMirrors(uid, result.leagueId ?? null);
+
+  return result;
+};
+
+export const cleanupInactiveUsers = functions
+  .region('europe-west1')
+  .pubsub.schedule('0 4 * * *')
+  .timeZone('Europe/Istanbul')
+  .onRun(async () => {
+    const cutoff = new Date();
+    cutoff.setMonth(cutoff.getMonth() - INACTIVITY_MONTHS);
+    const cutoffMs = cutoff.getTime();
+
+    let nextPageToken: string | undefined;
+    const inactive: UserRecord[] = [];
+
+    do {
+      const page = await authAdmin.listUsers(1000, nextPageToken);
+      for (const user of page.users) {
+        if (shouldSkipCleanup(user)) {
+          continue;
+        }
+        const activityMs =
+          parseTimestamp(user.metadata.lastSignInTime) ??
+          parseTimestamp(user.metadata.creationTime);
+        if (activityMs == null) {
+          continue;
+        }
+        if (activityMs < cutoffMs) {
+          inactive.push(user);
+          if (inactive.length >= MAX_DELETES_PER_RUN * 2) {
+            break;
+          }
+        }
+      }
+      nextPageToken = page.pageToken;
+      if (inactive.length >= MAX_DELETES_PER_RUN * 2) {
+        break;
+      }
+    } while (nextPageToken);
+
+    if (inactive.length === 0) {
+      functions.logger.info('[CLEANUP] Inaktif kullanici bulunamadi', {
+        cutoff: cutoff.toISOString(),
+      });
+      return null;
+    }
+
+    const toProcess = inactive.slice(0, MAX_DELETES_PER_RUN);
+    let deleted = 0;
+    let errors = 0;
+
+    for (const user of toProcess) {
+      try {
+        const result = await cleanupUserData(user.uid);
+        await authAdmin.deleteUser(user.uid);
+        deleted++;
+        functions.logger.info('[CLEANUP] Inaktif kullanici silindi', {
+          uid: user.uid,
+          leagueId: result.leagueId ?? null,
+          slotIndex: result.slotIndex ?? null,
+          hadTeam: result.hadTeam,
+        });
+      } catch (error) {
+        errors++;
+        functions.logger.error('[CLEANUP] Inaktif kullanici silinemedi', {
+          uid: user.uid,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+
+    functions.logger.info('[CLEANUP] Temizlik tamamlandi', {
+      scanned: inactive.length,
+      processed: toProcess.length,
+      deleted,
+      errors,
+      cutoff: cutoff.toISOString(),
+    });
+
+    return null;
+  });
+
