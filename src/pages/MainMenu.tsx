@@ -108,9 +108,10 @@ export default function MainMenu() {
           {menuItems.map((item) => (
             <Card
               key={item.id}
-              className="nostalgia-card cursor-pointer"
+              className={`nostalgia-card nostalgia-card--${item.accent} cursor-pointer`}
               onClick={() => handleMenuClick(item.id)}
             >
+              <span className="nostalgia-card__halo" aria-hidden />
               <CardContent className="nostalgia-card__content">
                 <div className={`nostalgia-menu-icon nostalgia-menu-icon--${item.accent}`}>
                   <item.icon />
