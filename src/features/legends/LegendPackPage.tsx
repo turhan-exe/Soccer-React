@@ -3,6 +3,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useDiamonds } from '@/contexts/DiamondContext';
 import { Button } from '@/components/ui/button';
 import { BackButton } from '@/components/ui/back-button';
+import InfoPopupButton from '@/components/ui/info-popup-button';
 import { toast } from 'sonner';
 import LegendCard from './LegendCard';
 import { LEGEND_PLAYERS, type LegendPlayer } from './players';
@@ -284,7 +285,13 @@ const LegendPackPage = () => {
               <LegendCard player={current} onRent={handleRent} onRelease={handleRelease} />
             ) : (
               <div className="legend-pack-placeholder">
-                Yeni bir efsane için paketi aç ve kartı kulübüne kat.
+                <InfoPopupButton
+                  title="Nostalji Paketi"
+                  triggerLabel="Yeni efsane kartı bilgisi"
+                  triggerClassName="h-12 w-12 rounded-2xl border-white/20 bg-transparent text-amber-200 hover:border-amber-300"
+                  contentClassName="bg-slate-950/95"
+                  message="Yeni bir efsane için paketi aç ve kartı kulübüne kat."
+                />
               </div>
             )}
           </section>
@@ -306,9 +313,15 @@ const LegendPackPage = () => {
               ))}
             </div>
           ) : (
-            <p className="legend-pack-empty">
-              Şu anda kiralanmış efsane oyuncun yok. Paketi açarak kadronu güçlendirebilirsin.
-            </p>
+            <div className="legend-pack-empty flex justify-center">
+              <InfoPopupButton
+                title="Kiralanan Efsaneler"
+                triggerLabel="Kiralanan efsaneler bilgisi"
+                triggerClassName="h-10 w-10 rounded-2xl border-white/20 bg-transparent text-cyan-200 hover:border-cyan-300"
+                contentClassName="bg-slate-950/95"
+                message="Şu anda kiralanmış efsane oyuncun yok. Paketi açarak kadronu güçlendirebilirsin."
+              />
+            </div>
           )}
         </section>
       </div>

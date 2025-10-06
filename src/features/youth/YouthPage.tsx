@@ -21,6 +21,7 @@ import { generateRandomName } from '@/lib/names';
 import { calculateOverall, getRoles } from '@/lib/player';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import InfoPopupButton from '@/components/ui/info-popup-button';
 import YouthList from './YouthList';
 import CooldownPanel from './CooldownPanel';
 import type { Player } from '@/types';
@@ -82,10 +83,17 @@ const StatCard: React.FC<StatCardProps> = ({ icon: Icon, label, value, helper })
       <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-900/70 text-cyan-200 shadow-inner shadow-cyan-500/20">
         <Icon className="h-5 w-5" />
       </div>
-      <div>
-        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-cyan-200/70">{label}</p>
+      <div className="flex-1">
+        <div className="flex items-center gap-2">
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-cyan-200/70">{label}</p>
+          <InfoPopupButton
+            message={helper}
+            title={label}
+            triggerLabel={`${label} için bilgi mesajını aç`}
+            triggerClassName="h-7 w-7 rounded-lg border-white/15 bg-transparent text-cyan-200 hover:border-cyan-300"
+          />
+        </div>
         <p className="mt-2 text-2xl font-semibold text-white">{value}</p>
-        <p className="mt-1 text-sm text-slate-300">{helper}</p>
       </div>
     </div>
   </div>
