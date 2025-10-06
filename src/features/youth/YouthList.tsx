@@ -1,4 +1,5 @@
 import YouthCandidateCard from './YouthCandidateCard';
+import InfoPopupButton from '@/components/ui/info-popup-button';
 import { YouthCandidate } from '@/services/youth';
 import { cn } from '@/lib/utils';
 
@@ -19,9 +20,13 @@ const YouthList: React.FC<Props> = ({
 }) => {
   if (candidates.length === 0) {
     return (
-      <p className={cn('text-sm text-muted-foreground', emptyStateClassName)}>
-        Henüz altyapı oyuncusu yok. Yeni aday üret.
-      </p>
+      <div className={cn('flex justify-center py-6', emptyStateClassName)}>
+        <InfoPopupButton
+          title="Oyuncu Havuzu"
+          triggerLabel="Altyapı oyuncusu bulunmadığında bilgi mesajını aç"
+          message="Henüz altyapı oyuncusu yok. Yeni aday üret."
+        />
+      </div>
     );
   }
   return (

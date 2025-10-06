@@ -30,6 +30,7 @@ import {
   SheetTrigger,
 } from '@/components/ui/sheet';
 import { BackButton } from '@/components/ui/back-button';
+import InfoPopupButton from '@/components/ui/info-popup-button';
 import { trainings } from '@/lib/data';
 import { runTrainingSimulation } from '@/lib/trainingSession';
 import { cn } from '@/lib/utils';
@@ -825,7 +826,13 @@ export default function TrainingPage() {
                     </div>
                     <div className="space-y-2 max-h-[calc(100vh-200px)] overflow-y-auto pr-2">
                       {filteredHistory.length === 0 && (
-                        <p className="text-sm text-muted-foreground">Kayıt yok</p>
+                        <div className="flex justify-center py-4">
+                          <InfoPopupButton
+                            title="Geçmiş Antrenmanlar"
+                            triggerLabel="Geçmiş antrenman kaydı bulunmadığında bilgi mesajını aç"
+                            message="Kayıt yok"
+                          />
+                        </div>
                       )}
                       {filteredHistory.map((rec, idx) => (
                         <div key={idx} className="border p-2 rounded">
