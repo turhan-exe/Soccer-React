@@ -37,7 +37,7 @@ import { Player, Training } from '@/types';
 import { useAuth } from '@/contexts/AuthContext';
 import { useDiamonds } from '@/contexts/DiamondContext';
 import { getTeam, saveTeamPlayers } from '@/services/team';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { PlayerStatusCard } from '@/components/ui/player-status-card';
 import {
   addTrainingRecord,
@@ -99,6 +99,12 @@ export default function TrainingPage() {
   const [isFinishingWithDiamonds, setIsFinishingWithDiamonds] = useState(false);
   const [isWatchingAd, setIsWatchingAd] = useState(false);
   const [expandedPlayerId, setExpandedPlayerId] = useState<string | null>(null);
+  const [playerDetail, setPlayerDetail] = useState<Player | null>(null);
+  const [squadAssignments, setSquadAssignments] = useState({
+    starters: [] as string[],
+    bench: [] as string[],
+    reserves: [] as string[],
+  });
 
   const intervalRef = useRef<number | null>(null);
   const completionTriggeredRef = useRef(false);
@@ -152,6 +158,27 @@ export default function TrainingPage() {
       if (!user) return;
       const team = await getTeam(user.id);
       setPlayers(team?.players || []);
+      if (team) {
+        const plan = team.plan ?? team.lineup;
+        setSquadAssignments({
+          starters:
+            (plan?.starters && plan.starters.filter(Boolean)) ||
+            team.players
+              .filter(player => player.squadRole === 'starting')
+              .map(player => player.id),
+          bench:
+            (plan?.bench && plan.bench.filter(Boolean)) ||
+            (plan?.subs && plan.subs.filter(Boolean)) ||
+            team.players
+              .filter(player => player.squadRole === 'bench')
+              .map(player => player.id),
+          reserves:
+            (plan?.reserves && plan.reserves.filter(Boolean)) ||
+            team.players
+              .filter(player => player.squadRole === 'reserve')
+              .map(player => player.id),
+        });
+      }
     };
 
     fetchPlayers();
@@ -192,14 +219,22 @@ export default function TrainingPage() {
   useEffect(() => {
     if (expandedPlayerId && !players.some(player => player.id === expandedPlayerId)) {
       setExpandedPlayerId(null);
+      setPlayerDetail(null);
     }
   }, [players, expandedPlayerId]);
 
   useEffect(() => {
     if (isTraining) {
       setExpandedPlayerId(null);
+      setPlayerDetail(null);
     }
   }, [isTraining]);
+
+  useEffect(() => {
+    if (!playerDetail) {
+      setExpandedPlayerId(null);
+    }
+  }, [playerDetail]);
 
   useEffect(() => {
     const loadActive = async () => {
@@ -647,91 +682,176 @@ export default function TrainingPage() {
 
   const canStart = selectedPlayers.length > 0 && selectedTrainings.length > 0 && !isTraining;
 
+  const squadRoleSelections = useMemo(() => {
+    if (players.length === 0) {
+      return {
+        starters: [] as Player[],
+        bench: [] as Player[],
+        reserves: [] as Player[],
+      };
+    }
+
+    const playerMap = new Map(players.map(player => [player.id, player]));
+
+    const resolveIds = (ids: string[]) =>
+      ids
+        .map(id => playerMap.get(id))
+        .filter((player): player is Player => Boolean(player));
+
+    const fallback = {
+      starters: players.filter(player => player.squadRole === 'starting'),
+      bench: players.filter(player => player.squadRole === 'bench'),
+      reserves: players.filter(player => player.squadRole === 'reserve'),
+    };
+
+    return {
+      starters:
+        squadAssignments.starters.length > 0
+          ? resolveIds(squadAssignments.starters)
+          : fallback.starters,
+      bench:
+        squadAssignments.bench.length > 0
+          ? resolveIds(squadAssignments.bench)
+          : fallback.bench,
+      reserves:
+        squadAssignments.reserves.length > 0
+          ? resolveIds(squadAssignments.reserves)
+          : fallback.reserves,
+    };
+  }, [players, squadAssignments]);
+
+  const handleSquadSelection = useCallback(
+    (group: 'starters' | 'bench' | 'reserves') => {
+      if (isTraining) {
+        return;
+      }
+
+      const groupPlayers = squadRoleSelections[group];
+      if (groupPlayers.length === 0) {
+        toast.info('Bu grupta oyuncu bulunmuyor');
+        return;
+      }
+
+      setSelectedPlayers(groupPlayers);
+      setExpandedPlayerId(null);
+      setPlayerDetail(null);
+    },
+    [isTraining, squadRoleSelections],
+  );
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 via-emerald-50 to-teal-50 dark:from-green-950 dark:via-emerald-950 dark:to-teal-950">
       <div className="bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm border-b p-4">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex items-center gap-3">
             <BackButton />
             <h1 className="text-xl font-bold">Antrenman Merkezi</h1>
           </div>
-          <div className="flex items-center gap-2">
-            <Sheet>
-              <SheetTrigger asChild>
-                <Button variant="outline">Geçmiş</Button>
-              </SheetTrigger>
-              <SheetContent side="left" className="w-[350px] sm:w-[400px] overflow-y-auto">
-                <SheetHeader>
-                  <SheetTitle>Geçmiş Antrenmanlar</SheetTitle>
-                </SheetHeader>
-                <div className="p-4 space-y-4">
-                  <div className="space-y-2">
-                    <Select value={filterPlayer} onValueChange={setFilterPlayer}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Oyuncu" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">Tümü</SelectItem>
-                        {players.map(p => (
-                          <SelectItem key={p.id} value={p.id}>
-                            {p.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <Select value={filterTrainingType} onValueChange={setFilterTrainingType}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Antrenman" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">Tümü</SelectItem>
-                        {trainings.map(t => (
-                          <SelectItem key={t.id} value={t.id}>
-                            {t.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <Select value={filterResult} onValueChange={setFilterResult}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Durum" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">Tümü</SelectItem>
-                        <SelectItem value="success">Başarılı</SelectItem>
-                        <SelectItem value="average">Ortalama</SelectItem>
-                        <SelectItem value="fail">Başarısız</SelectItem>
-                      </SelectContent>
-                    </Select>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={isTraining || squadRoleSelections.starters.length === 0}
+                onClick={() => handleSquadSelection('starters')}
+              >
+                İlk 11
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={isTraining || squadRoleSelections.bench.length === 0}
+                onClick={() => handleSquadSelection('bench')}
+              >
+                Yedekler
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={isTraining || squadRoleSelections.reserves.length === 0}
+                onClick={() => handleSquadSelection('reserves')}
+              >
+                Kadro Dışı
+              </Button>
+            </div>
+            <div className="flex items-center gap-2">
+              <Sheet>
+                <SheetTrigger asChild>
+                  <Button variant="outline">Geçmiş</Button>
+                </SheetTrigger>
+                <SheetContent side="left" className="w-[350px] sm:w-[400px] overflow-y-auto">
+                  <SheetHeader>
+                    <SheetTitle>Geçmiş Antrenmanlar</SheetTitle>
+                  </SheetHeader>
+                  <div className="p-4 space-y-4">
+                    <div className="space-y-2">
+                      <Select value={filterPlayer} onValueChange={setFilterPlayer}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Oyuncu" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">Tümü</SelectItem>
+                          {players.map(p => (
+                            <SelectItem key={p.id} value={p.id}>
+                              {p.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Select value={filterTrainingType} onValueChange={setFilterTrainingType}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Antrenman" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">Tümü</SelectItem>
+                          {trainings.map(t => (
+                            <SelectItem key={t.id} value={t.id}>
+                              {t.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Select value={filterResult} onValueChange={setFilterResult}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Durum" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">Tümü</SelectItem>
+                          <SelectItem value="success">Başarılı</SelectItem>
+                          <SelectItem value="average">Ortalama</SelectItem>
+                          <SelectItem value="fail">Başarısız</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2 max-h-[calc(100vh-200px)] overflow-y-auto pr-2">
+                      {filteredHistory.length === 0 && (
+                        <p className="text-sm text-muted-foreground">Kayıt yok</p>
+                      )}
+                      {filteredHistory.map((rec, idx) => (
+                        <div key={idx} className="border p-2 rounded">
+                          <p className="font-semibold">{rec.playerName}</p>
+                          <p className="text-sm">
+                            {rec.trainingName} •
+                            {rec.result === 'success'
+                              ? ' Başarılı'
+                              : rec.result === 'average'
+                                ? ' Ortalama'
+                                : ' Başarısız'}
+                            {rec.gain > 0 && ` • +${(rec.gain * 100).toFixed(1)}%`}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {rec.completedAt.toDate().toLocaleString()}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                  <div className="space-y-2 max-h-[calc(100vh-200px)] overflow-y-auto pr-2">
-                    {filteredHistory.length === 0 && (
-                      <p className="text-sm text-muted-foreground">Kayıt yok</p>
-                    )}
-                    {filteredHistory.map((rec, idx) => (
-                      <div key={idx} className="border p-2 rounded">
-                        <p className="font-semibold">{rec.playerName}</p>
-                        <p className="text-sm">
-                          {rec.trainingName} •
-                          {rec.result === 'success'
-                            ? ' Başarılı'
-                            : rec.result === 'average'
-                              ? ' Ortalama'
-                              : ' Başarısız'}
-                          {rec.gain > 0 && ` • +${(rec.gain * 100).toFixed(1)}%`}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {rec.completedAt.toDate().toLocaleString()}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </SheetContent>
-            </Sheet>
-            <Button onClick={continueToMatch} variant="outline">
-              Maç Önizleme →
-            </Button>
+                </SheetContent>
+              </Sheet>
+              <Button onClick={continueToMatch} variant="outline">
+                Maç Önizleme →
+              </Button>
+            </div>
           </div>
         </div>
       </div>
@@ -764,66 +884,53 @@ export default function TrainingPage() {
                 const isExpanded = expandedPlayerId === player.id;
 
                 return (
-                  <Popover
+                  <Card
                     key={player.id}
-                    open={isExpanded}
-                    onOpenChange={open => {
+                    draggable={!isTraining}
+                    onDragStart={event => {
+                      setExpandedPlayerId(null);
+                      setPlayerDetail(null);
+                      handleDragStart(event, 'player', player.id);
+                    }}
+                    onDragEnd={handleDragEnd}
+                    onClick={() => {
+                      if (isTraining) {
+                        return;
+                      }
                       setExpandedPlayerId(prev => {
-                        if (open) {
-                          return player.id;
-                        }
-                        return prev === player.id ? null : prev;
+                        const next = prev === player.id ? null : player.id;
+                        setPlayerDetail(next ? player : null);
+                        return next;
                       });
                     }}
+                    onDoubleClick={() => {
+                      if (!isTraining) {
+                        setSelectedPlayers(prev =>
+                          prev.some(item => item.id === player.id) ? prev : [...prev, player],
+                        );
+                      }
+                      setExpandedPlayerId(null);
+                      setPlayerDetail(null);
+                    }}
+                    className={cn(
+                      'cursor-pointer select-none border-emerald-100 transition hover:border-emerald-300 dark:border-emerald-900/50 dark:hover:border-emerald-700',
+                      isTraining && 'pointer-events-none opacity-60',
+                      isExpanded && 'border-emerald-300 ring-2 ring-emerald-200/70 dark:border-emerald-700',
+                    )}
                   >
-                    <PopoverTrigger asChild>
-                      <Card
-                        draggable={!isTraining}
-                        onDragStart={event => {
-                          setExpandedPlayerId(null);
-                          handleDragStart(event, 'player', player.id);
-                        }}
-                        onDragEnd={handleDragEnd}
-                        onClick={() => {
-                          setExpandedPlayerId(prev => (prev === player.id ? null : player.id));
-                        }}
-                        onDoubleClick={() => {
-                          if (!isTraining) {
-                            setSelectedPlayers(prev =>
-                              prev.some(item => item.id === player.id) ? prev : [...prev, player],
-                            );
-                          }
-                          setExpandedPlayerId(null);
-                        }}
-                        className={cn(
-                          'cursor-pointer select-none border-emerald-100 transition hover:border-emerald-300 dark:border-emerald-900/50 dark:hover:border-emerald-700',
-                          isTraining && 'pointer-events-none opacity-60',
-                          isExpanded && 'border-emerald-300 ring-2 ring-emerald-200/70 dark:border-emerald-700',
-                        )}
-                      >
-                        <CardContent className="flex items-center justify-between gap-3 p-4">
-                          <div>
-                            <p className="font-semibold">{player.name}</p>
-                            <p className="text-xs text-muted-foreground">
-                              {player.position} • Genel {Math.round(player.overall * 100)}
-                            </p>
-                          </div>
-                          <div className="text-right">
-                            <p className="text-xs text-muted-foreground">Motivasyon</p>
-                            <p className="font-semibold">{Math.round(player.motivation * 100)}%</p>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    </PopoverTrigger>
-                    <PopoverContent
-                      align="start"
-                      side="right"
-                      sideOffset={12}
-                      className="w-auto border-none bg-transparent p-0 shadow-none"
-                    >
-                      <PlayerStatusCard player={player} />
-                    </PopoverContent>
-                  </Popover>
+                    <CardContent className="flex items-center justify-between gap-3 p-4">
+                      <div>
+                        <p className="font-semibold">{player.name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {player.position} • Genel {Math.round(player.overall * 100)}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-xs text-muted-foreground">Motivasyon</p>
+                        <p className="font-semibold">{Math.round(player.motivation * 100)}%</p>
+                      </div>
+                    </CardContent>
+                  </Card>
                 );
               })}
             </CardContent>
@@ -1085,6 +1192,19 @@ export default function TrainingPage() {
           </Card>
         </div>
       </div>
+
+      <Dialog
+        open={Boolean(playerDetail)}
+        onOpenChange={open => {
+          if (!open) {
+            setPlayerDetail(null);
+          }
+        }}
+      >
+        <DialogContent className="max-w-md border-none bg-transparent p-0 shadow-none">
+          {playerDetail ? <PlayerStatusCard player={playerDetail} /> : null}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
