@@ -8,52 +8,171 @@ import { useNavigate } from 'react-router-dom';
 import { BackButton } from '@/components/ui/back-button';
 import { useAuth } from '@/contexts/AuthContext';
 import { getTeam } from '@/services/team';
-import { getMyLeagueId, getFixturesForTeam } from '@/services/leagues';
-import type { Match, Player } from '@/types';
+import { getMyLeagueId, getFixturesForTeam, getLeagueTeams } from '@/services/leagues';
+import type { ClubTeam, Fixture, Match, Player } from '@/types';
 
 type KeyPlayer = NonNullable<Match['opponentStats']>['keyPlayers'][number];
+
+type DisplayFixture = {
+  fixture: Fixture;
+  leagueId: string;
+  opponentId: string;
+  opponentName: string;
+  home: boolean;
+};
+
+const positionOrder: Record<Player['position'], number> = {
+  GK: 0,
+  LB: 1,
+  CB: 2,
+  RB: 3,
+  LM: 4,
+  CM: 5,
+  RM: 6,
+  CAM: 7,
+  LW: 8,
+  RW: 9,
+  ST: 10,
+};
+
+const sortLineupPlayers = (players: Player[]): Player[] =>
+  [...players].sort((a, b) => {
+    const orderDiff = (positionOrder[a.position] ?? 99) - (positionOrder[b.position] ?? 99);
+    if (orderDiff !== 0) return orderDiff;
+    return a.name.localeCompare(b.name, 'tr');
+  });
+
+const computeForm = (fixtures: Fixture[], teamId: string): Array<'W' | 'D' | 'L'> => {
+  const played = fixtures
+    .filter(f => f.status === 'played' && f.score)
+    .sort((a, b) => a.date.getTime() - b.date.getTime());
+
+  return played.slice(-5).map(f => {
+    const isHome = f.homeTeamId === teamId;
+    const { home, away } = f.score!;
+    if (home === away) return 'D';
+    const didWin = (isHome && home > away) || (!isHome && away > home);
+    return didWin ? 'W' : 'L';
+  });
+};
+
+const createKeyPlayersFromLineup = (players: Player[]): KeyPlayer[] =>
+  [...players]
+    .sort((a, b) => b.overall - a.overall)
+    .slice(0, 5)
+    .map(player => ({
+      name: player.name,
+      position: player.position,
+      highlight: `Genel: ${Math.round(player.overall * 100)}`,
+      stats: { rating: Number((player.overall * 10).toFixed(1)) },
+    }));
 
 export default function MatchPreview() {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const nextMatch = upcomingMatches[0];
+  const fallbackMatch = upcomingMatches[0];
+  const [matchInfo, setMatchInfo] = useState<Match>(fallbackMatch);
   const [teamOverall, setTeamOverall] = useState<number | null>(null);
-  const [teamForm, setTeamForm] = useState<string | null>(null);
+  const [teamForm, setTeamForm] = useState<Array<'W' | 'D' | 'L'>>([]);
   const [teamName, setTeamName] = useState<string>('Takımım');
   const [teamLogo, setTeamLogo] = useState<string | null>(null);
   const [startingEleven, setStartingEleven] = useState<Player[]>([]);
   const [showAllKeyPlayers, setShowAllKeyPlayers] = useState(false);
   const [selectedKeyPlayer, setSelectedKeyPlayer] = useState<KeyPlayer | null>(null);
+  const [nextFixture, setNextFixture] = useState<DisplayFixture | null>(null);
+  const [opponentTeam, setOpponentTeam] = useState<ClubTeam | null>(null);
+  const [opponentStartingEleven, setOpponentStartingEleven] = useState<Player[]>([]);
+  const [opponentOverall, setOpponentOverall] = useState<number | null>(null);
+  const [opponentForm, setOpponentForm] = useState<Array<'W' | 'D' | 'L'>>([]);
+  const [showAllMyPlayers, setShowAllMyPlayers] = useState(false);
+  const [showAllOpponentPlayers, setShowAllOpponentPlayers] = useState(false);
 
   useEffect(() => {
-    if (!user) return;
+    let cancelled = false;
+    if (!user) {
+      setMatchInfo(fallbackMatch);
+      setTeamName('Takımım');
+      setTeamLogo(null);
+      setStartingEleven([]);
+      setTeamOverall(null);
+      setTeamForm([]);
+      setNextFixture(null);
+      setOpponentTeam(null);
+      setOpponentStartingEleven([]);
+      setOpponentOverall(null);
+      setOpponentForm([]);
+      setShowAllMyPlayers(false);
+      setShowAllOpponentPlayers(false);
+      return () => {};
+    }
     (async () => {
-      const team = await getTeam(user.id);
+      const [team, leagueId] = await Promise.all([
+        getTeam(user.id),
+        getMyLeagueId(user.id),
+      ]);
+      if (cancelled) return;
+
       if (team) {
         setTeamName(team.name);
         setTeamLogo(team.logo && team.logo.trim() ? team.logo : null);
-        const starters = team.players.filter(p => p.squadRole === 'starting');
-        setStartingEleven(starters);
-        if (starters.length) {
-          const avg =
-            starters.reduce((sum, p) => sum + p.overall, 0) / starters.length;
+        const starters = sortLineupPlayers(
+          team.players.filter(p => p.squadRole === 'starting'),
+        );
+        const lineup = starters.length ? starters.slice(0, 11) : sortLineupPlayers(team.players).slice(0, 11);
+        setStartingEleven(lineup);
+        if (lineup.length) {
+          const avg = lineup.reduce((sum, p) => sum + p.overall, 0) / lineup.length;
           setTeamOverall(Number(avg.toFixed(3)));
+        } else {
+          setTeamOverall(null);
         }
+      } else {
+        setTeamName('Takımım');
+        setTeamLogo(null);
+        setStartingEleven([]);
+        setTeamOverall(null);
       }
-      const leagueId = await getMyLeagueId(user.id);
-      if (leagueId) {
-        const fixtures = await getFixturesForTeam(leagueId, user.id);
-        const played = fixtures.filter(f => f.status === 'played' && f.score);
-        const last5 = played.slice(-5).map(f => {
-          const isHome = f.homeTeamId === user.id;
-          const { home, away } = f.score!;
-          if (home === away) return 'D';
-          return (isHome && home > away) || (!isHome && away > home) ? 'W' : 'L';
-        });
-        setTeamForm(last5.join(''));
+
+      if (!leagueId) {
+        setTeamForm([]);
+        setNextFixture(null);
+        return;
       }
+
+      const [fixtures, teams] = await Promise.all([
+        getFixturesForTeam(leagueId, user.id),
+        getLeagueTeams(leagueId).catch(() => []),
+      ]);
+      if (cancelled) return;
+
+      setTeamForm(computeForm(fixtures, user.id));
+
+      const upcoming = fixtures
+        .filter(f => f.status !== 'played')
+        .sort((a, b) => a.date.getTime() - b.date.getTime())[0];
+
+      if (!upcoming) {
+        setNextFixture(null);
+        return;
+      }
+
+      const home = upcoming.homeTeamId === user.id;
+      const opponentId = home ? upcoming.awayTeamId : upcoming.homeTeamId;
+      const teamMap = new Map(teams.map(teamItem => [teamItem.id, teamItem.name] as const));
+      const opponentName = teamMap.get(opponentId) ?? opponentId;
+
+      setNextFixture({
+        fixture: upcoming,
+        leagueId,
+        opponentId,
+        opponentName,
+        home,
+      });
     })();
-  }, [user]);
+    return () => {
+      cancelled = true;
+    };
+  }, [user, fallbackMatch]);
 
   const handleStartMatch = () => {
     navigate('/match-simulation');
@@ -62,21 +181,144 @@ export default function MatchPreview() {
   const formatOverall = (value: number | null | undefined) =>
     typeof value === 'number' ? value.toFixed(3) : '-';
 
-  const getValidLogo = (value?: string | null) =>
-    value && value.trim() ? value : null;
+  const getValidLogo = (value?: string | null) => {
+    if (!value) return null;
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+    const looksLikePath = /^(https?:\/\/|\/|\.\/|\.\.\/|data:image\//.test(trimmed);
+    const hasImageExtension = /\.(svg|png|jpe?g|webp|gif)$/i.test(trimmed);
+    if (looksLikePath || hasImageExtension || trimmed.includes('/')) {
+      return trimmed;
+    }
+    return null;
+  };
 
   const defaultBallLogo = '/Logo/ball.svg';
   const teamLogoSrc =
     getValidLogo(teamLogo) ?? getValidLogo(user?.teamLogo ?? null) ?? defaultBallLogo;
-  const opponentLogoSrc = getValidLogo(nextMatch.opponentLogoUrl) ?? defaultBallLogo;
 
-  const keyPlayers = useMemo(
-    () => nextMatch.opponentStats?.keyPlayers ?? [],
-    [nextMatch.opponentStats?.keyPlayers],
-  );
+  const opponentLogoSrc =
+    getValidLogo(matchInfo.opponentLogoUrl) ??
+    getValidLogo(opponentTeam?.logo ?? null) ??
+    defaultBallLogo;
+
+  const opponentKeyPlayersFromLineup: KeyPlayer[] = useMemo(() => {
+    if (!opponentStartingEleven.length) return [];
+    return createKeyPlayersFromLineup(opponentStartingEleven);
+  }, [opponentStartingEleven]);
+
+  const keyPlayers = useMemo(() => {
+    const base = matchInfo.opponentStats?.keyPlayers ?? [];
+    return opponentKeyPlayersFromLineup.length ? opponentKeyPlayersFromLineup : base;
+  }, [matchInfo.opponentStats?.keyPlayers, opponentKeyPlayersFromLineup]);
 
   const visibleKeyPlayers = showAllKeyPlayers ? keyPlayers : keyPlayers.slice(0, 3);
   const remainingPlayerCount = Math.max(keyPlayers.length - visibleKeyPlayers.length, 0);
+
+  useEffect(() => {
+    setShowAllMyPlayers(false);
+  }, [startingEleven.length]);
+
+  useEffect(() => {
+    setShowAllOpponentPlayers(false);
+  }, [opponentStartingEleven.length]);
+
+  useEffect(() => {
+    if (!nextFixture) {
+      setOpponentTeam(null);
+      setOpponentStartingEleven([]);
+      setOpponentOverall(null);
+      setOpponentForm([]);
+      setMatchInfo(fallbackMatch);
+      return;
+    }
+
+    let cancelled = false;
+
+    (async () => {
+      const [opponent, opponentFixtures] = await Promise.all([
+        getTeam(nextFixture.opponentId).catch(() => null),
+        getFixturesForTeam(nextFixture.leagueId, nextFixture.opponentId).catch(() => []),
+      ]);
+
+      if (cancelled) return;
+
+      setOpponentTeam(opponent);
+
+      let derivedLineup: Player[] = [];
+      let derivedOverall: number | null = null;
+
+      if (opponent?.players?.length) {
+        const starters = sortLineupPlayers(
+          opponent.players.filter(player => player.squadRole === 'starting'),
+        );
+        derivedLineup = starters.length
+          ? starters.slice(0, 11)
+          : sortLineupPlayers(opponent.players).slice(0, 11);
+        if (derivedLineup.length) {
+          const avg =
+            derivedLineup.reduce((sum, player) => sum + player.overall, 0) /
+            derivedLineup.length;
+          derivedOverall = Number(avg.toFixed(3));
+        }
+        setOpponentStartingEleven(derivedLineup);
+        setOpponentOverall(derivedOverall);
+      } else {
+        setOpponentStartingEleven([]);
+        setOpponentOverall(null);
+      }
+
+      const derivedForm = computeForm(opponentFixtures, nextFixture.opponentId);
+      setOpponentForm(derivedForm);
+
+      const baseMatch = upcomingMatches.find(
+        match => match.opponent.toLowerCase() === nextFixture.opponentName.toLowerCase(),
+      );
+
+      const matchDate = nextFixture.fixture.date;
+      const timeString = matchDate.toLocaleTimeString('tr-TR', {
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+
+      const overallValue =
+        derivedOverall ?? baseMatch?.opponentStats?.overall ?? null;
+
+      const keyPlayerValue = derivedLineup.length
+        ? createKeyPlayersFromLineup(derivedLineup)
+        : baseMatch?.opponentStats?.keyPlayers ?? [];
+
+      const formValue =
+        derivedForm.length ? derivedForm : baseMatch?.opponentStats?.form ?? [];
+
+      const opponentLogoEmoji = opponent?.logo && opponent.logo.trim() ? opponent.logo : baseMatch?.opponentLogo ?? '⚽';
+
+      setMatchInfo({
+        id: nextFixture.fixture.id,
+        opponent: nextFixture.opponentName,
+        opponentLogo: opponentLogoEmoji,
+        opponentLogoUrl: baseMatch?.opponentLogoUrl,
+        date: matchDate.toISOString(),
+        time: timeString,
+        venue: nextFixture.home ? 'home' : 'away',
+        status: 'scheduled',
+        competition: baseMatch?.competition ?? 'Lig Maçı',
+        venueName: baseMatch?.venueName,
+        opponentStats:
+          overallValue != null || formValue.length || keyPlayerValue.length
+            ? {
+                overall: overallValue ?? 0,
+                form: formValue,
+                keyPlayers: keyPlayerValue,
+              }
+            : undefined,
+      });
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [nextFixture, fallbackMatch]);
 
   useEffect(() => {
     if (!keyPlayers.length) {
@@ -128,7 +370,26 @@ export default function MatchPreview() {
     );
   };
 
-  const opponentForm = nextMatch.opponentStats?.form ?? [];
+  const opponentFormBadges = opponentForm.length
+    ? opponentForm
+    : matchInfo.opponentStats?.form ?? [];
+
+  const opponentOverallDisplay =
+    typeof opponentOverall === 'number'
+      ? opponentOverall
+      : matchInfo.opponentStats?.overall ?? null;
+
+  const matchDate = new Date(matchInfo.date);
+
+  const visibleMyPlayers = showAllMyPlayers ? startingEleven : startingEleven.slice(0, 4);
+  const visibleOpponentPlayers = showAllOpponentPlayers
+    ? opponentStartingEleven
+    : opponentStartingEleven.slice(0, 4);
+
+  const formatPercentage = (value?: number | null) =>
+    typeof value === 'number' ? `${Math.round(value * 100)}%` : '—';
+
+  const formatPlayerOverall = (value: number) => Math.round(value * 100);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 via-emerald-50 to-teal-50 dark:from-green-950 dark:via-emerald-950 dark:to-teal-950">
@@ -147,9 +408,9 @@ export default function MatchPreview() {
         <Card>
           <CardContent className="p-6">
             <div className="text-center mb-6">
-              <Badge variant="outline" className="mb-2">{nextMatch.competition}</Badge>
+              <Badge variant="outline" className="mb-2">{matchInfo.competition}</Badge>
               <div className="text-sm text-muted-foreground mb-4">
-                {new Date(nextMatch.date).toLocaleDateString('tr-TR')} • {nextMatch.time}
+                {matchDate.toLocaleDateString('tr-TR')} • {matchInfo.time}
               </div>
             </div>
 
@@ -162,9 +423,9 @@ export default function MatchPreview() {
                 <div className="text-sm text-muted-foreground">
                   Overall: {formatOverall(teamOverall)}
                 </div>
-                {teamForm && teamForm.length > 0 && (
+                {teamForm.length > 0 && (
                   <div className="flex items-center justify-center gap-1 mt-1 text-sm text-muted-foreground">
-                    {teamForm.split('').map((result, index) => (
+                    {teamForm.map((result, index) => (
                       <Badge
                         key={`${result}-${index}`}
                         variant={
@@ -191,8 +452,8 @@ export default function MatchPreview() {
                 <div className="flex justify-center mb-2">
                   {renderLogo(
                     opponentLogoSrc,
-                    nextMatch.opponentLogo ?? '⚽',
-                    `${nextMatch.opponent} logosu`,
+                    matchInfo.opponentLogo ?? '⚽',
+                    `${matchInfo.opponent} logosu`,
                     'h-14 w-14',
                     {
                       fallbackClass: 'bg-amber-100 text-amber-900',
@@ -200,15 +461,15 @@ export default function MatchPreview() {
                     },
                   )}
                 </div>
-                <div className="font-bold text-lg">{nextMatch.opponent}</div>
+                <div className="font-bold text-lg">{matchInfo.opponent}</div>
                 <div className="text-sm text-muted-foreground">
-                  Overall: {formatOverall(nextMatch.opponentStats?.overall ?? null)}
+                  Overall: {formatOverall(opponentOverallDisplay)}
                 </div>
-                {opponentForm.length > 0 && (
+                {opponentFormBadges.length > 0 && (
                   <div className="flex items-center justify-center gap-1 mt-1 text-sm text-muted-foreground">
-                    {opponentForm.map((result, index) => (
+                    {opponentFormBadges.map((result, index) => (
                       <Badge
-                        key={`${nextMatch.id}-opponent-${result}-${index}`}
+                        key={`${matchInfo.id}-opponent-${result}-${index}`}
                         variant={
                           result === 'W'
                             ? 'default'
@@ -229,11 +490,11 @@ export default function MatchPreview() {
             <div className="flex items-center justify-center gap-4 text-sm text-muted-foreground">
               <div className="flex items-center gap-1">
                 <MapPin className="h-4 w-4" />
-                <span>{nextMatch.venue === 'home' ? 'Ev Sahipliği' : 'Deplasman'}</span>
+                <span>{matchInfo.venue === 'home' ? 'Ev Sahipliği' : 'Deplasman'}</span>
               </div>
               <div className="flex items-center gap-1">
                 <Calendar className="h-4 w-4" />
-                <span>Stadyum: {nextMatch.venueName ?? 'Belirlenecek'}</span>
+                <span>Stadyum: {matchInfo.venueName ?? 'Belirlenecek'}</span>
               </div>
             </div>
           </CardContent>
@@ -251,11 +512,11 @@ export default function MatchPreview() {
             <div className="space-y-4">
               <div>
                 <h4 className="font-semibold mb-2">Son Form</h4>
-                {opponentForm.length > 0 ? (
+                {opponentFormBadges.length > 0 ? (
                   <div className="flex gap-1">
-                    {opponentForm.map((result, index) => (
+                    {opponentFormBadges.map((result, index) => (
                       <Badge
-                        key={`${nextMatch.id}-analysis-${result}-${index}`}
+                        key={`${matchInfo.id}-analysis-${result}-${index}`}
                         variant={
                           result === 'W'
                             ? 'default'
@@ -396,37 +657,117 @@ export default function MatchPreview() {
           </CardContent>
         </Card>
 
+        {/* Opponent Starting XI */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Users className="h-5 w-5" />
+              Rakip İlk 11
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {opponentStartingEleven.length ? (
+              <div className="space-y-3">
+                <div className="text-sm text-muted-foreground">
+                  Toplam oyuncu: {opponentStartingEleven.length}
+                </div>
+                <div className="space-y-2">
+                  {visibleOpponentPlayers.map(player => (
+                    <div
+                      key={player.id}
+                      className="flex items-center gap-3 rounded border bg-background/60 p-3 text-sm"
+                    >
+                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-amber-500 text-xs font-bold uppercase text-white">
+                        {player.position}
+                      </div>
+                      <div className="flex flex-1 flex-col gap-1">
+                        <span className="font-semibold">{player.name}</span>
+                        <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                          <span>Genel: {formatPlayerOverall(player.overall)}</span>
+                          {player.condition !== undefined && (
+                            <span>Form: {formatPercentage(player.condition)}</span>
+                          )}
+                          {player.motivation !== undefined && (
+                            <span>Motivasyon: {formatPercentage(player.motivation)}</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                {opponentStartingEleven.length > visibleOpponentPlayers.length && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full border-dashed"
+                    onClick={() => setShowAllOpponentPlayers(prev => !prev)}
+                  >
+                    {showAllOpponentPlayers
+                      ? 'Daha az oyuncu göster'
+                      : `İlk 11'i göster (+${opponentStartingEleven.length - visibleOpponentPlayers.length})`}
+                  </Button>
+                )}
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">Rakip ilk 11 bilgisi bulunamadı.</p>
+            )}
+          </CardContent>
+        </Card>
+
         {/* Your Team Lineup */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Users className="h-5 w-5" />
-              İlk 11 Özet
+              Takımımın İlk 11'i
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-2">
-              <div className="text-sm text-muted-foreground mb-3">
-                Formasyon: 4-4-2 • Seçili Oyuncular: {startingEleven.length}/11
-              </div>
-              
-              <div className="grid grid-cols-2 gap-2">
-                {startingEleven.slice(0, 4).map(player => (
-                  <div key={player.id} className="flex items-center gap-2 p-2 bg-muted rounded text-sm">
-                    <div className="w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center text-white text-xs font-bold">
-                      {player.position}
-                    </div>
-                    <span>{player.name}</span>
-                  </div>
-                ))}
-              </div>
-              
-              {startingEleven.length > 4 && (
-                <div className="text-center text-sm text-muted-foreground">
-                  +{startingEleven.length - 4} diğer oyuncu
+            {startingEleven.length ? (
+              <div className="space-y-3">
+                <div className="text-sm text-muted-foreground">
+                  Toplam oyuncu: {startingEleven.length}
                 </div>
-              )}
-            </div>
+                <div className="space-y-2">
+                  {visibleMyPlayers.map(player => (
+                    <div
+                      key={player.id}
+                      className="flex items-center gap-3 rounded border bg-background/60 p-3 text-sm"
+                    >
+                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-500 text-xs font-bold uppercase text-white">
+                        {player.position}
+                      </div>
+                      <div className="flex flex-1 flex-col gap-1">
+                        <span className="font-semibold">{player.name}</span>
+                        <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                          <span>Genel: {formatPlayerOverall(player.overall)}</span>
+                          {player.condition !== undefined && (
+                            <span>Form: {formatPercentage(player.condition)}</span>
+                          )}
+                          {player.motivation !== undefined && (
+                            <span>Motivasyon: {formatPercentage(player.motivation)}</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                {startingEleven.length > visibleMyPlayers.length && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full border-dashed"
+                    onClick={() => setShowAllMyPlayers(prev => !prev)}
+                  >
+                    {showAllMyPlayers
+                      ? 'Daha az oyuncu göster'
+                      : `İlk 11'i göster (+${startingEleven.length - visibleMyPlayers.length})`}
+                  </Button>
+                )}
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">İlk 11 henüz belirlenmedi.</p>
+            )}
           </CardContent>
         </Card>
 
