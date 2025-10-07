@@ -85,6 +85,7 @@ export interface ClubTeam {
   manager: string;
   kitHome: string;
   kitAway: string;
+  logo?: string | null;
   /** @deprecated use transferBudget */
   budget?: number;
   transferBudget?: number;
@@ -226,7 +227,7 @@ export interface User {
   username: string;
   email: string;
   teamName: string;
-  teamLogo: string;
+  teamLogo: string | null;
   connectedAccounts: {
     google?: boolean;
     apple?: boolean;

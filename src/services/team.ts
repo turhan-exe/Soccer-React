@@ -107,6 +107,7 @@ const generateTeamData = (id: string, name: string, manager: string): ClubTeam =
     manager,
     kitHome: 'home',
     kitAway: 'away',
+    logo: null,
     budget: 0,
     transferBudget: 0,
     players,
@@ -194,6 +195,15 @@ export const updateTeamName = async (userId: string, teamName: string) => {
   await setDoc(
     doc(db, 'teams', userId),
     { name: teamName },
+    { merge: true },
+  );
+};
+
+export const updateTeamLogo = async (userId: string, logo: string | null) => {
+  const payload = sanitizeFirestoreData({ logo: logo ?? null });
+  await setDoc(
+    doc(db, 'teams', userId),
+    payload,
     { merge: true },
   );
 };
