@@ -4,6 +4,7 @@ import React, {
   useState,
   ReactNode,
   useEffect,
+  useCallback,
 } from 'react';
 import { onAuthStateChanged, updateProfile, User as FirebaseUser } from 'firebase/auth';
 import { User } from '@/types';
@@ -30,6 +31,7 @@ interface AuthContextType {
   registerWithApple: (teamName: string) => Promise<void>;
   isAuthReady: boolean;
   isLoading: boolean;
+  refreshTeamInfo: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -66,7 +68,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
               username,
               email: firebaseUser.email || '',
               teamName,
-              teamLogo: '⚽',
+              teamLogo: team?.logo ?? null,
               connectedAccounts: { google: false, apple: false },
             });
           }
@@ -210,7 +212,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             username: managerName,
             email: firebaseUser.email || email,
             teamName,
-            teamLogo: '⚽',
+            teamLogo: null,
             connectedAccounts: { google: false, apple: false },
           });
 
@@ -297,7 +299,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         username: managerName,
         email: firebaseUser.email || '',
         teamName: trimmedName,
-        teamLogo: '⚽',
+        teamLogo: team?.logo ?? null,
         connectedAccounts: {
           google: provider === 'google',
           apple: provider === 'apple',
@@ -316,6 +318,30 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     await handleSocialRegistration('apple', teamName);
   };
 
+  const refreshTeamInfo = useCallback(async () => {
+    const currentUser = auth.currentUser;
+    if (!currentUser) {
+      return;
+    }
+
+    try {
+      const team = await getTeam(currentUser.uid);
+      setUser(prev => {
+        if (!prev) {
+          return prev;
+        }
+
+        return {
+          ...prev,
+          teamName: team?.name ?? prev.teamName,
+          teamLogo: team?.logo ?? prev.teamLogo ?? null,
+        };
+      });
+    } catch (error) {
+      console.error('[AuthContext] Failed to refresh team info', error);
+    }
+  }, []);
+
   return (
     <AuthContext.Provider
       value={{
@@ -329,6 +355,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         registerWithApple,
         isAuthReady,
         isLoading,
+        refreshTeamInfo,
       }}
     >
       {children}
