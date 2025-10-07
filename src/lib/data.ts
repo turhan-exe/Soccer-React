@@ -331,11 +331,22 @@ export const upcomingMatches: Match[] = [
     id: '1',
     opponent: 'Galatasaray',
     opponentLogo: '🦁',
+    opponentLogoUrl: '/Logo/galatasaray.svg',
     date: '2025-08-20',
     time: '20:00',
     venue: 'home',
     status: 'scheduled',
     competition: 'Süper Lig',
+    venueName: 'Rams Park',
+    opponentStats: {
+      overall: 0.912,
+      form: ['W', 'W', 'D', 'W', 'W'],
+      keyPlayers: [
+        { name: 'Mauro Icardi', position: 'ST', highlight: '15 gol' },
+        { name: 'Kerem Aktürkoğlu', position: 'LW', highlight: '11 asist' },
+        { name: 'Lucas Torreira', position: 'CM', highlight: '%90 pas isabeti' },
+      ],
+    },
   },
   {
     id: '2',
