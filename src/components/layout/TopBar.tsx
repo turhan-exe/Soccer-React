@@ -242,8 +242,18 @@ const TopBar = () => {
 
             {user ? (
               <div className="flex min-w-0 flex-col items-start gap-1 text-sm text-slate-200 sm:flex-row sm:items-center sm:gap-4">
-                <div className="flex items-center gap-2">
-                  <span className="text-2xl leading-none">{user.teamLogo}</span>
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full border border-emerald-300/30 bg-slate-900/70">
+                    {user.teamLogo && /^(data:image|https?:\/\/)/.test(user.teamLogo) ? (
+                      <img
+                        src={user.teamLogo}
+                        alt="Takım logosu"
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <span className="text-2xl leading-none">{user.teamLogo ?? '⚽'}</span>
+                    )}
+                  </div>
                   <span className="truncate text-base font-semibold text-foreground sm:text-lg">{user.teamName}</span>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
