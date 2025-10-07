@@ -115,6 +115,7 @@ export interface Match {
   id: string;
   opponent: string;
   opponentLogo: string;
+  opponentLogoUrl?: string;
   date: string;
   time: string;
   venue: 'home' | 'away';
@@ -124,6 +125,16 @@ export interface Match {
     away: number;
   };
   competition: string;
+  venueName?: string;
+  opponentStats?: {
+    overall: number;
+    form: Array<'W' | 'D' | 'L'>;
+    keyPlayers: Array<{
+      name: string;
+      position: string;
+      highlight: string;
+    }>;
+  };
 }
 
 export interface Team {
