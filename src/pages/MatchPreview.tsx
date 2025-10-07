@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -9,7 +9,9 @@ import { BackButton } from '@/components/ui/back-button';
 import { useAuth } from '@/contexts/AuthContext';
 import { getTeam } from '@/services/team';
 import { getMyLeagueId, getFixturesForTeam } from '@/services/leagues';
-import type { Player } from '@/types';
+import type { Match, Player } from '@/types';
+
+type KeyPlayer = NonNullable<Match['opponentStats']>['keyPlayers'][number];
 
 export default function MatchPreview() {
   const navigate = useNavigate();
@@ -20,6 +22,8 @@ export default function MatchPreview() {
   const [teamName, setTeamName] = useState<string>('Takımım');
   const [teamLogo, setTeamLogo] = useState<string | null>(null);
   const [startingEleven, setStartingEleven] = useState<Player[]>([]);
+  const [showAllKeyPlayers, setShowAllKeyPlayers] = useState(false);
+  const [selectedKeyPlayer, setSelectedKeyPlayer] = useState<KeyPlayer | null>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -61,8 +65,40 @@ export default function MatchPreview() {
   const getValidLogo = (value?: string | null) =>
     value && value.trim() ? value : null;
 
+  const defaultBallLogo = '/Logo/ball.svg';
   const teamLogoSrc =
-    getValidLogo(teamLogo) ?? getValidLogo(user?.teamLogo ?? null) ?? '/Logo/Logo.png';
+    getValidLogo(teamLogo) ?? getValidLogo(user?.teamLogo ?? null) ?? defaultBallLogo;
+  const opponentLogoSrc = getValidLogo(nextMatch.opponentLogoUrl) ?? defaultBallLogo;
+
+  const keyPlayers = useMemo(
+    () => nextMatch.opponentStats?.keyPlayers ?? [],
+    [nextMatch.opponentStats?.keyPlayers],
+  );
+
+  const visibleKeyPlayers = showAllKeyPlayers ? keyPlayers : keyPlayers.slice(0, 3);
+  const remainingPlayerCount = Math.max(keyPlayers.length - visibleKeyPlayers.length, 0);
+
+  useEffect(() => {
+    if (!keyPlayers.length) {
+      setSelectedKeyPlayer(null);
+      setShowAllKeyPlayers(false);
+      return;
+    }
+
+    setSelectedKeyPlayer(prev => {
+      if (prev) {
+        const match = keyPlayers.find(player => player.name === prev.name);
+        if (match) {
+          return match;
+        }
+      }
+      return keyPlayers[0];
+    });
+
+    if (keyPlayers.length <= 3) {
+      setShowAllKeyPlayers(false);
+    }
+  }, [keyPlayers]);
 
   const renderLogo = (
     src: string | null | undefined,
@@ -120,7 +156,7 @@ export default function MatchPreview() {
             <div className="flex items-center justify-between mb-6">
               <div className="text-center flex-1">
                 <div className="flex justify-center mb-2">
-                  {renderLogo(teamLogoSrc, teamName.charAt(0) || 'T', `${teamName} logosu`)}
+                  {renderLogo(teamLogoSrc, '⚽', `${teamName} logosu`)}
                 </div>
                 <div className="font-bold text-lg">{teamName}</div>
                 <div className="text-sm text-muted-foreground">
@@ -154,8 +190,8 @@ export default function MatchPreview() {
               <div className="text-center flex-1">
                 <div className="flex justify-center mb-2">
                   {renderLogo(
-                    nextMatch.opponentLogoUrl,
-                    nextMatch.opponentLogo,
+                    opponentLogoSrc,
+                    nextMatch.opponentLogo ?? '⚽',
                     `${nextMatch.opponent} logosu`,
                     'h-14 w-14',
                     {
@@ -240,37 +276,117 @@ export default function MatchPreview() {
 
               <div>
                 <h4 className="font-semibold mb-2">Kritik Oyuncular</h4>
-                {nextMatch.opponentStats?.keyPlayers?.length ? (
-                  <div className="space-y-2">
-                    {nextMatch.opponentStats.keyPlayers.map(player => {
-                      const positionColors: Record<string, string> = {
-                        GK: 'bg-slate-500',
-                        CB: 'bg-blue-500',
-                        LB: 'bg-emerald-500',
-                        RB: 'bg-emerald-500',
-                        CM: 'bg-green-500',
-                        LW: 'bg-yellow-500',
-                        RW: 'bg-yellow-500',
-                        ST: 'bg-red-500',
-                      };
-                      const colorClass = positionColors[player.position] ?? 'bg-gray-500';
-                      return (
-                        <div
-                          key={`${player.name}-${player.position}`}
-                          className="flex items-center justify-between p-2 bg-muted rounded"
-                        >
-                          <div className="flex items-center gap-2">
-                            <div
-                              className={`w-8 h-8 ${colorClass} rounded-full flex items-center justify-center text-white text-xs font-bold`}
-                            >
-                              {player.position}
+                {keyPlayers.length ? (
+                  <div className="space-y-3">
+                    <div className="space-y-2">
+                      {visibleKeyPlayers.map(player => {
+                        const positionColors: Record<string, string> = {
+                          GK: 'bg-slate-500',
+                          CB: 'bg-blue-500',
+                          LB: 'bg-emerald-500',
+                          RB: 'bg-emerald-500',
+                          CM: 'bg-green-500',
+                          DM: 'bg-teal-500',
+                          CAM: 'bg-orange-500',
+                          LW: 'bg-yellow-500',
+                          RW: 'bg-yellow-500',
+                          ST: 'bg-red-500',
+                        };
+                        const colorClass = positionColors[player.position] ?? 'bg-gray-500';
+                        const isSelected = selectedKeyPlayer?.name === player.name;
+                        return (
+                          <button
+                            key={`${player.name}-${player.position}`}
+                            type="button"
+                            onClick={() => setSelectedKeyPlayer(player)}
+                            className={`flex w-full items-center justify-between rounded border p-2 text-left transition ${
+                              isSelected
+                                ? 'border-emerald-500 bg-emerald-500/10'
+                                : 'border-transparent bg-muted hover:border-emerald-200 hover:bg-muted/80'
+                            }`}
+                          >
+                            <div className="flex items-center gap-3">
+                              <div
+                                className={`flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold text-white ${colorClass}`}
+                              >
+                                {player.position}
+                              </div>
+                              <div>
+                                <div className="font-medium leading-tight">{player.name}</div>
+                                <div className="text-xs text-muted-foreground">{player.highlight}</div>
+                              </div>
                             </div>
-                            <span className="font-medium">{player.name}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                    {remainingPlayerCount > 0 && !showAllKeyPlayers && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full border-dashed"
+                        onClick={() => setShowAllKeyPlayers(true)}
+                      >
+                        +{remainingPlayerCount} oyuncu daha göster
+                      </Button>
+                    )}
+                    {selectedKeyPlayer && (
+                      <div className="rounded-lg border bg-muted/60 p-4">
+                        <div className="flex items-start justify-between gap-4">
+                          <div>
+                            <div className="text-sm font-semibold">{selectedKeyPlayer.name}</div>
+                            <div className="text-xs text-muted-foreground">{selectedKeyPlayer.highlight}</div>
                           </div>
-                          <span className="text-sm text-muted-foreground">{player.highlight}</span>
+                          <Badge variant="secondary" className="font-semibold">
+                            {selectedKeyPlayer.position}
+                          </Badge>
                         </div>
-                      );
-                    })}
+                        {selectedKeyPlayer.stats ? (
+                          <dl className="mt-4 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
+                            {selectedKeyPlayer.stats.matches !== undefined && (
+                              <div className="rounded bg-background/70 p-2 text-center">
+                                <dt className="text-xs text-muted-foreground">Maç</dt>
+                                <dd className="font-semibold">{selectedKeyPlayer.stats.matches}</dd>
+                              </div>
+                            )}
+                            {selectedKeyPlayer.stats.goals !== undefined && (
+                              <div className="rounded bg-background/70 p-2 text-center">
+                                <dt className="text-xs text-muted-foreground">Gol</dt>
+                                <dd className="font-semibold">{selectedKeyPlayer.stats.goals}</dd>
+                              </div>
+                            )}
+                            {selectedKeyPlayer.stats.assists !== undefined && (
+                              <div className="rounded bg-background/70 p-2 text-center">
+                                <dt className="text-xs text-muted-foreground">Asist</dt>
+                                <dd className="font-semibold">{selectedKeyPlayer.stats.assists}</dd>
+                              </div>
+                            )}
+                            {selectedKeyPlayer.stats.rating !== undefined && (
+                              <div className="rounded bg-background/70 p-2 text-center">
+                                <dt className="text-xs text-muted-foreground">Maç Reytingi</dt>
+                                <dd className="font-semibold">{selectedKeyPlayer.stats.rating.toFixed(1)}</dd>
+                              </div>
+                            )}
+                            {selectedKeyPlayer.stats.cleanSheets !== undefined && (
+                              <div className="rounded bg-background/70 p-2 text-center">
+                                <dt className="text-xs text-muted-foreground">Gol Yemedi</dt>
+                                <dd className="font-semibold">{selectedKeyPlayer.stats.cleanSheets}</dd>
+                              </div>
+                            )}
+                            {selectedKeyPlayer.stats.minutes !== undefined && (
+                              <div className="rounded bg-background/70 p-2 text-center">
+                                <dt className="text-xs text-muted-foreground">Dakika</dt>
+                                <dd className="font-semibold">{selectedKeyPlayer.stats.minutes}</dd>
+                              </div>
+                            )}
+                          </dl>
+                        ) : (
+                          <p className="mt-3 text-sm text-muted-foreground">
+                            Ayrıntılı istatistik bilgisi bulunamadı.
+                          </p>
+                        )}
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <p className="text-sm text-muted-foreground">Rakip oyuncu verisi henüz mevcut değil.</p>
