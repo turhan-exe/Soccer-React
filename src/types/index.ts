@@ -133,6 +133,14 @@ export interface Match {
       name: string;
       position: string;
       highlight: string;
+      stats?: {
+        matches?: number;
+        goals?: number;
+        assists?: number;
+        rating?: number;
+        cleanSheets?: number;
+        minutes?: number;
+      };
     }>;
   };
 }

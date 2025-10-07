@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-labelledby="title desc">
+  <title id="title">Futbol Topu</title>
+  <desc id="desc">Siyah beyaz klasik futbol topu simgesi</desc>
+  <circle cx="64" cy="64" r="60" fill="#f8fafc" stroke="#0f172a" stroke-width="4" />
+  <path
+    d="M64 20 44 32l-8 24 20 16h24l20-16-8-24z"
+    fill="#0f172a"
+  />
+  <path
+    d="M36 56 20 72l10 28 24 8 10-20-20-16zm56 0 20 16-10 28-24 8-10-20 20-16z"
+    fill="#1f2937"
+  />
+  <path
+    d="M54 84 44 104l20 16 20-16-10-20z"
+    fill="#0f172a"
+  />
+</svg>
