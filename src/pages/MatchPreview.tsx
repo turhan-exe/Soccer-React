@@ -67,6 +67,68 @@ const createKeyPlayersFromLineup = (players: Player[]): KeyPlayer[] =>
       stats: { rating: Number((player.overall * 10).toFixed(1)) },
     }));
 
+type OutcomeProbabilities = {
+  win: number;
+  draw: number;
+  loss: number;
+};
+
+type ProbabilityInputs = {
+  teamOverall?: number | null;
+  opponentOverall?: number | null;
+  teamForm: Array<'W' | 'D' | 'L'>;
+  opponentForm: Array<'W' | 'D' | 'L'>;
+  venue?: Match['venue'];
+};
+
+const formValueMap: Record<'W' | 'D' | 'L', number> = {
+  W: 1,
+  D: 0,
+  L: -1,
+};
+
+const calculateFormScore = (form: Array<'W' | 'D' | 'L'>): number => {
+  if (!form.length) return 0;
+  const total = form.reduce((sum, result) => sum + formValueMap[result], 0);
+  return total / form.length;
+};
+
+const calculateOutcomeProbabilities = ({
+  teamOverall,
+  opponentOverall,
+  teamForm,
+  opponentForm,
+  venue,
+}: ProbabilityInputs): OutcomeProbabilities => {
+  const DEFAULT_OVERALL = 0.75;
+
+  const teamRating = teamOverall ?? DEFAULT_OVERALL;
+  const opponentRating = opponentOverall ?? DEFAULT_OVERALL;
+  const ratingDiff = teamRating - opponentRating;
+  const ratingScore = ratingDiff * 6; // amplify 0-1 scale differences
+
+  const formScore = (calculateFormScore(teamForm) - calculateFormScore(opponentForm)) * 1.5;
+  const venueBoost = venue === 'home' ? 0.4 : venue === 'away' ? -0.2 : 0;
+
+  const momentum = ratingScore + formScore + venueBoost;
+
+  const winFactor = Math.exp(momentum);
+  const lossFactor = Math.exp(-momentum);
+  const drawFactor = Math.exp(-Math.abs(momentum) * 0.7 + 0.3);
+
+  const total = winFactor + lossFactor + drawFactor;
+
+  if (!Number.isFinite(total) || total <= 0) {
+    return { win: 1 / 3, draw: 1 / 3, loss: 1 / 3 };
+  }
+
+  return {
+    win: winFactor / total,
+    draw: drawFactor / total,
+    loss: lossFactor / total,
+  };
+};
+
 export default function MatchPreview() {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -380,6 +442,18 @@ export default function MatchPreview() {
     typeof opponentOverall === 'number'
       ? opponentOverall
       : matchInfo.opponentStats?.overall ?? null;
+
+  const outcomeProbabilities = useMemo(
+    () =>
+      calculateOutcomeProbabilities({
+        teamOverall,
+        opponentOverall: opponentOverallDisplay,
+        teamForm,
+        opponentForm: opponentFormBadges,
+        venue: matchInfo.venue,
+      }),
+    [teamOverall, opponentOverallDisplay, teamForm, opponentFormBadges, matchInfo.venue],
+  );
 
   const matchDate = new Date(matchInfo.date);
 
@@ -782,15 +856,15 @@ export default function MatchPreview() {
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <span>Galibiyet Şansı</span>
-                <Badge variant="outline">%35</Badge>
+                <Badge variant="outline">{formatPercentage(outcomeProbabilities.win)}</Badge>
               </div>
               <div className="flex items-center justify-between">
                 <span>Beraberlik Şansı</span>
-                <Badge variant="outline">%28</Badge>
+                <Badge variant="outline">{formatPercentage(outcomeProbabilities.draw)}</Badge>
               </div>
               <div className="flex items-center justify-between">
                 <span>Mağlubiyet Şansı</span>
-                <Badge variant="outline">%37</Badge>
+                <Badge variant="outline">{formatPercentage(outcomeProbabilities.loss)}</Badge>
               </div>
             </div>
           </CardContent>
