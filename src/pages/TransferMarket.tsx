@@ -47,6 +47,7 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { PlayerStatusCard } from '@/components/ui/player-status-card';
 import { cn } from '@/lib/utils';
+import './transfer-market.css';
 
 const POSITIONS: Player['position'][] = [
   'GK',
@@ -412,7 +413,8 @@ export default function TransferMarket() {
         <TableRow
           key={listing.id}
           className={cn(
-            isExpanded && 'bg-emerald-50/50 dark:bg-emerald-900/30',
+            'transition-colors',
+            isExpanded && 'bg-emerald-500/10',
           )}
         >
           <TableCell>
@@ -464,11 +466,13 @@ export default function TransferMarket() {
             )}
           </TableCell>
           <TableCell>
-            <Badge variant="outline">{position}</Badge>
+            <Badge variant="outline" className="border-white/20 bg-white/5 text-slate-100">
+              {position}
+            </Badge>
           </TableCell>
-          <TableCell>{formatOverall(overallValue)}</TableCell>
-          <TableCell>{listing.sellerTeamName}</TableCell>
-          <TableCell className="font-medium text-emerald-600">
+          <TableCell className="text-slate-200">{formatOverall(overallValue)}</TableCell>
+          <TableCell className="text-slate-300">{listing.sellerTeamName}</TableCell>
+          <TableCell className="font-semibold text-emerald-300">
             {formatPrice(listing.price)}
           </TableCell>
           <TableCell className="text-right">
@@ -480,6 +484,7 @@ export default function TransferMarket() {
                 purchasingId === listing.id ||
                 teamBudget < listing.price
               }
+              className="bg-emerald-500/20 text-emerald-100 hover:bg-emerald-500/30"
             >
               {purchasingId === listing.id ? (
                 <>
@@ -499,7 +504,7 @@ export default function TransferMarket() {
   const renderMobileListings = () => {
     if (isListingsLoading) {
       return (
-        <div className="flex items-center justify-center gap-2 rounded-lg border border-dashed border-muted-foreground/40 bg-white/70 py-6 text-sm text-muted-foreground dark:bg-slate-900/40">
+        <div className="flex items-center justify-center gap-2 rounded-xl border border-white/20 bg-white/5 py-6 text-sm text-slate-300">
           <Loader2 className="h-4 w-4 animate-spin" />
           İlanlar yükleniyor...
         </div>
@@ -508,7 +513,7 @@ export default function TransferMarket() {
 
     if (listings.length === 0) {
       return (
-        <div className="rounded-lg border border-dashed border-muted-foreground/40 bg-white/70 p-4 text-center text-sm text-muted-foreground dark:bg-slate-900/40">
+        <div className="rounded-xl border border-white/20 bg-white/5 p-4 text-center text-sm text-slate-300">
           Filtrenize uyan aktif ilan bulunamadı.
         </div>
       );
@@ -526,7 +531,7 @@ export default function TransferMarket() {
       return (
         <div
           key={listing.id}
-          className="rounded-xl border border-emerald-100 bg-white/70 p-4 shadow-sm dark:border-emerald-900/50 dark:bg-slate-900/60"
+          className="transfer-market-mobile-card"
         >
           <div className="flex items-start justify-between gap-3">
             <div>
@@ -535,7 +540,9 @@ export default function TransferMarket() {
                 Yaş {ageDisplay} · Potansiyel {formatOverall(potentialValue)}
               </div>
             </div>
-            <Badge variant="outline">{position}</Badge>
+            <Badge variant="outline" className="border-white/20 bg-white/5 text-slate-100">
+              {position}
+            </Badge>
           </div>
           <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 text-xs text-muted-foreground">
             <div>
@@ -548,11 +555,11 @@ export default function TransferMarket() {
             </div>
             <div>
               <span className="font-medium text-foreground">Fiyat</span>
-              <div className="text-sm font-semibold text-emerald-600">{formatPrice(listing.price)}</div>
+              <div className="transfer-market-mobile-card__price">{formatPrice(listing.price)}</div>
             </div>
           </div>
           <Button
-            className="mt-4 w-full"
+            className="mt-4 w-full bg-emerald-500/20 text-emerald-100 hover:bg-emerald-500/30"
             onClick={() => handlePurchase(listing)}
             disabled={
               sellerUid === user?.id ||
@@ -685,46 +692,55 @@ export default function TransferMarket() {
   };
 
   return (
-    <div className="flex min-h-screen w-full flex-col overflow-x-hidden bg-gradient-to-br from-emerald-50 via-slate-50 to-blue-50 dark:from-emerald-950 dark:via-slate-950 dark:to-blue-950">
-      <div className="flex w-full flex-1 flex-col gap-6 px-4 py-8 sm:px-6 lg:px-10">
-        <div className="flex w-full flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="space-y-2">
+    <div className="transfer-market-page">
+      <div className="transfer-market-gradient" />
+      <div className="transfer-market-orb transfer-market-orb--left" />
+      <div className="transfer-market-orb transfer-market-orb--right" />
+      <div className="transfer-market-noise" />
+      <div className="transfer-market-shell">
+        <header className="transfer-market-header">
+          <div className="transfer-market-header__main">
             <BackButton />
-            <h1 className="text-3xl font-bold">Transfer Pazarı</h1>
-            <p className="text-muted-foreground max-w-2xl">
-              Oyuncularını pazara çıkar, eksik bölgeler için yeni yıldızlar keşfet.
-              Mevkilere, ortalama güce ve fiyata göre filtreleyerek hedeflediğin transferi kolayca bul.
-            </p>
-          </div>
-          <div className="flex items-center gap-3 rounded-lg border bg-white/60 p-4 dark:bg-slate-900/60">
-            <Shield className="h-10 w-10 text-emerald-600" />
-            <div>
-              <p className="text-sm text-muted-foreground">Takım Adı</p>
-              <p className="font-semibold">{teamName || user?.teamName || 'Takımım'}</p>
-              <p className="text-xs text-muted-foreground">Transfer bütçesi: {formatPrice(teamBudget)}</p>
+            <div className="transfer-market-header__title">
+              <h1>Transfer Pazarı</h1>
+              <p>
+                Oyuncularını pazara çıkar, eksik bölgeler için yeni yıldızlar keşfet. Mevkilere, ortalama güce ve fiyata göre
+                filtreleyerek hedeflediğin transferi kolayca bul.
+              </p>
             </div>
           </div>
-        </div>
+          <div className="transfer-market-summary">
+            <div className="transfer-market-summary__icon">
+              <Shield className="h-6 w-6" />
+            </div>
+            <div className="transfer-market-summary__info">
+              <span>Takım</span>
+              <strong>{teamName || user?.teamName || 'Takımım'}</strong>
+            </div>
+            <div className="transfer-market-summary__info">
+              <span>Bütçe</span>
+              <strong>{formatPrice(teamBudget)}</strong>
+            </div>
+          </div>
+        </header>
 
-        <div className="grid gap-6 lg:grid-cols-[1.2fr,0.8fr]">
-          <Card>
-            <CardHeader className="flex flex-col gap-2 border-b bg-white/70 dark:bg-slate-900/60">
+        <div className="transfer-market-layout">
+          <Card className={cn('transfer-market-card', 'overflow-hidden')}>
+            <CardHeader className={cn('transfer-market-card__header')}>
               <CardTitle className="flex items-center gap-2 text-xl">
-                <ShoppingCart className="h-5 w-5" />
+                <ShoppingCart className="h-5 w-5 text-emerald-300" />
                 Pazardaki Oyuncular
               </CardTitle>
-              <div className="grid gap-3 sm:grid-cols-3">
+              <div className="transfer-market-card__filters">
                 <div>
-                  <label className="block text-xs font-medium uppercase text-muted-foreground mb-1">
-                    Mevki
-                  </label>
+                  <label className="text-xs font-medium uppercase text-slate-300">Mevki</label>
                   <Select
                     value={filters.position}
                     onValueChange={value =>
                       setFilters(prev => ({ ...prev, position: value as FilterState['position'] }))
                     }
                   >
-                    <SelectTrigger>
+                    <SelectTrigger className="border-white/20 bg-slate-900/60 text-slate-100">
                       <SelectValue placeholder="Mevki seç" />
                     </SelectTrigger>
                     <SelectContent>
@@ -738,9 +754,7 @@ export default function TransferMarket() {
                   </Select>
                 </div>
                 <div>
-                  <label className="block text-xs font-medium uppercase text-muted-foreground mb-1">
-                    Maksimum Fiyat
-                  </label>
+                  <label className="text-xs font-medium uppercase text-slate-300">Maksimum Fiyat</label>
                   <Input
                     inputMode="numeric"
                     type="number"
@@ -750,26 +764,25 @@ export default function TransferMarket() {
                     onChange={event =>
                       setFilters(prev => ({ ...prev, maxPrice: event.target.value }))
                     }
+                    className="border-white/20 bg-slate-900/60 text-slate-100 placeholder:text-slate-500"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium uppercase text-muted-foreground mb-1">
-                    Sıralama
-                  </label>
+                  <label className="text-xs font-medium uppercase text-slate-300">Sıralama</label>
                   <Select
                     value={filters.sortBy}
                     onValueChange={value =>
                       setFilters(prev => ({ ...prev, sortBy: value as SortOption }))
                     }
                   >
-                    <SelectTrigger>
+                    <SelectTrigger className="border-white/20 bg-slate-900/60 text-slate-100">
                       <SelectValue placeholder="Sırala" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="overall-desc">Güç (Yüksek &rarr; Düşük)</SelectItem>
-                      <SelectItem value="overall-asc">Güç (Düşük &rarr; Yüksek)</SelectItem>
-                      <SelectItem value="price-asc">Fiyat (Düşük &rarr; Yüksek)</SelectItem>
-                      <SelectItem value="price-desc">Fiyat (Yüksek &rarr; Düşük)</SelectItem>
+                      <SelectItem value="overall-desc">Güç (Yüksek → Düşük)</SelectItem>
+                      <SelectItem value="overall-asc">Güç (Düşük → Yüksek)</SelectItem>
+                      <SelectItem value="price-asc">Fiyat (Düşük → Yüksek)</SelectItem>
+                      <SelectItem value="price-desc">Fiyat (Yüksek → Düşük)</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -777,7 +790,7 @@ export default function TransferMarket() {
             </CardHeader>
             <CardContent className="p-0">
               {isDesktop ? (
-                <div className="w-full overflow-x-auto">
+                <div className="transfer-market-card__table">
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -793,59 +806,55 @@ export default function TransferMarket() {
                   </Table>
                 </div>
               ) : (
-                <div className="flex w-full flex-col gap-3 p-4">
+                <div className="transfer-market-mobile-listings p-6">
                   {renderMobileListings()}
                 </div>
               )}
             </CardContent>
           </Card>
 
-          <div className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Transfer Bütçen</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-xs font-medium uppercase text-muted-foreground">Kalan Bütçe</p>
-                    <p className="text-2xl font-semibold">{formatPrice(teamBudget)}</p>
-                  </div>
-                  <Button variant="outline" onClick={handleAddFunds} disabled={isAddingFunds || !user}>
-                    {isAddingFunds ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Ekleniyor
-                      </>
-                    ) : (
-                      '+10.000 ₺ Ekle'
-                    )}
-                  </Button>
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  Test amaçlı bütçene hızlıca para eklemek için bu butonu kullanabilirsin. İşlem Firebase üzerinde kaydedilir.
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-lg">
-                  <PlusCircle className="h-5 w-5" />
-                  Oyuncu İlanı Oluştur
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
+          <div className="transfer-market-aside">
+            <div className="transfer-market-budget">
+              <div className="flex items-center justify-between">
                 <div>
-                  <label className="block text-xs font-medium uppercase text-muted-foreground mb-1">
-                    Oyuncu Seç
-                  </label>
+                  <p className="transfer-market-budget__label">Kalan Bütçe</p>
+                  <p className="transfer-market-budget__value">{formatPrice(teamBudget)}</p>
+                </div>
+                <Button
+                  variant="outline"
+                  onClick={handleAddFunds}
+                  disabled={isAddingFunds || !user}
+                  className="border-white/20 bg-white/5 text-slate-100 hover:bg-emerald-500/20"
+                >
+                  {isAddingFunds ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Ekleniyor
+                    </>
+                  ) : (
+                    '+10.000 ₺ Ekle'
+                  )}
+                </Button>
+              </div>
+              <p className="mt-4 text-xs text-slate-400">
+                Test amaçlı bütçene hızlıca para eklemek için bu butonu kullanabilirsin. İşlem Firebase üzerinde kaydedilir.
+              </p>
+            </div>
+
+            <div className="transfer-market-form">
+              <h2 className="flex items-center gap-2 text-lg font-semibold text-white">
+                <PlusCircle className="h-5 w-5 text-emerald-300" />
+                Oyuncu İlanı Oluştur
+              </h2>
+              <div className="mt-4 space-y-4">
+                <div>
+                  <label className="text-xs font-medium uppercase text-slate-300">Oyuncu Seç</label>
                   <Select
                     value={selectedPlayerId}
                     onValueChange={value => setSelectedPlayerId(value)}
                     disabled={availablePlayers.length === 0 || isListing || isLoadingTeam}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger className="border-white/20 bg-slate-900/60 text-slate-100">
                       <SelectValue
                         placeholder={
                           isLoadingTeam
@@ -866,9 +875,7 @@ export default function TransferMarket() {
                   </Select>
                 </div>
                 <div>
-                  <label className="block text-xs font-medium uppercase text-muted-foreground mb-1">
-                    Satış Fiyatı (₺)
-                  </label>
+                  <label className="text-xs font-medium uppercase text-slate-300">Satış Fiyatı (₺)</label>
                   <Input
                     type="number"
                     inputMode="numeric"
@@ -878,10 +885,11 @@ export default function TransferMarket() {
                     value={price}
                     onChange={event => setPrice(event.target.value)}
                     disabled={isListing}
+                    className="border-white/20 bg-slate-900/60 text-slate-100 placeholder:text-slate-500"
                   />
                 </div>
                 <Button
-                  className="w-full"
+                  className="w-full bg-emerald-500/20 text-emerald-100 hover:bg-emerald-500/30"
                   onClick={handleCreateListing}
                   disabled={!selectedPlayerId || !price || isListing}
                 >
@@ -894,29 +902,27 @@ export default function TransferMarket() {
                     'Pazara Ekle'
                   )}
                 </Button>
-                <p className="text-xs text-muted-foreground">
+                <p className="text-xs text-slate-400">
                   İlan verdiğin oyuncular satılana kadar kadronda görünmeye devam eder. Satış gerçekleştiğinde oyuncu yeni
                   takımına otomatik olarak transfer edilir.
                 </p>
-              </CardContent>
-            </Card>
+              </div>
+            </div>
 
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Aktif İlanların</CardTitle>
-              </CardHeader>
-              <CardContent>
+            <div className="transfer-market-listings">
+              <h2 className="text-lg font-semibold text-white">Aktif İlanların</h2>
+              <div className="mt-4">
                 {isMyListingsLoading ? (
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <div className="flex items-center gap-2 text-sm text-slate-300">
                     <Loader2 className="h-4 w-4 animate-spin" />
                     İlanların yükleniyor...
                   </div>
                 ) : myListings.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">
+                  <p className="text-sm text-slate-400">
                     Şu anda pazarda aktif ilanların bulunmuyor.
                   </p>
                 ) : (
-                  <ul className="space-y-3">
+                  <ul>
                     {myListings.map(listing => {
                       const player = listing.player;
                       const name = player?.name ?? listing.playerName ?? 'Bilinmeyen Oyuncu';
@@ -924,23 +930,21 @@ export default function TransferMarket() {
                       const overallValue = player?.overall ?? listing.overall ?? 0;
 
                       return (
-                        <li
-                          key={listing.id}
-                          className="flex items-center justify-between rounded-lg border bg-white/70 px-3 py-2 text-sm dark:bg-slate-900/60"
-                        >
+                        <li key={listing.id}>
                           <div className="flex flex-col">
-                            <span className="font-medium">{name}</span>
-                            <span className="text-xs text-muted-foreground">
+                            <span>{name}</span>
+                            <span className="text-xs text-slate-400">
                               {position} · Overall {formatOverall(overallValue)}
                             </span>
                           </div>
                           <div className="flex items-center gap-3">
-                            <span className="font-semibold text-emerald-600">{formatPrice(listing.price)}</span>
+                            <span>{formatPrice(listing.price)}</span>
                             <Button
                               variant="outline"
                               size="sm"
                               onClick={() => handleCancelListing(listing.id)}
                               disabled={cancellingId === listing.id}
+                              className="border-white/20 bg-white/5 text-slate-100 hover:bg-emerald-500/20"
                             >
                               {cancellingId === listing.id ? (
                                 <>
@@ -957,8 +961,8 @@ export default function TransferMarket() {
                     })}
                   </ul>
                 )}
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           </div>
         </div>
       </div>
