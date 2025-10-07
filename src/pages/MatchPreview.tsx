@@ -8,7 +8,7 @@ import { useNavigate } from 'react-router-dom';
 import { BackButton } from '@/components/ui/back-button';
 import { useAuth } from '@/contexts/AuthContext';
 import { getTeam } from '@/services/team';
-import { getMyLeagueId, getFixturesForTeam, getLeagueTeams } from '@/services/leagues';
+import { getMyLeagueId, getFixturesForTeamSlotAware, getLeagueTeams } from '@/services/leagues';
 import type { ClubTeam, Fixture, Match, Player } from '@/types';
 
 type KeyPlayer = NonNullable<Match['opponentStats']>['keyPlayers'][number];
@@ -140,7 +140,7 @@ export default function MatchPreview() {
       }
 
       const [fixtures, teams] = await Promise.all([
-        getFixturesForTeam(leagueId, user.id),
+        getFixturesForTeamSlotAware(leagueId, user.id),
         getLeagueTeams(leagueId).catch(() => []),
       ]);
       if (cancelled) return;
@@ -238,7 +238,9 @@ export default function MatchPreview() {
     (async () => {
       const [opponent, opponentFixtures] = await Promise.all([
         getTeam(nextFixture.opponentId).catch(() => null),
-        getFixturesForTeam(nextFixture.leagueId, nextFixture.opponentId).catch(() => []),
+        getFixturesForTeamSlotAware(nextFixture.leagueId, nextFixture.opponentId).catch(
+          () => [],
+        ),
       ]);
 
       if (cancelled) return;
