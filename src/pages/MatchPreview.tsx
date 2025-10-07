@@ -185,7 +185,7 @@ export default function MatchPreview() {
     if (!value) return null;
     const trimmed = value.trim();
     if (!trimmed) return null;
-    const looksLikePath = /^(https?:\/\/|\/|\.\/|\.\.\/|data:image\//.test(trimmed);
+    const looksLikePath = /^(https?:\/\/|\/|\.\/|\.\.\/|data:image\/)/.test(trimmed);
     const hasImageExtension = /\.(svg|png|jpe?g|webp|gif)$/i.test(trimmed);
     if (looksLikePath || hasImageExtension || trimmed.includes('/')) {
       return trimmed;
