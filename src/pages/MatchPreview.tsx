@@ -17,6 +17,8 @@ export default function MatchPreview() {
   const nextMatch = upcomingMatches[0];
   const [teamOverall, setTeamOverall] = useState<number | null>(null);
   const [teamForm, setTeamForm] = useState<string | null>(null);
+  const [teamName, setTeamName] = useState<string>('Takımım');
+  const [teamLogo, setTeamLogo] = useState<string | null>(null);
   const [startingEleven, setStartingEleven] = useState<Player[]>([]);
 
   useEffect(() => {
@@ -24,6 +26,8 @@ export default function MatchPreview() {
     (async () => {
       const team = await getTeam(user.id);
       if (team) {
+        setTeamName(team.name);
+        setTeamLogo(team.logo && team.logo.trim() ? team.logo : null);
         const starters = team.players.filter(p => p.squadRole === 'starting');
         setStartingEleven(starters);
         if (starters.length) {
@@ -51,6 +55,45 @@ export default function MatchPreview() {
     navigate('/match-simulation');
   };
 
+  const formatOverall = (value: number | null | undefined) =>
+    typeof value === 'number' ? value.toFixed(3) : '-';
+
+  const getValidLogo = (value?: string | null) =>
+    value && value.trim() ? value : null;
+
+  const teamLogoSrc =
+    getValidLogo(teamLogo) ?? getValidLogo(user?.teamLogo ?? null) ?? '/Logo/Logo.png';
+
+  const renderLogo = (
+    src: string | null | undefined,
+    fallback: React.ReactNode,
+    alt: string,
+    className = 'h-14 w-14',
+    options?: { fallbackClass?: string; ringClass?: string },
+  ) => {
+    const ringClass = options?.ringClass ?? 'ring-emerald-500';
+    const fallbackClass =
+      options?.fallbackClass ?? 'bg-emerald-100 text-emerald-800';
+    if (src) {
+      return (
+        <img
+          src={src}
+          alt={alt}
+          className={`${className} rounded-full object-cover ring-2 ${ringClass}`}
+        />
+      );
+    }
+    return (
+      <div
+        className={`${className} rounded-full ${fallbackClass} flex items-center justify-center text-2xl font-semibold`}
+      >
+        {fallback}
+      </div>
+    );
+  };
+
+  const opponentForm = nextMatch.opponentStats?.form ?? [];
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 via-emerald-50 to-teal-50 dark:from-green-950 dark:via-emerald-950 dark:to-teal-950">
       {/* Header */}
@@ -76,11 +119,31 @@ export default function MatchPreview() {
 
             <div className="flex items-center justify-between mb-6">
               <div className="text-center flex-1">
-                <div className="text-4xl mb-2">⚽</div>
-                <div className="font-bold text-lg">Takımım</div>
-                <div className="text-sm text-muted-foreground">Overall: {teamOverall ?? '-'}</div>
-                {teamForm && (
-                  <div className="text-sm text-muted-foreground">Form: {teamForm}</div>
+                <div className="flex justify-center mb-2">
+                  {renderLogo(teamLogoSrc, teamName.charAt(0) || 'T', `${teamName} logosu`)}
+                </div>
+                <div className="font-bold text-lg">{teamName}</div>
+                <div className="text-sm text-muted-foreground">
+                  Overall: {formatOverall(teamOverall)}
+                </div>
+                {teamForm && teamForm.length > 0 && (
+                  <div className="flex items-center justify-center gap-1 mt-1 text-sm text-muted-foreground">
+                    {teamForm.split('').map((result, index) => (
+                      <Badge
+                        key={`${result}-${index}`}
+                        variant={
+                          result === 'W'
+                            ? 'default'
+                            : result === 'D'
+                              ? 'secondary'
+                              : 'destructive'
+                        }
+                        className="px-2"
+                      >
+                        {result}
+                      </Badge>
+                    ))}
+                  </div>
                 )}
               </div>
 
@@ -89,9 +152,41 @@ export default function MatchPreview() {
               </div>
 
               <div className="text-center flex-1">
-                <div className="text-4xl mb-2">{nextMatch.opponentLogo}</div>
+                <div className="flex justify-center mb-2">
+                  {renderLogo(
+                    nextMatch.opponentLogoUrl,
+                    nextMatch.opponentLogo,
+                    `${nextMatch.opponent} logosu`,
+                    'h-14 w-14',
+                    {
+                      fallbackClass: 'bg-amber-100 text-amber-900',
+                      ringClass: 'ring-amber-500',
+                    },
+                  )}
+                </div>
                 <div className="font-bold text-lg">{nextMatch.opponent}</div>
-                <div className="text-sm text-muted-foreground">Overall: 0.889</div>
+                <div className="text-sm text-muted-foreground">
+                  Overall: {formatOverall(nextMatch.opponentStats?.overall ?? null)}
+                </div>
+                {opponentForm.length > 0 && (
+                  <div className="flex items-center justify-center gap-1 mt-1 text-sm text-muted-foreground">
+                    {opponentForm.map((result, index) => (
+                      <Badge
+                        key={`${nextMatch.id}-opponent-${result}-${index}`}
+                        variant={
+                          result === 'W'
+                            ? 'default'
+                            : result === 'D'
+                              ? 'secondary'
+                              : 'destructive'
+                        }
+                        className="px-2"
+                      >
+                        {result}
+                      </Badge>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
 
@@ -102,7 +197,7 @@ export default function MatchPreview() {
               </div>
               <div className="flex items-center gap-1">
                 <Calendar className="h-4 w-4" />
-                <span>Stadyum: Türk Telekom Stadyumu</span>
+                <span>Stadyum: {nextMatch.venueName ?? 'Belirlenecek'}</span>
               </div>
             </div>
           </CardContent>
@@ -120,41 +215,66 @@ export default function MatchPreview() {
             <div className="space-y-4">
               <div>
                 <h4 className="font-semibold mb-2">Son Form</h4>
-                <div className="flex gap-1">
-                  {['G', 'G', 'G', 'B', 'G'].map((result, i) => (
-                    <Badge
-                      key={i}
-                      variant={result === 'G' ? 'default' : result === 'B' ? 'secondary' : 'destructive'}
-                      className="w-8 h-8 rounded-full flex items-center justify-center text-xs"
-                    >
-                      {result}
-                    </Badge>
-                  ))}
-                </div>
+                {opponentForm.length > 0 ? (
+                  <div className="flex gap-1">
+                    {opponentForm.map((result, index) => (
+                      <Badge
+                        key={`${nextMatch.id}-analysis-${result}-${index}`}
+                        variant={
+                          result === 'W'
+                            ? 'default'
+                            : result === 'D'
+                              ? 'secondary'
+                              : 'destructive'
+                        }
+                        className="w-8 h-8 rounded-full flex items-center justify-center text-xs"
+                      >
+                        {result}
+                      </Badge>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">Rakip form verisi henüz mevcut değil.</p>
+                )}
               </div>
 
               <div>
                 <h4 className="font-semibold mb-2">Kritik Oyuncular</h4>
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between p-2 bg-muted rounded">
-                    <div className="flex items-center gap-2">
-                      <div className="w-8 h-8 bg-red-500 rounded-full flex items-center justify-center text-white text-xs font-bold">
-                        ST
-                      </div>
-                      <span className="font-medium">Icardi</span>
-                    </div>
-                    <span className="text-sm text-muted-foreground">15 gol</span>
+                {nextMatch.opponentStats?.keyPlayers?.length ? (
+                  <div className="space-y-2">
+                    {nextMatch.opponentStats.keyPlayers.map(player => {
+                      const positionColors: Record<string, string> = {
+                        GK: 'bg-slate-500',
+                        CB: 'bg-blue-500',
+                        LB: 'bg-emerald-500',
+                        RB: 'bg-emerald-500',
+                        CM: 'bg-green-500',
+                        LW: 'bg-yellow-500',
+                        RW: 'bg-yellow-500',
+                        ST: 'bg-red-500',
+                      };
+                      const colorClass = positionColors[player.position] ?? 'bg-gray-500';
+                      return (
+                        <div
+                          key={`${player.name}-${player.position}`}
+                          className="flex items-center justify-between p-2 bg-muted rounded"
+                        >
+                          <div className="flex items-center gap-2">
+                            <div
+                              className={`w-8 h-8 ${colorClass} rounded-full flex items-center justify-center text-white text-xs font-bold`}
+                            >
+                              {player.position}
+                            </div>
+                            <span className="font-medium">{player.name}</span>
+                          </div>
+                          <span className="text-sm text-muted-foreground">{player.highlight}</span>
+                        </div>
+                      );
+                    })}
                   </div>
-                  <div className="flex items-center justify-between p-2 bg-muted rounded">
-                    <div className="flex items-center gap-2">
-                      <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center text-white text-xs font-bold">
-                        CM
-                      </div>
-                      <span className="font-medium">Torreira</span>
-                    </div>
-                    <span className="text-sm text-muted-foreground">8 asist</span>
-                  </div>
-                </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">Rakip oyuncu verisi henüz mevcut değil.</p>
+                )}
               </div>
             </div>
           </CardContent>
