@@ -20,6 +20,68 @@ import { auth, db, functions } from './firebase';
 import type { League, Fixture, Standing } from '@/types';
 import { formatInTimeZone } from 'date-fns-tz';
 
+type StandingDoc = Standing & { slotIndex?: number | null };
+type SlotDoc = {
+  slotIndex?: number | null;
+  botId?: string | null;
+  teamId?: string | null;
+  type?: 'human' | 'bot' | string | null;
+};
+
+const BOT_NAME_CACHE = new Map<string, string>();
+
+function extractSlotIndex(raw: unknown): number | undefined {
+  if (typeof raw === 'number' && Number.isFinite(raw)) return raw;
+  if (typeof raw === 'string' && raw.trim().length > 0) {
+    const parsed = Number.parseInt(raw, 10);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return undefined;
+}
+
+function fallbackBotName(slotIndex?: number, botId?: string | null): string {
+  if (typeof slotIndex === 'number' && Number.isFinite(slotIndex)) {
+    return `Bot ${slotIndex}`;
+  }
+  if (botId && botId.length > 0) {
+    const trimmed = botId.replace(/^bot[-_]?/i, '').split(/[|_]/).filter(Boolean).pop();
+    return trimmed ? `Bot ${trimmed}` : `Bot ${botId}`;
+  }
+  return 'Bot';
+}
+
+function getCachedBotName(botId?: string | null): string | undefined {
+  if (!botId) return undefined;
+  return BOT_NAME_CACHE.get(botId) ?? undefined;
+}
+
+async function ensureBotNames(botIds: string[]): Promise<void> {
+  const missing = Array.from(
+    new Set(botIds.filter((id): id is string => !!id && !BOT_NAME_CACHE.has(id)))
+  );
+  if (missing.length === 0) return;
+
+  const chunkSize = 10;
+  for (let i = 0; i < missing.length; i += chunkSize) {
+    const chunk = missing.slice(i, i + chunkSize);
+    const q = query(collection(db, 'bots'), where(documentId(), 'in', chunk));
+    const snap = await getDocs(q);
+    snap.docs.forEach((docSnap) => {
+      const data = docSnap.data() as { name?: string | null };
+      const friendly = data?.name?.trim();
+      BOT_NAME_CACHE.set(
+        docSnap.id,
+        friendly && friendly.length > 0 ? friendly : fallbackBotName(undefined, docSnap.id)
+      );
+    });
+    chunk.forEach((id) => {
+      if (!BOT_NAME_CACHE.has(id)) {
+        BOT_NAME_CACHE.set(id, fallbackBotName(undefined, id));
+      }
+    });
+  }
+}
+
 /** Uygulama ilk açıldığında en az bir lig olduğundan emin ol */
 export async function ensureDefaultLeague(): Promise<void> {
   const snap = await getDocs(collection(db, 'leagues'));
@@ -465,24 +527,76 @@ export async function getFixturesForTeamSlotAware(
 export async function getLeagueTeams(
   leagueId: string
 ): Promise<{ id: string; name: string }[]> {
-  // Prefer standings for human-friendly names (works for slot-based)
-  const standingsSnap = await getDocs(collection(db, 'leagues', leagueId, 'standings'));
+  const [standingsSnap, slotsSnap] = await Promise.all([
+    getDocs(collection(db, 'leagues', leagueId, 'standings')),
+    getDocs(collection(db, 'leagues', leagueId, 'slots')),
+  ]);
+
+  const slotMap = new Map<number, SlotDoc>();
+  slotsSnap.docs.forEach((docSnap) => {
+    const data = docSnap.data() as SlotDoc;
+    const slotIndex = extractSlotIndex(data.slotIndex ?? docSnap.id);
+    if (slotIndex != null) {
+      slotMap.set(slotIndex, { ...data, slotIndex });
+    }
+  });
+
   if (!standingsSnap.empty) {
-    const rows: { id: string; name: string }[] = [];
-    // Build both teamId -> name and slot-{i} -> name for lookups
-    standingsSnap.docs.forEach((d) => {
-      const s = d.data() as any;
-      const name = s.name || s.teamId || `Slot ${s.slotIndex}`;
-      const slotKey = `slot-${s.slotIndex}`;
-      rows.push({ id: slotKey, name });
-      if (s.teamId) rows.push({ id: s.teamId, name });
+    const docs = standingsSnap.docs.map((d) => ({ id: d.id, ...(d.data() as StandingDoc) }));
+    const botIds = new Set<string>();
+    docs.forEach((row) => {
+      if (row.teamId) return;
+      const slotIndex = extractSlotIndex(row.slotIndex ?? row.id);
+      if (slotIndex == null) return;
+      const slot = slotMap.get(slotIndex);
+      if (slot?.botId) botIds.add(slot.botId);
     });
-    // De-duplicate by id preserving first occurrence
+    if (botIds.size > 0) {
+      await ensureBotNames(Array.from(botIds));
+    }
+
+    const rows: { id: string; name: string }[] = [];
     const seen = new Set<string>();
-    return rows.filter((r) => (seen.has(r.id) ? false : (seen.add(r.id), true)));
+    docs.forEach((row) => {
+      const slotIndex = extractSlotIndex(row.slotIndex ?? row.id);
+      const slot = slotIndex != null ? slotMap.get(slotIndex) : undefined;
+      const botId = slot?.botId ?? null;
+      const baseName = row.teamId ? row.name || row.teamId : row.name;
+      const displayName = row.teamId
+        ? row.name || row.teamId
+        : getCachedBotName(botId) ?? (baseName && !/bot[_-]/i.test(baseName) ? baseName : fallbackBotName(slotIndex, botId));
+      const slotKey = slotIndex != null ? `slot-${slotIndex}` : row.id;
+      const entries = [{ id: slotKey, name: displayName }];
+      if (row.teamId) entries.push({ id: row.teamId, name: displayName });
+      entries.forEach((entry) => {
+        if (seen.has(entry.id)) return;
+        seen.add(entry.id);
+        rows.push(entry);
+      });
+    });
+    return rows;
   }
 
-  // Legacy teams subcollection
+  if (!slotsSnap.empty) {
+    const slotDocs = slotsSnap.docs.map((d) => ({ id: d.id, ...(d.data() as SlotDoc) }));
+    const botIds = new Set<string>();
+    slotDocs.forEach((slot) => {
+      if (slot.botId) botIds.add(slot.botId);
+    });
+    if (botIds.size > 0) {
+      await ensureBotNames(Array.from(botIds));
+    }
+    return slotDocs.map((slot) => {
+      const slotIndex = extractSlotIndex(slot.slotIndex ?? slot.id);
+      const botId = slot.botId ?? null;
+      const name = slot.teamId
+        ? slot.teamId
+        : getCachedBotName(botId) ?? fallbackBotName(slotIndex, botId);
+      const id = slot.teamId || `slot-${slotIndex ?? slot.id}`;
+      return { id, name };
+    });
+  }
+
   const teamsSnap = await getDocs(collection(db, 'leagues', leagueId, 'teams'));
   if (!teamsSnap.empty) {
     return teamsSnap.docs.map((d) => {
@@ -491,12 +605,7 @@ export async function getLeagueTeams(
     });
   }
 
-  // Fallback to slots if standings/teams absent
-  const slots = await getDocs(collection(db, 'leagues', leagueId, 'slots'));
-  return slots.docs.map((d) => {
-    const s = d.data() as any;
-    return { id: s.teamId || `slot-${s.slotIndex}`, name: s.name || s.teamId || `Bot ${s.botId || s.slotIndex}` };
-  });
+  return [];
 }
 
 /**
@@ -511,11 +620,49 @@ export function listenStandings(
 ): Unsubscribe {
   const col = collection(db, 'leagues', leagueId, 'standings');
 
-  return onSnapshot(col, (snap) => {
-    const rows: Standing[] = snap.docs.map((d) => ({
+  return onSnapshot(col, async (snap) => {
+    const rows: StandingDoc[] = snap.docs.map((d) => ({
       id: d.id,
-      ...(d.data() as Omit<Standing, 'id'>),
+      ...(d.data() as StandingDoc),
     }));
+
+    try {
+      const slotsSnap = await getDocs(collection(db, 'leagues', leagueId, 'slots'));
+      const slotMap = new Map<number, SlotDoc>();
+      slotsSnap.docs.forEach((docSnap) => {
+        const data = docSnap.data() as SlotDoc;
+        const slotIndex = extractSlotIndex(data.slotIndex ?? docSnap.id);
+        if (slotIndex != null) {
+          slotMap.set(slotIndex, { ...data, slotIndex });
+        }
+      });
+
+      const botIds = new Set<string>();
+      rows.forEach((row) => {
+        if (row.teamId) return;
+        const slotIndex = extractSlotIndex(row.slotIndex ?? row.id);
+        if (slotIndex == null) return;
+        const slot = slotMap.get(slotIndex);
+        if (slot?.botId) botIds.add(slot.botId);
+      });
+      if (botIds.size > 0) {
+        await ensureBotNames(Array.from(botIds));
+      }
+
+      rows.forEach((row) => {
+        if (row.teamId) {
+          row.name = row.name || row.teamId;
+          return;
+        }
+        const slotIndex = extractSlotIndex(row.slotIndex ?? row.id);
+        const slot = slotIndex != null ? slotMap.get(slotIndex) : undefined;
+        const botId = slot?.botId ?? null;
+        const baseName = row.name;
+        row.name = getCachedBotName(botId) ?? (baseName && !/bot[_-]/i.test(baseName) ? baseName : fallbackBotName(slotIndex, botId));
+      });
+    } catch (err) {
+      console.warn('[leagues.listenStandings] Failed to enrich bot names', err);
+    }
 
     rows.sort((a, b) => {
       // Pts desc, sonra GD desc, sonra GF desc
@@ -534,30 +681,72 @@ export async function listLeagues(): Promise<League[]> {
   const leagues: League[] = [];
   for (const d of snap.docs) {
     const data = d.data() as any;
-    const standingsSnap = await getDocs(collection(d.ref, 'standings'));
+    const [standingsSnap, slotsSnap] = await Promise.all([
+      getDocs(collection(d.ref, 'standings')),
+      getDocs(collection(d.ref, 'slots')),
+    ]);
+    const slotMap = new Map<number, SlotDoc>();
+    slotsSnap.docs.forEach((docSnap) => {
+      const data = docSnap.data() as SlotDoc;
+      const slotIndex = extractSlotIndex(data.slotIndex ?? docSnap.id);
+      if (slotIndex != null) {
+        slotMap.set(slotIndex, { ...data, slotIndex });
+      }
+    });
+
     let teams: { id: string; name: string }[] = [];
     let teamCount = 0;
     if (!standingsSnap.empty) {
-      // Prefer standings for friendly names (works for human + bots)
-      const rows = standingsSnap.docs.map((s) => s.data() as any);
-      teams = rows.map((r) => ({ id: r.teamId || `slot-${r.slotIndex}`, name: r.name || r.teamId || `Slot ${r.slotIndex}` }));
+      const rows = standingsSnap.docs.map((s) => ({ id: s.id, ...(s.data() as StandingDoc) }));
+      const botIds = new Set<string>();
+      rows.forEach((row) => {
+        if (row.teamId) return;
+        const slotIndex = extractSlotIndex(row.slotIndex ?? row.id);
+        if (slotIndex == null) return;
+        const slot = slotMap.get(slotIndex);
+        if (slot?.botId) botIds.add(slot.botId);
+      });
+      if (botIds.size > 0) {
+        await ensureBotNames(Array.from(botIds));
+      }
+      teams = rows.map((row) => {
+        const slotIndex = extractSlotIndex(row.slotIndex ?? row.id);
+        const slot = slotIndex != null ? slotMap.get(slotIndex) : undefined;
+        const botId = slot?.botId ?? null;
+        const baseName = row.teamId ? row.name || row.teamId : row.name;
+        const name = row.teamId
+          ? row.name || row.teamId
+          : getCachedBotName(botId) ?? (baseName && !/bot[_-]/i.test(baseName) ? baseName : fallbackBotName(slotIndex, botId));
+        const id = row.teamId || `slot-${slotIndex ?? row.id}`;
+        return { id, name };
+      });
       teamCount = rows.filter((r) => !!r.teamId).length;
+    } else if (!slotsSnap.empty) {
+      const slotDocs = slotsSnap.docs.map((s) => ({ id: s.id, ...(s.data() as SlotDoc) }));
+      const botIds = new Set<string>();
+      slotDocs.forEach((slot) => {
+        if (slot.botId) botIds.add(slot.botId);
+      });
+      if (botIds.size > 0) {
+        await ensureBotNames(Array.from(botIds));
+      }
+      teams = slotDocs.map((slot) => {
+        const slotIndex = extractSlotIndex(slot.slotIndex ?? slot.id);
+        const botId = slot.botId ?? null;
+        if (slot.type === 'human' && slot.teamId) teamCount++;
+        const name = slot.teamId
+          ? slot.teamId
+          : getCachedBotName(botId) ?? fallbackBotName(slotIndex, botId);
+        const id = slot.teamId || `slot-${slotIndex ?? slot.id}`;
+        return { id, name };
+      });
     } else {
-      const slotsSnap = await getDocs(collection(d.ref, 'slots'));
-      if (!slotsSnap.empty) {
-        teams = slotsSnap.docs.map((s) => {
-          const sd = s.data() as any;
-          if (sd.type === 'human' && sd.teamId) teamCount++;
-          return { id: sd.teamId || `slot-${sd.slotIndex}`, name: sd.teamId || `Bot ${sd.botId || sd.slotIndex}` };
-        });
-      } else {
       const teamsSnap = await getDocs(collection(d.ref, 'teams'));
       teamCount = teamsSnap.size;
       teams = teamsSnap.docs.map((t) => {
         const td = t.data() as any;
         return { id: t.id, name: td.name || t.id };
       });
-      }
     }
     leagues.push({
       id: d.id,
@@ -580,12 +769,48 @@ export async function listLeagueStandings(
   leagueId: string
 ): Promise<Standing[]> {
   const col = collection(db, 'leagues', leagueId, 'standings');
-  const snap = await getDocs(col);
+  const [snap, slotsSnap] = await Promise.all([
+    getDocs(col),
+    getDocs(collection(db, 'leagues', leagueId, 'slots')),
+  ]);
 
-  const rows: Standing[] = snap.docs.map((d) => ({
+  const rows: StandingDoc[] = snap.docs.map((d) => ({
     id: d.id,
-    ...(d.data() as Omit<Standing, 'id'>),
+    ...(d.data() as StandingDoc),
   }));
+
+  const slotMap = new Map<number, SlotDoc>();
+  slotsSnap.docs.forEach((docSnap) => {
+    const data = docSnap.data() as SlotDoc;
+    const slotIndex = extractSlotIndex(data.slotIndex ?? docSnap.id);
+    if (slotIndex != null) {
+      slotMap.set(slotIndex, { ...data, slotIndex });
+    }
+  });
+
+  const botIds = new Set<string>();
+  rows.forEach((row) => {
+    if (row.teamId) return;
+    const slotIndex = extractSlotIndex(row.slotIndex ?? row.id);
+    if (slotIndex == null) return;
+    const slot = slotMap.get(slotIndex);
+    if (slot?.botId) botIds.add(slot.botId);
+  });
+  if (botIds.size > 0) {
+    await ensureBotNames(Array.from(botIds));
+  }
+
+  rows.forEach((row) => {
+    if (row.teamId) {
+      row.name = row.name || row.teamId;
+      return;
+    }
+    const slotIndex = extractSlotIndex(row.slotIndex ?? row.id);
+    const slot = slotIndex != null ? slotMap.get(slotIndex) : undefined;
+    const botId = slot?.botId ?? null;
+    const baseName = row.name;
+    row.name = getCachedBotName(botId) ?? (baseName && !/bot[_-]/i.test(baseName) ? baseName : fallbackBotName(slotIndex, botId));
+  });
 
   rows.sort((a, b) => {
     if (b.Pts !== a.Pts) return b.Pts - a.Pts;
