@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { useAuth } from '@/contexts/AuthContext';
 import {
@@ -15,7 +15,15 @@ import {
   Star,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { getMyLeagueId, listLeagueStandings, getFixturesForTeam } from '@/services/leagues';
+import {
+  getMyLeagueId,
+  listLeagueStandings,
+  getFixturesForTeam,
+  getLeagueTeams,
+} from '@/services/leagues';
+import { getTeam } from '@/services/team';
+import { upcomingMatches } from '@/lib/data';
+import type { Fixture } from '@/types';
 import '@/styles/nostalgia-theme.css';
 
 const menuItems = [
@@ -33,6 +41,61 @@ const menuItems = [
   { id: 'legend-pack', label: 'Nostalji Paket', icon: Star, accent: 'pink' },
 ];
 
+type FormBadge = 'W' | 'D' | 'L';
+
+type MatchHighlightClub = {
+  name: string;
+  logo?: string | null;
+  logoUrl?: string | null;
+  overall?: number | null;
+  form: FormBadge[];
+};
+
+type MatchHighlight = {
+  competition: string;
+  dateText: string;
+  timeText: string;
+  venue: 'home' | 'away';
+  venueName?: string;
+  team: MatchHighlightClub;
+  opponent: MatchHighlightClub;
+};
+
+const computeForm = (fixtures: Fixture[], teamId: string): FormBadge[] => {
+  const played = fixtures
+    .filter(fixture => fixture.status === 'played' && fixture.score)
+    .sort((a, b) => a.date.getTime() - b.date.getTime());
+
+  return played.slice(-5).map(fixture => {
+    const isHome = fixture.homeTeamId === teamId;
+    const { home, away } = fixture.score!;
+    if (home === away) return 'D';
+    const didWin = (isHome && home > away) || (!isHome && away > home);
+    return didWin ? 'W' : 'L';
+  });
+};
+
+const calculateTeamOverall = (players?: { overall: number; squadRole?: string }[] | null): number | null => {
+  if (!players?.length) return null;
+  const starters = players.filter(player => player.squadRole === 'starting');
+  const pool = starters.length ? starters : players;
+  if (!pool.length) return null;
+  const average = pool.reduce((sum, player) => sum + player.overall, 0) / pool.length;
+  return Number(average.toFixed(3));
+};
+
+const getValidLogo = (value?: string | null) => {
+  if (!value) return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const looksLikePath = /^(https?:\/\/|\/|\.\/|\.\.\/|data:image\/)/.test(trimmed);
+  const hasImageExtension = /\.(svg|png|jpe?g|webp|gif)$/i.test(trimmed);
+  if (looksLikePath || hasImageExtension || trimmed.includes('/')) {
+    return trimmed;
+  }
+  return null;
+};
+
 export default function MainMenu() {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -40,20 +103,65 @@ export default function MainMenu() {
   const [leaguePosition, setLeaguePosition] = useState<number | null>(null);
   const [leaguePoints, setLeaguePoints] = useState<number | null>(null);
   const [hoursToNextMatch, setHoursToNextMatch] = useState<number | null>(null);
+  const [matchHighlight, setMatchHighlight] = useState<MatchHighlight | null>(null);
 
   useEffect(() => {
     const loadQuickStats = async () => {
-      if (!user) return;
+      if (!user) {
+        setLeaguePosition(null);
+        setLeaguePoints(null);
+        setHoursToNextMatch(null);
+        const fallbackMatch = upcomingMatches[0];
+        if (fallbackMatch) {
+          const fallbackDate = new Date(`${fallbackMatch.date}T${fallbackMatch.time ?? '00:00'}`);
+          const hasValidDate = !Number.isNaN(fallbackDate.getTime());
+          setMatchHighlight({
+            competition: fallbackMatch.competition ?? 'Lig Maçı',
+            dateText: hasValidDate
+              ? fallbackDate.toLocaleDateString('tr-TR')
+              : fallbackMatch.date,
+            timeText: fallbackMatch.time
+              ?? (hasValidDate
+                ? fallbackDate.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })
+                : ''),
+            venue: fallbackMatch.venue ?? 'home',
+            venueName: fallbackMatch.venueName,
+            team: {
+              name: 'Takımım',
+              logo: null,
+              form: [],
+              overall: null,
+            },
+            opponent: {
+              name: fallbackMatch.opponent,
+              logo: fallbackMatch.opponentLogo,
+              logoUrl: fallbackMatch.opponentLogoUrl,
+              form: fallbackMatch.opponentStats?.form ?? [],
+              overall: fallbackMatch.opponentStats?.overall ?? null,
+            },
+          });
+        } else {
+          setMatchHighlight(null);
+        }
+        return;
+      }
       try {
         const leagueId = await getMyLeagueId(user.id);
         if (!leagueId) {
           setLeaguePosition(null);
           setLeaguePoints(null);
           setHoursToNextMatch(null);
+          setMatchHighlight(null);
           return;
         }
 
-        const standings = await listLeagueStandings(leagueId);
+        const [standings, fixtures, leagueTeams, myTeam] = await Promise.all([
+          listLeagueStandings(leagueId),
+          getFixturesForTeam(leagueId, user.id),
+          getLeagueTeams(leagueId).catch(() => []),
+          getTeam(user.id).catch(() => null),
+        ]);
+
         const myIndex = standings.findIndex((s) => s.id === user.id);
         if (myIndex >= 0) {
           setLeaguePosition(myIndex + 1);
@@ -63,10 +171,13 @@ export default function MainMenu() {
           setLeaguePoints(null);
         }
 
-        const fixtures = await getFixturesForTeam(leagueId, user.id);
-        const upcoming = fixtures.find((f) => f.status !== 'played');
-        if (upcoming && upcoming.date) {
-          const matchTime = new Date(upcoming.date).getTime();
+        const upcomingFixtures = fixtures
+          .filter((fixture) => fixture.status !== 'played')
+          .sort((a, b) => a.date.getTime() - b.date.getTime());
+        const nextFixture = upcomingFixtures[0];
+
+        if (nextFixture && nextFixture.date) {
+          const matchTime = nextFixture.date.getTime();
           const now = Date.now();
           const diffMs = Math.max(0, matchTime - now);
           const hours = Math.ceil(diffMs / 36e5);
@@ -74,8 +185,157 @@ export default function MainMenu() {
         } else {
           setHoursToNextMatch(null);
         }
+
+        const teamOverall = calculateTeamOverall(myTeam?.players ?? null);
+        const teamForm = computeForm(fixtures, user.id);
+        const teamName = myTeam?.name ?? user.teamName ?? 'Takımım';
+        const teamLogo = myTeam?.logo ?? user.teamLogo ?? null;
+
+        const createHighlightFromFallback = () => {
+          const fallbackMatch = upcomingMatches[0];
+          if (!fallbackMatch) {
+            setMatchHighlight(null);
+            return;
+          }
+          const fallbackDate = new Date(`${fallbackMatch.date}T${fallbackMatch.time ?? '00:00'}`);
+          const hasValidDate = !Number.isNaN(fallbackDate.getTime());
+          const dateText = hasValidDate
+            ? fallbackDate.toLocaleDateString('tr-TR')
+            : fallbackMatch.date;
+          const timeText = fallbackMatch.time
+            ?? (hasValidDate
+              ? fallbackDate.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })
+              : '');
+          setMatchHighlight({
+            competition: fallbackMatch.competition ?? 'Lig Maçı',
+            dateText,
+            timeText,
+            venue: fallbackMatch.venue ?? 'home',
+            venueName: fallbackMatch.venueName,
+            team: {
+              name: teamName,
+              logo: teamLogo,
+              form: teamForm,
+              overall: teamOverall,
+            },
+            opponent: {
+              name: fallbackMatch.opponent,
+              logo: fallbackMatch.opponentLogo,
+              logoUrl: fallbackMatch.opponentLogoUrl,
+              form: fallbackMatch.opponentStats?.form ?? [],
+              overall: fallbackMatch.opponentStats?.overall ?? null,
+            },
+          });
+        };
+
+        if (!nextFixture) {
+          createHighlightFromFallback();
+          return;
+        }
+
+        const isHome = nextFixture.homeTeamId === user.id;
+        const opponentId = isHome ? nextFixture.awayTeamId : nextFixture.homeTeamId;
+        const teamMap = new Map(leagueTeams.map((teamItem) => [teamItem.id, teamItem.name] as const));
+        const opponentName = opponentId ? teamMap.get(opponentId) ?? opponentId : 'Rakip';
+
+        let opponentOverall: number | null = null;
+        let opponentForm: FormBadge[] = [];
+        let opponentLogo: string | null | undefined = null;
+        let opponentLogoUrl: string | null | undefined = null;
+
+        if (opponentId) {
+          try {
+            const [opponentTeam, opponentFixtures] = await Promise.all([
+              getTeam(opponentId).catch(() => null),
+              getFixturesForTeam(leagueId, opponentId).catch(() => []),
+            ]);
+
+            opponentOverall = calculateTeamOverall(opponentTeam?.players ?? null);
+            opponentForm = opponentFixtures.length ? computeForm(opponentFixtures, opponentId) : [];
+            opponentLogo = opponentTeam?.logo ?? null;
+          } catch (error) {
+            console.warn('[MainMenu] opponent info load failed', error);
+          }
+        }
+
+        const fallbackMatch = upcomingMatches.find(
+          (match) => match.opponent.toLowerCase() === opponentName.toLowerCase(),
+        );
+
+        if (!opponentLogo && fallbackMatch?.opponentLogo) {
+          opponentLogo = fallbackMatch.opponentLogo;
+        }
+        if (fallbackMatch?.opponentLogoUrl) {
+          opponentLogoUrl = fallbackMatch.opponentLogoUrl;
+        }
+        if (!opponentForm.length && fallbackMatch?.opponentStats?.form?.length) {
+          opponentForm = fallbackMatch.opponentStats.form;
+        }
+        if (opponentOverall == null && fallbackMatch?.opponentStats?.overall != null) {
+          opponentOverall = fallbackMatch.opponentStats.overall;
+        }
+
+        const matchDate = nextFixture.date;
+        const dateText = matchDate.toLocaleDateString('tr-TR');
+        const timeText = matchDate.toLocaleTimeString('tr-TR', {
+          hour: '2-digit',
+          minute: '2-digit',
+        });
+
+        setMatchHighlight({
+          competition: fallbackMatch?.competition ?? 'Lig Maçı',
+          dateText,
+          timeText,
+          venue: isHome ? 'home' : 'away',
+          venueName: fallbackMatch?.venueName,
+          team: {
+            name: teamName,
+            logo: teamLogo,
+            form: teamForm,
+            overall: teamOverall,
+          },
+          opponent: {
+            name: opponentName,
+            logo: opponentLogo,
+            logoUrl: opponentLogoUrl,
+            form: opponentForm,
+            overall: opponentOverall,
+          },
+        });
       } catch (error) {
         console.warn('[MainMenu] quick stats load failed', error);
+        const fallbackMatch = upcomingMatches[0];
+        if (user && fallbackMatch) {
+          const fallbackDate = new Date(`${fallbackMatch.date}T${fallbackMatch.time ?? '00:00'}`);
+          const hasValidDate = !Number.isNaN(fallbackDate.getTime());
+          setMatchHighlight({
+            competition: fallbackMatch.competition ?? 'Lig Maçı',
+            dateText: hasValidDate
+              ? fallbackDate.toLocaleDateString('tr-TR')
+              : fallbackMatch.date,
+            timeText: fallbackMatch.time
+              ?? (hasValidDate
+                ? fallbackDate.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })
+                : ''),
+            venue: fallbackMatch.venue ?? 'home',
+            venueName: fallbackMatch.venueName,
+            team: {
+              name: user.teamName ?? 'Takımım',
+              logo: user.teamLogo ?? null,
+              form: [],
+              overall: null,
+            },
+            opponent: {
+              name: fallbackMatch.opponent,
+              logo: fallbackMatch.opponentLogo,
+              logoUrl: fallbackMatch.opponentLogoUrl,
+              form: fallbackMatch.opponentStats?.form ?? [],
+              overall: fallbackMatch.opponentStats?.overall ?? null,
+            },
+          });
+        } else {
+          setMatchHighlight(null);
+        }
       }
     };
 
@@ -85,6 +345,30 @@ export default function MainMenu() {
   const handleMenuClick = (itemId: string) => {
     navigate(`/${itemId}`);
   };
+
+  const renderLogo = (logo?: string | null, fallback?: string, alt?: string) => {
+    const src = getValidLogo(logo);
+    if (src) {
+      return (
+        <img
+          src={src}
+          alt={alt ?? 'Takim logosu'}
+          className="nostalgia-match-team__emblem-image"
+        />
+      );
+    }
+    const display = logo && logo.trim() ? logo : fallback ?? '⚽';
+    return (
+      <div className="nostalgia-match-team__emblem-fallback" aria-hidden>
+        {display}
+      </div>
+    );
+  };
+
+  const formatOverall = (value?: number | null) =>
+    typeof value === 'number' && Number.isFinite(value) ? value.toFixed(3) : '-';
+
+  const formatForm = (form: FormBadge[]) => (form.length ? form.join('') : '-');
 
   return (
     <div className="nostalgia-screen">
@@ -101,6 +385,62 @@ export default function MainMenu() {
             </p>
           </div>
         </header>
+
+        {matchHighlight && (
+          <section className="nostalgia-match-highlight">
+            <div className="nostalgia-match-highlight__overlay" aria-hidden />
+            <div className="nostalgia-match-highlight__header">
+              <span className="nostalgia-match-highlight__badge">{matchHighlight.competition}</span>
+              <div className="nostalgia-match-highlight__datetime">
+                {matchHighlight.dateText}
+                {matchHighlight.timeText ? ` • ${matchHighlight.timeText}` : ''}
+              </div>
+            </div>
+
+            <div className="nostalgia-match-highlight__body">
+              <div className="nostalgia-match-team">
+                <div className="nostalgia-match-team__emblem">
+                  {renderLogo(
+                    matchHighlight.team.logoUrl ?? matchHighlight.team.logo,
+                    '⚽',
+                    `${matchHighlight.team.name} logosu`,
+                  )}
+                </div>
+                <div className="nostalgia-match-team__name">{matchHighlight.team.name}</div>
+                <div className="nostalgia-match-team__meta">
+                  Overall: {formatOverall(matchHighlight.team.overall)}
+                </div>
+                <div className="nostalgia-match-team__meta">
+                  Form: {formatForm(matchHighlight.team.form)}
+                </div>
+              </div>
+
+              <div className="nostalgia-match-highlight__vs">VS</div>
+
+              <div className="nostalgia-match-team">
+                <div className="nostalgia-match-team__emblem">
+                  {renderLogo(
+                    matchHighlight.opponent.logoUrl ?? matchHighlight.opponent.logo,
+                    '⚽',
+                    `${matchHighlight.opponent.name} logosu`,
+                  )}
+                </div>
+                <div className="nostalgia-match-team__name">{matchHighlight.opponent.name}</div>
+                <div className="nostalgia-match-team__meta">
+                  Overall: {formatOverall(matchHighlight.opponent.overall)}
+                </div>
+                <div className="nostalgia-match-team__meta">
+                  Form: {formatForm(matchHighlight.opponent.form)}
+                </div>
+              </div>
+            </div>
+
+            <div className="nostalgia-match-highlight__footer">
+              <span>{matchHighlight.venue === 'home' ? 'Ev Sahipliği' : 'Deplasman'}</span>
+              <span>Stadyum: {matchHighlight.venueName ?? 'Belirlenecek'}</span>
+            </div>
+          </section>
+        )}
 
         <section className="nostalgia-main-menu__grid">
           {menuItems.map((item) => (
