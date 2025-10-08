@@ -194,11 +194,11 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({
         <div className="relative">
           <div
             className={cn(
-              'flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-gray-100 to-gray-200 px-2 text-center text-[10px] font-semibold leading-tight break-words dark:from-gray-700 dark:to-gray-800',
+              'flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-gray-100 to-gray-200 px-2 text-center text-[10px] font-semibold leading-tight overflow-hidden dark:from-gray-700 dark:to-gray-800',
               compact && 'h-8 w-8 px-1 text-[8px]'
             )}
           >
-            <span className="max-h-[2.75rem] overflow-hidden">
+            <span className="block w-full truncate whitespace-nowrap">
               {player.name}
             </span>
           </div>
