@@ -7,6 +7,7 @@ import { PlayerCard } from '@/components/ui/player-card';
 import { PerformanceGauge, clampPerformanceGauge } from '@/components/ui/performance-gauge';
 import { Player, CustomFormationMap } from '@/types';
 import { getTeam, saveTeamPlayers, createInitialTeam } from '@/services/team';
+import { completeLegendRental, getLegendIdFromPlayer } from '@/services/legends';
 import { auth } from '@/services/firebase';
 import { useAuth } from '@/contexts/AuthContext';
 import { useDiamonds } from '@/contexts/DiamondContext';
@@ -737,6 +738,10 @@ export default function TeamPlanning() {
     if (!target) {
       return;
     }
+    if (getLegendIdFromPlayer(target) !== null) {
+      toast.error('Nostalji paketinden alınan oyuncuların sözleşmeleri uzatılamaz.');
+      return;
+    }
 
     setIsProcessingContract(true);
     const previousPlayers = players.map(player => ({ ...player }));
@@ -787,6 +792,28 @@ export default function TeamPlanning() {
     const userId = user.id;
     const target = players.find(player => player.id === playerId);
     if (!target) {
+      return;
+    }
+
+    const isLegendRental = getLegendIdFromPlayer(target) !== null;
+
+    if (isLegendRental) {
+      setIsProcessingContract(true);
+      const previousPlayers = players.map(player => ({ ...player }));
+      const updatedPlayers = players.filter(player => player.id !== playerId);
+
+      setPlayers(updatedPlayers);
+      try {
+        await completeLegendRental(userId, playerId, { players: previousPlayers });
+        toast.info(`${target.name} ile yapılan kiralama sona erdi.`);
+        finalizeContractDecision(playerId);
+      } catch (error) {
+        console.error('[TeamPlanning] legend rental release failed', error);
+        toast.error('Oyuncu kadrodan kaldırılamadı');
+        setPlayers(previousPlayers);
+      } finally {
+        setIsProcessingContract(false);
+      }
       return;
     }
 
@@ -1868,7 +1895,9 @@ export default function TeamPlanning() {
                 <p>Mevcut Rol: {activeContractPlayer.squadRole}</p>
               </div>
               <p className="text-sm text-muted-foreground">
-                Sözleşmeyi uzatırsanız oyuncu takımda kalmaya devam eder. Aksi halde serbest bırakılarak transfer listesine düşer.
+                {getLegendIdFromPlayer(activeContractPlayer) !== null
+                  ? 'Bu nostalji efsanesinin sözleşmesi uzatılamaz. Süre dolduğunda oyuncu otomatik olarak kulüpten ayrılır.'
+                  : 'Sözleşmeyi uzatırsanız oyuncu takımda kalmaya devam eder. Aksi halde serbest bırakılarak transfer listesine düşer.'}
               </p>
             </div>
           ) : null}
@@ -1882,7 +1911,7 @@ export default function TeamPlanning() {
                 Serbest Bırak
               </Button>
             )}
-            {activeContractPlayer && (
+            {activeContractPlayer && getLegendIdFromPlayer(activeContractPlayer) === null && (
               <Button
                 disabled={isProcessingContract}
                 onClick={() => handleExtendContract(activeContractPlayer.id)}

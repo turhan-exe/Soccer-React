@@ -1,6 +1,6 @@
-import { collection, doc, getDocs, setDoc, Timestamp } from 'firebase/firestore';
+import { collection, deleteDoc, doc, getDocs, setDoc, Timestamp } from 'firebase/firestore';
 import { db } from './firebase';
-import { addPlayerToTeam, getTeam } from './team';
+import { addPlayerToTeam, getTeam, saveTeamPlayers } from './team';
 import type { LegendPlayer } from '@/features/legends/players';
 import type { Player } from '@/types';
 import { getRoles } from '@/lib/player';
@@ -41,6 +41,7 @@ function legendToPlayer(id: string, legend: LegendPlayer): Player {
     injuryStatus: 'healthy',
     avatar: legend.image,
     uniqueId: `legend-${legend.id}`,
+    market: { active: false, listingId: null, locked: true, lockReason: 'legend-pack' },
   };
 }
 
@@ -65,6 +66,23 @@ export async function rentLegend(
 ): Promise<Player> {
   const playerId = `legend-${legend.id}-${Date.now()}`;
   const player = legendToPlayer(playerId, legend);
+  const contractExpiresAt = expiresAt.toISOString();
+  const rentalPlayer: Player = {
+    ...player,
+    contract: {
+      expiresAt: contractExpiresAt,
+      status: 'active',
+      salary: 0,
+      extensions: 0,
+    },
+    market: {
+      ...(player.market ?? { active: false, listingId: null }),
+      active: false,
+      listingId: null,
+      locked: true,
+      lockReason: 'legend-pack',
+    },
+  };
   const team = await getTeam(uid);
   if (!team) {
     throw new Error('Takım bulunamadı');
@@ -78,22 +96,26 @@ export async function rentLegend(
     throw new Error('Bu yıldız oyuncu zaten takımında');
   }
 
-  await addPlayerToTeam(uid, player);
+  await addPlayerToTeam(uid, rentalPlayer);
   await setDoc(
     doc(db, 'users', uid, 'rentedLegends', playerId),
-    { legendId: legend.id, expiresAt: Timestamp.fromDate(expiresAt) },
+    { legendId: legend.id, playerId, expiresAt: Timestamp.fromDate(expiresAt) },
   );
-  return player;
+  return rentalPlayer;
 }
 
 export type RentedLegendRecord = {
   legendId: number;
+  playerId: string;
   expiresAt: Date;
 };
 
 export async function getRentedLegends(uid: string): Promise<RentedLegendRecord[]> {
   const snapshot = await getDocs(collection(db, 'users', uid, 'rentedLegends'));
   const rented: RentedLegendRecord[] = [];
+  const expiredIds: string[] = [];
+  let teamPlayers: Player[] | undefined;
+  const now = Date.now();
 
   snapshot.forEach(docSnap => {
     const data = docSnap.data() as { legendId?: unknown; expiresAt?: unknown };
@@ -117,9 +139,49 @@ export async function getRentedLegends(uid: string): Promise<RentedLegendRecord[
       return;
     }
 
-    rented.push({ legendId: data.legendId, expiresAt });
+    const playerId = docSnap.id;
+    if (expiresAt.getTime() <= now) {
+      expiredIds.push(playerId);
+      return;
+    }
+
+    rented.push({ legendId: data.legendId, playerId, expiresAt });
   });
 
+  if (expiredIds.length > 0) {
+    const team = await getTeam(uid);
+    teamPlayers = team?.players ?? [];
+    for (const playerId of expiredIds) {
+      teamPlayers = await completeLegendRental(uid, playerId, { players: teamPlayers });
+    }
+  }
+
   return rented.sort((a, b) => a.expiresAt.getTime() - b.expiresAt.getTime());
+}
+
+export async function completeLegendRental(
+  uid: string,
+  playerId: string,
+  options?: { players?: Player[] },
+): Promise<Player[]> {
+  let sourcePlayers = options?.players;
+  if (!sourcePlayers) {
+    const team = await getTeam(uid);
+    sourcePlayers = team?.players ?? [];
+  }
+
+  const filteredPlayers = sourcePlayers.filter(player => player.id !== playerId);
+
+  if (filteredPlayers.length !== sourcePlayers.length) {
+    await saveTeamPlayers(uid, filteredPlayers);
+  }
+
+  try {
+    await deleteDoc(doc(db, 'users', uid, 'rentedLegends', playerId));
+  } catch (error) {
+    console.warn('[legends.completeLegendRental] failed to delete rental record', error);
+  }
+
+  return filteredPlayers;
 }
 
