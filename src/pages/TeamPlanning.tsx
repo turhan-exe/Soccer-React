@@ -424,10 +424,7 @@ const AlternativePlayerBubble: React.FC<AlternativePlayerBubbleProps> = ({
           </div>
 
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-semibold leading-tight text-white break-words">
-              {player.name}
-            </p>
-            <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-white/70">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-white/70">
               <span className="font-semibold uppercase tracking-wide text-white/80">{positionLabel}</span>
               <span>{player.age} yaş</span>
               <span className="font-semibold text-white/80">GEN {player.overall}</span>
