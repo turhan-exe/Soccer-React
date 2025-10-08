@@ -317,15 +317,6 @@ function promotePlayerToStartingRoster(
   };
 }
 
-function playerInitials(name: string): string {
-  return name
-    .split(' ')
-    .filter(Boolean)
-    .slice(0, 2)
-    .map(part => part[0]?.toUpperCase() ?? '')
-    .join('');
-}
-
 type FormationSnapshot = {
   player: Player | null;
   x: number;
@@ -408,8 +399,8 @@ const AlternativePlayerBubble: React.FC<AlternativePlayerBubbleProps> = ({
 
   const variantClasses =
     variant === 'panel'
-      ? 'border-white/30 bg-white/15 text-white hover:border-white/60'
-      : 'border-white/40 bg-white/20 text-white hover:border-white/80';
+      ? 'border-white/20 bg-white/10 text-white hover:border-white/50 hover:bg-white/15'
+      : 'border-white/25 bg-white/5 text-white/95 hover:border-white/50 hover:bg-white/10 backdrop-blur-sm';
 
   return (
     <Tooltip>
@@ -418,33 +409,44 @@ const AlternativePlayerBubble: React.FC<AlternativePlayerBubbleProps> = ({
           type="button"
           onClick={() => onSelect(player.id)}
           className={cn(
-            'relative flex h-12 w-12 flex-col items-center justify-center rounded-full text-[10px] font-semibold uppercase tracking-tight transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/80',
+            'group relative flex w-full items-center gap-3 rounded-2xl border px-3 py-2 text-left text-xs font-medium transition duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/80 sm:px-4 sm:py-3',
             variantClasses,
           )}
         >
-          {showStrengthIndicator ? (
-            <span
-              className={cn(
-                'absolute -top-1 left-0 flex items-center gap-0.5 rounded-full px-1 text-[9px] font-semibold shadow',
-                isStronger
-                  ? 'bg-emerald-400 text-emerald-950'
-                  : 'bg-rose-400 text-rose-950',
-              )}
-            >
-              {isStronger ? (
-                <ArrowUp className="h-3 w-3" />
-              ) : (
-                <ArrowDown className="h-3 w-3" />
-              )}
+          <div className="relative flex h-12 w-12 flex-shrink-0 items-center justify-center overflow-hidden rounded-xl bg-gradient-to-br from-emerald-300/90 to-emerald-500 text-emerald-950 shadow-sm">
+            <span className="text-xs font-extrabold tracking-wide">
+              {canonicalPosition(player.position)}
             </span>
-          ) : null}
-          <span>{canonicalPosition(player.position)}</span>
-          <span className="text-[8px] font-normal text-white/70">
-            {playerInitials(player.name)}
-          </span>
-          <span className="absolute -bottom-1 right-0 rounded-full bg-emerald-400 px-1 text-[8px] font-bold text-emerald-950 shadow">
-            {badgeLabel}
-          </span>
+            <span className="absolute bottom-0 right-0 rounded-tl-lg bg-emerald-900/90 px-1 text-[9px] font-semibold uppercase text-emerald-100 shadow-lg">
+              {badgeLabel}
+            </span>
+          </div>
+
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-semibold text-white">{player.name}</p>
+            <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-white/70">
+              <span>{player.age} yaş</span>
+              <span className="font-semibold text-white/80">GEN {player.overall}</span>
+              {showStrengthIndicator ? (
+                <span
+                  className={cn(
+                    'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-tight shadow-sm',
+                    isStronger
+                      ? 'bg-emerald-400/90 text-emerald-950'
+                      : 'bg-rose-400/90 text-rose-950',
+                  )}
+                >
+                  {isStronger ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />}
+                  {Math.abs(powerDiff).toFixed(1)}
+                </span>
+              ) : null}
+            </div>
+          </div>
+
+          <div className="hidden flex-col items-end text-[10px] font-semibold text-white/60 sm:flex">
+            <span className="uppercase tracking-wide">{badgeTitle}</span>
+            <span className="text-white/40">#{player.squadRole === 'bench' ? '02' : player.squadRole === 'reserve' ? '03' : '04'}</span>
+          </div>
         </button>
       </TooltipTrigger>
       <TooltipContent className="z-50 space-y-1">
@@ -1718,7 +1720,7 @@ export default function TeamPlanning() {
                       <span className="text-[10px] text-white/70">Yedek & Rezerv</span>
                     </div>
                     {alternativePlayers.length > 0 ? (
-                      <div className="flex flex-wrap gap-2">
+                      <div className="grid gap-2 sm:grid-cols-2">
                         {alternativePlayers.map(alternative => (
                           <AlternativePlayerBubble
                             key={alternative.id}
@@ -1738,11 +1740,7 @@ export default function TeamPlanning() {
                       </p>
                     )}
                   </div>
-                ) : (
-                  <div className="mt-4 rounded-2xl border border-white/20 bg-white/5 p-4 text-center text-xs text-white/70">
-                    Sahadaki bir oyuncuyu seçtiğinizde uygun alternatifler burada listelenecek.
-                  </div>
-                )}
+                ) : null}
               </div>
             </div>
           </CardContent>
