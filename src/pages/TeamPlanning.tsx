@@ -414,8 +414,8 @@ const AlternativePlayerBubble: React.FC<AlternativePlayerBubbleProps> = ({
             variantClasses,
           )}
         >
-          <div className="relative flex h-12 w-12 flex-shrink-0 items-center justify-center overflow-hidden rounded-xl bg-gradient-to-br from-emerald-300/90 to-emerald-500 px-1 text-emerald-950 shadow-sm">
-            <span className="line-clamp-3 w-full break-words text-[9px] font-semibold leading-tight">
+          <div className="relative flex h-14 w-14 flex-shrink-0 items-center justify-center overflow-hidden rounded-xl bg-gradient-to-br from-emerald-300/90 to-emerald-500 px-2 text-emerald-950 shadow-sm">
+            <span className="line-clamp-2 w-full break-normal text-center text-[10px] font-semibold leading-tight">
               {player.name}
             </span>
             <span className="absolute bottom-0 right-0 rounded-tl-lg bg-emerald-900/90 px-1 text-[9px] font-semibold uppercase text-emerald-100 shadow-lg">
