@@ -485,6 +485,7 @@ export default function TeamPlanning() {
   const [sortBy, setSortBy] = useState<'role' | 'overall' | 'potential'>('role');
   const [focusedPlayerId, setFocusedPlayerId] = useState<string | null>(null);
   const [comparisonPlayerId, setComparisonPlayerId] = useState<string | null>(null);
+  const [comparisonReferencePlayerId, setComparisonReferencePlayerId] = useState<string | null>(null);
   const [savedFormationShape, setSavedFormationShape] = useState<string | null>(null);
   const [renamePlayerId, setRenamePlayerId] = useState<string | null>(null);
   const [renameInput, setRenameInput] = useState('');
@@ -1460,6 +1461,15 @@ export default function TeamPlanning() {
     return players.find(player => player.id === comparisonPlayerId) ?? null;
   }, [players, comparisonPlayerId]);
 
+  const comparisonReferencePlayer = useMemo(() => {
+    if (!comparisonReferencePlayerId) {
+      return null;
+    }
+    return players.find(player => player.id === comparisonReferencePlayerId) ?? null;
+  }, [players, comparisonReferencePlayerId]);
+
+  const comparisonTargetPlayer = comparisonReferencePlayer ?? selectedPlayer;
+
   const handlePromoteComparisonPlayer = () => {
     if (!comparisonPlayer) {
       return;
@@ -1468,6 +1478,7 @@ export default function TeamPlanning() {
     const playerId = comparisonPlayer.id;
     movePlayer(playerId, 'starting');
     setComparisonPlayerId(null);
+    setComparisonReferencePlayerId(null);
     setFocusedPlayerId(playerId);
     setActiveTab('starting');
   };
@@ -1712,7 +1723,10 @@ export default function TeamPlanning() {
                           <AlternativePlayerBubble
                             key={alternative.id}
                             player={alternative}
-                            onSelect={setComparisonPlayerId}
+                            onSelect={playerId => {
+                              setComparisonPlayerId(playerId);
+                              setComparisonReferencePlayerId(selectedPlayer?.id ?? null);
+                            }}
                             variant="pitch"
                             compareToPlayer={selectedPlayer}
                           />
@@ -1956,21 +1970,45 @@ export default function TeamPlanning() {
         onOpenChange={open => {
           if (!open) {
             setComparisonPlayerId(null);
+            setComparisonReferencePlayerId(null);
           }
         }}
       >
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-4xl">
           <DialogHeader>
-            <DialogTitle>{comparisonPlayer?.name}</DialogTitle>
+            <DialogTitle>Oyuncu Karşılaştırması</DialogTitle>
+            {(comparisonPlayer || comparisonTargetPlayer) && (
+              <DialogDescription>
+                {comparisonPlayer ? `Alternatif: ${comparisonPlayer.name}` : null}
+                {comparisonPlayer && comparisonTargetPlayer ? ' • ' : null}
+                {comparisonTargetPlayer ? `İlk 11: ${comparisonTargetPlayer.name}` : null}
+              </DialogDescription>
+            )}
           </DialogHeader>
           {comparisonPlayer ? (
             <>
-              <PlayerCard
-                player={comparisonPlayer}
-                showActions={false}
-                compact={false}
-                defaultCollapsed={false}
-              />
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <p className="text-sm font-semibold text-muted-foreground">Alternatif Oyuncu</p>
+                  <PlayerCard
+                    player={comparisonPlayer}
+                    showActions={false}
+                    compact={false}
+                    defaultCollapsed={false}
+                  />
+                </div>
+                {comparisonTargetPlayer ? (
+                  <div className="space-y-2">
+                    <p className="text-sm font-semibold text-muted-foreground">İlk 11 Oyuncusu</p>
+                    <PlayerCard
+                      player={comparisonTargetPlayer}
+                      showActions={false}
+                      compact={false}
+                      defaultCollapsed={false}
+                    />
+                  </div>
+                ) : null}
+              </div>
               {comparisonPlayer.squadRole !== 'starting' ? (
                 <div className="mt-4 flex justify-end">
                   <Button onClick={handlePromoteComparisonPlayer}>
