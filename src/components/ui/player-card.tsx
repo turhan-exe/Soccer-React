@@ -194,11 +194,13 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({
         <div className="relative">
           <div
             className={cn(
-              'flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-gray-100 to-gray-200 text-lg font-semibold dark:from-gray-700 dark:to-gray-800',
-              compact && 'h-8 w-8 text-sm'
+              'flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-gray-100 to-gray-200 px-2 text-center text-[10px] font-semibold leading-tight break-words dark:from-gray-700 dark:to-gray-800',
+              compact && 'h-8 w-8 px-1 text-[8px]'
             )}
           >
-            {player.name.split(' ').map((n) => n[0]).join('')}
+            <span className="max-h-[2.75rem] overflow-hidden">
+              {player.name}
+            </span>
           </div>
           <div
             className={cn(
