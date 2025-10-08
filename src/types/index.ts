@@ -54,6 +54,8 @@ export interface Player {
   market?: {
     active: boolean;
     listingId?: string | null;
+    locked?: boolean;
+    lockReason?: string | null;
   } | null;
   contract?: {
     expiresAt: string;

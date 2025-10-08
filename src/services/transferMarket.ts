@@ -29,6 +29,18 @@ const sanitizePrice = (price: unknown) => {
   return Math.max(0, Math.round(numeric));
 };
 
+const isLegendPlayer = (player: Player | null | undefined): boolean => {
+  if (!player) {
+    return false;
+  }
+  const uniqueId = typeof player.uniqueId === 'string' ? player.uniqueId : '';
+  if (/^legend-(\d+)$/.test(uniqueId)) {
+    return true;
+  }
+  const idValue = typeof player.id === 'string' ? player.id : String(player.id ?? '');
+  return /^legend-(\d+)-/.test(idValue);
+};
+
 export async function createTransferListing(params: {
   player: Player;
   price: number | string;
@@ -46,6 +58,9 @@ export async function createTransferListing(params: {
   }
   if (normalizedPrice <= 0) {
     throw new Error('Fiyat sıfırdan büyük olmalı.');
+  }
+  if (player.market?.locked || isLegendPlayer(player)) {
+    throw new Error('Bu oyuncu transfer pazarında satılamaz.');
   }
 
   const playerId = String(player.id);

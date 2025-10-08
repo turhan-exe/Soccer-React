@@ -41,7 +41,25 @@ type PlayerSnapshot = Record<string, unknown> & {
   ownerUid?: string;
   teamId?: string;
   squadRole?: string;
-  market?: { active?: boolean; listingId?: string | null } | null;
+  uniqueId?: string;
+  market?: {
+    active?: boolean;
+    listingId?: string | null;
+    locked?: boolean;
+    lockReason?: string | null;
+  } | null;
+};
+
+const isLegendSnapshot = (player: PlayerSnapshot | null | undefined): boolean => {
+  if (!player) {
+    return false;
+  }
+  const uniqueId = typeof player.uniqueId === 'string' ? player.uniqueId : '';
+  if (/^legend-(\d+)$/.test(uniqueId)) {
+    return true;
+  }
+  const rawId = typeof player.id === 'string' ? player.id : String(player.id ?? '');
+  return /^legend-(\d+)-/.test(rawId);
 };
 
 const sanitizePlayerForListing = (player: PlayerSnapshot, fallbackId: string) => {
@@ -217,6 +235,10 @@ export const marketCreateListing = functions
         playerDocSnap = null;
       }
 
+      if (playerData?.market?.locked || isLegendSnapshot(playerData)) {
+        throw new functions.https.HttpsError('failed-precondition', 'Bu oyuncu transfer pazarına çıkarılamaz.');
+      }
+
       const duplicateSnap = await tx.get(
         listingsCollection
           .where('playerId', '==', playerId)
@@ -266,14 +288,20 @@ export const marketCreateListing = functions
         createdAt: FieldValue.serverTimestamp(),
       });
 
+      const nextMarketState = {
+        ...(playerData?.market ?? { active: false, listingId: null }),
+        active: true,
+        listingId,
+      } as PlayerSnapshot['market'];
+
       if (playerDocRef) {
         tx.update(playerDocRef, {
-          market: { active: true, listingId },
+          market: nextMarketState,
         });
       } else if (teamPlayers && playerIndex > -1) {
         const updatedPlayer = {
           ...teamPlayers[playerIndex],
-          market: { active: true, listingId },
+          market: nextMarketState,
         } as PlayerSnapshot;
         teamPlayers[playerIndex] = updatedPlayer;
         tx.update(teamRef, { players: teamPlayers });
@@ -316,8 +344,14 @@ export const marketCancelListing = functions
         const playerRef = db.doc(playerPath);
         const playerSnap = await tx.get(playerRef).catch(() => null);
         if (playerSnap?.exists) {
+          const snapshotData = playerSnap.data() as PlayerSnapshot;
+          const marketState = {
+            ...(snapshotData.market ?? { active: false, listingId: null }),
+            active: false,
+            listingId: null,
+          } as PlayerSnapshot['market'];
           tx.update(playerRef, {
-            market: { active: false, listingId: null },
+            market: marketState,
           });
         } else {
           resetViaTeamDoc = true;
@@ -336,7 +370,11 @@ export const marketCancelListing = functions
           if (index > -1) {
             const updatedPlayer = {
               ...players[index],
-              market: { active: false, listingId: null },
+              market: {
+                ...(players[index].market ?? { active: false, listingId: null }),
+                active: false,
+                listingId: null,
+              },
             } as PlayerSnapshot;
             players[index] = updatedPlayer;
             tx.update(teamRef, { players });

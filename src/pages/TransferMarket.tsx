@@ -44,6 +44,7 @@ import {
   purchaseTransferListing,
   type MarketSortOption,
 } from '@/services/transferMarket';
+import { getLegendIdFromPlayer } from '@/services/legends';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { PlayerStatusCard } from '@/components/ui/player-status-card';
 import { cn } from '@/lib/utils';
@@ -352,7 +353,18 @@ export default function TransferMarket() {
 
   const availablePlayers = useMemo(() => {
     const listedIds = new Set(myListings.map(listing => listing.playerId));
-    return teamPlayers.filter(player => !listedIds.has(player.id));
+    return teamPlayers.filter(player => {
+      if (listedIds.has(player.id)) {
+        return false;
+      }
+      if (player.market?.locked) {
+        return false;
+      }
+      if (getLegendIdFromPlayer(player) !== null) {
+        return false;
+      }
+      return true;
+    });
   }, [myListings, teamPlayers]);
 
   useEffect(() => {
@@ -367,9 +379,16 @@ export default function TransferMarket() {
       setSelectedPlayerId(targetPlayerFromState);
       setPrice('');
     } else {
-      toast.error('Oyuncu pazara eklenemiyor.', {
-        description: 'Oyuncu zaten listede olabilir veya kadroda bulunmuyor.',
-      });
+      const targetPlayer = teamPlayers.find(player => player.id === targetPlayerFromState);
+      if (targetPlayer?.market?.locked || (targetPlayer && getLegendIdFromPlayer(targetPlayer) !== null)) {
+        toast.error('Oyuncu pazara eklenemiyor.', {
+          description: 'Nostalji paketinden alınan oyuncular transfer pazarında satılamaz.',
+        });
+      } else {
+        toast.error('Oyuncu pazara eklenemiyor.', {
+          description: 'Oyuncu zaten listede olabilir veya kadroda bulunmuyor.',
+        });
+      }
     }
 
     navigate(location.pathname, { replace: true, state: null });
@@ -610,6 +629,10 @@ export default function TransferMarket() {
     const player = availablePlayers.find(p => p.id === selectedPlayerId);
     if (!player) {
       toast.error('Pazara koymak için bir oyuncu seç.');
+      return;
+    }
+    if (player.market?.locked || getLegendIdFromPlayer(player) !== null) {
+      toast.error('Bu oyuncu transfer pazarında satılamaz.');
       return;
     }
     const priceValue = Number(price);

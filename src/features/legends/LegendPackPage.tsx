@@ -14,13 +14,15 @@ import type { Player } from '@/types';
 import './legend-pack.css';
 
 const PACK_COST = 1;
-const LEAGUE_DURATION_MS = 1000 * 60 * 60 * 24 * 90;
+const RENT_DURATION_DAYS = 30;
+const RENT_DURATION_MS = 1000 * 60 * 60 * 24 * RENT_DURATION_DAYS;
 const TOTAL_LEGENDS = LEGEND_PLAYERS.length;
 const STORAGE_KEY_PREFIX = 'legend-pack-current';
 
 const getStorageKey = (userId: string) => `${STORAGE_KEY_PREFIX}:${userId}`;
 
 interface RentedLegend extends LegendPlayer {
+  playerId: string;
   expiresAt: Date;
 }
 
@@ -78,12 +80,12 @@ const LegendPackPage = () => {
         }
 
         const normalizedRentals = rentals
-          .map(({ legendId, expiresAt }) => {
+          .map(({ legendId, playerId, expiresAt }) => {
             const legend = legendById.get(legendId);
             if (!legend) {
               return null;
             }
-            return { ...legend, expiresAt } as RentedLegend;
+            return { ...legend, expiresAt, playerId } as RentedLegend;
           })
           .filter((value): value is RentedLegend => Boolean(value))
           .sort((a, b) => a.expiresAt.getTime() - b.expiresAt.getTime());
@@ -184,19 +186,19 @@ const LegendPackPage = () => {
     }
   };
 
-  const handleRent = async (player: LegendPlayer) => {
+  const handleRent = async (legend: LegendPlayer) => {
     if (!user) return;
-    const expiresAt = new Date(Date.now() + LEAGUE_DURATION_MS);
+    const expiresAt = new Date(Date.now() + RENT_DURATION_MS);
     try {
-      await rentLegend(user.id, player, expiresAt);
+      const rentedPlayer = await rentLegend(user.id, legend, expiresAt);
       setRented(prev => {
-        const next = [...prev, { ...player, expiresAt }];
+        const next = [...prev, { ...legend, playerId: rentedPlayer.id, expiresAt }];
         return next.sort((a, b) => a.expiresAt.getTime() - b.expiresAt.getTime());
       });
       setOwnedLegendIds((prev) =>
-        prev.includes(player.id) ? prev : [...prev, player.id].sort((a, b) => a - b),
+        prev.includes(legend.id) ? prev : [...prev, legend.id].sort((a, b) => a - b),
       );
-      toast.success(`${player.name} kiralandı`);
+      toast.success(`${legend.name} ${RENT_DURATION_DAYS} günlüğüne kadrona katıldı`);
       setCurrent(null);
     } catch (err) {
       console.warn(err);
@@ -224,8 +226,8 @@ const LegendPackPage = () => {
             <div>
               <p className="legend-pack-title">Nostalji Paketi</p>
               <p className="legend-pack-subtitle">
-                80'ler ve 90'ların efsanelerini kulübüne yeniden kazandır. Paketi aç, rastgele bir
-                ikon kadrona katılsın.
+                80'ler ve 90'ların efsanelerini kulübüne yeniden kazandır. Paketi aç, rastgele bir ikon 30 günlüğüne kadrona
+                katılsın. Nostalji oyuncuları transfer pazarında satılamaz ve sözleşmeleri uzatılamaz.
               </p>
             </div>
           </div>
@@ -239,8 +241,8 @@ const LegendPackPage = () => {
           <section className="legend-pack-panel">
             <h2>Yeni bir efsane keşfet</h2>
             <p>
-              Her paket açılışında henüz sahip olmadığın bir efsaneyi kadrona kiralayabilir ve 90
-              gün boyunca şampiyonluk mücadelesinde kullanabilirsin.
+              Her paket açılışında henüz sahip olmadığın bir efsaneyi kadrona kiralayabilir ve 30 gün boyunca mücadeleye
+              sokabilirsin. Süre sonunda efsane otomatik olarak kulübünden ayrılır.
             </p>
             <div className="legend-pack-metrics">
               <div className="legend-pack-metric">
@@ -251,7 +253,7 @@ const LegendPackPage = () => {
               </div>
               <div className="legend-pack-metric">
                 <span>Kira süresi</span>
-                <strong>90 gün</strong>
+                <strong>{RENT_DURATION_DAYS} gün</strong>
               </div>
             </div>
             <Button
