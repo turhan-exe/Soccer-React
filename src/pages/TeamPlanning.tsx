@@ -11,7 +11,7 @@ import { completeLegendRental, getLegendIdFromPlayer } from '@/services/legends'
 import { auth } from '@/services/firebase';
 import { useAuth } from '@/contexts/AuthContext';
 import { useDiamonds } from '@/contexts/DiamondContext';
-import { Search, Save, Eye, ArrowUp } from 'lucide-react';
+import { Search, Save, Eye, ArrowDown, ArrowUp } from 'lucide-react';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -375,12 +375,16 @@ type AlternativePlayerBubbleProps = {
   player: Player;
   onSelect: (playerId: string) => void;
   variant?: 'pitch' | 'panel';
+  compareToPlayer?: Player | null;
 };
+
+const STRENGTH_DIFF_EPSILON = 0.1;
 
 const AlternativePlayerBubble: React.FC<AlternativePlayerBubbleProps> = ({
   player,
   onSelect,
   variant = 'pitch',
+  compareToPlayer,
 }) => {
   const badgeLabel =
     player.squadRole === 'bench'
@@ -394,6 +398,13 @@ const AlternativePlayerBubble: React.FC<AlternativePlayerBubbleProps> = ({
       : player.squadRole === 'reserve'
         ? 'Rezerv'
         : 'Kadrodışı';
+
+  const comparisonPower = compareToPlayer ? getPlayerPower(compareToPlayer) : null;
+  const playerPower = getPlayerPower(player);
+  const powerDiff = comparisonPower === null ? 0 : playerPower - comparisonPower;
+  const showStrengthIndicator =
+    comparisonPower !== null && Math.abs(powerDiff) > STRENGTH_DIFF_EPSILON;
+  const isStronger = showStrengthIndicator && powerDiff > 0;
 
   const variantClasses =
     variant === 'panel'
@@ -411,6 +422,22 @@ const AlternativePlayerBubble: React.FC<AlternativePlayerBubbleProps> = ({
             variantClasses,
           )}
         >
+          {showStrengthIndicator ? (
+            <span
+              className={cn(
+                'absolute -top-1 left-0 flex items-center gap-0.5 rounded-full px-1 text-[9px] font-semibold shadow',
+                isStronger
+                  ? 'bg-emerald-400 text-emerald-950'
+                  : 'bg-rose-400 text-rose-950',
+              )}
+            >
+              {isStronger ? (
+                <ArrowUp className="h-3 w-3" />
+              ) : (
+                <ArrowDown className="h-3 w-3" />
+              )}
+            </span>
+          ) : null}
           <span>{canonicalPosition(player.position)}</span>
           <span className="text-[8px] font-normal text-white/70">
             {playerInitials(player.name)}
@@ -1687,6 +1714,7 @@ export default function TeamPlanning() {
                             player={alternative}
                             onSelect={setComparisonPlayerId}
                             variant="pitch"
+                            compareToPlayer={selectedPlayer}
                           />
                         ))}
                       </div>
