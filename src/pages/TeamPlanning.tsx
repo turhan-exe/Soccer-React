@@ -396,6 +396,7 @@ const AlternativePlayerBubble: React.FC<AlternativePlayerBubbleProps> = ({
   const showStrengthIndicator =
     comparisonPower !== null && Math.abs(powerDiff) > STRENGTH_DIFF_EPSILON;
   const isStronger = showStrengthIndicator && powerDiff > 0;
+  const positionLabel = canonicalPosition(player.position);
 
   const variantClasses =
     variant === 'panel'
@@ -409,13 +410,13 @@ const AlternativePlayerBubble: React.FC<AlternativePlayerBubbleProps> = ({
           type="button"
           onClick={() => onSelect(player.id)}
           className={cn(
-            'group relative flex w-full items-center gap-3 rounded-2xl border px-3 py-2 text-left text-xs font-medium transition duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/80 sm:px-4 sm:py-3',
+            'group relative flex w-full items-start gap-3 rounded-2xl border px-3 py-2 text-left text-xs font-medium transition duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/80 sm:px-4 sm:py-3',
             variantClasses,
           )}
         >
-          <div className="relative flex h-12 w-12 flex-shrink-0 items-center justify-center overflow-hidden rounded-xl bg-gradient-to-br from-emerald-300/90 to-emerald-500 text-emerald-950 shadow-sm">
-            <span className="text-xs font-extrabold tracking-wide">
-              {canonicalPosition(player.position)}
+          <div className="relative flex h-12 w-12 flex-shrink-0 items-center justify-center overflow-hidden rounded-xl bg-gradient-to-br from-emerald-300/90 to-emerald-500 px-1 text-emerald-950 shadow-sm">
+            <span className="line-clamp-3 w-full break-words text-[9px] font-semibold leading-tight">
+              {player.name}
             </span>
             <span className="absolute bottom-0 right-0 rounded-tl-lg bg-emerald-900/90 px-1 text-[9px] font-semibold uppercase text-emerald-100 shadow-lg">
               {badgeLabel}
@@ -423,8 +424,11 @@ const AlternativePlayerBubble: React.FC<AlternativePlayerBubbleProps> = ({
           </div>
 
           <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-semibold text-white">{player.name}</p>
+            <p className="text-sm font-semibold leading-tight text-white break-words">
+              {player.name}
+            </p>
             <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-white/70">
+              <span className="font-semibold uppercase tracking-wide text-white/80">{positionLabel}</span>
               <span>{player.age} yaş</span>
               <span className="font-semibold text-white/80">GEN {player.overall}</span>
               {showStrengthIndicator ? (
