@@ -10,7 +10,6 @@ import {
   Play,
   History,
   DollarSign,
-  User,
   Settings,
   ShoppingCart,
   Star,
@@ -30,7 +29,6 @@ const menuItems = [
   { id: 'match-simulation', label: 'Mac Simulasyonu', icon: Play, accent: 'purple' },
   { id: 'match-history', label: 'Gecmis Maclar', icon: History, accent: 'slate' },
   { id: 'finance', label: 'Finans', icon: DollarSign, accent: 'cyan' },
-  { id: 'profile', label: 'Kisisel Bilgiler', icon: User, accent: 'indigo' },
   { id: 'settings', label: 'Ayarlar', icon: Settings, accent: 'teal' },
   { id: 'legend-pack', label: 'Nostalji Paket', icon: Star, accent: 'pink' },
 ];
