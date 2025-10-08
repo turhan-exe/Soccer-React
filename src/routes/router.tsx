@@ -49,7 +49,6 @@ export const router = createBrowserRouter(
         { path: '/match/:id', element: <MatchWatcherPage /> },
         { path: '/match-history', element: <MyFixturesPage /> },
         { path: '/finance', element: <Finance /> },
-        { path: '/profile', element: <Settings /> },
         { path: '/settings', element: <Settings /> },
         { path: '/store/diamonds', element: <DiamondsPage /> },
         { path: '/academy', element: <AcademyPage /> },

@@ -38,7 +38,6 @@ export default function AppRoutes() {
       <Route path="/match-simulation-iframe" element={<MatchSimulationIframe />} />
       <Route path="/match-history" element={<MyFixturesPage />} />
       <Route path="/finance" element={<Finance />} />
-      <Route path="/profile" element={<Settings />} />
       <Route path="/settings" element={<Settings />} />
       <Route path="/store/diamonds" element={<DiamondsPage />} />
       <Route path="/academy" element={<AcademyPage />} />
