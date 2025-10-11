@@ -377,15 +377,6 @@ export default function MainMenu() {
       <div className="nostalgia-screen__orb nostalgia-screen__orb--right" aria-hidden />
       <div className="nostalgia-screen__noise" aria-hidden />
       <div className="nostalgia-screen__content">
-        <header className="nostalgia-main-menu__header">
-          <div>
-            <h1 className="nostalgia-main-menu__title">Ana Menü</h1>
-            <p className="nostalgia-main-menu__subtitle">
-              Kulübünün tüm kritik operasyonlarına tek ekrandan ulaş.
-            </p>
-          </div>
-        </header>
-
         {matchHighlight && (
           <section className="nostalgia-match-highlight">
             <div className="nostalgia-match-highlight__overlay" aria-hidden />
