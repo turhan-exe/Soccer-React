@@ -19,6 +19,9 @@
     "league:verify": "node scripts/league-quick-verify.mjs"
   },
   "dependencies": {
+    "@capacitor/android": "^7.4.3",
+    "@capacitor/cli": "^7.4.3",
+    "@capacitor/core": "^7.4.3",
     "@google-cloud/tasks": "^6.2.0",
     "@hookform/resolvers": "^3.9.0",
     "@radix-ui/react-accordion": "^1.2.0",
@@ -77,6 +80,7 @@
   "devDependencies": {
     "@eslint/js": "^9.9.0",
     "@metagptx/vite-plugin-source-locator": "latest",
+    "@playwright/test": "^1.47.2",
     "@tailwindcss/aspect-ratio": "^0.4.2",
     "@tailwindcss/typography": "^0.5.15",
     "@types/node": "^22.5.5",
@@ -94,7 +98,6 @@
     "typescript": "^5.5.3",
     "typescript-eslint": "^8.0.1",
     "vite": "^5.4.1",
-    "vitest": "^1.6.0",
-    "@playwright/test": "^1.47.2"
+    "vitest": "^1.6.0"
   }
 }
