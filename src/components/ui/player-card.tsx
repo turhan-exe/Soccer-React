@@ -287,7 +287,7 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({
                     <DropdownMenuItem onClick={onRenamePlayer}>İsim Özelleştir</DropdownMenuItem>
                   )}
                   {onListForTransfer && (
-                    <DropdownMenuItem onClick={onListForTransfer}>Oyuncuyu Pazara Koy</DropdownMenuItem>
+                    <DropdownMenuItem onClick={onListForTransfer}>Oyuncuyu Sat</DropdownMenuItem>
                   )}
                   {onReleasePlayer && (
                     <DropdownMenuItem onClick={onReleasePlayer}>Serbest Bırak</DropdownMenuItem>

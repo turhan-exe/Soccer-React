@@ -1788,6 +1788,7 @@ export default function TeamPlanning() {
                   onDragEnd={() => setDraggedPlayerId(null)}
                   onMoveToBench={() => movePlayer(player.id, 'bench')}
                   onMoveToReserve={() => movePlayer(player.id, 'reserve')}
+                  onListForTransfer={() => handleListForTransfer(player.id)}
                   onRenamePlayer={() => setRenamePlayerId(player.id)}
                   onFirePlayer={() => handleFirePlayer(player.id)}
                 />
@@ -1821,6 +1822,7 @@ export default function TeamPlanning() {
                   onDragEnd={() => setDraggedPlayerId(null)}
                   onMoveToStarting={() => movePlayer(player.id, 'starting')}
                   onMoveToReserve={() => movePlayer(player.id, 'reserve')}
+                  onListForTransfer={() => handleListForTransfer(player.id)}
                   onRenamePlayer={() => setRenamePlayerId(player.id)}
                   onFirePlayer={() => handleFirePlayer(player.id)}
                 />
@@ -1854,6 +1856,7 @@ export default function TeamPlanning() {
                   onDragEnd={() => setDraggedPlayerId(null)}
                   onMoveToStarting={() => movePlayer(player.id, 'starting')}
                   onMoveToBench={() => movePlayer(player.id, 'bench')}
+                  onListForTransfer={() => handleListForTransfer(player.id)}
                   onRenamePlayer={() => setRenamePlayerId(player.id)}
                   onFirePlayer={() => handleFirePlayer(player.id)}
                 />
