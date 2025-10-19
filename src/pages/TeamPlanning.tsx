@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
@@ -8,12 +8,10 @@ import { PerformanceGauge, clampPerformanceGauge } from '@/components/ui/perform
 import { Player, CustomFormationMap } from '@/types';
 import { getTeam, saveTeamPlayers, createInitialTeam } from '@/services/team';
 import { completeLegendRental, getLegendIdFromPlayer } from '@/services/legends';
-import { auth } from '@/services/firebase';
 import { useAuth } from '@/contexts/AuthContext';
 import { useDiamonds } from '@/contexts/DiamondContext';
-import { Search, Save, Eye, ArrowDown, ArrowUp, X } from 'lucide-react';
+import { Search, Save, Eye, ArrowUp } from 'lucide-react';
 import { toast } from 'sonner';
-import { useNavigate } from 'react-router-dom';
 import {
   Select,
   SelectContent,
@@ -22,7 +20,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { formations } from '@/lib/formations';
-import { calculatePowerIndex, formatRatingLabel, normalizeRatingTo100 } from '@/lib/player';
+import { calculatePowerIndex, formatRatingLabel } from '@/lib/player';
 import { cn } from '@/lib/utils';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { BackButton } from '@/components/ui/back-button';
@@ -31,10 +29,10 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import '@/styles/nostalgia-theme.css';
 
 const DEFAULT_GAUGE_VALUE = 0.75;
-
 const PLAYER_RENAME_DIAMOND_COST = 45;
 const PLAYER_RENAME_AD_COOLDOWN_HOURS = 24;
 const CONTRACT_EXTENSION_MONTHS = 18;
+const HOURS_IN_MS = 60 * 60 * 1000;
 
 const KNOWN_POSITIONS: Player['position'][] = ['GK', 'CB', 'LB', 'RB', 'CM', 'LM', 'RM', 'CAM', 'LW', 'RW', 'ST'];
 
@@ -82,6 +80,14 @@ type FormationPlayerPosition = {
 };
 
 type CustomFormationState = CustomFormationMap;
+
+type FormationPositionWithPlayer = {
+  slotIndex: number;
+  position: Player['position'];
+  x: number;
+  y: number;
+  player: Player | null;
+};
 
 const clampPercentageValue = (value: number): number => {
   if (!Number.isFinite(value)) {
@@ -165,8 +171,6 @@ const sanitizeCustomFormationState = (input: unknown): CustomFormationState => {
   return sanitized;
 };
 
-const HOURS_IN_MS = 60 * 60 * 1000;
-
 const addMonths = (date: Date, months: number): Date => {
   const result = new Date(date);
   const targetMonth = result.getMonth() + months;
@@ -243,9 +247,11 @@ function normalizePlayer(player: Player): Player {
   };
 }
 
-function normalizePlayers(list: Player[]): Player[] {
-  return list.map(normalizePlayer);
-}
+const normalizePlayers = (list: Player[]): Player[] => list.map(normalizePlayer);
+
+const getPlayerPower = (player: Player): number => calculatePowerIndex(normalizePlayer(player));
+const getPlayerCondition = (player: Player): number => clampPerformanceGauge(player.condition, DEFAULT_GAUGE_VALUE);
+const getPlayerMotivation = (player: Player): number => clampPerformanceGauge(player.motivation, DEFAULT_GAUGE_VALUE);
 
 
 type PromoteToStartingResult = {
@@ -256,14 +262,14 @@ type PromoteToStartingResult = {
   targetPosition?: Player['position'];
 };
 
-function promotePlayerToStartingRoster(
+const promotePlayerToStartingRoster = (
   roster: Player[],
   playerId: string,
   targetPosition?: Player['position'],
-): PromoteToStartingResult {
+): PromoteToStartingResult => {
   const playerIndex = roster.findIndex(player => player.id === playerId);
   if (playerIndex === -1) {
-    return { players: roster, error: 'Oyuncu bulunamad.', updated: false };
+    return { players: roster, error: 'Oyuncu bulunamadı.', updated: false };
   }
 
   const player = roster[playerIndex];
@@ -290,7 +296,7 @@ function promotePlayerToStartingRoster(
   if (currentRole !== 'starting' && startersCount >= 11 && occupantIndex === -1) {
     return {
       players: roster,
-      error: 'lk 11 dolu. Ayn mevkideki bir oyuncuyu karmadan yeni oyuncu ekleyemezsin.',
+      error: 'İlk 11 dolu. Aynı mevkideki bir oyuncuyu çıkarmadan yeni oyuncu ekleyemezsin.',
       updated: false,
     };
   }
@@ -317,7 +323,7 @@ function promotePlayerToStartingRoster(
     swappedPlayerId,
     targetPosition: canonicalTarget,
   };
-}
+};
 
 type FormationSnapshot = {
   player: Player | null;
@@ -364,6 +370,47 @@ const deriveFormationShape = (positions: FormationSnapshot[]): string | null => 
   return counts.join('-');
 };
 
+type PitchPlayerMarkerProps = {
+  player: Player;
+  isFocused: boolean;
+  onSelect: () => void;
+  onDragStart?: (event: React.DragEvent<HTMLDivElement>) => void;
+  onDragEnd?: (event: React.DragEvent<HTMLDivElement>) => void;
+};
+
+const PitchPlayerMarker: React.FC<PitchPlayerMarkerProps> = ({
+  player,
+  isFocused,
+  onSelect,
+  onDragStart,
+  onDragEnd,
+}) => (
+  <div
+    role="button"
+    tabIndex={0}
+    className={cn(
+      'group relative flex h-14 w-14 cursor-pointer flex-col items-center justify-center rounded-full border border-white/40 bg-white/10 text-center text-xs text-white shadow-lg transition-all hover:border-white/80 hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 sm:h-16 sm:w-16',
+      isFocused && 'border-white bg-white/30 text-emerald-900',
+    )}
+    onClick={onSelect}
+    onKeyDown={event => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        onSelect();
+      }
+    }}
+    draggable
+    onDragStart={onDragStart}
+    onDragEnd={onDragEnd}
+  >
+    <span className="text-[11px] font-semibold uppercase tracking-wide">
+      {canonicalPosition(player.position)}
+    </span>
+    <span className="text-[10px] font-medium opacity-80 line-clamp-1">{player.name}</span>
+    <span className="text-[11px] font-semibold">{formatRatingLabel(player.overall)}</span>
+  </div>
+);
+
 type AlternativePlayerBubbleProps = {
   player: Player;
   onSelect: (playerId: string) => void;
@@ -379,19 +426,6 @@ const AlternativePlayerBubble: React.FC<AlternativePlayerBubbleProps> = ({
   variant = 'pitch',
   compareToPlayer,
 }) => {
-  const badgeLabel =
-    player.squadRole === 'bench'
-      ? 'YDK'
-      : player.squadRole === 'reserve'
-        ? 'RZV'
-        : 'KDR';
-  const badgeTitle =
-    player.squadRole === 'bench'
-      ? 'Yedek'
-      : player.squadRole === 'reserve'
-        ? 'Rezerv'
-        : 'Kadrodışı';
-
   const comparisonPower = compareToPlayer ? getPlayerPower(compareToPlayer) : null;
   const playerPower = getPlayerPower(player);
   const powerDiff = comparisonPower === null ? 0 : playerPower - comparisonPower;
@@ -404,6 +438,560 @@ const AlternativePlayerBubble: React.FC<AlternativePlayerBubbleProps> = ({
     variant === 'panel'
       ? 'border-white/20 bg-white/10 text-white hover:border-white/50 hover:bg-white/15'
       : 'border-white/25 bg-white/5 text-white/95 hover:border-white/50 hover:bg-white/10 backdrop-blur-sm';
+
+  return (
+    <button
+      type="button"
+      onClick={() => onSelect(player.id)}
+      className={cn(
+        'flex w-full items-center justify-between rounded-full border px-3 py-2 text-left text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/80',
+        variantClasses,
+      )}
+    >
+      <div className="flex flex-col">
+        <span className="font-semibold uppercase tracking-wide">{positionLabel}</span>
+        <span className="text-[11px] opacity-80 line-clamp-1">{player.name}</span>
+      </div>
+      <div className="text-right text-[11px] font-semibold">
+        <div>{formatRatingLabel(player.overall)}</div>
+        {showStrengthIndicator ? (
+          <div className={cn('text-[10px]', isStronger ? 'text-emerald-300' : 'text-red-300')}>
+            {isStronger ? '+' : '-'}
+            {Math.abs(powerDiff).toFixed(2)}
+          </div>
+        ) : null}
+      </div>
+    </button>
+  );
+};
+
+
+const TeamPlanning: React.FC = () => {
+  const { user } = useAuth();
+  const { balance, spend } = useDiamonds();
+
+  const [players, setPlayers] = useState<Player[]>([]);
+  const [selectedFormation, setSelectedFormation] = useState<string>(formations[0]?.name ?? '4-4-2');
+  const [initialShape, setInitialShape] = useState<string | null>(null);
+  const [customFormations, setCustomFormations] = useState<CustomFormationState>({});
+  const [activeTab, setActiveTab] = useState<'starting' | 'bench' | 'reserve'>('starting');
+  const [sortBy, setSortBy] = useState<'role' | 'overall' | 'potential'>('role');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [focusedPlayerId, setFocusedPlayerId] = useState<string | null>(null);
+  const [draggedPlayerId, setDraggedPlayerId] = useState<string | null>(null);
+  const [renamePlayerId, setRenamePlayerId] = useState<string | null>(null);
+  const [renameInput, setRenameInput] = useState('');
+  const [isRenamingPlayer, setIsRenamingPlayer] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [activeContractPlayerId, setActiveContractPlayerId] = useState<string | null>(null);
+  const [isProcessingContract, setIsProcessingContract] = useState(false);
+
+  const pitchRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    let isMounted = true;
+    const loadTeam = async () => {
+      if (!user) {
+        setPlayers([]);
+        setIsLoading(false);
+        return;
+      }
+
+      try {
+        const team = await getTeam(user.id);
+        let roster = team?.players ?? [];
+
+        if (!team) {
+          const created = await createInitialTeam(
+            user.id,
+            user.teamName ?? 'Takımım',
+            user.username ?? 'Menajer',
+          );
+          roster = created.players;
+        }
+
+        if (!isMounted) {
+          return;
+        }
+
+        const normalized = normalizePlayers(roster);
+        setPlayers(normalized);
+
+        const planFormation = team?.plan?.formation ?? team?.lineup?.formation;
+        const planShape = team?.plan?.shape ?? team?.lineup?.shape ?? null;
+        const layoutState = sanitizeCustomFormationState(
+          team?.plan?.customFormations ?? team?.lineup?.customFormations ?? null,
+        );
+
+        if (planFormation && planFormation.length > 0) {
+          setSelectedFormation(planFormation);
+        }
+        setInitialShape(planShape);
+        setCustomFormations(layoutState);
+
+        const defaultFocused = normalized.find(player => player.squadRole === 'starting');
+        setFocusedPlayerId(defaultFocused?.id ?? null);
+      } catch (error) {
+        console.error('[TeamPlanning] failed to load roster', error);
+        toast.error('Takım bilgisi yüklenemedi.');
+      } finally {
+        if (isMounted) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    void loadTeam();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [user]);
+
+  const renamePlayer = useMemo(
+    () => players.find(player => player.id === renamePlayerId) ?? null,
+    [players, renamePlayerId],
+  );
+
+  useEffect(() => {
+    if (renamePlayer) {
+      setRenameInput(renamePlayer.name);
+    } else {
+      setRenameInput('');
+    }
+  }, [renamePlayer]);
+
+  const renameAdAvailableAt = useMemo(
+    () => (renamePlayer ? getRenameAdAvailability(renamePlayer) : null),
+    [renamePlayer],
+  );
+
+  const isRenameAdAvailable = useMemo(
+    () => (renamePlayer ? isRenameAdReady(renamePlayer) : false),
+    [renamePlayer],
+  );
+
+  const startingEleven = useMemo(
+    () => players.filter(player => player.squadRole === 'starting'),
+    [players],
+  );
+  const benchPlayers = useMemo(
+    () => players.filter(player => player.squadRole === 'bench'),
+    [players],
+  );
+  const reservePlayers = useMemo(
+    () => players.filter(player => player.squadRole === 'reserve'),
+    [players],
+  );
+
+  const groupedPlayers = useMemo(
+    () => ({
+      starting: startingEleven,
+      bench: benchPlayers,
+      reserve: reservePlayers,
+    }),
+    [startingEleven, benchPlayers, reservePlayers],
+  );
+
+  const currentFormation = useMemo(() => {
+    if (selectedFormation === 'auto') {
+      return formations[0];
+    }
+    return formations.find(formation => formation.name === selectedFormation) ?? formations[0];
+  }, [selectedFormation]);
+
+  const formationPositions = useMemo<FormationPositionWithPlayer[]>(() => {
+    const starters = [...startingEleven];
+    const unassigned = [...starters];
+
+    return currentFormation.positions.map((slot, index) => {
+      const matchIndex = unassigned.findIndex(
+        player => canonicalPosition(player.position) === slot.position,
+      );
+      const player =
+        matchIndex !== -1 ? unassigned.splice(matchIndex, 1)[0] : unassigned.shift() ?? null;
+
+      return {
+        slotIndex: index,
+        position: slot.position,
+        x: slot.x,
+        y: slot.y,
+        player,
+      };
+    });
+  }, [currentFormation, startingEleven]);
+
+  const derivedFormationShape = useMemo(
+    () =>
+      deriveFormationShape(
+        formationPositions.map(position => ({
+          player: position.player,
+          x: position.x,
+          y: position.y,
+        })),
+      ),
+    [formationPositions],
+  );
+
+  const displayFormationName = useMemo(() => {
+    if (selectedFormation === 'auto') {
+      return derivedFormationShape ?? currentFormation.name;
+    }
+    return selectedFormation;
+  }, [selectedFormation, derivedFormationShape, currentFormation]);
+
+  const manualShapeDiffers = useMemo(() => {
+    if (!initialShape || !derivedFormationShape) {
+      return false;
+    }
+    return initialShape !== derivedFormationShape;
+  }, [initialShape, derivedFormationShape]);
+
+  const selectedPlayer = useMemo(() => {
+    if (focusedPlayerId) {
+      return players.find(player => player.id === focusedPlayerId) ?? null;
+    }
+    return formationPositions.find(position => position.player)?.player ?? null;
+  }, [focusedPlayerId, players, formationPositions]);
+
+  const alternativePlayers = useMemo(() => {
+    if (!selectedPlayer) {
+      return [];
+    }
+    const targetPosition = canonicalPosition(selectedPlayer.position);
+    return players.filter(
+      player =>
+        player.id !== selectedPlayer.id &&
+        player.squadRole !== 'starting' &&
+        canonicalPosition(player.position) === targetPosition,
+    );
+  }, [players, selectedPlayer]);
+
+  const visiblePlayers = useMemo(() => {
+    const source = groupedPlayers[activeTab];
+    const term = searchTerm.trim().toLowerCase();
+
+    const filtered = term.length
+      ? source.filter(player => player.name.toLowerCase().includes(term))
+      : source;
+
+    const sorted = [...filtered];
+
+    sorted.sort((a, b) => {
+      switch (sortBy) {
+        case 'overall':
+          return getPlayerPower(b) - getPlayerPower(a);
+        case 'potential':
+          return (b.potential ?? 0) - (a.potential ?? 0);
+        case 'role':
+        default:
+          return squadRoleWeight(a.squadRole) - squadRoleWeight(b.squadRole);
+      }
+    });
+
+    return sorted;
+  }, [groupedPlayers, activeTab, searchTerm, sortBy]);
+
+  const activeContractPlayer = useMemo(
+    () => players.find(player => player.id === activeContractPlayerId) ?? null,
+    [players, activeContractPlayerId],
+  );
+
+  const movePlayer = (playerId: string, role: Player['squadRole']) => {
+    setPlayers(prevPlayers => {
+      if (role === 'starting') {
+        const result = promotePlayerToStartingRoster(prevPlayers, playerId);
+        if (result.error) {
+          toast.error(result.error);
+          return prevPlayers;
+        }
+        if (result.updated) {
+          setFocusedPlayerId(playerId);
+        }
+        return result.players;
+      }
+
+      return normalizePlayers(
+        prevPlayers.map(player =>
+          player.id === playerId
+            ? {
+                ...player,
+                squadRole: role,
+              }
+            : player,
+        ),
+      );
+    });
+  };
+
+  const handleAlternativeSelection = (playerId: string) => {
+    setPlayers(prevPlayers => {
+      const result = promotePlayerToStartingRoster(prevPlayers, playerId, selectedPlayer?.position);
+      if (result.error) {
+        toast.error(result.error);
+        return prevPlayers;
+      }
+      setFocusedPlayerId(playerId);
+      return result.players;
+    });
+  };
+
+  const handlePitchDrop = (event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    const droppedId = event.dataTransfer.getData('text/plain') || draggedPlayerId;
+    if (!droppedId) {
+      return;
+    }
+    setPlayers(prevPlayers => {
+      const result = promotePlayerToStartingRoster(prevPlayers, droppedId);
+      if (result.error) {
+        toast.error(result.error);
+        return prevPlayers;
+      }
+      setFocusedPlayerId(droppedId);
+      return result.players;
+    });
+    setDraggedPlayerId(null);
+  };
+
+  const handlePositionDrop = (
+    event: React.DragEvent<HTMLDivElement>,
+    slot: FormationPositionWithPlayer,
+  ) => {
+    event.preventDefault();
+    const droppedId = event.dataTransfer.getData('text/plain') || draggedPlayerId;
+    if (!droppedId) {
+      return;
+    }
+
+    setPlayers(prevPlayers => {
+      const result = promotePlayerToStartingRoster(prevPlayers, droppedId, slot.position);
+      if (result.error) {
+        toast.error(result.error);
+        return prevPlayers;
+      }
+      setFocusedPlayerId(droppedId);
+      return result.players;
+    });
+
+    setDraggedPlayerId(null);
+  };
+
+  const handlePlayerDragEnd = () => {
+    setDraggedPlayerId(null);
+  };
+
+  const handleListForTransfer = () => {
+    toast.info('Transfer listesine ekleme özelliği yakında.');
+  };
+
+  const handleFirePlayer = (playerId: string) => {
+    setActiveContractPlayerId(playerId);
+  };
+
+  const handleSave = async () => {
+    if (!user) {
+      toast.error('Kaydetmek için giriş yapmalısın.');
+      return;
+    }
+    setIsSaving(true);
+    try {
+      const planShape = derivedFormationShape ?? undefined;
+      const plan = {
+        formation: selectedFormation,
+        shape: planShape,
+        squads: {
+          starters: startingEleven.map(player => player.id),
+          bench: benchPlayers.map(player => player.id),
+          reserves: reservePlayers.map(player => player.id),
+        },
+        customFormations:
+          Object.keys(customFormations).length > 0 ? customFormations : undefined,
+      } as const;
+
+      await saveTeamPlayers(user.id, normalizePlayers(players), plan);
+      setInitialShape(planShape ?? null);
+      toast.success('Kadro ayarlarınız kaydedildi.');
+    } catch (error) {
+      console.error('[TeamPlanning] failed to save roster', error);
+      toast.error('Kadro kaydedilemedi.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleRenamePlayer = async (method: 'ad' | 'purchase') => {
+    if (!user || !renamePlayer) {
+      return;
+    }
+
+    const trimmed = renameInput.trim();
+    if (!trimmed) {
+      toast.error('Yeni bir isim girmelisin.');
+      return;
+    }
+
+    if (method === 'ad' && !isRenameAdAvailable) {
+      toast.error('Reklam hakkı henüz yenilenmedi.');
+      return;
+    }
+
+    try {
+      setIsRenamingPlayer(true);
+
+      if (method === 'purchase') {
+        await spend(PLAYER_RENAME_DIAMOND_COST);
+      }
+
+      const now = new Date();
+      const nextAdAvailability =
+        method === 'ad'
+          ? new Date(now.getTime() + PLAYER_RENAME_AD_COOLDOWN_HOURS * HOURS_IN_MS)
+          : renamePlayer.rename?.adAvailableAt
+            ? new Date(renamePlayer.rename.adAvailableAt)
+            : null;
+
+      const updatedPlayers = players.map(player => {
+        if (player.id !== renamePlayer.id) {
+          return player;
+        }
+
+        return normalizePlayer({
+          ...player,
+          name: trimmed,
+          rename: {
+            ...(player.rename ?? { adAvailableAt: new Date(0).toISOString() }),
+            lastUpdatedAt: now.toISOString(),
+            lastMethod: method,
+            adAvailableAt: nextAdAvailability?.toISOString() ?? player.rename?.adAvailableAt ?? now.toISOString(),
+          },
+        });
+      });
+
+      await saveTeamPlayers(user.id, updatedPlayers);
+      setPlayers(updatedPlayers);
+      toast.success('Oyuncu adı güncellendi.');
+      setRenamePlayerId(null);
+    } catch (error) {
+      console.error('[TeamPlanning] failed to rename player', error);
+      toast.error('Oyuncu adı güncellenemedi.');
+    } finally {
+      setIsRenamingPlayer(false);
+    }
+  };
+
+  const handleReleaseContract = async (playerId: string) => {
+    if (!user) {
+      toast.error('Bu işlem için giriş yapmalısın.');
+      return;
+    }
+
+    setIsProcessingContract(true);
+    try {
+      const player = players.find(candidate => candidate.id === playerId);
+      if (!player) {
+        toast.error('Oyuncu bulunamadı.');
+        return;
+      }
+
+      const legendId = getLegendIdFromPlayer(player);
+
+      if (legendId !== null) {
+        const updated = await completeLegendRental(user.id, playerId, { players });
+        setPlayers(normalizePlayers(updated));
+      } else {
+        const updatedPlayers = players.map(candidate =>
+          candidate.id === playerId
+            ? normalizePlayer({
+                ...candidate,
+                squadRole: 'reserve',
+                contract: {
+                  ...(candidate.contract ?? {
+                    salary: 0,
+                    extensions: 0,
+                    expiresAt: new Date().toISOString(),
+                  }),
+                  status: 'released',
+                },
+              })
+            : candidate,
+        );
+
+        await saveTeamPlayers(user.id, updatedPlayers);
+        setPlayers(updatedPlayers);
+      }
+
+      toast.success('Oyuncu serbest bırakıldı.');
+      setActiveContractPlayerId(null);
+    } catch (error) {
+      console.error('[TeamPlanning] failed to release contract', error);
+      toast.error('Oyuncu serbest bırakılamadı.');
+    } finally {
+      setIsProcessingContract(false);
+    }
+  };
+
+  const handleExtendContract = async (playerId: string) => {
+    if (!user) {
+      toast.error('Bu işlem için giriş yapmalısın.');
+      return;
+    }
+
+    setIsProcessingContract(true);
+    try {
+      const player = players.find(candidate => candidate.id === playerId);
+      if (!player) {
+        toast.error('Oyuncu bulunamadı.');
+        return;
+      }
+
+      if (getLegendIdFromPlayer(player) !== null) {
+        toast.error('Nostalji efsanelerinin sözleşmesi uzatılamaz.');
+        return;
+      }
+
+      const currentExpiration = getContractExpiration(player) ?? new Date();
+      const extendedExpiration = addMonths(currentExpiration, CONTRACT_EXTENSION_MONTHS);
+
+      const updatedPlayers = players.map(candidate =>
+        candidate.id === playerId
+          ? normalizePlayer({
+              ...candidate,
+              contract: {
+                ...(candidate.contract ?? {
+                  salary: 0,
+                  extensions: 0,
+                  status: 'active',
+                  expiresAt: new Date().toISOString(),
+                }),
+                status: 'active',
+                extensions: (candidate.contract?.extensions ?? 0) + 1,
+                expiresAt: extendedExpiration.toISOString(),
+              },
+            })
+          : candidate,
+      );
+
+      await saveTeamPlayers(user.id, updatedPlayers);
+      setPlayers(updatedPlayers);
+      toast.success('Sözleşme uzatıldı.');
+      setActiveContractPlayerId(null);
+    } catch (error) {
+      console.error('[TeamPlanning] failed to extend contract', error);
+      toast.error('Sözleşme uzatılamadı.');
+    } finally {
+      setIsProcessingContract(false);
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex min-h-[50vh] items-center justify-center text-sm text-muted-foreground">
+        Kadro yükleniyor...
+      </div>
+    );
+  }
 
   return (
     <div className="nostalgia-screen nostalgia-team-planning">
@@ -427,9 +1015,9 @@ const AlternativePlayerBubble: React.FC<AlternativePlayerBubbleProps> = ({
               <Eye className="mr-2 h-4 w-4" />
               Formasyon
             </Button>
-            <Button onClick={handleSave}>
+            <Button onClick={handleSave} disabled={isSaving}>
               <Save className="mr-2 h-4 w-4" />
-              Kaydet
+              {isSaving ? 'Kaydediliyor...' : 'Kaydet'}
             </Button>
           </div>
         </header>
@@ -499,45 +1087,47 @@ const AlternativePlayerBubble: React.FC<AlternativePlayerBubbleProps> = ({
                                 <ArrowUp className="h-24 w-24 text-white/15" />
                               </div>
                               <div className="absolute inset-0">
-                                {formationPositions.map(({ player, position, x, y, slotIndex }) => (
+                                {formationPositions.map(slot => (
                                   <div
-                                    key={slotIndex}
+                                    key={slot.slotIndex}
                                     className="absolute text-center"
                                     style={{
-                                      left: `${x}%`,
-                                      top: `${y}%`,
+                                      left: `${slot.x}%`,
+                                      top: `${slot.y}%`,
                                       transform: 'translate(-50%, -50%)',
                                     }}
                                     onDragOver={e => {
                                       e.preventDefault();
                                       e.stopPropagation();
                                     }}
-                                    onDrop={e => handlePositionDrop(e, { position, x, y, slotIndex })}
+                                    onDrop={event => handlePositionDrop(event, slot)}
                                   >
-                                    {player ? (
+                                    {slot.player ? (
                                       <Tooltip>
                                         <TooltipTrigger asChild>
                                           <PitchPlayerMarker
-                                            player={player}
-                                            isFocused={player.id === focusedPlayerId}
-                                            onSelect={() => setFocusedPlayerId(player.id)}
+                                            player={slot.player}
+                                            isFocused={slot.player.id === focusedPlayerId}
+                                            onSelect={() => setFocusedPlayerId(slot.player?.id ?? null)}
                                             onDragStart={event => {
-                                              setDraggedPlayerId(player.id);
-                                              event.dataTransfer.setData('text/plain', player.id);
+                                              setDraggedPlayerId(slot.player?.id ?? null);
+                                              if (slot.player) {
+                                                event.dataTransfer.setData('text/plain', slot.player.id);
+                                              }
                                             }}
-                                            onDragEnd={event => handlePlayerDragEnd(event, player)}
+                                            onDragEnd={handlePlayerDragEnd}
                                           />
                                         </TooltipTrigger>
                                         <TooltipContent className="z-50 w-56 space-y-2">
-                                          <div className="text-xs font-semibold">{player.name}</div>
-                                          <PerformanceGauge label="Güç" value={getPlayerPower(player)} />
-                                          <PerformanceGauge label="Kondisyon" value={getPlayerCondition(player)} />
-                                          <PerformanceGauge label="Motivasyon" value={getPlayerMotivation(player)} />
+                                          <div className="text-xs font-semibold">{slot.player.name}</div>
+                                          <PerformanceGauge label="Güç" value={getPlayerPower(slot.player)} />
+                                          <PerformanceGauge label="Kondisyon" value={getPlayerCondition(slot.player)} />
+                                          <PerformanceGauge label="Motivasyon" value={getPlayerMotivation(slot.player)} />
                                         </TooltipContent>
                                       </Tooltip>
                                     ) : (
-                                      <div className="flex h-[3.6rem] w-[3.6rem] items-center justify-center rounded-full border border-dashed border-white/50 bg-white/20 px-1.5 text-[10px] font-semibold uppercase tracking-wide text-white">
-                                        {position}
+                                      <div className="rounded-full border border-dashed border-white/40 bg-white/5 px-3 py-1 text-xs text-white/70">
+                                        Boş
                                       </div>
                                     )}
                                   </div>
@@ -564,7 +1154,7 @@ const AlternativePlayerBubble: React.FC<AlternativePlayerBubbleProps> = ({
                                 <AlternativePlayerBubble
                                   key={alternative.id}
                                   player={alternative}
-                                  onSelect={playerId => handleAlternativeSelection(playerId)}
+                                  onSelect={handleAlternativeSelection}
                                   variant="panel"
                                   compareToPlayer={selectedPlayer}
                                 />
@@ -625,7 +1215,7 @@ const AlternativePlayerBubble: React.FC<AlternativePlayerBubbleProps> = ({
                   </CardContent>
                 </Card>
                 <div className="nostalgia-team-planning__lists">
-                  <Tabs value={activeTab} onValueChange={setActiveTab}>
+                  <Tabs value={activeTab} onValueChange={value => setActiveTab(value as typeof activeTab)}>
                     <TabsList className="flex w-full gap-2 overflow-x-auto sm:overflow-visible">
                       <TabsTrigger value="starting" className="flex-none min-w-[140px] whitespace-nowrap sm:flex-1 sm:min-w-0 sm:w-auto">
                         İlk 11 ({startingEleven.length})
@@ -638,7 +1228,7 @@ const AlternativePlayerBubble: React.FC<AlternativePlayerBubbleProps> = ({
                       </TabsTrigger>
                     </TabsList>
                     <TabsContent value="starting" className="mt-4 space-y-4">
-                      {sortedPlayers.length === 0 ? (
+                      {visiblePlayers.length === 0 ? (
                         <Card>
                           <CardContent className="p-8 text-center">
                             <div className="mb-4 text-4xl">⚽</div>
@@ -649,7 +1239,7 @@ const AlternativePlayerBubble: React.FC<AlternativePlayerBubbleProps> = ({
                           </CardContent>
                         </Card>
                       ) : (
-                        sortedPlayers.map(player => (
+                        visiblePlayers.map(player => (
                           <PlayerCard
                             key={player.id}
                             player={player}
@@ -663,7 +1253,7 @@ const AlternativePlayerBubble: React.FC<AlternativePlayerBubbleProps> = ({
                             onDragEnd={() => setDraggedPlayerId(null)}
                             onMoveToBench={() => movePlayer(player.id, 'bench')}
                             onMoveToReserve={() => movePlayer(player.id, 'reserve')}
-                            onListForTransfer={() => handleListForTransfer(player.id)}
+                            onListForTransfer={handleListForTransfer}
                             onRenamePlayer={() => setRenamePlayerId(player.id)}
                             onFirePlayer={() => handleFirePlayer(player.id)}
                           />
@@ -671,7 +1261,7 @@ const AlternativePlayerBubble: React.FC<AlternativePlayerBubbleProps> = ({
                       )}
                     </TabsContent>
                     <TabsContent value="bench" className="mt-4 space-y-4">
-                      {sortedPlayers.length === 0 ? (
+                      {visiblePlayers.length === 0 ? (
                         <Card>
                           <CardContent className="p-8 text-center">
                             <div className="mb-4 text-4xl">⚽</div>
@@ -682,7 +1272,7 @@ const AlternativePlayerBubble: React.FC<AlternativePlayerBubbleProps> = ({
                           </CardContent>
                         </Card>
                       ) : (
-                        sortedPlayers.map(player => (
+                        visiblePlayers.map(player => (
                           <PlayerCard
                             key={player.id}
                             player={player}
@@ -696,7 +1286,7 @@ const AlternativePlayerBubble: React.FC<AlternativePlayerBubbleProps> = ({
                             onDragEnd={() => setDraggedPlayerId(null)}
                             onMoveToStarting={() => movePlayer(player.id, 'starting')}
                             onMoveToReserve={() => movePlayer(player.id, 'reserve')}
-                            onListForTransfer={() => handleListForTransfer(player.id)}
+                            onListForTransfer={handleListForTransfer}
                             onRenamePlayer={() => setRenamePlayerId(player.id)}
                             onFirePlayer={() => handleFirePlayer(player.id)}
                           />
@@ -704,7 +1294,7 @@ const AlternativePlayerBubble: React.FC<AlternativePlayerBubbleProps> = ({
                       )}
                     </TabsContent>
                     <TabsContent value="reserve" className="mt-4 space-y-4">
-                      {sortedPlayers.length === 0 ? (
+                      {visiblePlayers.length === 0 ? (
                         <Card>
                           <CardContent className="p-8 text-center">
                             <div className="mb-4 text-4xl">⚽</div>
@@ -715,7 +1305,7 @@ const AlternativePlayerBubble: React.FC<AlternativePlayerBubbleProps> = ({
                           </CardContent>
                         </Card>
                       ) : (
-                        sortedPlayers.map(player => (
+                        visiblePlayers.map(player => (
                           <PlayerCard
                             key={player.id}
                             player={player}
@@ -729,7 +1319,7 @@ const AlternativePlayerBubble: React.FC<AlternativePlayerBubbleProps> = ({
                             onDragEnd={() => setDraggedPlayerId(null)}
                             onMoveToStarting={() => movePlayer(player.id, 'starting')}
                             onMoveToBench={() => movePlayer(player.id, 'bench')}
-                            onListForTransfer={() => handleListForTransfer(player.id)}
+                            onListForTransfer={handleListForTransfer}
                             onRenamePlayer={() => setRenamePlayerId(player.id)}
                             onFirePlayer={() => handleFirePlayer(player.id)}
                           />
@@ -743,7 +1333,6 @@ const AlternativePlayerBubble: React.FC<AlternativePlayerBubbleProps> = ({
           </div>
         </div>
       </div>
-
 
       <Dialog
         open={Boolean(renamePlayer)}
@@ -771,8 +1360,7 @@ const AlternativePlayerBubble: React.FC<AlternativePlayerBubbleProps> = ({
               autoFocus
             />
             <p className="text-xs text-muted-foreground">
-              Reklam seçeneği {PLAYER_RENAME_AD_COOLDOWN_HOURS} saatte bir kullanılabilir. Elmas seçeneği {PLAYER_RENAME_DIAMOND_COST} elmas
-              harcar. Bakiyeniz: {balance}
+              Reklam seçeneği {PLAYER_RENAME_AD_COOLDOWN_HOURS} saatte bir kullanılabilir. Elmas seçeneği {PLAYER_RENAME_DIAMOND_COST} elmas harcar. Bakiyeniz: {balance}
             </p>
             {!isRenameAdAvailable && renameAdAvailableAt && (
               <p className="text-xs text-amber-600 dark:text-amber-400">
@@ -795,7 +1383,14 @@ const AlternativePlayerBubble: React.FC<AlternativePlayerBubbleProps> = ({
         </DialogContent>
       </Dialog>
 
-      <Dialog open={Boolean(activeContractPlayer)} onOpenChange={() => {}}>
+      <Dialog
+        open={Boolean(activeContractPlayer)}
+        onOpenChange={open => {
+          if (!open) {
+            setActiveContractPlayerId(null);
+          }
+        }}
+      >
         <DialogContent
           className="sm:max-w-md"
           onInteractOutside={event => event.preventDefault()}
@@ -805,7 +1400,7 @@ const AlternativePlayerBubble: React.FC<AlternativePlayerBubbleProps> = ({
             <DialogTitle>Sözleşme Yenileme Kararı</DialogTitle>
             <DialogDescription>
               {activeContractPlayer
-                ? `${activeContractPlayer.name} için sözleşme süresi doldu.`
+                ? `${activeContractPlayer.name} için sözleşme işlemi.`
                 : 'Sözleşme süresi dolan oyuncu bulunamadı.'}
             </DialogDescription>
           </DialogHeader>
@@ -814,11 +1409,14 @@ const AlternativePlayerBubble: React.FC<AlternativePlayerBubbleProps> = ({
               <div className="rounded-md border border-muted bg-muted/40 p-3 text-sm">
                 <p>Bitiş Tarihi: {getContractExpiration(activeContractPlayer)?.toLocaleDateString('tr-TR') ?? '-'}</p>
                 <p>Mevcut Rol: {activeContractPlayer.squadRole}</p>
+                <p>
+                  Durum: {isContractExpired(activeContractPlayer) ? 'Süresi doldu' : activeContractPlayer.contract?.status ?? 'active'}
+                </p>
               </div>
               <p className="text-sm text-muted-foreground">
                 {getLegendIdFromPlayer(activeContractPlayer) !== null
                   ? 'Bu nostalji efsanesinin sözleşmesi uzatılamaz. Süre dolduğunda oyuncu otomatik olarak kulüpten ayrılır.'
-                  : 'Sözleşmeyi uzatırsanız oyuncu takımda kalmaya devam eder. Aksi halde serbest bırakılarak transfer listesine düşer.'}
+                  : 'Sözleşmeyi uzatırsanız oyuncu takımda kalmaya devam eder. Aksi halde serbest bırakabilirsiniz.'}
               </p>
             </div>
           ) : null}
@@ -843,14 +1441,8 @@ const AlternativePlayerBubble: React.FC<AlternativePlayerBubbleProps> = ({
           </div>
         </DialogContent>
       </Dialog>
-
     </div>
   );
-}
+};
 
-
-
-
-
-
-
+export default TeamPlanning;
