@@ -24,6 +24,7 @@ import DiamondsPage from '@/features/diamonds/DiamondsPage';
 import AcademyPage from '@/features/academy/AcademyPage';
 import StandingsPage from '@/pages/StandingsPage';
 import LegendPackPage from '@/features/legends/LegendPackPage';
+import VipStorePage from '@/pages/VipStore';
 
 export const router = createBrowserRouter(
   [
@@ -51,6 +52,7 @@ export const router = createBrowserRouter(
         { path: '/finance', element: <Finance /> },
         { path: '/settings', element: <Settings /> },
         { path: '/store/diamonds', element: <DiamondsPage /> },
+        { path: '/store/vip', element: <VipStorePage /> },
         { path: '/academy', element: <AcademyPage /> },
         { path: '/legend-pack', element: <LegendPackPage /> },
         { path: '*', element: <NotFound /> },

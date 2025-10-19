@@ -2,6 +2,7 @@ import { Outlet } from 'react-router-dom';
 import TopBar from '@/components/layout/TopBar';
 import { useAuth } from '@/contexts/AuthContext';
 import Auth from '@/pages/Auth';
+import HardwareBackHandler from '@/components/system/HardwareBackHandler';
 
 const RootLayout = () => {
   const { user, isAuthReady } = useAuth();
@@ -15,15 +16,23 @@ const RootLayout = () => {
   }
 
   if (!user) {
-    return <Auth />;
+    return (
+      <div className="app-safe-area bg-background text-foreground">
+        <HardwareBackHandler />
+        <Auth />
+      </div>
+    );
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-background">
-      <TopBar />
-      <main className="flex-1 min-h-0 md:overflow-auto">
-        <Outlet />
-      </main>
+    <div className="app-safe-area bg-background text-foreground">
+      <HardwareBackHandler />
+      <div className="flex min-h-full flex-col bg-background">
+        <TopBar />
+        <main className="flex-1 min-h-0 overflow-y-auto">
+          <Outlet />
+        </main>
+      </div>
     </div>
   );
 };

@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="bgGradient" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f97316"/>
+      <stop offset="1" stop-color="#ef4444"/>
+    </linearGradient>
+    <linearGradient id="wingGradient" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fcd34d"/>
+      <stop offset="1" stop-color="#f97316"/>
+    </linearGradient>
+    <linearGradient id="bodyGradient" x1="0.5" y1="0.1" x2="0.5" y2="1">
+      <stop offset="0" stop-color="#fff7ed" stop-opacity="0.95"/>
+      <stop offset="1" stop-color="#fb923c" stop-opacity="0.9"/>
+    </linearGradient>
+  </defs>
+  <rect width="1024" height="1024" rx="220" fill="url(#bgGradient)"/>
+  <g transform="translate(128 96)">
+    <path d="M384 202c-120 84-188 190-196 296-4 60 18 118 68 168-40-26-82-82-94-138-20 102 14 202 106 280 88 76 216 108 336 28-52-8-120-34-156-84 112 48 210 24 268-14-78-6-130-38-160-78 96 36 176 12 220-12-112-20-144-78-152-126 20 12 60 26 108 24-104-54-152-124-160-196-6-62 16-126 52-182-58 20-116 58-160 116-30-56-70-94-100-128z" fill="url(#wingGradient)" opacity="0.65"/>
+    <path d="M384 202c-86 86-116 170-120 248-4 90 40 164 116 214-56-18-104-64-124-118-8 128 84 232 244 250 146-16 232-120 220-246-42 70-122 110-204 122 68-40 106-104 104-166-2-70-38-154-120-234-12-12-28-24-40-36-12 10-52 46-76 78-18-40-52-74-80-112z" fill="url(#bodyGradient)"/>
+    <circle cx="470" cy="292" r="44" fill="#fef3c7"/>
+  </g>
+</svg>

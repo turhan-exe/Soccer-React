@@ -237,11 +237,62 @@
   gap: 0.35rem;
 }
 
-.nostalgia-main-menu__grid {
+.nostalgia-main-menu__stage {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-  gap: 1.35rem;
+  gap: clamp(1.5rem, 4vw, 2.4rem);
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas:
+    "center"
+    "left"
+    "right";
 }
+
+.nostalgia-main-menu__highlight-wrapper {
+  grid-area: center;
+  display: flex;
+  align-items: stretch;
+}
+
+.nostalgia-main-menu__highlight-wrapper > .nostalgia-match-highlight {
+  width: 100%;
+}
+
+.nostalgia-main-menu__column {
+  display: grid;
+  gap: 1rem;
+  align-content: start;
+}
+
+.nostalgia-main-menu__column--left {
+  grid-area: left;
+}
+
+.nostalgia-main-menu__column--right {
+  grid-area: right;
+}
+
+@media (max-width: 1023px) {
+  .nostalgia-main-menu__column {
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  }
+
+  .nostalgia-main-menu__column .nostalgia-card {
+    height: 100%;
+  }
+}
+
+@media (min-width: 1024px) {
+  .nostalgia-main-menu__stage {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.35fr) minmax(0, 1fr);
+    grid-template-areas: 'left center right';
+    align-items: stretch;
+  }
+
+  .nostalgia-main-menu__column {
+    grid-auto-rows: 1fr;
+  }
+}
+
 
 .nostalgia-card {
   --nostalgia-accent: 94, 234, 212;

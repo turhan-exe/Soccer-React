@@ -14,7 +14,7 @@ import {
   DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { calculatePowerIndex } from '@/lib/player';
+import { calculatePowerIndex, formatRatingLabel } from '@/lib/player';
 import { cn } from '@/lib/utils';
 
 interface PlayerCardProps {
@@ -239,10 +239,10 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <span className="font-semibold">
-                        {Math.round(player.overall * 100)}
+                        {formatRatingLabel(player.overall)}
                       </span>
                     </TooltipTrigger>
-                    <TooltipContent>Maks. Potansiyel: {Math.round(player.potential * 100)}</TooltipContent>
+                    <TooltipContent>Maks. Potansiyel: {formatRatingLabel(player.potential)}</TooltipContent>
                   </Tooltip>
                 </div>
                 <div className="flex flex-wrap gap-1">

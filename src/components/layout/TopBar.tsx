@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   BatteryCharging,
+  Crown,
   Diamond,
   Dumbbell,
   HeartPulse,
@@ -40,6 +41,7 @@ import type { KitType } from '@/types';
 import { KIT_CONFIG, formatKitEffect } from '@/lib/kits';
 import KitUsageDialog from '@/components/kit/KitUsageDialog';
 import { toast } from 'sonner';
+import { normalizeRatingTo100 } from '@/lib/player';
 import '@/styles/nostalgia-theme.css';
 
 const KIT_ICONS: Record<KitType, { icon: LucideIcon; color: string }> = {
@@ -53,13 +55,21 @@ const TopBar = () => {
   const { user, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const { balance } = useDiamonds();
-  const { kits, purchaseKit, isProcessing } = useInventory();
+  const { kits, purchaseKit, isProcessing, vipActive, vipStatus } = useInventory();
   const [activeKit, setActiveKit] = useState<KitType | null>(null);
   const [isUsageOpen, setIsUsageOpen] = useState(false);
   const [teamOverall, setTeamOverall] = useState<number | null>(null);
   const [teamForm, setTeamForm] = useState<string | null>(null);
   const [hasUnseenTrainingResults, setHasUnseenTrainingResults] = useState(false);
   const [hasYouthCandidates, setHasYouthCandidates] = useState(false);
+  const vipIconClass = vipActive ? 'text-amber-300 drop-shadow' : 'text-slate-400';
+  const vipButtonClass = vipActive
+    ? 'bg-amber-500/10 text-amber-200 hover:bg-amber-500/20 hover:text-amber-100'
+    : 'text-slate-300 hover:text-white hover:bg-white/10';
+  const vipPlanName = vipStatus.plan ? vipStatus.plan.toUpperCase() : null;
+  const vipTooltip = vipActive
+    ? `VIP aktif${vipPlanName ? ` (${vipPlanName})` : ''}`
+    : 'VIP paketlerini kesfet';
 
   useEffect(() => {
     if (!user) {
@@ -83,7 +93,7 @@ const TopBar = () => {
           const starters = team.players.filter((player) => player.squadRole === 'starting');
           if (starters.length) {
             const average = starters.reduce((sum, player) => sum + player.overall, 0) / starters.length;
-            setTeamOverall(Number(average.toFixed(3)));
+            setTeamOverall(normalizeRatingTo100(average));
           } else {
             setTeamOverall(null);
           }
@@ -333,6 +343,26 @@ const TopBar = () => {
               className="text-slate-200 hover:bg-white/10 hover:text-white"
             >
               {theme === 'light' ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => navigate('/store/vip')}
+              className={vipButtonClass}
+              title={vipTooltip}
+            >
+              <div className="relative flex items-center gap-1">
+                <Crown className={`h-4 w-4 ${vipIconClass}`} />
+                {vipActive ? (
+                  <span className="text-xs font-semibold text-amber-200">VIP</span>
+                ) : (
+                  <span className="text-xs font-semibold text-slate-300">VIP</span>
+                )}
+                {vipActive && (
+                  <span className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-emerald-400 shadow" />
+                )}
+              </div>
+              <span className="sr-only">VIP magazasi</span>
             </Button>
             <Popover>
               <PopoverTrigger asChild>

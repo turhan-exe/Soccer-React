@@ -91,6 +91,11 @@ export interface ClubTeam {
   /** @deprecated use transferBudget */
   budget?: number;
   transferBudget?: number;
+  stadium?: {
+    name: string;
+    capacity?: number;
+    updatedAt?: string;
+  } | null;
   players: Player[];
   plan?: {
     formation: string;

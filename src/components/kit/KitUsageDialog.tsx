@@ -18,6 +18,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useInventory } from '@/contexts/InventoryContext';
 import type { KitType, Player } from '@/types';
 import { KIT_CONFIG, formatKitEffect } from '@/lib/kits';
+import { formatRatingLabel } from '@/lib/player';
 import { getTeam } from '@/services/team';
 
 type KitUsageDialogProps = {
@@ -177,7 +178,7 @@ const KitUsageDialog = ({ open, kitType, onOpenChange }: KitUsageDialogProps) =>
                               {player.position} • Kondisyon %{condition} • Motivasyon %{motivation}
                             </div>
                             <div className="flex flex-wrap gap-2 pt-1">
-                              <Badge variant="outline">Güç {Math.round(player.overall * 100)}</Badge>
+                              <Badge variant="outline">Güç {formatRatingLabel(player.overall)}</Badge>
                               {player.injuryStatus === 'injured' && (
                                 <Badge variant="destructive">Sakat</Badge>
                               )}

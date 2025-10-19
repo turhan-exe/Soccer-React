@@ -35,6 +35,7 @@ import { trainings } from '@/lib/data';
 import { runTrainingSimulation } from '@/lib/trainingSession';
 import { cn } from '@/lib/utils';
 import { Player, Training } from '@/types';
+import { formatRatingLabel } from '@/lib/player';
 import { useAuth } from '@/contexts/AuthContext';
 import { useDiamonds } from '@/contexts/DiamondContext';
 import { getTeam, saveTeamPlayers } from '@/services/team';
@@ -64,6 +65,7 @@ import {
   Clapperboard,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { useInventory } from '@/contexts/InventoryContext';
 
 const BASE_SESSION_DURATION = 15;
 const EXTRA_PLAYER_DURATION = 5;
@@ -82,6 +84,7 @@ export default function TrainingPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { balance, spend } = useDiamonds();
+  const { vipDurationMultiplier } = useInventory();
 
   const [players, setPlayers] = useState<Player[]>([]);
   const [selectedPlayers, setSelectedPlayers] = useState<Player[]>([]);
@@ -408,12 +411,14 @@ export default function TrainingPage() {
     const trainingsCount = selectedTrainings.length;
     if (playersCount === 0 || trainingsCount === 0) return 0;
 
-    return (
+    const baseDuration =
       BASE_SESSION_DURATION +
       Math.max(0, playersCount - 1) * EXTRA_PLAYER_DURATION +
-      Math.max(0, trainingsCount - 1) * EXTRA_TRAINING_DURATION
-    );
-  }, [selectedPlayers.length, selectedTrainings.length]);
+      Math.max(0, trainingsCount - 1) * EXTRA_TRAINING_DURATION;
+
+    const adjusted = Math.round(baseDuration * vipDurationMultiplier);
+    return Math.max(1, adjusted);
+  }, [selectedPlayers.length, selectedTrainings.length, vipDurationMultiplier]);
 
   const diamondCost = useMemo(() => {
     const totalCombos = selectedPlayers.length * selectedTrainings.length;
@@ -929,7 +934,7 @@ export default function TrainingPage() {
                       <div>
                         <p className="font-semibold">{player.name}</p>
                         <p className="text-xs text-muted-foreground">
-                          {player.position} • Genel {Math.round(player.overall * 100)}
+                          {player.position} • Genel {formatRatingLabel(player.overall)}
                         </p>
                       </div>
                       <div className="text-right">
@@ -976,7 +981,7 @@ export default function TrainingPage() {
                       <div>
                         <p className="font-medium">{player.name}</p>
                         <p className="text-xs text-muted-foreground">
-                          {player.position} • {Math.round(player.overall * 100)}
+                          {player.position} • {formatRatingLabel(player.overall)}
                         </p>
                       </div>
                       <Button

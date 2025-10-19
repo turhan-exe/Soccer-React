@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { useAuth } from '@/contexts/AuthContext';
 import { useDiamonds } from '@/contexts/DiamondContext';
+import { useInventory } from '@/contexts/InventoryContext';
 import { toast } from 'sonner';
 import {
   listenYouthCandidates,
@@ -18,7 +19,7 @@ import {
 } from '@/services/youth';
 import { db } from '@/services/firebase';
 import { generateRandomName } from '@/lib/names';
-import { calculateOverall, getRoles } from '@/lib/player';
+import { calculateOverall, getRoles, normalizeRatingTo100 } from '@/lib/player';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import InfoPopupButton from '@/components/ui/info-popup-button';
@@ -102,9 +103,11 @@ const StatCard: React.FC<StatCardProps> = ({ icon: Icon, label, value, helper })
 const YouthPage = () => {
   const { user } = useAuth();
   const { balance } = useDiamonds();
+  const { vipDurationMultiplier } = useInventory();
   const [candidates, setCandidates] = useState<YouthCandidate[]>([]);
   const [nextGenerateAt, setNextGenerateAt] = useState<Date | null>(null);
   const [canGenerate, setCanGenerate] = useState(false);
+  const youthCooldownMs = Math.round(YOUTH_COOLDOWN_MS * vipDurationMultiplier);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -143,9 +146,11 @@ const YouthPage = () => {
     if (!user?.id) return;
     try {
       const player = generatePlayer();
-      const candidate = await createYouthCandidate(user.id, player);
+      const candidate = await createYouthCandidate(user.id, player, {
+        durationMultiplier: vipDurationMultiplier,
+      });
       setCandidates((prev) => [candidate, ...prev]);
-      setNextGenerateAt(new Date(Date.now() + YOUTH_COOLDOWN_MS));
+      setNextGenerateAt(new Date(Date.now() + youthCooldownMs));
       toast.success('Oyuncu üretildi');
     } catch (err) {
       console.warn(err);
@@ -216,12 +221,13 @@ const YouthPage = () => {
   const averageOverall =
     candidateCount === 0
       ? 0
-      : Math.round(
-          (candidates.reduce((acc, curr) => acc + curr.player.overall, 0) / candidateCount) *
-            100,
+      : normalizeRatingTo100(
+          candidates.reduce((acc, curr) => acc + curr.player.overall, 0) / candidateCount,
         );
   const topPotential =
-    candidateCount === 0 ? 0 : Math.round(Math.max(...candidates.map((c) => c.player.potential)) * 100);
+    candidateCount === 0
+      ? 0
+      : normalizeRatingTo100(Math.max(...candidates.map((c) => c.player.potential)));
   const heroMessage =
     candidateCount > 0
       ? `Kadron için ${candidateCount} umut vadeden oyuncu seni bekliyor. En yüksek potansiyel ${topPotential}.`
@@ -349,6 +355,7 @@ const YouthPage = () => {
                 canReset={balance >= YOUTH_RESET_DIAMOND_COST && !canGenerate}
                 onWatchAd={handleWatchAd}
                 canWatchAd={!canGenerate}
+                cooldownDurationMs={youthCooldownMs}
               />
               <div className="rounded-3xl border border-white/10 bg-white/5 p-6 shadow-xl backdrop-blur">
                 <h3 className="text-lg font-semibold text-white">Scout Notları</h3>

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useDiamonds } from '@/contexts/DiamondContext';
+import { useInventory } from '@/contexts/InventoryContext';
 import { Button } from '@/components/ui/button';
 import { BackButton } from '@/components/ui/back-button';
 import InfoPopupButton from '@/components/ui/info-popup-button';
@@ -29,6 +30,7 @@ interface RentedLegend extends LegendPlayer {
 const LegendPackPage = () => {
   const { user } = useAuth();
   const { balance, spend } = useDiamonds();
+  const { vipNostalgiaFreeAvailable, consumeVipNostalgiaReward } = useInventory();
   const [current, setCurrent] = useState<LegendPlayer | null>(null);
   const [rented, setRented] = useState<RentedLegend[]>([]);
   const [ownedLegendIds, setOwnedLegendIds] = useState<number[]>([]);
@@ -156,17 +158,20 @@ const LegendPackPage = () => {
 
   const handleOpen = async () => {
     if (!user) {
-      toast.error('Giriş yapmalısın');
+      toast.error('Giris yapmalisin');
       return;
     }
     if (current) {
       toast.info('Önce mevcut kartın için karar vermelisin');
       return;
     }
-    if (balance < PACK_COST) {
+
+    const isFree = Boolean(vipNostalgiaFreeAvailable);
+    if (!isFree && balance < PACK_COST) {
       toast.error('Yeterli elmas yok');
       return;
     }
+
     try {
       const availableLegends = LEGEND_PLAYERS.filter(
         (legend) => !ownedLegendSet.has(legend.id),
@@ -177,12 +182,20 @@ const LegendPackPage = () => {
         return;
       }
 
-      await spend(PACK_COST);
+      if (!isFree) {
+        await spend(PACK_COST);
+      }
+
       const p = drawLegend(availableLegends);
       setCurrent(p);
+
+      if (isFree) {
+        consumeVipNostalgiaReward();
+        toast.success('VIP nostalji paketi ucretsiz acildi.');
+      }
     } catch (err) {
       console.warn(err);
-      toast.error('İşlem başarısız');
+      toast.error('Islem basarisiz');
     }
   };
 
@@ -256,15 +269,20 @@ const LegendPackPage = () => {
                 <strong>{RENT_DURATION_DAYS} gün</strong>
               </div>
             </div>
+            {vipNostalgiaFreeAvailable ? (
+              <p className="mb-3 text-sm font-semibold text-emerald-200">
+                VIP uyeligin sayesinde bu paketi bir kez ucretsiz acabilirsin.
+              </p>
+            ) : null}
             <Button
               size="lg"
               className="w-full"
               onClick={handleOpen}
               disabled={
-                balance < PACK_COST || allCollected || isLoadingTeam || Boolean(current)
+                (!vipNostalgiaFreeAvailable && balance < PACK_COST) || allCollected || isLoadingTeam || Boolean(current)
               }
             >
-              Paket Aç (1 Elmas)
+              {vipNostalgiaFreeAvailable ? 'Paket Aç (Ücretsiz)' : 'Paket Aç (1 Elmas)'}
             </Button>
             {isLoadingTeam ? (
               <p className="text-sm text-slate-300/80">Takım bilgileri yükleniyor...</p>
