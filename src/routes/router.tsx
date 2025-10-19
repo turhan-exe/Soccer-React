@@ -1,4 +1,4 @@
-﻿import { createBrowserRouter } from 'react-router-dom';
+import { createBrowserRouter } from 'react-router-dom';
 import RootLayout from '@/layouts/RootLayout';
 
 // Pages
@@ -63,10 +63,8 @@ export const router = createBrowserRouter(
   ],
   {
     future: {
-      // createBrowserRouter iÃ§in bu flag geÃ§erli (TS hatası vermeyen)
+      // createBrowserRouter için v7_relativeSplatPath bayrağını aktif eder.
       v7_relativeSplatPath: true,
     },
   },
 );
-
-
