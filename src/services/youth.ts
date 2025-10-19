@@ -110,11 +110,16 @@ export function listenYouthCandidates(
 export async function createYouthCandidate(
   uid: string,
   player: Player,
+  options?: { durationMultiplier?: number },
 ): Promise<YouthCandidate> {
   const userRef = doc(db, 'users', uid);
   const candidates = collection(userRef, 'youthCandidates');
   const now = new Date();
-  const nextDate = new Date(now.getTime() + YOUTH_COOLDOWN_MS);
+  const multiplierRaw = options?.durationMultiplier ?? 1;
+  const normalizedMultiplier = Number.isFinite(multiplierRaw)
+    ? Math.max(0.1, Math.min(1, multiplierRaw))
+    : 1;
+  const nextDate = new Date(now.getTime() + YOUTH_COOLDOWN_MS * normalizedMultiplier);
 
   // check cooldown & update user document atomically
   await runTransaction(db, async (tx) => {

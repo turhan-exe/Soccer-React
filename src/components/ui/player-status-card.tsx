@@ -3,7 +3,7 @@ import { Player } from '@/types';
 import { Badge } from '@/components/ui/badge';
 import { PerformanceGauge, clampPerformanceGauge } from '@/components/ui/performance-gauge';
 import { StatBar } from '@/components/ui/stat-bar';
-import { calculatePowerIndex } from '@/lib/player';
+import { calculatePowerIndex, formatRatingLabel, normalizeRatingTo100 } from '@/lib/player';
 import { cn } from '@/lib/utils';
 
 interface PlayerStatusCardProps {
@@ -63,14 +63,14 @@ export function PlayerStatusCard({ player, className }: PlayerStatusCardProps) {
           <p className="text-xs uppercase tracking-wide text-muted-foreground">Oyuncu Statüleri</p>
           <h3 className="truncate text-base font-semibold">{player.name}</h3>
           <p className="text-xs text-muted-foreground">
-            {player.position} • Güç {Math.round(power * 100)} • Genel {Math.round(player.overall * 100)}
+            {player.position} • Güç {normalizeRatingTo100(power)} • Genel {formatRatingLabel(player.overall)}
           </p>
           <div className="flex flex-wrap gap-1 pt-1">
             <Badge variant="secondary" className="text-[11px]">
               {player.age} yaş
             </Badge>
             <Badge variant="outline" className="text-[11px]">
-              Potansiyel {Math.round(player.potential * 100)}
+              Potansiyel {formatRatingLabel(player.potential)}
             </Badge>
             {player.injuryStatus === 'injured' && (
               <Badge variant="destructive" className="text-[11px]">

@@ -13,6 +13,7 @@ import { getTeam } from '@/services/team';
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import type { Player } from '@/types';
 import { BackButton } from '@/components/ui/back-button';
+import { formatRatingLabel } from '@/lib/player';
 
 type DisplayFixture = Fixture & { opponent: string; home: boolean };
 
@@ -202,13 +203,13 @@ export default function MatchSimulation() {
   const formatPlayerLabel = (player: RuntimePlayer, index: number): string => {
     const tags: string[] = [];
     if (player.position) tags.push(player.position);
-    if (typeof player.overall === 'number') tags.push(`OVR ${player.overall}`);
+    if (typeof player.overall === 'number') tags.push(`OVR ${formatRatingLabel(player.overall)}`);
     return `${index + 1}. ${player.name}${tags.length ? ` (${tags.join(', ')})` : ''}`;
   };
 
   const formatPlayerMeta = (player: RuntimePlayer): string => {
     const segments: string[] = [player.position || '?'];
-    if (typeof player.overall === 'number') segments.push(`OVR ${player.overall}`);
+    if (typeof player.overall === 'number') segments.push(`OVR ${formatRatingLabel(player.overall)}`);
     if (typeof player.age === 'number') segments.push(`Age ${player.age}`);
     return segments.join(' | ');
   };

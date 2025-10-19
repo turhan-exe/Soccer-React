@@ -99,3 +99,39 @@ export function calculatePowerIndex(player: Player): number {
   return parseFloat(adjusted.toFixed(3));
 }
 
+const RATING_THRESHOLD_LOW = 1.001;
+const RATING_THRESHOLD_MEDIUM = 10.001;
+
+const normalizeRawRating = (value: number): number => {
+  if (!Number.isFinite(value)) {
+    return 0;
+  }
+  if (value <= RATING_THRESHOLD_LOW) {
+    return value * 100;
+  }
+  if (value <= RATING_THRESHOLD_MEDIUM) {
+    return value * 10;
+  }
+  return value;
+};
+
+export const normalizeRatingTo100 = (value?: number | null): number => {
+  if (typeof value !== 'number') {
+    return 0;
+  }
+  const normalized = Math.round(normalizeRawRating(value));
+  return Math.max(0, Math.min(100, normalized));
+};
+
+export const formatRatingLabel = (value?: number | null): string => {
+  const rating = normalizeRatingTo100(value);
+  return rating.toString();
+};
+
+export const normalizeRatingTo100OrNull = (value?: number | null): number | null => {
+  if (typeof value !== 'number') {
+    return null;
+  }
+  return normalizeRatingTo100(value);
+};
+

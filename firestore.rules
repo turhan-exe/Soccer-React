@@ -27,7 +27,9 @@ service cloud.firestore {
       allow update, delete: if isSignedIn()
                     && resource.data.ownerUid == request.auth.uid
                     && request.resource.data.ownerUid == resource.data.ownerUid
-                    && ( !("leagueId" in request.resource.data) || request.resource.data.leagueId == resource.data.leagueId );
+                    && ( !("leagueId" in request.resource.data) || request.resource.data.leagueId == resource.data.leagueId )
+                    && ( !("name" in request.resource.data) || request.resource.data.name == resource.data.name )
+                    && ( !("stadium" in request.resource.data) || request.resource.data.stadium == resource.data.stadium );
     }
 
     match /{prefix=**}/listings/{listingId} {

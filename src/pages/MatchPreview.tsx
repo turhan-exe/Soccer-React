@@ -10,6 +10,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { getTeam } from '@/services/team';
 import { getMyLeagueId, getFixturesForTeamSlotAware, getLeagueTeams } from '@/services/leagues';
 import type { ClubTeam, Fixture, Match, Player } from '@/types';
+import { formatRatingLabel, normalizeRatingTo100, normalizeRatingTo100OrNull } from '@/lib/player';
 
 type KeyPlayer = NonNullable<Match['opponentStats']>['keyPlayers'][number];
 
@@ -63,8 +64,8 @@ const createKeyPlayersFromLineup = (players: Player[]): KeyPlayer[] =>
     .map(player => ({
       name: player.name,
       position: player.position,
-      highlight: `Genel: ${Math.round(player.overall * 100)}`,
-      stats: { rating: Number((player.overall * 10).toFixed(1)) },
+      highlight: `Genel: ${formatRatingLabel(player.overall)}`,
+      stats: { rating: Number((normalizeRatingTo100(player.overall) / 10).toFixed(1)) },
     }));
 
 type OutcomeProbabilities = {
@@ -184,7 +185,7 @@ export default function MatchPreview() {
         setStartingEleven(lineup);
         if (lineup.length) {
           const avg = lineup.reduce((sum, p) => sum + p.overall, 0) / lineup.length;
-          setTeamOverall(Number(avg.toFixed(3)));
+          setTeamOverall(normalizeRatingTo100(avg));
         } else {
           setTeamOverall(null);
         }
@@ -241,7 +242,7 @@ export default function MatchPreview() {
   };
 
   const formatOverall = (value: number | null | undefined) =>
-    typeof value === 'number' ? value.toFixed(3) : '-';
+    typeof value === 'number' ? formatRatingLabel(value) : '-';
 
   const getValidLogo = (value?: string | null) => {
     if (!value) return null;
@@ -323,7 +324,7 @@ export default function MatchPreview() {
           const avg =
             derivedLineup.reduce((sum, player) => sum + player.overall, 0) /
             derivedLineup.length;
-          derivedOverall = Number(avg.toFixed(3));
+          derivedOverall = normalizeRatingTo100(avg);
         }
         setOpponentStartingEleven(derivedLineup);
         setOpponentOverall(derivedOverall);
@@ -345,8 +346,8 @@ export default function MatchPreview() {
         minute: '2-digit',
       });
 
-      const overallValue =
-        derivedOverall ?? baseMatch?.opponentStats?.overall ?? null;
+      const fallbackOverall = normalizeRatingTo100OrNull(baseMatch?.opponentStats?.overall);
+      const overallValue = derivedOverall ?? fallbackOverall ?? null;
 
       const keyPlayerValue = derivedLineup.length
         ? createKeyPlayersFromLineup(derivedLineup)
@@ -465,7 +466,7 @@ export default function MatchPreview() {
   const formatPercentage = (value?: number | null) =>
     typeof value === 'number' ? `${Math.round(value * 100)}%` : '—';
 
-  const formatPlayerOverall = (value: number) => Math.round(value * 100);
+  const formatPlayerOverall = (value: number) => formatRatingLabel(value);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 via-emerald-50 to-teal-50 dark:from-green-950 dark:via-emerald-950 dark:to-teal-950">

@@ -5,7 +5,6 @@ import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/utils';
 import {
   YOUTH_AD_REDUCTION_MS,
-  YOUTH_COOLDOWN_MS,
   YOUTH_RESET_DIAMOND_COST,
 } from '@/services/youth';
 
@@ -15,6 +14,7 @@ interface Props {
   canReset: boolean;
   onWatchAd: () => void;
   canWatchAd: boolean;
+  cooldownDurationMs: number;
   className?: string;
 }
 
@@ -24,6 +24,7 @@ const CooldownPanel: React.FC<Props> = ({
   canReset,
   onWatchAd,
   canWatchAd,
+  cooldownDurationMs,
   className,
 }) => {
   const [remaining, setRemaining] = useState(0);
@@ -42,8 +43,9 @@ const CooldownPanel: React.FC<Props> = ({
     return () => clearInterval(id);
   }, [nextGenerateAt]);
 
-  const progress = YOUTH_COOLDOWN_MS
-    ? ((YOUTH_COOLDOWN_MS - remaining) / YOUTH_COOLDOWN_MS) * 100
+  const baseDuration = Math.max(1, cooldownDurationMs);
+  const progress = baseDuration
+    ? ((baseDuration - remaining) / baseDuration) * 100
     : 100;
 
   const hours = Math.floor(remaining / 3600000).toString().padStart(2, '0');

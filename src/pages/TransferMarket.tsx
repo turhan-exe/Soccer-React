@@ -48,6 +48,7 @@ import { getLegendIdFromPlayer } from '@/services/legends';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { PlayerStatusCard } from '@/components/ui/player-status-card';
 import { cn } from '@/lib/utils';
+import { formatRatingLabel } from '@/lib/player';
 import './transfer-market.css';
 
 const POSITIONS: Player['position'][] = [
@@ -107,7 +108,7 @@ const mapSortToService = (sort: SortOption): MarketSortOption => {
 const formatPrice = (value: number) =>
   `${value.toLocaleString('tr-TR')} ₺`;
 
-const formatOverall = (value: number) => value.toFixed(3);
+const formatOverall = (value: number) => formatRatingLabel(value);
 
 const isFirestoreIndexError = (error: FirestoreErrorLike) => {
   const message = error.message ?? '';

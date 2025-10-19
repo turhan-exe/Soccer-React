@@ -1,30 +1,194 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { useTheme } from '@/contexts/ThemeContext';
-import { Settings, Moon, Volume2, Trash2, Download, Image, Loader2 } from 'lucide-react';
+import { Settings, Moon, Volume2, Trash2, Download, Image, Loader2, Gift, Crown } from 'lucide-react';
 import { toast } from 'sonner';
 import { BackButton } from '@/components/ui/back-button';
 import { useAuth } from '@/contexts/AuthContext';
-import { updateTeamLogo } from '@/services/team';
+import { useDiamonds } from '@/contexts/DiamondContext';
+import { useInventory } from '@/contexts/InventoryContext';
+import { updateTeamLogo, renameClubWithDiamonds, renameStadiumWithDiamonds, getTeam } from '@/services/team';
+import { Input } from '@/components/ui/input';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 
 const MAX_LOGO_SIZE = 512 * 1024; // 512KB
 const ACCEPTED_LOGO_TYPES = ['image/png', 'image/jpeg', 'image/svg+xml'];
+const CLUB_RENAME_COST = 150;
+const STADIUM_RENAME_COST = 120;
+const MIN_RENAME_LENGTH = 3;
+const MAX_RENAME_LENGTH = 32;
 
 export default function SettingsPage() {
   const { theme } = useTheme();
   const { user, refreshTeamInfo } = useAuth();
+  const { balance } = useDiamonds();
   const [logoPreview, setLogoPreview] = useState<string | null>(user?.teamLogo ?? null);
   const [isSavingLogo, setIsSavingLogo] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const acceptedLogoTypes = ACCEPTED_LOGO_TYPES.join(',');
+  const [isClubRenameOpen, setIsClubRenameOpen] = useState(false);
+  const [isStadiumRenameOpen, setIsStadiumRenameOpen] = useState(false);
+  const [clubNameInput, setClubNameInput] = useState('');
+  const [stadiumNameInput, setStadiumNameInput] = useState('');
+  const [isRenamingClub, setIsRenamingClub] = useState(false);
+  const [isRenamingStadium, setIsRenamingStadium] = useState(false);
+  const [stadiumName, setStadiumName] = useState<string | null>(null);
+  const navigate = useNavigate();
+  const {
+    lastDailyRewardDate,
+    processDailyReward,
+    vipStatus,
+    vipActive,
+    vipPlans,
+    deactivateVip,
+    claimMonthlyStarCard,
+    canClaimMonthlyStarCard,
+    isHydrated,
+  } = useInventory();
+
+  const formatOptionalDate = (value: string | null, options?: { dateOnly?: boolean }) => {
+    if (!value) {
+      return 'Henuz alinmadi';
+    }
+    const source = options?.dateOnly ? `${value}T00:00:00Z` : value;
+    const parsed = new Date(source);
+    if (Number.isNaN(parsed.getTime())) {
+      return 'Bilinmiyor';
+    }
+    return parsed.toLocaleDateString('tr-TR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+    });
+  };
+
+  const lastDailyRewardLabel = formatOptionalDate(lastDailyRewardDate, { dateOnly: true });
+  const lastMonthlyStarCardLabel = formatOptionalDate(vipStatus.lastMonthlyStarCardDate);
+  const vipExpiryLabel = formatOptionalDate(vipStatus.expiresAt);
+  const vipPlanLabel = vipStatus.plan ? vipPlans[vipStatus.plan].label : 'Secilmedi';
+  const todayKey = new Date().toISOString().split('T')[0];
+  const hasClaimedToday = lastDailyRewardDate === todayKey;
+  const vipDurationPercent = Math.round((vipStatus.durationReductionPercent ?? 0) * 100);
+  const isVipActive = vipActive;
+  const monthlyButtonLabel = canClaimMonthlyStarCard ? 'Aylik karti al' : 'Aylik kart alindi';
+  const starCardCredits = vipStatus.starCardCredits ?? 0;
+  const isLoggedIn = Boolean(user);
+  const canInteract = isLoggedIn && isHydrated;
 
   useEffect(() => {
     setLogoPreview(user?.teamLogo ?? null);
   }, [user?.teamLogo]);
+  useEffect(() => {
+    if (!user) {
+      setStadiumName(null);
+      return;
+    }
+
+    let isMounted = true;
+    const loadStadiumName = async () => {
+      try {
+        const team = await getTeam(user.id);
+        if (!isMounted) return;
+        setStadiumName(team?.stadium?.name ?? null);
+      } catch (error) {
+        console.warn('[Settings] Failed to load stadium name', error);
+      }
+    };
+
+    void loadStadiumName();
+    return () => {
+      isMounted = false;
+    };
+  }, [user]);
+
+
+  const handleClubRename = async () => {
+    if (!user) {
+      toast.error('Oturum bulunamadi.');
+      return;
+    }
+    const trimmed = clubNameInput.trim();
+    if (trimmed.length < MIN_RENAME_LENGTH) {
+      toast.error(`Kulup adi en az ${MIN_RENAME_LENGTH} karakter olmalidir.`);
+      return;
+    }
+    if (trimmed.length > MAX_RENAME_LENGTH) {
+      toast.error(`Kulup adi en fazla ${MAX_RENAME_LENGTH} karakter olabilir.`);
+      return;
+    }
+    if (trimmed === (user.teamName ?? '').trim()) {
+      toast.error('Yeni isim mevcut isim ile ayni.');
+      return;
+    }
+    if (balance < CLUB_RENAME_COST) {
+      toast.error('Yetersiz elmas bakiyesi.');
+      return;
+    }
+
+    setIsRenamingClub(true);
+    try {
+      await renameClubWithDiamonds(trimmed);
+      toast.success('Kulup adi guncellendi.');
+      setClubNameInput('');
+      setIsClubRenameOpen(false);
+      await refreshTeamInfo();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Kulup adi guncellenemedi.';
+      toast.error(message);
+    } finally {
+      setIsRenamingClub(false);
+    }
+  };
+
+  const handleStadiumRename = async () => {
+    if (!user) {
+      toast.error('Oturum bulunamadi.');
+      return;
+    }
+    const trimmed = stadiumNameInput.trim();
+    if (trimmed.length < MIN_RENAME_LENGTH) {
+      toast.error(`Stadyum adi en az ${MIN_RENAME_LENGTH} karakter olmalidir.`);
+      return;
+    }
+    if (trimmed.length > MAX_RENAME_LENGTH) {
+      toast.error(`Stadyum adi en fazla ${MAX_RENAME_LENGTH} karakter olabilir.`);
+      return;
+    }
+    if (trimmed === (stadiumName ?? '').trim()) {
+      toast.error('Yeni stadyum adi ayni gorunuyor.');
+      return;
+    }
+    if (balance < STADIUM_RENAME_COST) {
+      toast.error('Yetersiz elmas bakiyesi.');
+      return;
+    }
+
+    setIsRenamingStadium(true);
+    try {
+      await renameStadiumWithDiamonds(trimmed);
+      toast.success('Stadyum adi guncellendi.');
+      setStadiumName(trimmed);
+      setStadiumNameInput('');
+      setIsStadiumRenameOpen(false);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Stadyum adi guncellenemedi.';
+      toast.error(message);
+    } finally {
+      setIsRenamingStadium(false);
+    }
+  };
 
   const readFileAsDataUrl = (file: File) =>
     new Promise<string>((resolve, reject) => {
@@ -125,7 +289,8 @@ export default function SettingsPage() {
   const cardBaseClass = 'border-white/10 bg-slate-900/60 text-slate-100 backdrop-blur-lg';
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-gradient-to-br from-slate-950 via-slate-900 to-emerald-950 text-slate-100">
+    <>
+      <div className="relative min-h-screen overflow-hidden bg-gradient-to-br from-slate-950 via-slate-900 to-emerald-950 text-slate-100">
       <div className="pointer-events-none absolute inset-0">
         <div className="absolute -left-24 top-0 h-72 w-72 rounded-full bg-emerald-500/20 blur-3xl" />
         <div className="absolute right-[-20%] bottom-[-25%] h-[28rem] w-[28rem] rounded-full bg-cyan-500/10 blur-3xl" />
@@ -214,6 +379,48 @@ export default function SettingsPage() {
           <Card className={cardBaseClass}>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
+                <Settings className="h-5 w-5 text-emerald-300" />
+                Kulup ve Stadyum Adi
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-5">
+              <div className="space-y-2">
+                <p className="text-sm text-slate-300">Kulup adi: <span className="font-semibold text-emerald-200">{user?.teamName ?? 'Takimim'}</span></p>
+                <p className="text-xs text-slate-400">Degistirme maliyeti: {CLUB_RENAME_COST} elmas</p>
+                <Button
+                  variant="secondary"
+                  className="bg-emerald-500/20 text-emerald-100 hover:bg-emerald-500/30"
+                  onClick={() => {
+                    setClubNameInput(user?.teamName ?? '');
+                    setIsClubRenameOpen(true);
+                  }}
+                >
+                  Kulup adini degistir
+                </Button>
+              </div>
+
+              <div className="space-y-2">
+                <p className="text-sm text-slate-300">Stadyum adi: <span className="font-semibold text-emerald-200">{stadiumName ?? 'Stadyumunuz'}</span></p>
+                <p className="text-xs text-slate-400">Degistirme maliyeti: {STADIUM_RENAME_COST} elmas</p>
+                <Button
+                  variant="outline"
+                  className="border-emerald-400/40 text-emerald-100 hover:bg-emerald-500/20"
+                  onClick={() => {
+                    setStadiumNameInput(stadiumName ?? '');
+                    setIsStadiumRenameOpen(true);
+                  }}
+                >
+                  Stadyum adini degistir
+                </Button>
+              </div>
+
+              <p className="text-xs text-slate-400">Mevcut bakiye: <span className="font-semibold text-emerald-200">{balance}</span> elmas</p>
+            </CardContent>
+          </Card>
+
+          <Card className={cardBaseClass}>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
                 <Moon className="h-5 w-5 text-emerald-300" />
                 Görünüm
               </CardTitle>
@@ -226,6 +433,115 @@ export default function SettingsPage() {
                 Sistem temandan bağımsız olarak arayüz koyu modda açılır. Gelecekteki güncellemelerde farklı tema seçenekleri
                 eklenebilir.
               </p>
+            </CardContent>
+          </Card>
+
+          <Card className={cardBaseClass}>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-xl">
+                <Gift className="h-5 w-5 text-emerald-300" />
+                Gunluk Oduller ve VIP
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="rounded-xl border border-emerald-300/20 bg-emerald-500/5 p-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <p className="font-semibold text-slate-100">Gunluk giris odulu</p>
+                    <p className="text-sm text-slate-300">
+                      Her giriste enerji, moral veya saglik kitlerinden biri otomatik olarak eklenir.
+                    </p>
+                    <p className="mt-2 text-xs text-slate-400">
+                      Son odul tarihi:{' '}
+                      <span className="font-medium text-emerald-200">{lastDailyRewardLabel}</span>
+                    </p>
+                  </div>
+                  <Button
+                    onClick={processDailyReward}
+                    disabled={!canInteract || hasClaimedToday}
+                    variant="outline"
+                    className="mt-2 w-full border-emerald-400/40 text-emerald-100 hover:bg-emerald-500/20 sm:mt-0 sm:w-auto"
+                  >
+                    {hasClaimedToday ? 'Bugun alindi' : 'Odulu kontrol et'}
+                  </Button>
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-emerald-300/20 bg-slate-900/60 p-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <Crown className={`h-5 w-5 ${isVipActive ? 'text-amber-300' : 'text-slate-500'}`} />
+                      <p className="font-semibold text-slate-100">
+                        VIP durumu:{' '}
+                        <span className={isVipActive ? 'text-amber-300' : 'text-slate-300'}>
+                          {isVipActive ? 'Aktif' : 'Pasif'}
+                        </span>
+                      </p>
+                    </div>
+                    <div className="text-sm text-slate-300">
+                      <p>- Gunluk +1 enerji, moral ve saglik kiti</p>
+                      <p>- Sureler %{vipDurationPercent} kisalir</p>
+                      <p>- Ayda 1 yildiz oyuncu karti</p>
+                    </div>
+                    <div className="text-xs text-slate-400">
+                      <p>
+                        Secili paket:{' '}
+                        <span className="font-medium text-emerald-200">{vipPlanLabel}</span>
+                      </p>
+                      <p>
+                        VIP bitis:{' '}
+                        <span className="font-medium text-emerald-200">{vipExpiryLabel}</span>
+                      </p>
+                      <p>
+                        Son yildiz karti:{' '}
+                        <span className="font-medium text-emerald-200">{lastMonthlyStarCardLabel}</span>
+                      </p>
+                      <p>
+                        Kart kredisi:{' '}
+                        <span className="font-medium text-emerald-200">{starCardCredits}</span>
+                      </p>
+                    </div>
+                  </div>
+                  {isVipActive ? (
+                    <div className="flex w-full flex-col gap-2 sm:w-auto">
+                      <Button
+                        onClick={claimMonthlyStarCard}
+                        disabled={!canInteract || !canClaimMonthlyStarCard}
+                        className="bg-emerald-500/20 text-emerald-100 hover:bg-emerald-500/30"
+                      >
+                        {monthlyButtonLabel}
+                      </Button>
+                      <Button
+                        variant="outline"
+                        onClick={() => navigate('/store/vip')}
+                        disabled={!canInteract}
+                        className="border-emerald-400/40 text-emerald-100 hover:bg-emerald-500/20"
+                      >
+                        VIP paketlerini goruntule
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        onClick={deactivateVip}
+                        disabled={!canInteract}
+                        className="text-slate-300 hover:text-emerald-100"
+                      >
+                        VIP devre disi
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="flex w-full flex-col gap-2 sm:w-auto">
+                      <Button
+                        onClick={() => navigate('/store/vip')}
+                        disabled={!canInteract}
+                        className="bg-emerald-500/20 text-emerald-100 hover:bg-emerald-500/30"
+                      >
+                        VIP paketlerini goruntule
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </div>
             </CardContent>
           </Card>
         </div>
@@ -426,5 +742,82 @@ export default function SettingsPage() {
         </Card>
       </div>
     </div>
+
+    <Dialog
+      open={isClubRenameOpen}
+      onOpenChange={open => {
+        setIsClubRenameOpen(open);
+        if (!open) {
+          setClubNameInput('');
+        }
+      }}
+    >
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Kulup adini guncelle</DialogTitle>
+          <DialogDescription>
+            Yeni kulup adini gir ve {CLUB_RENAME_COST} elmas ile onayla.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-2">
+          <Label htmlFor="club-name">Kulup adi</Label>
+          <Input
+            id="club-name"
+            value={clubNameInput}
+            onChange={event => setClubNameInput(event.target.value)}
+            placeholder={user?.teamName ?? 'Takimin'}
+            maxLength={MAX_RENAME_LENGTH}
+          />
+        </div>
+        <DialogFooter className="gap-2 sm:gap-0">
+          <Button variant="ghost" onClick={() => setIsClubRenameOpen(false)}>
+            Vazgec
+          </Button>
+          <Button onClick={handleClubRename} disabled={isRenamingClub}>
+            {isRenamingClub ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+            Onayla ({CLUB_RENAME_COST})
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+
+    <Dialog
+      open={isStadiumRenameOpen}
+      onOpenChange={open => {
+        setIsStadiumRenameOpen(open);
+        if (!open) {
+          setStadiumNameInput('');
+        }
+      }}
+    >
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Stadyum adini guncelle</DialogTitle>
+          <DialogDescription>
+            Yeni stadyum adini gir ve {STADIUM_RENAME_COST} elmas ile onayla.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-2">
+          <Label htmlFor="stadium-name">Stadyum adi</Label>
+          <Input
+            id="stadium-name"
+            value={stadiumNameInput}
+            onChange={event => setStadiumNameInput(event.target.value)}
+            placeholder={stadiumName ?? 'Stadyum'}
+            maxLength={MAX_RENAME_LENGTH}
+          />
+        </div>
+        <DialogFooter className="gap-2 sm:gap-0">
+          <Button variant="ghost" onClick={() => setIsStadiumRenameOpen(false)}>
+            Vazgec
+          </Button>
+          <Button onClick={handleStadiumRename} disabled={isRenamingStadium}>
+            {isRenamingStadium ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+            Onayla ({STADIUM_RENAME_COST})
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  </>
   );
 }

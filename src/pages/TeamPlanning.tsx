@@ -22,7 +22,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { formations } from '@/lib/formations';
-import { calculatePowerIndex } from '@/lib/player';
+import { calculatePowerIndex, formatRatingLabel, normalizeRatingTo100 } from '@/lib/player';
 import { cn } from '@/lib/utils';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { BackButton } from '@/components/ui/back-button';
@@ -427,7 +427,7 @@ const AlternativePlayerBubble: React.FC<AlternativePlayerBubbleProps> = ({
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-white/70">
               <span className="font-semibold uppercase tracking-wide text-white/80">{positionLabel}</span>
               <span>{player.age} yaş</span>
-              <span className="font-semibold text-white/80">GEN {player.overall}</span>
+              <span className="font-semibold text-white/80">GEN {formatRatingLabel(player.overall)}</span>
               {showStrengthIndicator ? (
                 <span
                   className={cn(
@@ -455,6 +455,83 @@ const AlternativePlayerBubble: React.FC<AlternativePlayerBubbleProps> = ({
         <div className="text-[11px] text-muted-foreground">{badgeTitle}</div>
       </TooltipContent>
     </Tooltip>
+  );
+};
+
+const PITCH_MARKER_RADIUS = 26;
+const PITCH_MARKER_CIRCUMFERENCE = 2 * Math.PI * PITCH_MARKER_RADIUS;
+
+type PitchPlayerMarkerProps = {
+  player: Player;
+  isFocused: boolean;
+  onSelect: () => void;
+  onDragStart: (event: React.DragEvent<HTMLDivElement>) => void;
+  onDragEnd: (event: React.DragEvent<HTMLDivElement>) => void;
+};
+
+const PitchPlayerMarker: React.FC<PitchPlayerMarkerProps> = ({
+  player,
+  isFocused,
+  onSelect,
+  onDragStart,
+  onDragEnd,
+}) => {
+  const rating = normalizeRatingTo100(player.overall);
+  const dashOffset = PITCH_MARKER_CIRCUMFERENCE * (1 - rating / 100);
+
+  return (
+    <div
+      className={cn(
+        'group relative flex h-[3.6rem] w-[3.6rem] flex-col items-center justify-center rounded-full border border-white/30 bg-white/90 px-1.5 text-[9px] font-semibold text-emerald-900 shadow transition-all duration-150 cursor-grab leading-tight text-center',
+        isFocused
+          ? 'ring-4 ring-white/80 ring-offset-2 ring-offset-emerald-600 shadow-lg'
+          : 'hover:border-white/60 hover:ring-2 hover:ring-white/60',
+      )}
+      role="button"
+      tabIndex={0}
+      draggable
+      onClick={onSelect}
+      onKeyDown={event => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          onSelect();
+        }
+      }}
+      onDragStart={onDragStart}
+      onDragEnd={onDragEnd}
+    >
+      <svg viewBox="0 0 60 60" className="absolute inset-0 h-full w-full text-emerald-500/70">
+        <circle
+          cx="30"
+          cy="30"
+          r={PITCH_MARKER_RADIUS}
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeOpacity="0.15"
+          fill="none"
+        />
+        <circle
+          cx="30"
+          cy="30"
+          r={PITCH_MARKER_RADIUS}
+          stroke="currentColor"
+          strokeWidth="2.5"
+          strokeDasharray={`${PITCH_MARKER_CIRCUMFERENCE} ${PITCH_MARKER_CIRCUMFERENCE}`}
+          strokeDashoffset={dashOffset}
+          strokeLinecap="round"
+          fill="none"
+          className="transition-[stroke-dashoffset] duration-200 ease-out"
+        />
+      </svg>
+      <span className="relative z-10 block max-h-[2.6rem] w-full overflow-hidden text-ellipsis">
+        {player.name}
+      </span>
+      <div className="relative z-10 mt-1 flex items-center justify-center">
+        <span className="rounded-full bg-emerald-900/90 px-2 py-0.5 text-[10px] font-bold text-emerald-50 shadow-sm">
+          {formatRatingLabel(player.overall)}
+        </span>
+      </div>
+    </div>
   );
 };
 
@@ -487,8 +564,6 @@ export default function TeamPlanning() {
   const [draggedPlayerId, setDraggedPlayerId] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<'role' | 'overall' | 'potential'>('role');
   const [focusedPlayerId, setFocusedPlayerId] = useState<string | null>(null);
-  const [comparisonPlayerId, setComparisonPlayerId] = useState<string | null>(null);
-  const [comparisonReferencePlayerId, setComparisonReferencePlayerId] = useState<string | null>(null);
   const [savedFormationShape, setSavedFormationShape] = useState<string | null>(null);
   const [renamePlayerId, setRenamePlayerId] = useState<string | null>(null);
   const [renameInput, setRenameInput] = useState('');
@@ -1457,35 +1532,6 @@ export default function TeamPlanning() {
     });
   }, [players, selectedPlayer]);
 
-  const comparisonPlayer = useMemo(() => {
-    if (!comparisonPlayerId) {
-      return null;
-    }
-    return players.find(player => player.id === comparisonPlayerId) ?? null;
-  }, [players, comparisonPlayerId]);
-
-  const comparisonReferencePlayer = useMemo(() => {
-    if (!comparisonReferencePlayerId) {
-      return null;
-    }
-    return players.find(player => player.id === comparisonReferencePlayerId) ?? null;
-  }, [players, comparisonReferencePlayerId]);
-
-  const comparisonTargetPlayer = comparisonReferencePlayer ?? selectedPlayer;
-
-  const handlePromoteComparisonPlayer = () => {
-    if (!comparisonPlayer) {
-      return;
-    }
-
-    const playerId = comparisonPlayer.id;
-    movePlayer(playerId, 'starting');
-    setComparisonPlayerId(null);
-    setComparisonReferencePlayerId(null);
-    setFocusedPlayerId(playerId);
-    setActiveTab('starting');
-  };
-
   const handlePositionDrop = (
     e: React.DragEvent<HTMLDivElement>,
     slot: { position: Player['position']; x: number; y: number; slotIndex: number },
@@ -1527,6 +1573,64 @@ export default function TeamPlanning() {
       toast.success('Oyuncu ilk 11\'e tand');
     }
     setDraggedPlayerId(null);
+  };
+
+  const handleAlternativeSelection = (alternativeId: string) => {
+    if (!selectedPlayer) {
+      return;
+    }
+
+    const manualLayouts = Object.entries(customFormations).reduce<
+      Array<{ formation: string; layout: FormationPlayerPosition }>
+    >((acc, [formationKey, layout]) => {
+      const entry = layout?.[selectedPlayer.id];
+      if (entry) {
+        acc.push({ formation: formationKey, layout: entry });
+      }
+      return acc;
+    }, []);
+
+    let errorMessage: string | null = null;
+    let updated = false;
+    let swappedPlayerId: string | null = null;
+
+    setPlayers(prev => {
+      const result = promotePlayerToStartingRoster(prev, alternativeId, selectedPlayer.position);
+      if (result.error) {
+        errorMessage = result.error;
+        return prev;
+      }
+      if (!result.updated) {
+        return prev;
+      }
+      updated = true;
+      swappedPlayerId = result.swappedPlayerId ?? null;
+      return result.players;
+    });
+
+    if (errorMessage) {
+      toast.error('Oyuncu yerle�Ytirilemedi', { description: errorMessage });
+      return;
+    }
+    if (!updated) {
+      return;
+    }
+
+    removePlayerFromCustomFormations(alternativeId);
+    manualLayouts.forEach(({ formation, layout }) => {
+      updatePlayerManualPosition(formation, alternativeId, {
+        ...layout,
+        position: selectedPlayer.position,
+      });
+    });
+    removePlayerFromCustomFormations(selectedPlayer.id);
+    if (swappedPlayerId && swappedPlayerId !== selectedPlayer.id) {
+      removePlayerFromCustomFormations(swappedPlayerId);
+    }
+
+    setFocusedPlayerId(alternativeId);
+    setActiveTab('starting');
+    toast.success('Oyuncu ilk 11\'e ta�Y��nd��');
   };
 
   return (
@@ -1585,9 +1689,9 @@ export default function TeamPlanning() {
             </CardContent>
           </Card>
 
-        <div className="flex flex-col gap-6 lg:grid lg:grid-cols-[minmax(0,360px)_minmax(0,1fr)] lg:items-start lg:gap-6 xl:grid-cols-[minmax(0,400px)_minmax(0,1fr)]">
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)] lg:items-start">
           {/* Team Formation Overview */}
-          <Card className="order-1 w-full lg:sticky lg:top-24 lg:z-30 lg:self-start lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto">
+          <Card className="order-1 w-full lg:sticky lg:top-24 lg:z-30 lg:self-start lg:max-h-[calc(100vh-6rem)] lg:overflow-hidden">
             <CardHeader className="flex flex-col gap-3 border-b border-white/60 bg-white/70 backdrop-blur-sm sm:flex-row sm:items-center sm:justify-between dark:border-white/10 dark:bg-slate-900/80">
             <CardTitle className="flex items-center gap-3">
               <div className="h-3 w-3 rounded-full bg-green-500" />
@@ -1617,9 +1721,8 @@ export default function TeamPlanning() {
             </Select>
             </CardHeader>
             <CardContent className="bg-gradient-to-br from-emerald-600/95 via-emerald-700/95 to-emerald-800/95">
-            <div className="flex flex-col gap-6 2xl:flex-row">
-              <div className="relative z-10 w-full max-w-full flex-shrink-0">
-                <div className="relative aspect-[3/4] overflow-hidden rounded-2xl bg-gradient-to-b from-emerald-600 via-emerald-700 to-emerald-800 shadow-[0_20px_45px_-25px_rgba(16,80,40,0.8)] sm:aspect-[2/3] lg:aspect-[3/4]">
+              <div className="relative">
+                <div className="relative aspect-[3/4] w-full overflow-hidden rounded-2xl bg-gradient-to-b from-emerald-600 via-emerald-700 to-emerald-800 shadow-[0_20px_45px_-25px_rgba(16,80,40,0.8)] sm:aspect-[2/3] lg:aspect-[3/4]">
                   <div className="absolute inset-0 p-5">
                     <div
                       ref={pitchRef}
@@ -1666,33 +1769,27 @@ export default function TeamPlanning() {
                             {player ? (
                               <Tooltip>
                                 <TooltipTrigger asChild>
-                                  <div
-                                    className={cn(
-                                      'flex h-16 w-16 items-center justify-center rounded-full border border-white/30 bg-white/85 px-2 text-[10px] font-semibold text-emerald-900 shadow transition-all duration-150 cursor-grab leading-tight text-center',
-                                      player.id === focusedPlayerId
-                                        ? 'ring-4 ring-white/80 ring-offset-2 ring-offset-emerald-600 shadow-lg'
-                                        : 'hover:ring-2 hover:ring-white/70'
-                                    )}
-                                    draggable
-                                    onClick={() => setFocusedPlayerId(player.id)}
-                                    onKeyDown={e => {
-                                      if (e.key === 'Enter' || e.key === ' ') {
-                                        e.preventDefault();
-                                        setFocusedPlayerId(player.id);
-                                      }
-                                    }}
-                                    role="button"
-                                    tabIndex={0}
-                                    onDragStart={e => {
+
+                                  <PitchPlayerMarker
+
+                                    player={player}
+
+                                    isFocused={player.id === focusedPlayerId}
+
+                                    onSelect={() => setFocusedPlayerId(player.id)}
+
+                                    onDragStart={event => {
+
                                       setDraggedPlayerId(player.id);
-                                      e.dataTransfer.setData('text/plain', player.id);
+
+                                      event.dataTransfer.setData('text/plain', player.id);
+
                                     }}
+
                                     onDragEnd={event => handlePlayerDragEnd(event, player)}
-                                  >
-                                    <span className="block max-h-[3rem] overflow-hidden text-ellipsis">
-                                      {player.name}
-                                    </span>
-                                  </div>
+
+                                  />
+
                                 </TooltipTrigger>
                                 <TooltipContent className="z-50 w-56 space-y-2">
                                   <div className="text-xs font-semibold">{player.name}</div>
@@ -1702,7 +1799,7 @@ export default function TeamPlanning() {
                                 </TooltipContent>
                               </Tooltip>
                             ) : (
-                              <div className="flex h-16 w-16 items-center justify-center rounded-full border border-dashed border-white/50 bg-white/20 px-2 text-[10px] font-semibold uppercase tracking-wide text-white">
+                              <div className="flex h-[3.6rem] w-[3.6rem] items-center justify-center rounded-full border border-dashed border-white/50 bg-white/20 px-1.5 text-[10px] font-semibold uppercase tracking-wide text-white">
                                 {position}
                               </div>
                             )}
@@ -1712,43 +1809,40 @@ export default function TeamPlanning() {
                     </div>
                   </div>
                 </div>
-                {selectedPlayer ? (
-                  <div className="mt-4 rounded-2xl border border-white/25 bg-white/10 p-4 text-white shadow-inner">
-                    <div className="mb-3 flex items-center justify-between">
-                      <span className="text-xs uppercase tracking-wide text-white/80">
-                        {canonicalPosition(selectedPlayer.position)} için alternatifler
-                      </span>
-                      <span className="text-[10px] text-white/70">Yedek & Rezerv</span>
-                    </div>
-                    {alternativePlayers.length > 0 ? (
-                      <div className="grid gap-2 sm:grid-cols-2">
-                        {alternativePlayers.map(alternative => (
-                          <AlternativePlayerBubble
-                            key={alternative.id}
-                            player={alternative}
-                            onSelect={playerId => {
-                              setComparisonPlayerId(playerId);
-                              setComparisonReferencePlayerId(selectedPlayer?.id ?? null);
-                            }}
-                            variant="pitch"
-                            compareToPlayer={selectedPlayer}
-                          />
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="text-xs text-white/70">
-                        Bu pozisyon için bench veya rezerv oyuncu bulunmuyor.
-                      </p>
-                    )}
-                  </div>
-                ) : null}
               </div>
-            </div>
           </CardContent>
         </Card>
 
         {/* Player Lists */}
         <div className="order-2 flex flex-col gap-4 min-w-0">
+        {selectedPlayer ? (
+          <Card className="border-emerald-200/20 bg-emerald-900/10 shadow-lg backdrop-blur">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-semibold text-emerald-50">
+                {canonicalPosition(selectedPlayer.position)} için alternatifler
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {alternativePlayers.length > 0 ? (
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {alternativePlayers.map(alternative => (
+                    <AlternativePlayerBubble
+                      key={alternative.id}
+                      player={alternative}
+                      onSelect={playerId => handleAlternativeSelection(playerId)}
+                      variant="panel"
+                      compareToPlayer={selectedPlayer}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-emerald-100/80">
+                  Bu pozisyon için yedek veya rezerv oyuncu bulunmadı.
+                </p>
+              )}
+            </CardContent>
+          </Card>
+        ) : null}
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList className="flex w-full gap-2 overflow-x-auto sm:overflow-visible">
             <TabsTrigger value="starting" className="flex-none min-w-[140px] whitespace-nowrap sm:flex-1 sm:min-w-0 sm:w-auto">
@@ -1967,62 +2061,6 @@ export default function TeamPlanning() {
         </DialogContent>
       </Dialog>
 
-      <Dialog
-        open={Boolean(comparisonPlayer)}
-        onOpenChange={open => {
-          if (!open) {
-            setComparisonPlayerId(null);
-            setComparisonReferencePlayerId(null);
-          }
-        }}
-      >
-        <DialogContent className="max-w-4xl">
-          <DialogHeader>
-            <DialogTitle>Oyuncu Karşılaştırması</DialogTitle>
-            {(comparisonPlayer || comparisonTargetPlayer) && (
-              <DialogDescription>
-                {comparisonPlayer ? `Alternatif: ${comparisonPlayer.name}` : null}
-                {comparisonPlayer && comparisonTargetPlayer ? ' • ' : null}
-                {comparisonTargetPlayer ? `İlk 11: ${comparisonTargetPlayer.name}` : null}
-              </DialogDescription>
-            )}
-          </DialogHeader>
-          {comparisonPlayer ? (
-            <>
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-2">
-                  <p className="text-sm font-semibold text-muted-foreground">Alternatif Oyuncu</p>
-                  <PlayerCard
-                    player={comparisonPlayer}
-                    showActions={false}
-                    compact={false}
-                    defaultCollapsed={false}
-                  />
-                </div>
-                {comparisonTargetPlayer ? (
-                  <div className="space-y-2">
-                    <p className="text-sm font-semibold text-muted-foreground">İlk 11 Oyuncusu</p>
-                    <PlayerCard
-                      player={comparisonTargetPlayer}
-                      showActions={false}
-                      compact={false}
-                      defaultCollapsed={false}
-                    />
-                  </div>
-                ) : null}
-              </div>
-              {comparisonPlayer.squadRole !== 'starting' ? (
-                <div className="mt-4 flex justify-end">
-                  <Button onClick={handlePromoteComparisonPlayer}>
-                    <ArrowUp className="mr-2 h-4 w-4" />
-                    İlk 11'e Taşı
-                  </Button>
-                </div>
-              ) : null}
-            </>
-          ) : null}
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

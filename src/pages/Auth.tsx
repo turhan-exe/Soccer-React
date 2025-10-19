@@ -42,6 +42,28 @@ const getRegisterErrorMessage = (error: unknown): string => {
   return 'Kayıt başarısız';
 };
 
+const getSocialAuthErrorMessage = (provider: 'google' | 'apple', error: unknown): string => {
+  if (error instanceof FirebaseError) {
+    const codeMap: Record<string, string> = {
+      'auth/popup-blocked': 'Tarayici acilir pencere engellemesini kaldirin ve tekrar deneyin.',
+      'auth/popup-closed-by-user': 'Oturum penceresini kapattiniz. Lutfen tekrar deneyin.',
+      'auth/cancelled-popup-request': 'Baska bir oturum istegi zaten isleniyor. Lutfen tekrar deneyin.',
+      'auth/unauthorized-domain': 'Bu alan Google girisi icin yetkilendirilmemis. Lutfen yonetici ile iletisime gecin.',
+    };
+    const friendly = codeMap[error.code];
+    if (friendly) {
+      return friendly;
+    }
+    if (error.message) {
+      return error.message;
+    }
+  }
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+  return provider === 'google' ? 'Google ile giris basarisiz' : 'Apple ile giris basarisiz';
+};
+
 export default function Auth() {
   const {
     login,
@@ -96,7 +118,7 @@ export default function Auth() {
       await loginWithGoogle();
       toast.success('Başarıyla giriş yapıldı!');
     } catch (error) {
-      toast.error('Google ile giriş başarısız');
+      toast.error(getSocialAuthErrorMessage('google', error));
       console.error('google login error:', error);
     }
   };
@@ -106,7 +128,7 @@ export default function Auth() {
       await loginWithApple();
       toast.success('Başarıyla giriş yapıldı!');
     } catch (error) {
-      toast.error('Apple ile giriş başarısız');
+      toast.error(getSocialAuthErrorMessage('apple', error));
       console.error('apple login error:', error);
     }
   };

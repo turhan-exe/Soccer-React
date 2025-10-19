@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="2732" height="2732" viewBox="0 0 2732 2732">
+  <defs>
+    <radialGradient id="splashBg" cx="0.5" cy="0.4" r="0.7">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="0.55" stop-color="#111f3a"/>
+      <stop offset="1" stop-color="#0b1120"/>
+    </radialGradient>
+    <linearGradient id="splashGlow" x1="0.5" y1="0.05" x2="0.5" y2="0.95">
+      <stop offset="0" stop-color="#fcd34d" stop-opacity="0.95"/>
+      <stop offset="1" stop-color="#fb923c" stop-opacity="0.85"/>
+    </linearGradient>
+    <linearGradient id="splashWing" x1="0.18" y1="0.2" x2="0.82" y2="0.85">
+      <stop offset="0" stop-color="#fb923c" stop-opacity="0.85"/>
+      <stop offset="1" stop-color="#f97316" stop-opacity="0.8"/>
+    </linearGradient>
+  </defs>
+  <rect width="2732" height="2732" fill="url(#splashBg)"/>
+  <g filter="url(#blur)">
+    <circle cx="1366" cy="1100" r="640" fill="#f9731633"/>
+  </g>
+  <g transform="translate(436 360)">
+    <path d="M942 360c-164 116-252 250-268 384-12 96 20 194 100 276-76-44-132-124-144-210-42 138 32 292 180 392 160 112 390 132 578-22-110-10-216-66-272-140 152 56 312 26 404-26-126-8-206-64-248-126 128 40 236 8 296-18-152-28-214-116-236-182 42 22 96 32 166 28-170-86-244-190-254-302-8-96 28-198 98-296-98 30-184 96-250 180-44-88-110-154-150-198z" fill="url(#splashWing)" opacity="0.58"/>
+    <path d="M942 360c-122 122-164 238-170 352-6 132 60 240 182 316-84-26-156-96-184-176-12 180 112 320 320 346 212-20 326-168 308-344-60 100-174 156-288 172 96-56 150-150 148-240-4-104-58-226-180-344-20-18-40-36-56-54-18 14-76 68-110 116-28-52-76-110-120-144z" fill="url(#splashGlow)"/>
+    <circle cx="1108" cy="540" r="64" fill="#fef3c7"/>
+  </g>
+  <filter id="blur" x="0" y="0" width="100%" height="100%">
+    <feGaussianBlur in="SourceGraphic" stdDeviation="120" result="blurred"/>
+    <feMerge>
+      <feMergeNode in="blurred"/>
+      <feMergeNode in="SourceGraphic"/>
+    </feMerge>
+  </filter>
+</svg>

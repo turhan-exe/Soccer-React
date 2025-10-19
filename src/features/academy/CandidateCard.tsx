@@ -4,7 +4,7 @@ import { Badge } from '@/components/ui/badge';
 import { StatBar } from '@/components/ui/stat-bar';
 import { Button } from '@/components/ui/button';
 import { TrendingUp } from 'lucide-react';
-import { getRoles } from '@/lib/player';
+import { formatRatingLabel, getRoles } from '@/lib/player';
 import type { Player } from '@/types';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
@@ -111,10 +111,10 @@ const CandidateCard: React.FC<Props> = ({ candidate, onAccept, onRelease }) => {
                   <TrendingUp className="h-3 w-3" />
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <span className="font-semibold">{Math.round(player.overall * 100)}</span>
+                      <span className="font-semibold">{formatRatingLabel(player.overall)}</span>
                     </TooltipTrigger>
                     <TooltipContent>
-                      Maks. Potansiyel: {Math.round(player.potential * 100)}
+                      Maks. Potansiyel: {formatRatingLabel(player.potential)}
                     </TooltipContent>
                   </Tooltip>
                 </div>

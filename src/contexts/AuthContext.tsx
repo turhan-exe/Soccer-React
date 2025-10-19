@@ -7,6 +7,8 @@ import React, {
   useCallback,
 } from 'react';
 import { onAuthStateChanged, updateProfile, User as FirebaseUser } from 'firebase/auth';
+import { App as CapacitorApp } from '@capacitor/app';
+import { Capacitor } from '@capacitor/core';
 import { User } from '@/types';
 import { auth } from '@/services/firebase';
 import {
@@ -15,6 +17,7 @@ import {
   signOutUser,
   signInWithGoogle,
   signInWithApple,
+  getAuthRedirectResult,
 } from '@/services/auth';
 import { createInitialTeam, getTeam, updateTeamName } from '@/services/team';
 import { requestAssign } from '@/services/leagues';
@@ -53,6 +56,145 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [isAuthReady, setIsAuthReady] = useState(false);
 
+  type PendingSocialRegistration = {
+    provider: 'google' | 'apple';
+    teamName: string;
+  };
+
+  const PENDING_SOCIAL_REGISTRATION_KEY = 'fm_pending_social_registration';
+
+  const savePendingSocialRegistration = (payload: PendingSocialRegistration) => {
+    try {
+      window.localStorage.setItem(PENDING_SOCIAL_REGISTRATION_KEY, JSON.stringify(payload));
+    } catch (error) {
+      console.warn('[AuthContext] Failed to persist pending social registration', error);
+    }
+  };
+
+  const consumePendingSocialRegistration = (): PendingSocialRegistration | null => {
+    try {
+      const raw = window.localStorage.getItem(PENDING_SOCIAL_REGISTRATION_KEY);
+      if (!raw) {
+        return null;
+      }
+      window.localStorage.removeItem(PENDING_SOCIAL_REGISTRATION_KEY);
+      return JSON.parse(raw) as PendingSocialRegistration;
+    } catch (error) {
+      console.warn('[AuthContext] Failed to read pending social registration', error);
+      window.localStorage.removeItem(PENDING_SOCIAL_REGISTRATION_KEY);
+      return null;
+    }
+  };
+
+  const getConnectedAccounts = (firebaseUser: FirebaseUser, recentlyLinked?: 'google' | 'apple') => {
+    const providerIds = new Set(firebaseUser.providerData.map((provider) => provider.providerId));
+    if (recentlyLinked) {
+      providerIds.add(recentlyLinked === 'google' ? 'google.com' : 'apple.com');
+    }
+    return {
+      google: providerIds.has('google.com'),
+      apple: providerIds.has('apple.com'),
+    };
+  };
+
+  const completeSocialRegistration = async (
+    firebaseUser: FirebaseUser,
+    provider: 'google' | 'apple',
+    preferredTeamName?: string,
+  ) => {
+    const trimmedName = preferredTeamName?.trim();
+    const existingTeam = await getTeam(firebaseUser.uid);
+    const managerName =
+      existingTeam?.manager || firebaseUser.displayName || generateRandomName();
+    const desiredTeamName =
+      trimmedName || existingTeam?.name || firebaseUser.displayName || managerName || 'Takimim';
+
+    if (trimmedName && firebaseUser.displayName !== trimmedName) {
+      try {
+        await updateProfile(firebaseUser, { displayName: trimmedName });
+      } catch (error) {
+        console.warn('[AuthContext] Failed to update profile display name', error);
+      }
+    }
+
+    if (!existingTeam) {
+      await createInitialTeam(firebaseUser.uid, desiredTeamName, managerName, {
+        authUser: firebaseUser,
+      });
+      void requestAssign(firebaseUser.uid).catch((err) => {
+        console.warn('[AuthContext] League assignment after social registration failed', err);
+      });
+    } else if (trimmedName && existingTeam.name !== trimmedName) {
+      await updateTeamName(firebaseUser.uid, trimmedName);
+    }
+
+    const connectedAccounts = getConnectedAccounts(firebaseUser, provider);
+
+    setUser({
+      id: firebaseUser.uid,
+      username: managerName,
+      email: firebaseUser.email || '',
+      teamName: trimmedName ?? existingTeam?.name ?? desiredTeamName,
+      teamLogo: existingTeam?.logo ?? null,
+      connectedAccounts,
+    });
+  };
+  useEffect(() => {
+    getAuthRedirectResult()
+      .then((credential) => {
+        if (credential?.user) {
+          const pending = consumePendingSocialRegistration();
+          if (pending) {
+            void completeSocialRegistration(credential.user, pending.provider, pending.teamName);
+          }
+        }
+      })
+      .catch((error) => {
+        if (error && typeof error === 'object' && 'code' in error) {
+          const code = (error as { code?: string }).code;
+          if (code !== 'auth/no-auth-event') {
+            console.warn('[AuthContext] redirect result failed', error);
+          }
+        } else {
+          console.warn('[AuthContext] redirect result failed', error);
+        }
+      });
+  }, []);
+
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) {
+      return;
+    }
+
+    const deepLinkHandler = CapacitorApp.addListener('appUrlOpen', ({ url }) => {
+      if (url && url.startsWith('fhsmanager://')) {
+        getAuthRedirectResult()
+          .then((credential) => {
+            if (credential?.user) {
+              const pending = consumePendingSocialRegistration();
+              if (pending) {
+                void completeSocialRegistration(credential.user, pending.provider, pending.teamName);
+              }
+            }
+          })
+          .catch((error) => {
+            if (error && typeof error === 'object' && 'code' in error) {
+              const code = (error as { code?: string }).code;
+              if (code !== 'auth/no-auth-event') {
+                console.warn('[AuthContext] redirect handling failed', error);
+              }
+            } else {
+              console.warn('[AuthContext] redirect handling failed', error);
+            }
+          });
+      }
+    });
+
+    return () => {
+      deepLinkHandler.remove();
+    };
+  }, []);
+
   useEffect(() => {
     let isActive = true;
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
@@ -69,7 +211,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
               email: firebaseUser.email || '',
               teamName,
               teamLogo: team?.logo ?? null,
-              connectedAccounts: { google: false, apple: false },
+              connectedAccounts: getConnectedAccounts(firebaseUser),
             });
           }
           if (!team) {
@@ -259,15 +401,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   ) => {
     const trimmedName = teamName.trim();
     if (!trimmedName) {
-      throw new Error('Takım adı gerekli');
+      throw new Error('Tak?m ad? gerekli');
     }
 
     setIsLoading(true);
     try {
+      savePendingSocialRegistration({ provider, teamName: trimmedName });
       const credential =
         provider === 'google' ? await signInWithGoogle() : await signInWithApple();
 
-      const firebaseUser = credential.user;
+      const firebaseUser = credential?.user;
       if (!firebaseUser) {
         return;
       }
@@ -278,33 +421,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         console.warn('[AuthContext] Failed to refresh ID token after social registration', tokenError);
       }
 
-      const team = await getTeam(firebaseUser.uid);
-      const managerName = team?.manager || generateRandomName();
-
-      await updateProfile(firebaseUser, { displayName: trimmedName });
-
-      if (!team) {
-        await createInitialTeam(firebaseUser.uid, trimmedName, managerName, {
-          authUser: firebaseUser,
-        });
-        void requestAssign(firebaseUser.uid).catch((err) => {
-          console.warn('[AuthContext] League assignment failed after social registration', err);
-        });
-      } else if (team.name !== trimmedName) {
-        await updateTeamName(firebaseUser.uid, trimmedName);
+      consumePendingSocialRegistration();
+      await completeSocialRegistration(firebaseUser, provider, trimmedName);
+    } catch (error) {
+      if (!Capacitor.isNativePlatform()) {
+        consumePendingSocialRegistration();
       }
-
-      setUser({
-        id: firebaseUser.uid,
-        username: managerName,
-        email: firebaseUser.email || '',
-        teamName: trimmedName,
-        teamLogo: team?.logo ?? null,
-        connectedAccounts: {
-          google: provider === 'google',
-          apple: provider === 'apple',
-        },
-      });
+      throw error;
     } finally {
       setIsLoading(false);
     }

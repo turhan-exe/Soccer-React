@@ -77,3 +77,28 @@ pnpm run build
 - Containerization: `Unity/Headless/Build/Dockerfile` runs the Linux server build on Cloud Run Jobs.
 - See `infra/headless/README.md` for environment variables and run instructions.
 
+
+## Mobile Assets
+
+- Icon and splash sources live in ssets/logo.svg and ssets/splash.svg.
+- Regenerate platform-specific assets with:
+  `ash
+  npx @capacitor/assets generate --iconBackgroundColor "#0f172a" --splashBackgroundColor "#0f172a" --android --ios
+  `
+  Run the command after adding the iOS platform so the target asset directories exist.
+## Mobile Assets
+
+- Icon and splash sources live in `assets/logo.svg` and `assets/splash.svg`.
+- Regenerate platform-specific assets with:
+  ```bash
+  npx @capacitor/assets generate --iconBackgroundColor "#0f172a" --splashBackgroundColor "#0f172a" --android --ios
+  ```
+  Run the command after adding the iOS platform so the target asset directories exist.
+## Mobile Assets
+
+- Icon and splash sources live in `assets/logo.svg` and `assets/splash.svg`.
+- Regenerate platform-specific assets with:
+  ```bash
+  npx @capacitor/assets generate --iconBackgroundColor "#0f172a" --splashBackgroundColor "#0f172a" --android --ios
+  ```
+  Run the command after adding the iOS platform so the target asset directories exist.

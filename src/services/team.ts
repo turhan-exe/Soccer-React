@@ -369,6 +369,30 @@ export const saveTeamPlayers = async (userId: string, players: Player[], plan?: 
   await setDoc(doc(db, 'teams', userId), sanitizeFirestoreData(payload), { merge: true });
 };
 
+
+
+const renameClubCallable = httpsCallable<{ name: string }, RenameClubResponse>(functions, 'renameClub');
+const renameStadiumCallable = httpsCallable<{ name: string }, RenameStadiumResponse>(functions, 'renameStadium');
+
+type RenameClubResponse = {
+  diamondBalance: number;
+  teamName: string;
+};
+
+type RenameStadiumResponse = {
+  diamondBalance: number;
+  stadiumName: string;
+};
+
+export const renameClubWithDiamonds = async (teamName: string): Promise<RenameClubResponse> => {
+  const response = await renameClubCallable({ name: teamName });
+  return response.data;
+};
+
+export const renameStadiumWithDiamonds = async (stadiumName: string): Promise<RenameStadiumResponse> => {
+  const response = await renameStadiumCallable({ name: stadiumName });
+  return response.data;
+};
 export const addPlayerToTeam = async (userId: string, player: Player) => {
   const team = await getTeam(userId);
   if (!team) return;

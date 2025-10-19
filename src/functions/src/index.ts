@@ -48,3 +48,5 @@ export { cronCreateBatch, kickUnityJob, cronWatchdog } from './orchestrate/sched
 export { finalizeWatchdogHttp } from './orchestrate/retry.js';
 // Operator callable: play all fixtures for a TR day
 export { playAllForDayFn, playAllForDayHttp } from './orchestrate/playAll.js';
+
+export { renameClub, renameStadium } from './economy/rename.js';

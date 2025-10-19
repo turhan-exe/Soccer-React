@@ -5,6 +5,7 @@ import { StatBar } from '@/components/ui/stat-bar';
 import { Button } from '@/components/ui/button';
 import { TrendingUp } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { formatRatingLabel } from '@/lib/player';
 
 interface Props {
   candidate: YouthCandidate;
@@ -70,11 +71,11 @@ const YouthCandidateCard: React.FC<Props> = ({ candidate, onAccept, onRelease })
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <span className="font-semibold">
-                        {Math.round(player.overall * 100)}
+                        {formatRatingLabel(player.overall)}
                       </span>
                     </TooltipTrigger>
                     <TooltipContent>
-                      Maks. Potansiyel: {Math.round(player.potential * 100)}
+                      Maks. Potansiyel: {formatRatingLabel(player.potential)}
                     </TooltipContent>
                   </Tooltip>
                 </div>
