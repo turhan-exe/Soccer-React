@@ -19,6 +19,7 @@ import LiveDebugPage from '@/pages/LiveDebugPage';
 import MatchWatcherPage from '@/pages/MatchWatcherPage';
 import Finance from '@/pages/Finance';
 import Settings from '@/pages/Settings';
+import ContactPage from '@/pages/Contact';
 import NotFound from '@/pages/NotFound';
 import DiamondsPage from '@/features/diamonds/DiamondsPage';
 import AcademyPage from '@/features/academy/AcademyPage';
@@ -51,6 +52,7 @@ export const router = createBrowserRouter(
         { path: '/match-history', element: <MyFixturesPage /> },
         { path: '/finance', element: <Finance /> },
         { path: '/settings', element: <Settings /> },
+        { path: '/contact', element: <ContactPage /> },
         { path: '/store/diamonds', element: <DiamondsPage /> },
         { path: '/store/vip', element: <VipStorePage /> },
         { path: '/academy', element: <AcademyPage /> },

@@ -81,8 +81,8 @@ export async function getTrainingHistory(
   });
 }
 
-export const TRAINING_FINISH_COST = 50;
-export const TRAINING_BOOST_COST = 20;
+export const TRAINING_FINISH_COST = 80;
+export const TRAINING_BOOST_COST = 35;
 
 export async function finishTrainingWithDiamonds(
   uid: string,

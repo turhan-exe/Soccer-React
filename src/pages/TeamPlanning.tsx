@@ -30,7 +30,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 
 const DEFAULT_GAUGE_VALUE = 0.75;
 
-const PLAYER_RENAME_DIAMOND_COST = 25;
+const PLAYER_RENAME_DIAMOND_COST = 45;
 const PLAYER_RENAME_AD_COOLDOWN_HOURS = 24;
 const CONTRACT_EXTENSION_MONTHS = 18;
 
@@ -1689,9 +1689,9 @@ export default function TeamPlanning() {
             </CardContent>
           </Card>
 
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)] lg:items-start">
+        <div className="flex flex-nowrap gap-6 overflow-x-auto lg:grid lg:grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)] lg:items-start lg:overflow-visible">
           {/* Team Formation Overview */}
-          <Card className="order-1 w-full lg:sticky lg:top-24 lg:z-30 lg:self-start lg:max-h-[calc(100vh-6rem)] lg:overflow-hidden">
+          <Card className="order-1 w-full flex-none min-w-[320px] lg:min-w-0 lg:sticky lg:top-24 lg:z-30 lg:self-start">
             <CardHeader className="flex flex-col gap-3 border-b border-white/60 bg-white/70 backdrop-blur-sm sm:flex-row sm:items-center sm:justify-between dark:border-white/10 dark:bg-slate-900/80">
             <CardTitle className="flex items-center gap-3">
               <div className="h-3 w-3 rounded-full bg-green-500" />
@@ -1814,7 +1814,7 @@ export default function TeamPlanning() {
         </Card>
 
         {/* Player Lists */}
-        <div className="order-2 flex flex-col gap-4 min-w-0">
+        <div className="order-2 flex flex-none min-w-[320px] flex-col gap-4 lg:flex-1 lg:min-w-0">
         {selectedPlayer ? (
           <Card className="border-emerald-200/20 bg-emerald-900/10 shadow-lg backdrop-blur">
             <CardHeader className="pb-3">

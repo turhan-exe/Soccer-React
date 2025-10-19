@@ -22,6 +22,7 @@ import {
 import { createInitialTeam, getTeam, updateTeamName } from '@/services/team';
 import { requestAssign } from '@/services/leagues';
 import { generateRandomName } from '@/lib/names';
+import { getUserProfile } from '@/services/users';
 
 interface AuthContextType {
   user: User | null;
@@ -103,7 +104,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     preferredTeamName?: string,
   ) => {
     const trimmedName = preferredTeamName?.trim();
-    const existingTeam = await getTeam(firebaseUser.uid);
+    const [existingTeam, profile] = await Promise.all([
+      getTeam(firebaseUser.uid),
+      getUserProfile(firebaseUser.uid),
+    ]);
     const managerName =
       existingTeam?.manager || firebaseUser.displayName || generateRandomName();
     const desiredTeamName =
@@ -137,6 +141,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       teamName: trimmedName ?? existingTeam?.name ?? desiredTeamName,
       teamLogo: existingTeam?.logo ?? null,
       connectedAccounts,
+      contactPhone: profile?.contactPhone ?? null,
+      contactCrypto: profile?.contactCrypto ?? null,
     });
   };
   useEffect(() => {
@@ -200,7 +206,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       try {
         if (firebaseUser) {
-          const team = await getTeam(firebaseUser.uid);
+          const [team, profile] = await Promise.all([
+            getTeam(firebaseUser.uid),
+            getUserProfile(firebaseUser.uid),
+          ]);
           const usernameFallback = firebaseUser.email?.split('@')[0] || 'Kullanici';
           const teamName = team?.name || firebaseUser.displayName || usernameFallback || 'Takimim';
           const username = team?.manager || usernameFallback;
@@ -212,6 +221,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
               teamName,
               teamLogo: team?.logo ?? null,
               connectedAccounts: getConnectedAccounts(firebaseUser),
+              contactPhone: profile?.contactPhone ?? null,
+              contactCrypto: profile?.contactCrypto ?? null,
             });
           }
           if (!team) {
@@ -356,6 +367,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             teamName,
             teamLogo: null,
             connectedAccounts: { google: false, apple: false },
+            contactPhone: null,
+            contactCrypto: null,
           });
 
           // Lig atamasını arka planda tetikle; başarısız olursa yalnızca logla
@@ -448,7 +461,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
 
     try {
-      const team = await getTeam(currentUser.uid);
+      const [team, profile] = await Promise.all([
+        getTeam(currentUser.uid),
+        getUserProfile(currentUser.uid),
+      ]);
       setUser(prev => {
         if (!prev) {
           return prev;
@@ -458,6 +474,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           ...prev,
           teamName: team?.name ?? prev.teamName,
           teamLogo: team?.logo ?? prev.teamLogo ?? null,
+          contactPhone: profile?.contactPhone ?? prev.contactPhone ?? null,
+          contactCrypto: profile?.contactCrypto ?? prev.contactCrypto ?? null,
         };
       });
     } catch (error) {

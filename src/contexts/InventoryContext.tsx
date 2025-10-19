@@ -26,7 +26,7 @@ export const VIP_PLAN_CONFIG: Record<VipPlan, VipPlanConfig> = {
     label: 'Haftalik VIP',
     description: 'Kisa sureli avantajlar icin ideal.',
     durationDays: 7,
-    diamondCost: 750,
+    diamondCost: 900,
     perks: [
       'Gunluk +1 enerji, moral ve saglik kiti',
       '%5 sure kisalmasi',
@@ -37,7 +37,7 @@ export const VIP_PLAN_CONFIG: Record<VipPlan, VipPlanConfig> = {
     label: 'Aylik VIP',
     description: 'Daha uzun sureli premium destek.',
     durationDays: 30,
-    diamondCost: 2400,
+    diamondCost: 2800,
     perks: [
       'Gunluk +1 enerji, moral ve saglik kiti',
       '%5 sure kisalmasi',
@@ -48,7 +48,7 @@ export const VIP_PLAN_CONFIG: Record<VipPlan, VipPlanConfig> = {
     label: 'Yillik VIP',
     description: 'En iyi fiyat/performans paketi.',
     durationDays: 365,
-    diamondCost: 24000,
+    diamondCost: 28000,
     perks: [
       'Gunluk +1 enerji, moral ve saglik kiti',
       '%5 sure kisalmasi',

@@ -70,8 +70,8 @@ import { useInventory } from '@/contexts/InventoryContext';
 const BASE_SESSION_DURATION = 15;
 const EXTRA_PLAYER_DURATION = 5;
 const EXTRA_TRAINING_DURATION = 8;
-const EXTRA_ASSIGNMENT_DIAMOND_COST = 15;
-const FINISH_COST_PER_ASSIGNMENT = 12;
+const EXTRA_ASSIGNMENT_DIAMOND_COST = 20;
+const FINISH_COST_PER_ASSIGNMENT = 18;
 
 interface ActiveBulkSession {
   players: Player[];
