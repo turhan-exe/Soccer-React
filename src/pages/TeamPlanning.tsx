@@ -28,6 +28,8 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { BackButton } from '@/components/ui/back-button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
+import '@/styles/nostalgia-theme.css';
+
 const DEFAULT_GAUGE_VALUE = 0.75;
 
 const PLAYER_RENAME_DIAMOND_COST = 45;
@@ -404,1564 +406,345 @@ const AlternativePlayerBubble: React.FC<AlternativePlayerBubbleProps> = ({
       : 'border-white/25 bg-white/5 text-white/95 hover:border-white/50 hover:bg-white/10 backdrop-blur-sm';
 
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <button
-          type="button"
-          onClick={() => onSelect(player.id)}
-          className={cn(
-            'group relative flex w-full items-start gap-3 rounded-2xl border px-3 py-2 text-left text-xs font-medium transition duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/80 sm:px-4 sm:py-3',
-            variantClasses,
-          )}
-        >
-          <div className="relative flex h-14 w-14 flex-shrink-0 items-center justify-center overflow-hidden rounded-xl bg-gradient-to-br from-emerald-300/90 to-emerald-500 px-2 text-emerald-950 shadow-sm">
-            <span className="line-clamp-2 w-full break-normal text-center text-[10px] font-semibold leading-tight">
-              {player.name}
-            </span>
-            <span className="absolute bottom-0 right-0 rounded-tl-lg bg-emerald-900/90 px-1 text-[9px] font-semibold uppercase text-emerald-100 shadow-lg">
-              {badgeLabel}
-            </span>
-          </div>
-
-          <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-white/70">
-              <span className="font-semibold uppercase tracking-wide text-white/80">{positionLabel}</span>
-              <span>{player.age} yaş</span>
-              <span className="font-semibold text-white/80">GEN {formatRatingLabel(player.overall)}</span>
-              {showStrengthIndicator ? (
-                <span
-                  className={cn(
-                    'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-tight shadow-sm',
-                    isStronger
-                      ? 'bg-emerald-400/90 text-emerald-950'
-                      : 'bg-rose-400/90 text-rose-950',
-                  )}
-                >
-                  {isStronger ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />}
-                  {Math.abs(powerDiff).toFixed(1)}
-                </span>
-              ) : null}
+    <div className="nostalgia-screen nostalgia-team-planning">
+      <div className="nostalgia-screen__gradient" aria-hidden />
+      <div className="nostalgia-screen__orb nostalgia-screen__orb--left" aria-hidden />
+      <div className="nostalgia-screen__orb nostalgia-screen__orb--right" aria-hidden />
+      <div className="nostalgia-screen__noise" aria-hidden />
+      <div className="nostalgia-screen__content">
+        <header className="nostalgia-main-menu__header nostalgia-team-planning__header">
+          <div className="nostalgia-team-planning__header-title">
+            <BackButton />
+            <div>
+              <h1 className="nostalgia-main-menu__title">Takım Planı</h1>
+              <p className="nostalgia-main-menu__subtitle">
+                Kadronuzu düzenleyin, formasyonunuzu şekillendirin.
+              </p>
             </div>
           </div>
-
-          <div className="hidden flex-col items-end text-[10px] font-semibold text-white/60 sm:flex">
-            <span className="uppercase tracking-wide">{badgeTitle}</span>
-            <span className="text-white/40">#{player.squadRole === 'bench' ? '02' : player.squadRole === 'reserve' ? '03' : '04'}</span>
-          </div>
-        </button>
-      </TooltipTrigger>
-      <TooltipContent className="z-50 space-y-1">
-        <div className="text-xs font-semibold">{player.name}</div>
-        <div className="text-[11px] text-muted-foreground">{badgeTitle}</div>
-      </TooltipContent>
-    </Tooltip>
-  );
-};
-
-const PITCH_MARKER_RADIUS = 26;
-const PITCH_MARKER_CIRCUMFERENCE = 2 * Math.PI * PITCH_MARKER_RADIUS;
-
-type PitchPlayerMarkerProps = {
-  player: Player;
-  isFocused: boolean;
-  onSelect: () => void;
-  onDragStart: (event: React.DragEvent<HTMLDivElement>) => void;
-  onDragEnd: (event: React.DragEvent<HTMLDivElement>) => void;
-};
-
-const PitchPlayerMarker: React.FC<PitchPlayerMarkerProps> = ({
-  player,
-  isFocused,
-  onSelect,
-  onDragStart,
-  onDragEnd,
-}) => {
-  const rating = normalizeRatingTo100(player.overall);
-  const dashOffset = PITCH_MARKER_CIRCUMFERENCE * (1 - rating / 100);
-
-  return (
-    <div
-      className={cn(
-        'group relative flex h-[3.6rem] w-[3.6rem] flex-col items-center justify-center rounded-full border border-white/30 bg-white/90 px-1.5 text-[9px] font-semibold text-emerald-900 shadow transition-all duration-150 cursor-grab leading-tight text-center',
-        isFocused
-          ? 'ring-4 ring-white/80 ring-offset-2 ring-offset-emerald-600 shadow-lg'
-          : 'hover:border-white/60 hover:ring-2 hover:ring-white/60',
-      )}
-      role="button"
-      tabIndex={0}
-      draggable
-      onClick={onSelect}
-      onKeyDown={event => {
-        if (event.key === 'Enter' || event.key === ' ') {
-          event.preventDefault();
-          onSelect();
-        }
-      }}
-      onDragStart={onDragStart}
-      onDragEnd={onDragEnd}
-    >
-      <svg viewBox="0 0 60 60" className="absolute inset-0 h-full w-full text-emerald-500/70">
-        <circle
-          cx="30"
-          cy="30"
-          r={PITCH_MARKER_RADIUS}
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeOpacity="0.15"
-          fill="none"
-        />
-        <circle
-          cx="30"
-          cy="30"
-          r={PITCH_MARKER_RADIUS}
-          stroke="currentColor"
-          strokeWidth="2.5"
-          strokeDasharray={`${PITCH_MARKER_CIRCUMFERENCE} ${PITCH_MARKER_CIRCUMFERENCE}`}
-          strokeDashoffset={dashOffset}
-          strokeLinecap="round"
-          fill="none"
-          className="transition-[stroke-dashoffset] duration-200 ease-out"
-        />
-      </svg>
-      <span className="relative z-10 block max-h-[2.6rem] w-full overflow-hidden text-ellipsis">
-        {player.name}
-      </span>
-      <div className="relative z-10 mt-1 flex items-center justify-center">
-        <span className="rounded-full bg-emerald-900/90 px-2 py-0.5 text-[10px] font-bold text-emerald-50 shadow-sm">
-          {formatRatingLabel(player.overall)}
-        </span>
-      </div>
-    </div>
-  );
-};
-
-function getPlayerCondition(player: Player): number {
-  return clampPerformanceGauge(player.condition, DEFAULT_GAUGE_VALUE);
-}
-
-function getPlayerMotivation(player: Player): number {
-  return clampPerformanceGauge(player.motivation, DEFAULT_GAUGE_VALUE);
-}
-
-function getPlayerPower(player: Player): number {
-  return calculatePowerIndex({
-    ...player,
-    condition: getPlayerCondition(player),
-    motivation: getPlayerMotivation(player),
-  });
-}
-
-export default function TeamPlanning() {
-  const navigate = useNavigate();
-  const { user } = useAuth();
-  const { balance, spend } = useDiamonds();
-  const [players, setPlayers] = useState<Player[]>([]);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [activeTab, setActiveTab] = useState('starting');
-  const [selectedFormation, setSelectedFormation] = useState(formations[0].name);
-  const [customFormations, setCustomFormations] = useState<CustomFormationState>({});
-
-  const [draggedPlayerId, setDraggedPlayerId] = useState<string | null>(null);
-  const [sortBy, setSortBy] = useState<'role' | 'overall' | 'potential'>('role');
-  const [focusedPlayerId, setFocusedPlayerId] = useState<string | null>(null);
-  const [savedFormationShape, setSavedFormationShape] = useState<string | null>(null);
-  const [renamePlayerId, setRenamePlayerId] = useState<string | null>(null);
-  const [renameInput, setRenameInput] = useState('');
-  const [isRenamingPlayer, setIsRenamingPlayer] = useState(false);
-  const [pendingContractIds, setPendingContractIds] = useState<string[]>([]);
-  const [activeContractId, setActiveContractId] = useState<string | null>(null);
-  const [isProcessingContract, setIsProcessingContract] = useState(false);
-
-  const pitchRef = useRef<HTMLDivElement | null>(null);
-  const dropHandledRef = useRef(false);
-  const handledContractsRef = useRef<Set<string>>(new Set());
-
-
-  const filteredPlayers = players.filter(
-    player =>
-      player.name.toLowerCase().includes(searchTerm.toLowerCase()) &&
-      player.squadRole === activeTab,
-  );
-
-  const POSITION_ORDER: Player['position'][] = [
-    'GK',
-    'LB',
-    'CB',
-    'RB',
-    'LM',
-    'CM',
-    'RM',
-    'CAM',
-    'LW',
-    'RW',
-    'ST',
-  ];
-
-  const sortedPlayers = [...filteredPlayers].sort((a, b) => {
-    switch (sortBy) {
-      case 'overall':
-        return b.overall - a.overall;
-      case 'potential':
-        return b.potential - a.potential;
-      default:
-        return (
-          POSITION_ORDER.indexOf(a.position) - POSITION_ORDER.indexOf(b.position)
-        );
-    }
-  });
-
-  const renamePlayer = useMemo(
-    () => players.find(player => player.id === renamePlayerId) ?? null,
-    [players, renamePlayerId],
-  );
-
-  const activeContractPlayer = useMemo(
-    () => players.find(player => player.id === activeContractId) ?? null,
-    [players, activeContractId],
-  );
-
-  const isRenameAdAvailable = renamePlayer ? isRenameAdReady(renamePlayer) : true;
-  const renameAdAvailableAt = renamePlayer
-    ? getRenameAdAvailability(renamePlayer)
-    : null;
-
-  const removePlayerFromCustomFormations = (playerId: string) => {
-    setCustomFormations(prev => {
-      let changed = false;
-      const nextEntries: [string, Record<string, FormationPlayerPosition>][] = [];
-
-      Object.entries(prev).forEach(([formationKey, layout]) => {
-        if (!layout || typeof layout !== 'object') {
-          return;
-        }
-
-        if (playerId in layout) {
-          const { [playerId]: _removed, ...rest } = layout;
-          changed = true;
-          if (Object.keys(rest).length > 0) {
-            nextEntries.push([
-              formationKey,
-              rest as Record<string, FormationPlayerPosition>,
-            ]);
-          }
-        } else {
-          nextEntries.push([formationKey, layout]);
-        }
-      });
-
-      if (!changed) {
-        return prev;
-      }
-
-      return Object.fromEntries(nextEntries) as CustomFormationState;
-    });
-  };
-
-  const updatePlayerManualPosition = (
-    formationName: string,
-    playerId: string,
-    data: FormationPlayerPosition,
-  ) => {
-    setCustomFormations(prev => {
-      const currentFormation = prev[formationName] ?? {};
-      const normalized: FormationPlayerPosition = {
-        x: clampPercentageValue(data.x),
-        y: clampPercentageValue(data.y),
-        position: data.position,
-      };
-
-      const existing = currentFormation[playerId];
-      if (
-        existing &&
-        existing.x === normalized.x &&
-        existing.y === normalized.y &&
-        existing.position === normalized.position
-      ) {
-        return prev;
-      }
-
-      return {
-        ...prev,
-        [formationName]: {
-          ...currentFormation,
-          [playerId]: normalized,
-        },
-      };
-    });
-  };
-
-  const finalizeContractDecision = (playerId: string) => {
-    handledContractsRef.current.add(playerId);
-    setPendingContractIds(prev => prev.filter(id => id !== playerId));
-    setActiveContractId(prev => (prev === playerId ? null : prev));
-  };
-
-  const movePlayer = (playerId: string, newRole: Player['squadRole']) => {
-    let errorMessage: string | null = null;
-    let changed = false;
-    let swappedPlayerId: string | null = null;
-
-    setPlayers(prev => {
-      const playerIndex = prev.findIndex(player => player.id === playerId);
-      if (playerIndex === -1) {
-        errorMessage = 'Oyuncu bulunamad.';
-        return prev;
-      }
-
-      const player = prev[playerIndex];
-      if (newRole === 'starting') {
-        const result = promotePlayerToStartingRoster(prev, playerId);
-        if (result.error) {
-          errorMessage = result.error;
-          return prev;
-        }
-        if (!result.updated) {
-          return prev;
-        }
-        changed = true;
-        swappedPlayerId = result.swappedPlayerId ?? null;
-        return result.players;
-      }
-
-      if (player.squadRole === newRole) {
-        return prev;
-      }
-
-      const next = [...prev];
-      next[playerIndex] = {
-        ...player,
-        squadRole: newRole,
-      };
-      changed = true;
-      return normalizePlayers(next);
-    });
-
-    if (errorMessage) {
-      toast.error('lem tamamlanamad', { description: errorMessage });
-    } else if (changed) {
-      if (newRole !== 'starting') {
-        removePlayerFromCustomFormations(playerId);
-      } else if (swappedPlayerId) {
-        removePlayerFromCustomFormations(swappedPlayerId);
-      }
-      toast.success('Oyuncu baaryla tand');
-    }
-  };
-
-  const handleRenamePlayer = async (method: 'ad' | 'purchase') => {
-    if (!user || !renamePlayer) {
-      return;
-    }
-
-    const userId = user.id;
-    const trimmed = renameInput.trim();
-    if (trimmed.length < 2) {
-      toast.error('İsim en az 2 karakter olmalı');
-      return;
-    }
-
-    if (trimmed === renamePlayer.name) {
-      toast.info('Oyuncu adı değişmedi');
-      return;
-    }
-
-    if (method === 'ad' && !isRenameAdAvailable) {
-      const availableAt = getRenameAdAvailability(renamePlayer);
-      const message = availableAt
-        ? `Reklam ${availableAt.toLocaleString('tr-TR')} sonrasında tekrar izlenebilir.`
-        : 'Reklam hakkı şu anda kullanılamıyor.';
-      toast.error(message);
-      return;
-    }
-
-    if (method === 'purchase' && balance < PLAYER_RENAME_DIAMOND_COST) {
-      toast.error('Yetersiz elmas bakiyesi');
-      return;
-    }
-
-    const previousPlayers = players.map(player => ({ ...player }));
-    let diamondsSpent = false;
-
-    setIsRenamingPlayer(true);
-
-    try {
-      if (method === 'purchase') {
-        await spend(PLAYER_RENAME_DIAMOND_COST);
-        diamondsSpent = true;
-      } else {
-        await new Promise(resolve => setTimeout(resolve, 1000));
-      }
-
-      const now = new Date();
-      const adCooldown = new Date(
-        now.getTime() + PLAYER_RENAME_AD_COOLDOWN_HOURS * HOURS_IN_MS,
-      );
-
-      const updatedPlayers = normalizePlayers(
-        players.map(player => {
-          if (player.id !== renamePlayer.id) {
-            return player;
-          }
-          const currentRename = player.rename ?? { adAvailableAt: new Date(0).toISOString() };
-          return {
-            ...player,
-            name: trimmed,
-            rename: {
-              ...currentRename,
-              lastUpdatedAt: now.toISOString(),
-              lastMethod: method === 'purchase' ? 'purchase' : 'ad',
-              adAvailableAt:
-                method === 'ad'
-                  ? adCooldown.toISOString()
-                  : currentRename.adAvailableAt ?? now.toISOString(),
-            },
-          };
-        }),
-      );
-
-      setPlayers(updatedPlayers);
-      await saveTeamPlayers(userId, updatedPlayers);
-      toast.success('Oyuncu adı güncellendi');
-      setRenamePlayerId(null);
-    } catch (error) {
-      console.error('[TeamPlanning] player rename failed', error);
-      toast.error('Oyuncu adı güncellenemedi');
-      setPlayers(previousPlayers);
-      if (method === 'purchase' && diamondsSpent) {
-        toast.error('Elmas harcaması yapıldı, lütfen destek ekibiyle iletişime geçin.');
-      }
-    } finally {
-      setIsRenamingPlayer(false);
-    }
-  };
-
-  const handleExtendContract = async (playerId: string) => {
-    if (!user || isProcessingContract) {
-      return;
-    }
-    const userId = user.id;
-    const target = players.find(player => player.id === playerId);
-    if (!target) {
-      return;
-    }
-    if (getLegendIdFromPlayer(target) !== null) {
-      toast.error('Nostalji paketinden alınan oyuncuların sözleşmeleri uzatılamaz.');
-      return;
-    }
-
-    setIsProcessingContract(true);
-    const previousPlayers = players.map(player => ({ ...player }));
-    const now = new Date();
-    const currentExpiry = getContractExpiration(target);
-    const baseDate = currentExpiry && currentExpiry.getTime() > now.getTime() ? currentExpiry : now;
-    const newExpiry = addMonths(baseDate, CONTRACT_EXTENSION_MONTHS);
-
-    const updatedPlayers = players.map(player => {
-      if (player.id !== playerId) {
-        return player;
-      }
-      const existingContract = player.contract ?? {
-        expiresAt: newExpiry.toISOString(),
-        status: 'active',
-        salary: 0,
-        extensions: 0,
-      };
-      return {
-        ...player,
-        contract: {
-          ...existingContract,
-          status: 'active',
-          expiresAt: newExpiry.toISOString(),
-          extensions: (existingContract.extensions ?? 0) + 1,
-        },
-      };
-    });
-
-    setPlayers(updatedPlayers);
-    try {
-      await saveTeamPlayers(userId, updatedPlayers);
-      toast.success(`${target.name} ile sözleşme uzatıldı`);
-      finalizeContractDecision(playerId);
-    } catch (error) {
-      console.error('[TeamPlanning] extend contract failed', error);
-      toast.error('Sözleşme uzatılamadı');
-      setPlayers(previousPlayers);
-    } finally {
-      setIsProcessingContract(false);
-    }
-  };
-
-  const handleReleaseContract = async (playerId: string) => {
-    if (!user || isProcessingContract) {
-      return;
-    }
-    const userId = user.id;
-    const target = players.find(player => player.id === playerId);
-    if (!target) {
-      return;
-    }
-
-    const isLegendRental = getLegendIdFromPlayer(target) !== null;
-
-    if (isLegendRental) {
-      setIsProcessingContract(true);
-      const previousPlayers = players.map(player => ({ ...player }));
-      const updatedPlayers = players.filter(player => player.id !== playerId);
-
-      setPlayers(updatedPlayers);
-      try {
-        await completeLegendRental(userId, playerId, { players: previousPlayers });
-        toast.info(`${target.name} ile yapılan kiralama sona erdi.`);
-        finalizeContractDecision(playerId);
-      } catch (error) {
-        console.error('[TeamPlanning] legend rental release failed', error);
-        toast.error('Oyuncu kadrodan kaldırılamadı');
-        setPlayers(previousPlayers);
-      } finally {
-        setIsProcessingContract(false);
-      }
-      return;
-    }
-
-    setIsProcessingContract(true);
-    const previousPlayers = players.map(player => ({ ...player }));
-    const updatedPlayers = players.map(player => {
-      if (player.id !== playerId) {
-        return player;
-      }
-      const currentContract = player.contract ?? {
-        expiresAt: new Date().toISOString(),
-        status: 'expired',
-        salary: 0,
-        extensions: 0,
-      };
-      return {
-        ...player,
-        squadRole: player.squadRole === 'starting' ? 'reserve' : player.squadRole,
-        contract: {
-          ...currentContract,
-          status: 'released',
-        },
-        market: {
-          ...(player.market ?? { active: false, listingId: null }),
-          active: true,
-        },
-      };
-    });
-
-    setPlayers(updatedPlayers);
-    try {
-      await saveTeamPlayers(userId, updatedPlayers);
-      toast.info(`${target.name} serbest bırakıldı ve transfer listesine eklendi`);
-      finalizeContractDecision(playerId);
-    } catch (error) {
-      console.error('[TeamPlanning] release contract failed', error);
-      toast.error('Oyuncu serbest bırakılamadı');
-      setPlayers(previousPlayers);
-    } finally {
-      setIsProcessingContract(false);
-    }
-  };
-
-  const handleFirePlayer = async (playerId: string) => {
-    if (!user) {
-      return;
-    }
-
-    const userId = user.id;
-    const target = players.find(player => player.id === playerId);
-    if (!target) {
-      return;
-    }
-
-    const previousPlayers = players.map(player => ({ ...player }));
-    const updatedPlayers = players.filter(player => player.id !== playerId);
-
-    setPlayers(updatedPlayers);
-    try {
-      await saveTeamPlayers(user.id, updatedPlayers);
-      removePlayerFromCustomFormations(playerId);
-      toast.success(`${target.name} takımdan gönderildi`);
-      finalizeContractDecision(playerId);
-    } catch (error) {
-      console.error('[TeamPlanning] fire player failed', error);
-      toast.error('Oyuncu kovulamadı');
-      setPlayers(previousPlayers);
-    }
-  };
-
-  const getPitchCoordinates = (clientX: number, clientY: number): FormationPlayerPosition | null => {
-    const field = pitchRef.current;
-    if (!field) {
-      return null;
-    }
-    const rect = field.getBoundingClientRect();
-    if (rect.width === 0 || rect.height === 0) {
-      return null;
-    }
-
-    const relativeX = ((clientX - rect.left) / rect.width) * 100;
-    const relativeY = ((clientY - rect.top) / rect.height) * 100;
-
-    if (Number.isNaN(relativeX) || Number.isNaN(relativeY)) {
-      return null;
-    }
-
-    if (clientX < rect.left || clientX > rect.right || clientY < rect.top || clientY > rect.bottom) {
-      return null;
-    }
-
-    return {
-      x: clampPercentageValue(relativeX),
-      y: clampPercentageValue(relativeY),
-      position: 'CM',
-    };
-  };
-
-  const handlePitchDrop = (e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    const playerId = e.dataTransfer.getData('text/plain') || draggedPlayerId;
-    if (!playerId) {
-      return;
-    }
-
-    const player = players.find(p => p.id === playerId);
-    if (!player) {
-      return;
-    }
-
-    const coordinates = getPitchCoordinates(e.clientX, e.clientY);
-    if (!coordinates) {
-      setDraggedPlayerId(null);
-      return;
-    }
-
-    dropHandledRef.current = true;
-
-    if (player.squadRole === 'starting') {
-      updatePlayerManualPosition(selectedFormation, playerId, {
-        x: coordinates.x,
-        y: coordinates.y,
-        position: player.position,
-      });
-      setFocusedPlayerId(playerId);
-      toast.success('Oyuncu sahada yeniden konumlandırıldı');
-      setDraggedPlayerId(null);
-      return;
-    }
-
-    let errorMessage: string | null = null;
-    let updated = false;
-    let result: PromoteToStartingResult | null = null;
-
-    setPlayers(prev => {
-      const promotion = promotePlayerToStartingRoster(prev, playerId);
-      result = promotion;
-      if (promotion.error) {
-        errorMessage = promotion.error;
-        return prev;
-      }
-      if (!promotion.updated) {
-        return prev;
-      }
-      updated = true;
-      return promotion.players;
-    });
-
-    if (errorMessage) {
-      toast.error('Oyuncu eklenemedi', { description: errorMessage });
-    } else if (updated) {
-      updatePlayerManualPosition(selectedFormation, playerId, {
-        x: coordinates.x,
-        y: coordinates.y,
-        position: player.position,
-      });
-      if (result?.swappedPlayerId) {
-        removePlayerFromCustomFormations(result.swappedPlayerId);
-      }
-      setFocusedPlayerId(playerId);
-      toast.success('Oyuncu sahada konumlandırıldı');
-    }
-
-    setDraggedPlayerId(null);
-  };
-
-  const handlePlayerDragEnd = (
-    event: React.DragEvent<HTMLDivElement>,
-    player: Player,
-  ) => {
-    setDraggedPlayerId(null);
-    if (dropHandledRef.current) {
-      dropHandledRef.current = false;
-      return;
-    }
-
-    if (player.squadRole !== 'starting') {
-      return;
-    }
-
-    if (event.clientX === 0 && event.clientY === 0) {
-      return;
-    }
-
-    const coordinates = getPitchCoordinates(event.clientX, event.clientY);
-    if (!coordinates) {
-      return;
-    }
-
-    updatePlayerManualPosition(selectedFormation, player.id, {
-      x: coordinates.x,
-      y: coordinates.y,
-      position: player.position,
-    });
-  };
-
-  const handleListForTransfer = (playerId: string) => {
-    navigate('/transfer-market', { state: { listPlayerId: playerId } });
-  };
-
-  const handleReleasePlayer = (playerId: string) => {
-    let removedName: string | null = null;
-    removePlayerFromCustomFormations(playerId);
-    setPlayers(prev => {
-      const player = prev.find(p => p.id === playerId);
-      if (!player) {
-        return prev;
-      }
-      removedName = player.name;
-      return prev.filter(p => p.id !== playerId);
-    });
-    if (removedName) {
-      setFocusedPlayerId(current => (current === playerId ? null : current));
-      toast.success(`${removedName} serbest brakld`, {
-        description: 'Deiiklikleri kaydetmeyi unutmayn.',
-      });
-    }
-  };
-
-  const handleSave = async () => {
-    if (!user) return;
-    try {
-      const collectIds = (role: Player['squadRole']) =>
-        players
-          .filter(p => p.squadRole === role && p.id)
-          .map(p => String(p.id));
-
-      const unique = (ids: string[]) => Array.from(new Set(ids.filter(Boolean)));
-
-      const starters = unique(collectIds('starting'));
-      if (starters.length !== 11) {
-        toast.error('Kadro tamamlanmadÄ±', {
-          description: 'Kaydetmeden Ã¶nce 11 oyuncuyu ilk 11 olarak belirleyin.',
-        });
-        return;
-      }
-
-      const bench = unique(collectIds('bench')).filter(id => !starters.includes(id));
-      const reserves = unique(collectIds('reserve')).filter(id => !starters.includes(id) && !bench.includes(id));
-
-      const startersSet = new Set(starters);
-      const customForSave = Object.fromEntries(
-        Object.entries(customFormations).flatMap(([formationKey, layout]) => {
-          if (!layout || typeof layout !== 'object') {
-            return [];
-          }
-          const filteredEntries = Object.entries(layout).filter(([playerId]) =>
-            startersSet.has(playerId),
-          );
-          if (filteredEntries.length === 0) {
-            return [];
-          }
-          const sanitizedLayout = Object.fromEntries(
-            filteredEntries.map(([playerId, value]) => [
-              playerId,
-              {
-                x: clampPercentageValue(value.x),
-                y: clampPercentageValue(value.y),
-                position: value.position,
-              },
-            ]),
-          );
-          return [[formationKey, sanitizedLayout]];
-        }),
-      ) as CustomFormationState;
-
-      const fallbackShape =
-        (derivedFormationShape && derivedFormationShape.trim().length > 0
-          ? derivedFormationShape
-          : savedFormationShape && savedFormationShape.trim().length > 0
-            ? savedFormationShape
-            : selectedFormation) ?? selectedFormation;
-      const shapeForSave = fallbackShape.trim();
-
-      // Persist full roster and snapshot locally for Firestore
-      await saveTeamPlayers(user.id, players, {
-        formation: selectedFormation,
-        shape: shapeForSave,
-        squads: {
-          starters,
-          bench,
-          reserves,
-        },
-        customFormations:
-          Object.keys(customForSave).length > 0 ? customForSave : undefined,
-      });
-
-      setSavedFormationShape(shapeForSave);
-      toast.success('Takım planı kaydedildi!');
-    } catch (error) {
-      console.error('[TeamPlanning] saveTeamPlayers failed', error);
-      const description =
-        error && typeof error === 'object' && 'details' in error && typeof (error as { details?: unknown }).details === 'string'
-          ? String((error as { details?: unknown }).details)
-          : error && typeof error === 'object' && 'message' in error && typeof (error as { message?: unknown }).message === 'string'
-          ? String((error as { message?: unknown }).message)
-          : 'Kadro kaydÄ± baÅŸarÄ±sÄ±z. LÃ¼tfen tekrar deneyin.';
-      toast.error('Sunucu hatasÄ±', { description });
-    }
-  };
-
-  useEffect(() => {
-    if (!user) return;
-    (async () => {
-      let team = await getTeam(user.id);
-      if (!team) {
-        team = await createInitialTeam(user.id, user.teamName, user.teamName, {
-          authUser: auth.currentUser,
-        });
-      }
-
-      const normalized = normalizePlayers(team.players);
-      setPlayers(normalized);
-
-      const remoteFormation =
-        team.plan?.formation || team.lineup?.formation || formations[0].name;
-      setSelectedFormation(remoteFormation);
-
-      const remoteCustomFormations = sanitizeCustomFormationState(
-        team.plan?.customFormations || team.lineup?.customFormations || {},
-      );
-      setCustomFormations(remoteCustomFormations);
-
-      const rawPlanShape =
-        typeof team.plan?.shape === 'string' ? team.plan.shape.trim() : '';
-      const rawLineupShape =
-        typeof team.lineup?.shape === 'string' ? team.lineup.shape.trim() : '';
-      const normalizedShape =
-        rawPlanShape && rawPlanShape.toLowerCase() !== 'auto'
-          ? rawPlanShape
-          : rawLineupShape && rawLineupShape.toLowerCase() !== 'auto'
-            ? rawLineupShape
-            : '';
-      setSavedFormationShape(normalizedShape || null);
-    })();
-  }, [user]);
-
-  useEffect(() => {
-    if (players.length === 0) {
-      if (focusedPlayerId !== null) {
-        setFocusedPlayerId(null);
-      }
-      return;
-    }
-    if (focusedPlayerId && players.some(p => p.id === focusedPlayerId)) {
-      return;
-    }
-    const fallback = players.find(p => p.squadRole === 'starting') ?? players[0];
-    if (fallback && fallback.id !== focusedPlayerId) {
-      setFocusedPlayerId(fallback.id);
-    }
-  }, [players, focusedPlayerId]);
-
-  useEffect(() => {
-    if (renamePlayer) {
-      setRenameInput(renamePlayer.name);
-    } else {
-      setRenameInput('');
-    }
-  }, [renamePlayer]);
-
-  useEffect(() => {
-    const expiredIds = new Set(
-      players.filter(player => isContractExpired(player)).map(player => player.id),
-    );
-
-    handledContractsRef.current.forEach(id => {
-      if (!expiredIds.has(id)) {
-        handledContractsRef.current.delete(id);
-      }
-    });
-
-    setPendingContractIds(prev => {
-      const existing = new Set(prev);
-      const next = [...prev];
-      players.forEach(player => {
-        if (!expiredIds.has(player.id)) {
-          return;
-        }
-        if (handledContractsRef.current.has(player.id)) {
-          return;
-        }
-        if (!existing.has(player.id)) {
-          next.push(player.id);
-        }
-      });
-      return next;
-    });
-  }, [players]);
-
-  useEffect(() => {
-    if (pendingContractIds.length === 0) {
-      setActiveContractId(null);
-      return;
-    }
-    setActiveContractId(prev => (prev && pendingContractIds.includes(prev) ? prev : pendingContractIds[0]));
-  }, [pendingContractIds]);
-
-  useEffect(() => {
-    if (players.length === 0) {
-      return;
-    }
-
-    setCustomFormations(prev => {
-      const startingIds = new Set(
-        players.filter(player => player.squadRole === 'starting').map(player => player.id),
-      );
-
-      let changed = false;
-      const next: CustomFormationState = {};
-
-      Object.entries(prev).forEach(([formationKey, layout]) => {
-        const filteredEntries = Object.entries(layout).filter(([playerId]) =>
-          startingIds.has(playerId),
-        );
-
-        if (filteredEntries.length > 0) {
-          next[formationKey] = Object.fromEntries(filteredEntries);
-          if (filteredEntries.length !== Object.keys(layout).length) {
-            changed = true;
-          }
-        } else if (Object.keys(layout).length > 0) {
-          changed = true;
-        }
-      });
-
-      if (!changed) {
-        return prev;
-      }
-
-      return next;
-    });
-  }, [players]);
-
-  const startingEleven = players.filter(p => p.squadRole === 'starting');
-  const benchPlayers = players.filter(p => p.squadRole === 'bench');
-  const reservePlayers = players.filter(p => p.squadRole === 'reserve');
-
-  const currentFormation =
-    formations.find(f => f.name === selectedFormation) ?? formations[0];
-
-  const manualFormation = useMemo(
-    () => customFormations[selectedFormation] ?? {},
-    [customFormations, selectedFormation],
-  );
-
-  const formationPositions = useMemo(() => {
-    const starters = players.filter(p => p.squadRole === 'starting');
-    const slots = currentFormation.positions;
-
-    if (starters.length === 0) {
-      return slots.map((slot, idx) => ({ ...slot, player: null, slotIndex: idx }));
-    }
-
-    const startersById = new Map(starters.map(player => [player.id, player] as const));
-    const remainingPlayerIds = new Set(starters.map(player => player.id));
-    const slotAssignments = new Map<
-      number,
-      { player: Player; manual: FormationPlayerPosition | null }
-    >();
-
-    Object.entries(manualFormation).forEach(([playerId, manual]) => {
-      const player = startersById.get(playerId);
-      if (!player) {
-        return;
-      }
-
-      const targetIndex = slots.findIndex((slot, idx) => {
-        if (slotAssignments.has(idx)) {
-          return false;
-        }
-        const canonicalSlot = canonicalPosition(slot.position);
-        const manualPosition = manual?.position ?? player.position;
-        return canonicalPosition(manualPosition) === canonicalSlot;
-      });
-
-      if (targetIndex === -1) {
-        return;
-      }
-
-      slotAssignments.set(targetIndex, { player, manual });
-      remainingPlayerIds.delete(playerId);
-    });
-
-    slots.forEach((slot, idx) => {
-      if (slotAssignments.has(idx)) {
-        return;
-      }
-
-      const canonicalSlot = canonicalPosition(slot.position);
-      const matchingEntry = Array.from(remainingPlayerIds).find(playerId => {
-        const candidate = startersById.get(playerId);
-        if (!candidate) return false;
-        const playerPosition = canonicalPosition(candidate.position);
-        if (playerPosition === canonicalSlot) {
-          return true;
-        }
-        return (candidate.roles ?? []).some(role => canonicalPosition(role) === canonicalSlot);
-      });
-
-      if (!matchingEntry) {
-        return;
-      }
-
-      const player = startersById.get(matchingEntry);
-      if (!player) {
-        return;
-      }
-
-      slotAssignments.set(idx, { player, manual: null });
-      remainingPlayerIds.delete(matchingEntry);
-    });
-
-    slots.forEach((slot, idx) => {
-      if (slotAssignments.has(idx) || remainingPlayerIds.size === 0) {
-        return;
-      }
-
-      const iterator = remainingPlayerIds.values().next();
-      if (iterator.done) {
-        return;
-      }
-
-      const player = startersById.get(iterator.value);
-      remainingPlayerIds.delete(iterator.value);
-      if (!player) {
-        return;
-      }
-
-      slotAssignments.set(idx, { player, manual: null });
-    });
-
-    return slots.map((slot, idx) => {
-      const assigned = slotAssignments.get(idx);
-      if (!assigned) {
-        return { ...slot, player: null, slotIndex: idx };
-      }
-
-      const { player, manual } = assigned;
-      if (!manual) {
-        return { ...slot, player, slotIndex: idx };
-      }
-
-      return {
-        position: slot.position,
-        x: clampPercentageValue(manual.x),
-        y: clampPercentageValue(manual.y),
-        player,
-        slotIndex: idx,
-      };
-    });
-  }, [currentFormation, manualFormation, players]);
-
-  const derivedFormationShape = useMemo(
-    () => deriveFormationShape(formationPositions),
-    [formationPositions],
-  );
-
-  const displayFormationName = useMemo(() => {
-    const manualShape = derivedFormationShape?.trim();
-    if (manualShape) {
-      return manualShape;
-    }
-    const savedShape = savedFormationShape?.trim();
-    if (savedShape) {
-      return savedShape;
-    }
-    return selectedFormation;
-  }, [derivedFormationShape, savedFormationShape, selectedFormation]);
-
-  const manualShapeDiffers = useMemo(() => {
-    if (!derivedFormationShape) {
-      return false;
-    }
-    return derivedFormationShape.trim() !== selectedFormation.trim();
-  }, [derivedFormationShape, selectedFormation]);
-
-  const selectedPlayer = useMemo(() => {
-    if (!focusedPlayerId) return null;
-    return players.find(p => p.id === focusedPlayerId) ?? null;
-  }, [players, focusedPlayerId]);
-
-  const alternativePlayers = useMemo(() => {
-    if (!selectedPlayer) {
-      return [] as Player[];
-    }
-
-    const target = canonicalPosition(selectedPlayer.position);
-
-    const alternatives = players.filter(player => {
-      if (player.id === selectedPlayer.id) {
-        return false;
-      }
-      if (player.squadRole !== 'bench' && player.squadRole !== 'reserve') {
-        return false;
-      }
-      const primary = canonicalPosition(player.position);
-      if (primary === target) {
-        return true;
-      }
-      return (player.roles ?? []).some(role => canonicalPosition(role) === target);
-    });
-
-    return alternatives.sort((a, b) => {
-      const roleDiff = squadRoleWeight(a.squadRole) - squadRoleWeight(b.squadRole);
-      if (roleDiff !== 0) {
-        return roleDiff;
-      }
-      return b.overall - a.overall;
-    });
-  }, [players, selectedPlayer]);
-
-  const handlePositionDrop = (
-    e: React.DragEvent<HTMLDivElement>,
-    slot: { position: Player['position']; x: number; y: number; slotIndex: number },
-  ) => {
-    e.preventDefault();
-    e.stopPropagation();
-    const playerId = e.dataTransfer.getData('text/plain') || draggedPlayerId;
-    if (!playerId) return;
-    let errorMessage: string | null = null;
-    let updated = false;
-    let result: PromoteToStartingResult | null = null;
-    setPlayers(prev => {
-      const promotion = promotePlayerToStartingRoster(prev, playerId, slot.position);
-      result = promotion;
-      if (promotion.error) {
-        errorMessage = promotion.error;
-        return prev;
-      }
-      if (!promotion.updated) {
-        return prev;
-      }
-      updated = true;
-      return promotion.players;
-    });
-
-    if (errorMessage) {
-      toast.error('Pozisyon gncellenemedi', { description: errorMessage });
-    } else if (updated) {
-      dropHandledRef.current = true;
-      updatePlayerManualPosition(selectedFormation, playerId, {
-        x: slot.x,
-        y: slot.y,
-        position: slot.position,
-      });
-      if (result?.swappedPlayerId) {
-        removePlayerFromCustomFormations(result.swappedPlayerId);
-      }
-      setFocusedPlayerId(playerId);
-      toast.success('Oyuncu ilk 11\'e tand');
-    }
-    setDraggedPlayerId(null);
-  };
-
-  const handleAlternativeSelection = (alternativeId: string) => {
-    if (!selectedPlayer) {
-      return;
-    }
-
-    const manualLayouts = Object.entries(customFormations).reduce<
-      Array<{ formation: string; layout: FormationPlayerPosition }>
-    >((acc, [formationKey, layout]) => {
-      const entry = layout?.[selectedPlayer.id];
-      if (entry) {
-        acc.push({ formation: formationKey, layout: entry });
-      }
-      return acc;
-    }, []);
-
-    let errorMessage: string | null = null;
-    let updated = false;
-    let swappedPlayerId: string | null = null;
-
-    setPlayers(prev => {
-      const result = promotePlayerToStartingRoster(prev, alternativeId, selectedPlayer.position);
-      if (result.error) {
-        errorMessage = result.error;
-        return prev;
-      }
-      if (!result.updated) {
-        return prev;
-      }
-      updated = true;
-      swappedPlayerId = result.swappedPlayerId ?? null;
-      return result.players;
-    });
-
-    if (errorMessage) {
-      toast.error('Oyuncu yerle�Ytirilemedi', { description: errorMessage });
-      return;
-    }
-    if (!updated) {
-      return;
-    }
-
-    removePlayerFromCustomFormations(alternativeId);
-    manualLayouts.forEach(({ formation, layout }) => {
-      updatePlayerManualPosition(formation, alternativeId, {
-        ...layout,
-        position: selectedPlayer.position,
-      });
-    });
-    removePlayerFromCustomFormations(selectedPlayer.id);
-    if (swappedPlayerId && swappedPlayerId !== selectedPlayer.id) {
-      removePlayerFromCustomFormations(swappedPlayerId);
-    }
-
-    setFocusedPlayerId(alternativeId);
-    setActiveTab('starting');
-    toast.success('Oyuncu ilk 11\'e ta�Y��nd��');
-  };
-
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-green-50 via-emerald-50 to-teal-50 dark:from-green-950 dark:via-emerald-950 dark:to-teal-950">
-      {/* Header */}
-      <div className="bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm border-b p-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <BackButton />
-            <h1 className="text-xl font-bold">Takım Planı</h1>
-          </div>
-          <div className="flex gap-2">
+          <div className="nostalgia-team-planning__header-actions">
             <Button variant="outline" size="sm">
-              <Eye className="h-4 w-4 mr-2" />
+              <Eye className="mr-2 h-4 w-4" />
               Formasyon
             </Button>
             <Button onClick={handleSave}>
-              <Save className="h-4 w-4 mr-2" />
+              <Save className="mr-2 h-4 w-4" />
               Kaydet
             </Button>
+          </div>
+        </header>
+
+        <div className="nostalgia-team-planning__stage">
+          <div className="nostalgia-main-menu__stage nostalgia-main-menu__stage--mobile">
+            <div className="nostalgia-main-menu__slide nostalgia-team-planning__slide nostalgia-team-planning__slide--pitch">
+              <div className="nostalgia-team-planning__slide-inner">
+                <div className="nostalgia-team-planning__pitch-layout">
+                  <Card className="nostalgia-team-planning__pitch-card">
+                    <CardHeader className="flex flex-col gap-3 border-b border-white/60 bg-white/70 backdrop-blur-sm sm:flex-row sm:items-center sm:justify-between dark:border-white/10 dark:bg-slate-900/80">
+                      <CardTitle className="flex items-center gap-3">
+                        <div className="h-3 w-3 rounded-full bg-green-500" />
+                        <div className="flex flex-col text-left">
+                          <span>Formasyon</span>
+                          <span className="text-sm font-normal text-emerald-900 dark:text-emerald-100">
+                            {displayFormationName}
+                          </span>
+                          {manualShapeDiffers ? (
+                            <span className="text-xs font-normal text-emerald-700 dark:text-emerald-200/80">
+                              Şablon: {selectedFormation}
+                            </span>
+                          ) : null}
+                        </div>
+                      </CardTitle>
+                      <Select value={selectedFormation} onValueChange={setSelectedFormation}>
+                        <SelectTrigger className="w-full md:w-40" aria-label="Formasyon">
+                          <span className="truncate">{displayFormationName}</span>
+                        </SelectTrigger>
+                        <SelectContent>
+                          {formations.map(f => (
+                            <SelectItem key={f.name} value={f.name}>
+                              {f.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </CardHeader>
+                    <CardContent className="bg-gradient-to-br from-emerald-600/95 via-emerald-700/95 to-emerald-800/95">
+                      <div className="relative">
+                        <div className="relative aspect-[3/4] w-full overflow-hidden rounded-2xl bg-gradient-to-b from-emerald-600 via-emerald-700 to-emerald-800 shadow-[0_20px_45px_-25px_rgba(16,80,40,0.8)] sm:aspect-[2/3] lg:aspect-[3/4]">
+                          <div className="absolute inset-0 p-5">
+                            <div
+                              ref={pitchRef}
+                              className="relative h-full w-full"
+                              onDragOver={e => e.preventDefault()}
+                              onDrop={handlePitchDrop}
+                            >
+                              <div className="absolute inset-0 opacity-80">
+                                <svg
+                                  viewBox="0 0 100 100"
+                                  className="absolute inset-0 h-full w-full text-white/60"
+                                  pointerEvents="none"
+                                >
+                                  <rect x="0" y="0" width="100" height="100" fill="none" stroke="currentColor" strokeWidth="2" />
+                                  <line x1="0" y1="50" x2="100" y2="50" stroke="currentColor" strokeWidth="1" />
+                                  <circle cx="50" cy="50" r="9" stroke="currentColor" strokeWidth="1" fill="none" />
+                                  <rect x="16" y="0" width="68" height="16" stroke="currentColor" strokeWidth="1" fill="none" />
+                                  <rect x="16" y="84" width="68" height="16" stroke="currentColor" strokeWidth="1" fill="none" />
+                                  <rect x="30" y="0" width="40" height="6" stroke="currentColor" strokeWidth="1" fill="none" />
+                                  <rect x="30" y="94" width="40" height="6" stroke="currentColor" strokeWidth="1" fill="none" />
+                                  <circle cx="50" cy="11" r="1.5" fill="currentColor" />
+                                  <circle cx="50" cy="89" r="1.5" fill="currentColor" />
+                                </svg>
+                              </div>
+                              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                                <ArrowUp className="h-24 w-24 text-white/15" />
+                              </div>
+                              <div className="absolute inset-0">
+                                {formationPositions.map(({ player, position, x, y, slotIndex }) => (
+                                  <div
+                                    key={slotIndex}
+                                    className="absolute text-center"
+                                    style={{
+                                      left: `${x}%`,
+                                      top: `${y}%`,
+                                      transform: 'translate(-50%, -50%)',
+                                    }}
+                                    onDragOver={e => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                    }}
+                                    onDrop={e => handlePositionDrop(e, { position, x, y, slotIndex })}
+                                  >
+                                    {player ? (
+                                      <Tooltip>
+                                        <TooltipTrigger asChild>
+                                          <PitchPlayerMarker
+                                            player={player}
+                                            isFocused={player.id === focusedPlayerId}
+                                            onSelect={() => setFocusedPlayerId(player.id)}
+                                            onDragStart={event => {
+                                              setDraggedPlayerId(player.id);
+                                              event.dataTransfer.setData('text/plain', player.id);
+                                            }}
+                                            onDragEnd={event => handlePlayerDragEnd(event, player)}
+                                          />
+                                        </TooltipTrigger>
+                                        <TooltipContent className="z-50 w-56 space-y-2">
+                                          <div className="text-xs font-semibold">{player.name}</div>
+                                          <PerformanceGauge label="Güç" value={getPlayerPower(player)} />
+                                          <PerformanceGauge label="Kondisyon" value={getPlayerCondition(player)} />
+                                          <PerformanceGauge label="Motivasyon" value={getPlayerMotivation(player)} />
+                                        </TooltipContent>
+                                      </Tooltip>
+                                    ) : (
+                                      <div className="flex h-[3.6rem] w-[3.6rem] items-center justify-center rounded-full border border-dashed border-white/50 bg-white/20 px-1.5 text-[10px] font-semibold uppercase tracking-wide text-white">
+                                        {position}
+                                      </div>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                  <div className="nostalgia-team-planning__alternatives">
+                    {selectedPlayer ? (
+                      <Card className="nostalgia-team-planning__alternatives-card border-emerald-200/20 bg-emerald-900/10 shadow-lg backdrop-blur">
+                        <CardHeader className="pb-3">
+                          <CardTitle className="text-sm font-semibold text-emerald-50">
+                            {canonicalPosition(selectedPlayer.position)} için alternatifler
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-3">
+                          {alternativePlayers.length > 0 ? (
+                            <div className="grid gap-2 sm:grid-cols-2">
+                              {alternativePlayers.map(alternative => (
+                                <AlternativePlayerBubble
+                                  key={alternative.id}
+                                  player={alternative}
+                                  onSelect={playerId => handleAlternativeSelection(playerId)}
+                                  variant="panel"
+                                  compareToPlayer={selectedPlayer}
+                                />
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="text-xs text-emerald-100/80">
+                              Bu pozisyon için yedek veya rezerv oyuncu bulunmadı.
+                            </p>
+                          )}
+                        </CardContent>
+                      </Card>
+                    ) : (
+                      <Card className="nostalgia-team-planning__alternatives-card nostalgia-team-planning__alternatives-card--empty border-emerald-200/10 bg-emerald-900/20 shadow-lg backdrop-blur">
+                        <CardHeader className="pb-3">
+                          <CardTitle className="text-sm font-semibold text-emerald-100">
+                            Alternatif oyuncular
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-2 text-sm text-emerald-100/80">
+                          <p>Krokide bir oyuncuya tıklayın.</p>
+                          <p>Alternatifler burada gösterilecek.</p>
+                        </CardContent>
+                      </Card>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="nostalgia-main-menu__slide nostalgia-main-menu__slide--actions nostalgia-team-planning__slide nostalgia-team-planning__slide--lists">
+              <div className="nostalgia-team-planning__slide-inner">
+                <Card className="shadow-sm">
+                  <CardContent className="p-4">
+                    <div className="flex flex-col gap-3 md:flex-row md:items-center">
+                      <div className="relative flex-1">
+                        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 transform text-muted-foreground" />
+                        <Input
+                          placeholder="Oyuncu ara..."
+                          value={searchTerm}
+                          onChange={event => setSearchTerm(event.target.value)}
+                          className="pl-10"
+                        />
+                      </div>
+                      <Select
+                        value={sortBy}
+                        onValueChange={value => setSortBy(value as 'role' | 'overall' | 'potential')}
+                      >
+                        <SelectTrigger className="w-full md:w-40">
+                          <SelectValue placeholder="Sırala" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="role">Role göre</SelectItem>
+                          <SelectItem value="overall">Ortalamaya göre</SelectItem>
+                          <SelectItem value="potential">Maks. potansiyel</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </CardContent>
+                </Card>
+                <div className="nostalgia-team-planning__lists">
+                  <Tabs value={activeTab} onValueChange={setActiveTab}>
+                    <TabsList className="flex w-full gap-2 overflow-x-auto sm:overflow-visible">
+                      <TabsTrigger value="starting" className="flex-none min-w-[140px] whitespace-nowrap sm:flex-1 sm:min-w-0 sm:w-auto">
+                        İlk 11 ({startingEleven.length})
+                      </TabsTrigger>
+                      <TabsTrigger value="bench" className="flex-none min-w-[140px] whitespace-nowrap sm:flex-1 sm:min-w-0 sm:w-auto">
+                        Yedek ({benchPlayers.length})
+                      </TabsTrigger>
+                      <TabsTrigger value="reserve" className="flex-none min-w-[140px] whitespace-nowrap sm:flex-1 sm:min-w-0 sm:w-auto">
+                        Rezerv ({reservePlayers.length})
+                      </TabsTrigger>
+                    </TabsList>
+                    <TabsContent value="starting" className="mt-4 space-y-4">
+                      {sortedPlayers.length === 0 ? (
+                        <Card>
+                          <CardContent className="p-8 text-center">
+                            <div className="mb-4 text-4xl">⚽</div>
+                            <h3 className="mb-2 font-semibold">İlk 11'inizi oluşturun</h3>
+                            <p className="text-sm text-muted-foreground">
+                              Yedek kulübesinden oyuncularınızı ilk 11'e taşıyın
+                            </p>
+                          </CardContent>
+                        </Card>
+                      ) : (
+                        sortedPlayers.map(player => (
+                          <PlayerCard
+                            key={player.id}
+                            player={player}
+                            compact
+                            defaultCollapsed
+                            draggable
+                            onDragStart={event => {
+                              setDraggedPlayerId(player.id);
+                              event.dataTransfer.setData('text/plain', player.id);
+                            }}
+                            onDragEnd={() => setDraggedPlayerId(null)}
+                            onMoveToBench={() => movePlayer(player.id, 'bench')}
+                            onMoveToReserve={() => movePlayer(player.id, 'reserve')}
+                            onListForTransfer={() => handleListForTransfer(player.id)}
+                            onRenamePlayer={() => setRenamePlayerId(player.id)}
+                            onFirePlayer={() => handleFirePlayer(player.id)}
+                          />
+                        ))
+                      )}
+                    </TabsContent>
+                    <TabsContent value="bench" className="mt-4 space-y-4">
+                      {sortedPlayers.length === 0 ? (
+                        <Card>
+                          <CardContent className="p-8 text-center">
+                            <div className="mb-4 text-4xl">⚽</div>
+                            <h3 className="mb-2 font-semibold">Yedek kulübesi boş</h3>
+                            <p className="text-sm text-muted-foreground">
+                              Rezervden oyuncularınızı yedek kulübesine taşıyın
+                            </p>
+                          </CardContent>
+                        </Card>
+                      ) : (
+                        sortedPlayers.map(player => (
+                          <PlayerCard
+                            key={player.id}
+                            player={player}
+                            compact
+                            defaultCollapsed
+                            draggable
+                            onDragStart={event => {
+                              setDraggedPlayerId(player.id);
+                              event.dataTransfer.setData('text/plain', player.id);
+                            }}
+                            onDragEnd={() => setDraggedPlayerId(null)}
+                            onMoveToStarting={() => movePlayer(player.id, 'starting')}
+                            onMoveToReserve={() => movePlayer(player.id, 'reserve')}
+                            onListForTransfer={() => handleListForTransfer(player.id)}
+                            onRenamePlayer={() => setRenamePlayerId(player.id)}
+                            onFirePlayer={() => handleFirePlayer(player.id)}
+                          />
+                        ))
+                      )}
+                    </TabsContent>
+                    <TabsContent value="reserve" className="mt-4 space-y-4">
+                      {sortedPlayers.length === 0 ? (
+                        <Card>
+                          <CardContent className="p-8 text-center">
+                            <div className="mb-4 text-4xl">⚽</div>
+                            <h3 className="mb-2 font-semibold">Rezerv oyuncu yok</h3>
+                            <p className="text-sm text-muted-foreground">
+                              Altyapıdan oyuncu transfer edin veya pazardan oyuncu satın alın
+                            </p>
+                          </CardContent>
+                        </Card>
+                      ) : (
+                        sortedPlayers.map(player => (
+                          <PlayerCard
+                            key={player.id}
+                            player={player}
+                            compact
+                            defaultCollapsed
+                            draggable
+                            onDragStart={event => {
+                              setDraggedPlayerId(player.id);
+                              event.dataTransfer.setData('text/plain', player.id);
+                            }}
+                            onDragEnd={() => setDraggedPlayerId(null)}
+                            onMoveToStarting={() => movePlayer(player.id, 'starting')}
+                            onMoveToBench={() => movePlayer(player.id, 'bench')}
+                            onListForTransfer={() => handleListForTransfer(player.id)}
+                            onRenamePlayer={() => setRenamePlayerId(player.id)}
+                            onFirePlayer={() => handleFirePlayer(player.id)}
+                          />
+                        ))
+                      )}
+                    </TabsContent>
+                  </Tabs>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
 
-      <div className="p-4">
-        <div className="mx-auto max-w-6xl space-y-6">
-        {/* Search & Filter */}
-        <Card className="shadow-sm">
-          <CardContent className="p-4">
-            <div className="flex flex-col gap-3 md:flex-row md:items-center">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Oyuncu ara..."
-                  value={searchTerm}
-                  onChange={e => setSearchTerm(e.target.value)}
-                  className="pl-10"
-                />
-              </div>
-              <Select
-                value={sortBy}
-                onValueChange={value =>
-                  setSortBy(value as 'role' | 'overall' | 'potential')
-                }
-              >
-              <SelectTrigger className="w-full md:w-40">
-                <SelectValue placeholder="SÄ±rala" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="role">Role göre</SelectItem>
-                <SelectItem value="overall">Ortalamaya göre</SelectItem>
-                <SelectItem value="potential">Maks. potansiyel</SelectItem>
-              </SelectContent>
-            </Select>
-            </div>
-            </CardContent>
-          </Card>
 
-        <div className="flex flex-nowrap gap-6 overflow-x-auto lg:grid lg:grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)] lg:items-start lg:overflow-visible">
-          {/* Team Formation Overview */}
-          <Card className="order-1 w-full flex-none min-w-[320px] lg:min-w-0 lg:sticky lg:top-24 lg:z-30 lg:self-start">
-            <CardHeader className="flex flex-col gap-3 border-b border-white/60 bg-white/70 backdrop-blur-sm sm:flex-row sm:items-center sm:justify-between dark:border-white/10 dark:bg-slate-900/80">
-            <CardTitle className="flex items-center gap-3">
-              <div className="h-3 w-3 rounded-full bg-green-500" />
-              <div className="flex flex-col text-left">
-                <span>Formasyon</span>
-                <span className="text-sm font-normal text-emerald-900 dark:text-emerald-100">
-                  {displayFormationName}
-                </span>
-                {manualShapeDiffers ? (
-                  <span className="text-xs font-normal text-emerald-700 dark:text-emerald-200/80">
-                    Şablon: {selectedFormation}
-                  </span>
-                ) : null}
-              </div>
-            </CardTitle>
-            <Select value={selectedFormation} onValueChange={setSelectedFormation}>
-              <SelectTrigger className="w-full md:w-40" aria-label="Formasyon">
-                <span className="truncate">{displayFormationName}</span>
-              </SelectTrigger>
-              <SelectContent>
-                {formations.map(f => (
-                  <SelectItem key={f.name} value={f.name}>
-                    {f.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            </CardHeader>
-            <CardContent className="bg-gradient-to-br from-emerald-600/95 via-emerald-700/95 to-emerald-800/95">
-              <div className="relative">
-                <div className="relative aspect-[3/4] w-full overflow-hidden rounded-2xl bg-gradient-to-b from-emerald-600 via-emerald-700 to-emerald-800 shadow-[0_20px_45px_-25px_rgba(16,80,40,0.8)] sm:aspect-[2/3] lg:aspect-[3/4]">
-                  <div className="absolute inset-0 p-5">
-                    <div
-                      ref={pitchRef}
-                      className="relative h-full w-full"
-                      onDragOver={e => e.preventDefault()}
-                      onDrop={handlePitchDrop}
-                    >
-                      <div className="absolute inset-0 opacity-80">
-                        <svg
-                          viewBox="0 0 100 100"
-                          className="absolute inset-0 h-full w-full text-white/60"
-                          pointerEvents="none"
-                        >
-                          <rect x="0" y="0" width="100" height="100" fill="none" stroke="currentColor" strokeWidth="2" />
-                          <line x1="0" y1="50" x2="100" y2="50" stroke="currentColor" strokeWidth="1" />
-                          <circle cx="50" cy="50" r="9" stroke="currentColor" strokeWidth="1" fill="none" />
-                          <rect x="16" y="0" width="68" height="16" stroke="currentColor" strokeWidth="1" fill="none" />
-                          <rect x="16" y="84" width="68" height="16" stroke="currentColor" strokeWidth="1" fill="none" />
-                          <rect x="30" y="0" width="40" height="6" stroke="currentColor" strokeWidth="1" fill="none" />
-                          <rect x="30" y="94" width="40" height="6" stroke="currentColor" strokeWidth="1" fill="none" />
-                          <circle cx="50" cy="11" r="1.5" fill="currentColor" />
-                          <circle cx="50" cy="89" r="1.5" fill="currentColor" />
-                        </svg>
-                      </div>
-                      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                        <ArrowUp className="h-24 w-24 text-white/15" />
-                      </div>
-                      <div className="absolute inset-0">
-                        {formationPositions.map(({ player, position, x, y, slotIndex }) => (
-                          <div
-                            key={slotIndex}
-                            className="absolute text-center"
-                            style={{
-                              left: `${x}%`,
-                              top: `${y}%`,
-                              transform: 'translate(-50%, -50%)',
-                            }}
-                            onDragOver={e => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                            }}
-                            onDrop={e => handlePositionDrop(e, { position, x, y, slotIndex })}
-                          >
-                            {player ? (
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-
-                                  <PitchPlayerMarker
-
-                                    player={player}
-
-                                    isFocused={player.id === focusedPlayerId}
-
-                                    onSelect={() => setFocusedPlayerId(player.id)}
-
-                                    onDragStart={event => {
-
-                                      setDraggedPlayerId(player.id);
-
-                                      event.dataTransfer.setData('text/plain', player.id);
-
-                                    }}
-
-                                    onDragEnd={event => handlePlayerDragEnd(event, player)}
-
-                                  />
-
-                                </TooltipTrigger>
-                                <TooltipContent className="z-50 w-56 space-y-2">
-                                  <div className="text-xs font-semibold">{player.name}</div>
-                                  <PerformanceGauge label="Güç" value={getPlayerPower(player)} />
-                                  <PerformanceGauge label="Kondisyon" value={getPlayerCondition(player)} />
-                                  <PerformanceGauge label="Motivasyon" value={getPlayerMotivation(player)} />
-                                </TooltipContent>
-                              </Tooltip>
-                            ) : (
-                              <div className="flex h-[3.6rem] w-[3.6rem] items-center justify-center rounded-full border border-dashed border-white/50 bg-white/20 px-1.5 text-[10px] font-semibold uppercase tracking-wide text-white">
-                                {position}
-                              </div>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-          </CardContent>
-        </Card>
-
-        {/* Player Lists */}
-        <div className="order-2 flex flex-none min-w-[320px] flex-col gap-4 lg:flex-1 lg:min-w-0">
-        {selectedPlayer ? (
-          <Card className="border-emerald-200/20 bg-emerald-900/10 shadow-lg backdrop-blur">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-semibold text-emerald-50">
-                {canonicalPosition(selectedPlayer.position)} için alternatifler
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {alternativePlayers.length > 0 ? (
-                <div className="grid gap-2 sm:grid-cols-2">
-                  {alternativePlayers.map(alternative => (
-                    <AlternativePlayerBubble
-                      key={alternative.id}
-                      player={alternative}
-                      onSelect={playerId => handleAlternativeSelection(playerId)}
-                      variant="panel"
-                      compareToPlayer={selectedPlayer}
-                    />
-                  ))}
-                </div>
-              ) : (
-                <p className="text-xs text-emerald-100/80">
-                  Bu pozisyon için yedek veya rezerv oyuncu bulunmadı.
-                </p>
-              )}
-            </CardContent>
-          </Card>
-        ) : null}
-        <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="flex w-full gap-2 overflow-x-auto sm:overflow-visible">
-            <TabsTrigger value="starting" className="flex-none min-w-[140px] whitespace-nowrap sm:flex-1 sm:min-w-0 sm:w-auto">
-              ilk 11 ({startingEleven.length})
-            </TabsTrigger>
-            <TabsTrigger value="bench" className="flex-none min-w-[140px] whitespace-nowrap sm:flex-1 sm:min-w-0 sm:w-auto">
-              Yedek ({benchPlayers.length})
-            </TabsTrigger>
-            <TabsTrigger value="reserve" className="flex-none min-w-[140px] whitespace-nowrap sm:flex-1 sm:min-w-0 sm:w-auto">
-              Rezerv ({reservePlayers.length})
-            </TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="starting" className="space-y-4 mt-4">
-            {sortedPlayers.length === 0 ? (
-              <Card>
-                <CardContent className="p-8 text-center">
-                  <div className="text-4xl mb-4">&#9917;</div>
-                  <h3 className="font-semibold mb-2">ilk 11'inizi oluÅŸturun</h3>
-                  <p className="text-muted-foreground text-sm">
-                    Yedek kulÃ¼besinden oyuncularÄ±nÄ±zÄ± ilk 11'e taÅŸÄ±yÄ±n
-                  </p>
-                </CardContent>
-              </Card>
-            ) : (
-              sortedPlayers.map(player => (
-                <PlayerCard
-                  key={player.id}
-                  player={player}
-                  compact
-                  defaultCollapsed
-                  draggable
-                  onDragStart={e => {
-                    setDraggedPlayerId(player.id);
-                    e.dataTransfer.setData('text/plain', player.id);
-                  }}
-                  onDragEnd={() => setDraggedPlayerId(null)}
-                  onMoveToBench={() => movePlayer(player.id, 'bench')}
-                  onMoveToReserve={() => movePlayer(player.id, 'reserve')}
-                  onListForTransfer={() => handleListForTransfer(player.id)}
-                  onRenamePlayer={() => setRenamePlayerId(player.id)}
-                  onFirePlayer={() => handleFirePlayer(player.id)}
-                />
-              ))
-            )}
-          </TabsContent>
-
-          <TabsContent value="bench" className="space-y-4 mt-4">
-            {sortedPlayers.length === 0 ? (
-              <Card>
-                <CardContent className="p-8 text-center">
-                  <div className="text-4xl mb-4">&#9917;</div>
-                  <h3 className="font-semibold mb-2">Yedek kulÃ¼besi boÅŸ</h3>
-                  <p className="text-muted-foreground text-sm">
-                    Rezervden oyuncularÄ±nÄ±zÄ± yedek kulÃ¼besine taÅŸÄ±yÄ±n
-                  </p>
-                </CardContent>
-              </Card>
-            ) : (
-              sortedPlayers.map(player => (
-                <PlayerCard
-                  key={player.id}
-                  player={player}
-                  compact
-                  defaultCollapsed
-                  draggable
-                  onDragStart={e => {
-                    setDraggedPlayerId(player.id);
-                    e.dataTransfer.setData('text/plain', player.id);
-                  }}
-                  onDragEnd={() => setDraggedPlayerId(null)}
-                  onMoveToStarting={() => movePlayer(player.id, 'starting')}
-                  onMoveToReserve={() => movePlayer(player.id, 'reserve')}
-                  onListForTransfer={() => handleListForTransfer(player.id)}
-                  onRenamePlayer={() => setRenamePlayerId(player.id)}
-                  onFirePlayer={() => handleFirePlayer(player.id)}
-                />
-              ))
-            )}
-          </TabsContent>
-
-          <TabsContent value="reserve" className="space-y-4 mt-4">
-  {sortedPlayers.length === 0 ? (
-    <Card>
-      <CardContent className="p-8 text-center">
-        <div className="text-4xl mb-4">&#9917;</div>
-        <h3 className="font-semibold mb-2">Rezerv oyuncu yok</h3>
-        <p className="text-muted-foreground text-sm">
-          Altyapıdan oyuncu transfer edin veya pazardan oyuncu satın alın
-        </p>
-      </CardContent>
-    </Card>
-            ) : (
-              sortedPlayers.map(player => (
-                <PlayerCard
-                  key={player.id}
-                  player={player}
-                  compact
-                  defaultCollapsed
-                  draggable
-                  onDragStart={e => {
-                    setDraggedPlayerId(player.id);
-                    e.dataTransfer.setData('text/plain', player.id);
-                  }}
-                  onDragEnd={() => setDraggedPlayerId(null)}
-                  onMoveToStarting={() => movePlayer(player.id, 'starting')}
-                  onMoveToBench={() => movePlayer(player.id, 'bench')}
-                  onListForTransfer={() => handleListForTransfer(player.id)}
-                  onRenamePlayer={() => setRenamePlayerId(player.id)}
-                  onFirePlayer={() => handleFirePlayer(player.id)}
-                />
-              ))
-            )}
-          </TabsContent>
-        </Tabs>
-        </div>
-        </div>
-        </div>
-      </div>
       <Dialog
         open={Boolean(renamePlayer)}
         onOpenChange={open => {
