@@ -17,9 +17,9 @@ const App = () => {
   useEffect(() => {
     const lockOrientation = async () => {
       const { orientation } = window.screen ?? {};
-      if (orientation && typeof orientation.lock === 'function') {
+      if (orientation && typeof (orientation as any).lock === 'function') {
         try {
-          await orientation.lock('landscape');
+          await (orientation as any).lock('landscape');
         } catch {
           // Some browsers require user interaction before locking orientation
         }
@@ -59,7 +59,7 @@ const App = () => {
             <InventoryProvider>
               <TooltipProvider>
                 <Toaster />
-                <RouterProvider router={router} future={{ v7_startTransition: true }} />
+               <RouterProvider router={router} fallbackElement={<div>Yükleniyor…</div>} />
               </TooltipProvider>
             </InventoryProvider>
           </DiamondProvider>
