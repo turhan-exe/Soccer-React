@@ -1,70 +1,41 @@
 import { createBrowserRouter } from 'react-router-dom';
 import RootLayout from '@/layouts/RootLayout';
 
-// Pages
-import MainMenu from '@/pages/MainMenu';
-import TeamPlanning from '@/pages/TeamPlanning';
-import TransferMarket from '@/pages/TransferMarket';
-import Youth from '@/pages/Youth';
-import MyFixturesPage from '@/pages/MyFixturesPage';
-import LeaguesListPage from '@/pages/LeaguesListPage';
-import LeagueDetailPage from '@/pages/LeagueDetailPage';
-import Training from '@/pages/Training';
-import MatchPreview from '@/pages/MatchPreview';
-import MatchSimulationLegacy from '@/pages/MatchSimulationLegacy';
-import MatchSimulationDemo from '@/pages/MatchSimulation';
-import MatchSimulationIframe from '@/pages/MatchSimulationIframe';
-import UnityAutoSeed from '@/pages/UnityAutoSeed';
-import LiveDebugPage from '@/pages/LiveDebugPage';
-import MatchWatcherPage from '@/pages/MatchWatcherPage';
-import Finance from '@/pages/Finance';
-import Settings from '@/pages/Settings';
-import ContactPage from '@/pages/Contact';
-import NotFound from '@/pages/NotFound';
-import DiamondsPage from '@/features/diamonds/DiamondsPage';
-import AcademyPage from '@/features/academy/AcademyPage';
-import StandingsPage from '@/pages/StandingsPage';
-import LegendPackPage from '@/features/legends/LegendPackPage';
-import VipStorePage from '@/pages/VipStore';
-
 export const router = createBrowserRouter(
   [
     {
       element: <RootLayout />,
       children: [
-        { path: '/', element: <MainMenu /> },
-        { path: '/team-planning', element: <TeamPlanning /> },
-        { path: '/youth', element: <Youth /> },
-        { path: '/transfer-market', element: <TransferMarket /> },
-        { path: '/fixtures', element: <MyFixturesPage /> },
-        { path: '/my-matches', element: <MyFixturesPage /> },
-        { path: '/standings', element: <StandingsPage /> },
-        { path: '/leagues', element: <LeaguesListPage /> },
-        { path: '/leagues/:leagueId', element: <LeagueDetailPage /> },
-        { path: '/training', element: <Training /> },
-        { path: '/match-preview', element: <MatchPreview /> },
-        { path: '/match-simulation', element: <MatchSimulationLegacy /> },
-        { path: '/match-simulation-demo', element: <MatchSimulationDemo /> },
-        { path: '/match-simulation-iframe', element: <MatchSimulationIframe /> },
-        { path: '/unity-auto-seed', element: <UnityAutoSeed /> },
-        { path: '/live-debug', element: <LiveDebugPage /> },
-        { path: '/match/:id', element: <MatchWatcherPage /> },
-        { path: '/match-history', element: <MyFixturesPage /> },
-        { path: '/finance', element: <Finance /> },
-        { path: '/settings', element: <Settings /> },
-        { path: '/contact', element: <ContactPage /> },
-        { path: '/store/diamonds', element: <DiamondsPage /> },
-        { path: '/store/vip', element: <VipStorePage /> },
-        { path: '/academy', element: <AcademyPage /> },
-        { path: '/legend-pack', element: <LegendPackPage /> },
-        { path: '*', element: <NotFound /> },
+        { path: '/',            lazy: () => import('@/pages/MainMenu').then(m => ({ Component: m.default })) },
+        { path: '/team-planning', lazy: () => import('@/pages/TeamPlanning').then(m => ({ Component: m.default })) },
+        { path: '/youth',       lazy: () => import('@/pages/Youth').then(m => ({ Component: m.default })) },
+        { path: '/transfer-market', lazy: () => import('@/pages/TransferMarket').then(m => ({ Component: m.default })) },
+        { path: '/fixtures',    lazy: () => import('@/pages/MyFixturesPage').then(m => ({ Component: m.default })) },
+        { path: '/my-matches',  lazy: () => import('@/pages/MyFixturesPage').then(m => ({ Component: m.default })) },
+        { path: '/standings',   lazy: () => import('@/pages/StandingsPage').then(m => ({ Component: m.default })) },
+        { path: '/leagues',     lazy: () => import('@/pages/LeaguesListPage').then(m => ({ Component: m.default })) },
+        { path: '/leagues/:leagueId', lazy: () => import('@/pages/LeagueDetailPage').then(m => ({ Component: m.default })) },
+        { path: '/training',    lazy: () => import('@/pages/Training').then(m => ({ Component: m.default })) },
+        { path: '/match-preview', lazy: () => import('@/pages/MatchPreview').then(m => ({ Component: m.default })) },
+        { path: '/match-simulation', lazy: () => import('@/pages/MatchSimulationLegacy').then(m => ({ Component: m.default })) },
+        { path: '/match-simulation-demo', lazy: () => import('@/pages/MatchSimulation').then(m => ({ Component: m.default })) },
+        { path: '/match-simulation-iframe', lazy: () => import('@/pages/MatchSimulationIframe').then(m => ({ Component: m.default })) },
+        { path: '/unity-auto-seed', lazy: () => import('@/pages/UnityAutoSeed').then(m => ({ Component: m.default })) },
+        { path: '/live-debug',  lazy: () => import('@/pages/LiveDebugPage').then(m => ({ Component: m.default })) },
+        { path: '/match/:id',   lazy: () => import('@/pages/MatchWatcherPage').then(m => ({ Component: m.default })) },
+        { path: '/match-history', lazy: () => import('@/pages/MyFixturesPage').then(m => ({ Component: m.default })) },
+        { path: '/finance',     lazy: () => import('@/pages/Finance').then(m => ({ Component: m.default })) },
+        { path: '/settings',    lazy: () => import('@/pages/Settings').then(m => ({ Component: m.default })) },
+        { path: '/contact',     lazy: () => import('@/pages/Contact').then(m => ({ Component: m.default })) },
+        { path: '/store/diamonds', lazy: () => import('@/features/diamonds/DiamondsPage').then(m => ({ Component: m.default })) },
+        { path: '/store/vip',   lazy: () => import('@/pages/VipStore').then(m => ({ Component: m.default })) },
+        { path: '/academy',     lazy: () => import('@/features/academy/AcademyPage').then(m => ({ Component: m.default })) },
+        { path: '/legend-pack', lazy: () => import('@/features/legends/LegendPackPage').then(m => ({ Component: m.default })) },
+        { path: '*',            lazy: () => import('@/pages/NotFound').then(m => ({ Component: m.default })) },
       ],
     },
   ],
   {
-    future: {
-      // createBrowserRouter için v7_relativeSplatPath bayrağını aktif eder.
-      v7_relativeSplatPath: true,
-    },
+    future: { v7_relativeSplatPath: true },
   },
 );
