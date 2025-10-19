@@ -107,10 +107,35 @@ export default function MainMenu() {
   const leftMenuItems = menuItems.slice(0, midpoint);
   const rightMenuItems = menuItems.slice(midpoint);
 
+  const [isMobileView, setIsMobileView] = useState(() => {
+    if (typeof window === 'undefined') {
+      return false;
+    }
+    return window.matchMedia('(max-width: 768px)').matches;
+  });
   const [leaguePosition, setLeaguePosition] = useState<number | null>(null);
   const [leaguePoints, setLeaguePoints] = useState<number | null>(null);
   const [hoursToNextMatch, setHoursToNextMatch] = useState<number | null>(null);
   const [matchHighlight, setMatchHighlight] = useState<MatchHighlight | null>(null);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    const mediaQuery = window.matchMedia('(max-width: 768px)');
+    const listener = (event: MediaQueryListEvent) => setIsMobileView(event.matches);
+
+    setIsMobileView(mediaQuery.matches);
+
+    if (typeof mediaQuery.addEventListener === 'function') {
+      mediaQuery.addEventListener('change', listener);
+      return () => mediaQuery.removeEventListener('change', listener);
+    }
+
+    mediaQuery.addListener(listener);
+    return () => mediaQuery.removeListener(listener);
+  }, []);
 
   useEffect(() => {
     const loadQuickStats = async () => {
@@ -123,7 +148,7 @@ export default function MainMenu() {
           const fallbackDate = new Date(`${fallbackMatch.date}T${fallbackMatch.time ?? '00:00'}`);
           const hasValidDate = !Number.isNaN(fallbackDate.getTime());
           setMatchHighlight({
-            competition: fallbackMatch.competition ?? 'Lig Maçı',
+            competition: fallbackMatch.competition ?? 'Lig Maci',
             dateText: hasValidDate
               ? fallbackDate.toLocaleDateString('tr-TR')
               : fallbackMatch.date,
@@ -134,7 +159,7 @@ export default function MainMenu() {
             venue: fallbackMatch.venue ?? 'home',
             venueName: fallbackMatch.venueName,
             team: {
-              name: 'Takımım',
+              name: 'Takimim',
               logo: null,
               form: [],
               overall: null,
@@ -195,7 +220,7 @@ export default function MainMenu() {
 
         const teamOverall = calculateTeamOverall(myTeam?.players ?? null);
         const teamForm = computeForm(fixtures, user.id);
-        const teamName = myTeam?.name ?? user.teamName ?? 'Takımım';
+        const teamName = myTeam?.name ?? user.teamName ?? 'Takimim';
         const teamLogo = myTeam?.logo ?? user.teamLogo ?? null;
 
         const createHighlightFromFallback = () => {
@@ -214,7 +239,7 @@ export default function MainMenu() {
               ? fallbackDate.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })
               : '');
           setMatchHighlight({
-            competition: fallbackMatch.competition ?? 'Lig Maçı',
+            competition: fallbackMatch.competition ?? 'Lig Maci',
             dateText,
             timeText,
             venue: fallbackMatch.venue ?? 'home',
@@ -290,7 +315,7 @@ export default function MainMenu() {
         });
 
         setMatchHighlight({
-          competition: fallbackMatch?.competition ?? 'Lig Maçı',
+          competition: fallbackMatch?.competition ?? 'Lig Maci',
           dateText,
           timeText,
           venue: isHome ? 'home' : 'away',
@@ -316,7 +341,7 @@ export default function MainMenu() {
           const fallbackDate = new Date(`${fallbackMatch.date}T${fallbackMatch.time ?? '00:00'}`);
           const hasValidDate = !Number.isNaN(fallbackDate.getTime());
           setMatchHighlight({
-            competition: fallbackMatch.competition ?? 'Lig Maçı',
+            competition: fallbackMatch.competition ?? 'Lig Maci',
             dateText: hasValidDate
               ? fallbackDate.toLocaleDateString('tr-TR')
               : fallbackMatch.date,
@@ -327,7 +352,7 @@ export default function MainMenu() {
             venue: fallbackMatch.venue ?? 'home',
             venueName: fallbackMatch.venueName,
             team: {
-              name: user.teamName ?? 'Takımım',
+              name: user.teamName ?? 'Takimim',
               logo: user.teamLogo ?? null,
               form: [],
               overall: null,
@@ -380,7 +405,7 @@ export default function MainMenu() {
         />
       );
     }
-    const display = logo && logo.trim() ? logo : fallback ?? '⚽';
+    const display = logo && logo.trim() ? logo : fallback ?? 'TM';
     return (
       <div className="nostalgia-match-team__emblem-fallback" aria-hidden>
         {display}
@@ -393,6 +418,61 @@ export default function MainMenu() {
 
   const formatForm = (form: FormBadge[]) => (form.length ? form.join('') : '-');
 
+  const highlightElement = matchHighlight ? (
+    <section className="nostalgia-match-highlight">
+      <div className="nostalgia-match-highlight__overlay" aria-hidden />
+      <div className="nostalgia-match-highlight__header">
+        <span className="nostalgia-match-highlight__badge">{matchHighlight.competition}</span>
+        <div className="nostalgia-match-highlight__datetime">
+          {matchHighlight.dateText}
+          {matchHighlight.timeText ? ` - ${matchHighlight.timeText}` : ''}
+        </div>
+      </div>
+
+      <div className="nostalgia-match-highlight__body">
+        <div className="nostalgia-match-team">
+          <div className="nostalgia-match-team__emblem">
+            {renderLogo(
+              matchHighlight.team.logoUrl ?? matchHighlight.team.logo,
+              'TM',
+              `${matchHighlight.team.name} logosu`,
+            )}
+          </div>
+          <div className="nostalgia-match-team__name">{matchHighlight.team.name}</div>
+          <div className="nostalgia-match-team__meta">
+            Overall: {formatOverall(matchHighlight.team.overall)}
+          </div>
+          <div className="nostalgia-match-team__meta">
+            Form: {formatForm(matchHighlight.team.form)}
+          </div>
+        </div>
+        <div className="nostalgia-match-highlight__vs">VS</div>
+
+        <div className="nostalgia-match-team">
+          <div className="nostalgia-match-team__emblem">
+            {renderLogo(
+              matchHighlight.opponent.logoUrl ?? matchHighlight.opponent.logo,
+              'TM',
+              `${matchHighlight.opponent.name} logosu`,
+            )}
+          </div>
+          <div className="nostalgia-match-team__name">{matchHighlight.opponent.name}</div>
+          <div className="nostalgia-match-team__meta">
+            Overall: {formatOverall(matchHighlight.opponent.overall)}
+          </div>
+          <div className="nostalgia-match-team__meta">
+            Form: {formatForm(matchHighlight.opponent.form)}
+          </div>
+        </div>
+      </div>
+
+      <div className="nostalgia-match-highlight__footer">
+        <span>{matchHighlight.venue === 'home' ? 'Ev Sahipligi' : 'Deplasman'}</span>
+        <span>Stadyum: {matchHighlight.venueName ?? 'Belirlenecek'}</span>
+      </div>
+    </section>
+  ) : null;
+
   return (
     <div className="nostalgia-screen">
       <div className="nostalgia-screen__gradient" aria-hidden />
@@ -400,88 +480,48 @@ export default function MainMenu() {
       <div className="nostalgia-screen__orb nostalgia-screen__orb--right" aria-hidden />
       <div className="nostalgia-screen__noise" aria-hidden />
       <div className="nostalgia-screen__content">
-        <div className="nostalgia-main-menu__stage">
-          <nav
-            className="nostalgia-main-menu__column nostalgia-main-menu__column--left"
-            aria-label="Sol kisayollar"
-          >
-            {leftMenuItems.map(renderMenuCard)}
-          </nav>
-
-          <div className="nostalgia-main-menu__highlight-wrapper">
-            {matchHighlight ? (
-              <section className="nostalgia-match-highlight">
-                <div className="nostalgia-match-highlight__overlay" aria-hidden />
-                <div className="nostalgia-match-highlight__header">
-                  <span className="nostalgia-match-highlight__badge">{matchHighlight.competition}</span>
-                  <div className="nostalgia-match-highlight__datetime">
-                    {matchHighlight.dateText}
-                    {matchHighlight.timeText ? ` �?� ${matchHighlight.timeText}` : ''}
-                  </div>
+        <div
+          className={`nostalgia-main-menu__stage${isMobileView ? ' nostalgia-main-menu__stage--mobile' : ''}`}
+        >
+          {isMobileView ? (
+            <>
+              <div className="nostalgia-main-menu__slide nostalgia-main-menu__slide--highlight">
+                <div className="nostalgia-main-menu__highlight-wrapper">{highlightElement}</div>
+              </div>
+              <div className="nostalgia-main-menu__slide nostalgia-main-menu__slide--actions">
+                <div className="nostalgia-main-menu__mobile-actions">
+                  {menuItems.map(renderMenuCard)}
                 </div>
-
-                <div className="nostalgia-match-highlight__body">
-                  <div className="nostalgia-match-team">
-                    <div className="nostalgia-match-team__emblem">
-                      {renderLogo(
-                        matchHighlight.team.logoUrl ?? matchHighlight.team.logo,
-                        '�s�',
-                        `${matchHighlight.team.name} logosu`,
-                      )}
-                    </div>
-                    <div className="nostalgia-match-team__name">{matchHighlight.team.name}</div>
-                    <div className="nostalgia-match-team__meta">
-                      Overall: {formatOverall(matchHighlight.team.overall)}
-                    </div>
-                    <div className="nostalgia-match-team__meta">
-                      Form: {formatForm(matchHighlight.team.form)}
-                    </div>
-                  </div>
-
-                  <div className="nostalgia-match-highlight__vs">VS</div>
-
-                  <div className="nostalgia-match-team">
-                    <div className="nostalgia-match-team__emblem">
-                      {renderLogo(
-                        matchHighlight.opponent.logoUrl ?? matchHighlight.opponent.logo,
-                        '�s�',
-                        `${matchHighlight.opponent.name} logosu`,
-                      )}
-                    </div>
-                    <div className="nostalgia-match-team__name">{matchHighlight.opponent.name}</div>
-                    <div className="nostalgia-match-team__meta">
-                      Overall: {formatOverall(matchHighlight.opponent.overall)}
-                    </div>
-                    <div className="nostalgia-match-team__meta">
-                      Form: {formatForm(matchHighlight.opponent.form)}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="nostalgia-match-highlight__footer">
-                  <span>{matchHighlight.venue === 'home' ? 'Ev Sahipli�Yi' : 'Deplasman'}</span>
-                  <span>Stadyum: {matchHighlight.venueName ?? 'Belirlenecek'}</span>
-                </div>
-              </section>
-            ) : null}
-          </div>
-
-          <nav
-            className="nostalgia-main-menu__column nostalgia-main-menu__column--right"
-            aria-label="Sag kisayollar"
-          >
-            {rightMenuItems.map(renderMenuCard)}
-          </nav>
+              </div>
+            </>
+          ) : (
+            <>
+              <nav
+                className="nostalgia-main-menu__column nostalgia-main-menu__column--left"
+                aria-label="Sol kisayollar"
+              >
+                {leftMenuItems.map(renderMenuCard)}
+              </nav>
+              <div className="nostalgia-main-menu__highlight-wrapper">{highlightElement}</div>
+              <nav
+                className="nostalgia-main-menu__column nostalgia-main-menu__column--right"
+                aria-label="Sag kisayollar"
+              >
+                {rightMenuItems.map(renderMenuCard)}
+              </nav>
+            </>
+          )}
         </div>
+
         <section className="nostalgia-quick-panel">
-          <h2 className="nostalgia-quick-panel__title">Hızlı Bakış</h2>
+          <h2 className="nostalgia-quick-panel__title">Hizli Bakis</h2>
           <div className="nostalgia-quick-grid">
             <div className="nostalgia-quick-card">
               <span className="nostalgia-quick-card__value text-emerald-300">
                 {leaguePosition ?? '-'}
                 {leaguePosition ? '.' : ''}
               </span>
-              <span className="nostalgia-quick-card__label">Lig Sırası</span>
+              <span className="nostalgia-quick-card__label">Lig Sirasi</span>
             </div>
             <div className="nostalgia-quick-card">
               <span className="nostalgia-quick-card__value text-sky-300">{leaguePoints ?? '-'}</span>
