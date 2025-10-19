@@ -11,7 +11,7 @@ import { completeLegendRental, getLegendIdFromPlayer } from '@/services/legends'
 import { auth } from '@/services/firebase';
 import { useAuth } from '@/contexts/AuthContext';
 import { useDiamonds } from '@/contexts/DiamondContext';
-import { Search, Save, Eye, ArrowDown, ArrowUp } from 'lucide-react';
+import { Search, Save, Eye, ArrowDown, ArrowUp, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 import {
