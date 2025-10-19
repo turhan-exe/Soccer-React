@@ -258,6 +258,8 @@ export interface User {
     google?: boolean;
     apple?: boolean;
   };
+  contactPhone: string | null;
+  contactCrypto: string | null;
 }
 
 // Plan 2.1 schema exports (Firestore documents)

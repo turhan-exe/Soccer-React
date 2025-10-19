@@ -13,6 +13,7 @@ import {
   Settings,
   ShoppingCart,
   Star,
+  MessageSquare,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -39,6 +40,7 @@ const menuItems = [
   { id: 'match-history', label: 'Gecmis Maclar', icon: History, accent: 'slate' },
   { id: 'finance', label: 'Finans', icon: DollarSign, accent: 'cyan' },
   { id: 'settings', label: 'Ayarlar', icon: Settings, accent: 'teal' },
+  { id: 'contact', label: 'Iletisim', icon: MessageSquare, accent: 'emerald' },
   { id: 'legend-pack', label: 'Nostalji Paket', icon: Star, accent: 'pink' },
 ];
 

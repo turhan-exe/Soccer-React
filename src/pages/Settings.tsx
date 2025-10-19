@@ -6,13 +6,14 @@ import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { useTheme } from '@/contexts/ThemeContext';
-import { Settings, Moon, Volume2, Trash2, Download, Image, Loader2, Gift, Crown } from 'lucide-react';
+import { Settings, Moon, Volume2, Trash2, Download, Image, Loader2, Gift, Crown, Phone, Wallet } from 'lucide-react';
 import { toast } from 'sonner';
 import { BackButton } from '@/components/ui/back-button';
 import { useAuth } from '@/contexts/AuthContext';
 import { useDiamonds } from '@/contexts/DiamondContext';
 import { useInventory } from '@/contexts/InventoryContext';
 import { updateTeamLogo, renameClubWithDiamonds, renameStadiumWithDiamonds, getTeam } from '@/services/team';
+import { updateUserContactInfo } from '@/services/users';
 import { Input } from '@/components/ui/input';
 import {
   Dialog,
@@ -25,8 +26,8 @@ import {
 
 const MAX_LOGO_SIZE = 512 * 1024; // 512KB
 const ACCEPTED_LOGO_TYPES = ['image/png', 'image/jpeg', 'image/svg+xml'];
-const CLUB_RENAME_COST = 150;
-const STADIUM_RENAME_COST = 120;
+const CLUB_RENAME_COST = 300;
+const STADIUM_RENAME_COST = 220;
 const MIN_RENAME_LENGTH = 3;
 const MAX_RENAME_LENGTH = 32;
 
@@ -45,6 +46,9 @@ export default function SettingsPage() {
   const [isRenamingClub, setIsRenamingClub] = useState(false);
   const [isRenamingStadium, setIsRenamingStadium] = useState(false);
   const [stadiumName, setStadiumName] = useState<string | null>(null);
+  const [contactPhone, setContactPhone] = useState(user?.contactPhone ?? '');
+  const [contactCrypto, setContactCrypto] = useState(user?.contactCrypto ?? '');
+  const [isSavingContact, setIsSavingContact] = useState(false);
   const navigate = useNavigate();
   const {
     lastDailyRewardDate,
@@ -86,10 +90,20 @@ export default function SettingsPage() {
   const starCardCredits = vipStatus.starCardCredits ?? 0;
   const isLoggedIn = Boolean(user);
   const canInteract = isLoggedIn && isHydrated;
+  const normalizedStoredPhone = user?.contactPhone?.trim() ?? '';
+  const normalizedStoredCrypto = user?.contactCrypto?.trim() ?? '';
+  const normalizedPhoneInput = contactPhone.trim();
+  const normalizedCryptoInput = contactCrypto.trim();
+  const hasContactChanges =
+    normalizedPhoneInput !== normalizedStoredPhone || normalizedCryptoInput !== normalizedStoredCrypto;
 
   useEffect(() => {
     setLogoPreview(user?.teamLogo ?? null);
   }, [user?.teamLogo]);
+  useEffect(() => {
+    setContactPhone(user?.contactPhone ?? '');
+    setContactCrypto(user?.contactCrypto ?? '');
+  }, [user?.contactPhone, user?.contactCrypto]);
   useEffect(() => {
     if (!user) {
       setStadiumName(null);
@@ -272,6 +286,37 @@ export default function SettingsPage() {
     }
   };
 
+  const handleSaveContactInfo = async () => {
+    if (!user) {
+      toast.error('Iletisim bilgilerini kaydetmek icin oturum acmalisin.');
+      return;
+    }
+
+    if (!hasContactChanges) {
+      return;
+    }
+
+    setIsSavingContact(true);
+    try {
+      await updateUserContactInfo(user.id, {
+        phone: normalizedPhoneInput || null,
+        crypto: normalizedCryptoInput || null,
+      });
+      toast.success('Iletisim bilgileri guncellendi.');
+      await refreshTeamInfo();
+    } catch (error) {
+      console.error('[Settings] Failed to update contact info', error);
+      toast.error('Iletisim bilgileri kaydedilemedi.');
+    } finally {
+      setIsSavingContact(false);
+    }
+  };
+
+  const handleResetContactInfo = () => {
+    setContactPhone(user?.contactPhone ?? '');
+    setContactCrypto(user?.contactCrypto ?? '');
+  };
+
   const openFileDialog = () => {
     if (!isSavingLogo) {
       fileInputRef.current?.click();
@@ -415,6 +460,81 @@ export default function SettingsPage() {
               </div>
 
               <p className="text-xs text-slate-400">Mevcut bakiye: <span className="font-semibold text-emerald-200">{balance}</span> elmas</p>
+            </CardContent>
+          </Card>
+
+          <Card className={cardBaseClass}>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Phone className="h-5 w-5 text-emerald-300" />
+                Iletisim Bilgileri
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-slate-300">
+                Diger menajerlerin sana ulasmasi icin iletisim kanallarini kaydet. Bu bilgiler yalnizca paylasim
+                izninle goruntulenir.
+              </p>
+              <div className="space-y-2">
+                <Label htmlFor="contact-phone" className="text-xs uppercase tracking-wide text-emerald-200/70">
+                  Telefon numarasi
+                </Label>
+                <Input
+                  id="contact-phone"
+                  value={contactPhone}
+                  onChange={event => setContactPhone(event.target.value)}
+                  placeholder="+90 555 000 00 00"
+                  inputMode="tel"
+                  disabled={!user || isSavingContact}
+                />
+                <p className="text-xs text-slate-400">
+                  Numarani uluslararasi formatta yazabilirsin. Kaydettiginde yalnizca kulubun resmi iletisim kanalindan paylasilir.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="contact-crypto" className="flex items-center gap-2 text-xs uppercase tracking-wide text-emerald-200/70">
+                  <Wallet className="h-4 w-4" />
+                  Kripto hesabi
+                </Label>
+                <Input
+                  id="contact-crypto"
+                  value={contactCrypto}
+                  onChange={event => setContactCrypto(event.target.value)}
+                  placeholder="USDT (TRC20) cuzdan adresi"
+                  disabled={!user || isSavingContact}
+                />
+                <p className="text-xs text-slate-400">
+                  Kripto odemeleri icin tercih ettigin cuzdan adresini veya borsa hesap bilgisini ekleyebilirsin.
+                </p>
+              </div>
+
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="text-slate-300 hover:text-emerald-100"
+                  onClick={handleResetContactInfo}
+                  disabled={!hasContactChanges || isSavingContact}
+                >
+                  Alanlari sifirla
+                </Button>
+                <Button
+                  type="button"
+                  onClick={handleSaveContactInfo}
+                  disabled={!user || isSavingContact || !hasContactChanges}
+                  className="bg-emerald-500/20 text-emerald-100 hover:bg-emerald-500/30"
+                >
+                  {isSavingContact ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Kaydediliyor
+                    </>
+                  ) : (
+                    'Bilgileri kaydet'
+                  )}
+                </Button>
+              </div>
             </CardContent>
           </Card>
 

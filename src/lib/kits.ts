@@ -14,7 +14,7 @@ export const KIT_CONFIG: Record<KitType, KitConfig> = {
   energy: {
     label: 'Enerji Kiti',
     description: 'Seçilen oyuncunun kondisyonunu hızla yeniler ve hafif moral desteği sağlar.',
-    diamondCost: 35,
+    diamondCost: 55,
     adReward: 1,
     conditionDelta: 0.2,
     motivationDelta: 0.05,
@@ -23,7 +23,7 @@ export const KIT_CONFIG: Record<KitType, KitConfig> = {
   morale: {
     label: 'Moral Kiti',
     description: 'Oyuncunun moralini yükseltir, kondisyonuna küçük bir takviye verir.',
-    diamondCost: 30,
+    diamondCost: 50,
     adReward: 1,
     conditionDelta: 0.05,
     motivationDelta: 0.2,
@@ -32,7 +32,7 @@ export const KIT_CONFIG: Record<KitType, KitConfig> = {
   health: {
     label: 'Sağlık Kiti',
     description: 'Sakatlıkları tedavi eder, kondisyon ve moral değerlerini dengeli şekilde artırır.',
-    diamondCost: 60,
+    diamondCost: 95,
     adReward: 1,
     conditionDelta: 0.15,
     motivationDelta: 0.1,

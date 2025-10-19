@@ -34,7 +34,7 @@ export type YouthCandidate = {
 };
 
 export const YOUTH_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000; // 1 hafta
-export const YOUTH_RESET_DIAMOND_COST = 100;
+export const YOUTH_RESET_DIAMOND_COST = 160;
 export const YOUTH_AD_REDUCTION_MS = 12 * 60 * 60 * 1000; // 12 saat
 
 interface UserDoc {

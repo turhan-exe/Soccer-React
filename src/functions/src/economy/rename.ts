@@ -4,8 +4,8 @@ import '../_firebase.js';
 
 const db = getFirestore();
 
-const CLUB_RENAME_COST = 150;
-const STADIUM_RENAME_COST = 120;
+const CLUB_RENAME_COST = 300;
+const STADIUM_RENAME_COST = 220;
 const MIN_NAME_LENGTH = 3;
 const MAX_NAME_LENGTH = 32;
 

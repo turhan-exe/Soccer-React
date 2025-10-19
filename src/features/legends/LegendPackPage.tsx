@@ -14,7 +14,7 @@ import { getTeam } from '@/services/team';
 import type { Player } from '@/types';
 import './legend-pack.css';
 
-const PACK_COST = 1;
+const PACK_COST = 250;
 const RENT_DURATION_DAYS = 30;
 const RENT_DURATION_MS = 1000 * 60 * 60 * 24 * RENT_DURATION_DAYS;
 const TOTAL_LEGENDS = LEGEND_PLAYERS.length;
@@ -282,7 +282,7 @@ const LegendPackPage = () => {
                 (!vipNostalgiaFreeAvailable && balance < PACK_COST) || allCollected || isLoadingTeam || Boolean(current)
               }
             >
-              {vipNostalgiaFreeAvailable ? 'Paket Aç (Ücretsiz)' : 'Paket Aç (1 Elmas)'}
+              {vipNostalgiaFreeAvailable ? 'Paket Ac (Ucretsiz)' : `Paket Ac (${PACK_COST} Elmas)`}
             </Button>
             {isLoadingTeam ? (
               <p className="text-sm text-slate-300/80">Takım bilgileri yükleniyor...</p>
@@ -361,3 +361,6 @@ function extractLegendIds(players: Player[]): number[] {
   });
   return Array.from(ids).sort((a, b) => a - b);
 }
+
+
+

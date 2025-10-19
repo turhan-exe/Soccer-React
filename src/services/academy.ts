@@ -109,11 +109,11 @@ export async function resetCooldownWithDiamonds(uid: string): Promise<void> {
       const snap = await tx.get(userRef);
       const data = snap.data() as UserDoc;
       const balance = data.diamondBalance ?? 0;
-      if (balance < 100) {
+      if (balance < 180) {
         throw new Error('Yetersiz elmas');
       }
       tx.update(userRef, {
-        diamondBalance: increment(-100),
+        diamondBalance: increment(-180),
         'academy.lastPullAt': serverTimestamp(),
         'academy.nextPullAt': Timestamp.fromDate(now),
       });
