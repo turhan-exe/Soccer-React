@@ -101,6 +101,12 @@ const rotatePointCounterClockwise = (x: number, y: number): { x: number; y: numb
   y: clampPercentageValue(x),
 });
 
+const toDisplayCoordinates = (x: number, y: number): { x: number; y: number } =>
+  rotatePointCounterClockwise(x, y);
+
+const toBaseCoordinates = (x: number, y: number): { x: number; y: number } =>
+  rotatePointClockwise(x, y);
+
 const clampPercentageValue = (value: number): number => {
   if (!Number.isFinite(value)) {
     return 0;
@@ -388,6 +394,10 @@ type PitchPlayerMarkerProps = {
   onSelect: () => void;
   onDragStart?: (event: React.DragEvent<HTMLDivElement>) => void;
   onDragEnd?: (event: React.DragEvent<HTMLDivElement>) => void;
+  onPointerDown?: (event: React.PointerEvent<HTMLDivElement>) => void;
+  onPointerMove?: (event: React.PointerEvent<HTMLDivElement>) => void;
+  onPointerUp?: (event: React.PointerEvent<HTMLDivElement>) => void;
+  onPointerCancel?: (event: React.PointerEvent<HTMLDivElement>) => void;
 };
 
 const PitchPlayerMarker: React.FC<PitchPlayerMarkerProps> = ({
@@ -396,6 +406,10 @@ const PitchPlayerMarker: React.FC<PitchPlayerMarkerProps> = ({
   onSelect,
   onDragStart,
   onDragEnd,
+  onPointerDown,
+  onPointerMove,
+  onPointerUp,
+  onPointerCancel,
 }) => (
   <div
     role="button"
@@ -414,6 +428,10 @@ const PitchPlayerMarker: React.FC<PitchPlayerMarkerProps> = ({
     draggable
     onDragStart={onDragStart}
     onDragEnd={onDragEnd}
+    onPointerDown={onPointerDown}
+    onPointerMove={onPointerMove}
+    onPointerUp={onPointerUp}
+    onPointerCancel={onPointerCancel}
   >
     <span className="text-[11px] font-semibold uppercase tracking-wide">
       {canonicalPosition(player.position)}
@@ -693,7 +711,7 @@ const TeamPlanning: React.FC = () => {
       const customPosition = playerId ? layout[playerId] : undefined;
       const baseX = customPosition ? customPosition.x : slot.x;
       const baseY = customPosition ? customPosition.y : slot.y;
-      const rotated = rotatePointClockwise(baseX, baseY);
+      const rotated = toDisplayCoordinates(baseX, baseY);
 
       return {
         slotIndex: index,
@@ -933,7 +951,7 @@ const TeamPlanning: React.FC = () => {
     const relativeY = ((event.clientY - bounds.top) / bounds.height) * 100;
     const clampedDisplayX = clampPercentageValue(relativeX);
     const clampedDisplayY = clampPercentageValue(relativeY);
-    const baseCoords = rotatePointCounterClockwise(clampedDisplayX, clampedDisplayY);
+    const baseCoords = toBaseCoordinates(clampedDisplayX, clampedDisplayY);
 
     setPlayers(prevPlayers => {
       const result = promotePlayerToStartingRoster(prevPlayers, droppedId);
@@ -980,6 +998,112 @@ const TeamPlanning: React.FC = () => {
   const handlePlayerDragEnd = () => {
     setDraggedPlayerId(null);
   };
+
+  const pointerDragStateRef = useRef<{ playerId: string; pointerId: number } | null>(null);
+
+  const updatePlayerPositionFromPointer = useCallback(
+    (playerId: string, clientX: number, clientY: number) => {
+      const player = startingEleven.find(candidate => candidate.id === playerId);
+      if (!player) {
+        return;
+      }
+
+      const bounds = pitchRef.current?.getBoundingClientRect();
+      if (!bounds) {
+        return;
+      }
+
+      const relativeX = ((clientX - bounds.left) / bounds.width) * 100;
+      const relativeY = ((clientY - bounds.top) / bounds.height) * 100;
+      const clampedDisplayX = clampPercentageValue(relativeX);
+      const clampedDisplayY = clampPercentageValue(relativeY);
+      const baseCoords = toBaseCoordinates(clampedDisplayX, clampedDisplayY);
+
+      applyCustomFormationUpdate(playerId, baseCoords, player.position);
+    },
+    [applyCustomFormationUpdate, startingEleven],
+  );
+
+  const endPointerDrag = useCallback(() => {
+    pointerDragStateRef.current = null;
+    setDraggedPlayerId(null);
+  }, []);
+
+  const handlePitchPointerDown = useCallback(
+    (event: React.PointerEvent<HTMLDivElement>, playerId: string) => {
+      if (event.pointerType === 'mouse') {
+        return;
+      }
+
+      event.preventDefault();
+      event.stopPropagation();
+      pointerDragStateRef.current = { playerId, pointerId: event.pointerId };
+      setDraggedPlayerId(playerId);
+      setFocusedPlayerId(playerId);
+      event.currentTarget.setPointerCapture(event.pointerId);
+      updatePlayerPositionFromPointer(playerId, event.clientX, event.clientY);
+    },
+    [setFocusedPlayerId, updatePlayerPositionFromPointer],
+  );
+
+  const handlePitchPointerMove = useCallback(
+    (event: React.PointerEvent<HTMLDivElement>, playerId: string) => {
+      if (event.pointerType === 'mouse') {
+        return;
+      }
+
+      const active = pointerDragStateRef.current;
+      if (!active || active.playerId !== playerId || active.pointerId !== event.pointerId) {
+        return;
+      }
+
+      event.preventDefault();
+      updatePlayerPositionFromPointer(playerId, event.clientX, event.clientY);
+    },
+    [updatePlayerPositionFromPointer],
+  );
+
+  const handlePitchPointerEnd = useCallback(
+    (event: React.PointerEvent<HTMLDivElement>, playerId: string) => {
+      if (event.pointerType === 'mouse') {
+        return;
+      }
+
+      const active = pointerDragStateRef.current;
+      if (!active || active.playerId !== playerId) {
+        return;
+      }
+
+      event.preventDefault();
+      if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+        event.currentTarget.releasePointerCapture(event.pointerId);
+      }
+
+      updatePlayerPositionFromPointer(playerId, event.clientX, event.clientY);
+      endPointerDrag();
+    },
+    [endPointerDrag, updatePlayerPositionFromPointer],
+  );
+
+  const handlePitchPointerCancel = useCallback(
+    (event: React.PointerEvent<HTMLDivElement>, playerId: string) => {
+      if (event.pointerType === 'mouse') {
+        return;
+      }
+
+      const active = pointerDragStateRef.current;
+      if (!active || active.playerId !== playerId) {
+        return;
+      }
+
+      if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+        event.currentTarget.releasePointerCapture(event.pointerId);
+      }
+
+      endPointerDrag();
+    },
+    [endPointerDrag],
+  );
 
   const handleListForTransfer = () => {
     toast.info('Transfer listesine ekleme özelliği yakında.');
@@ -1324,6 +1448,26 @@ const TeamPlanning: React.FC = () => {
                                               }
                                             }}
                                             onDragEnd={handlePlayerDragEnd}
+                                            onPointerDown={event =>
+                                              slot.player
+                                                ? handlePitchPointerDown(event, slot.player.id)
+                                                : undefined
+                                            }
+                                            onPointerMove={event =>
+                                              slot.player
+                                                ? handlePitchPointerMove(event, slot.player.id)
+                                                : undefined
+                                            }
+                                            onPointerUp={event =>
+                                              slot.player
+                                                ? handlePitchPointerEnd(event, slot.player.id)
+                                                : undefined
+                                            }
+                                            onPointerCancel={event =>
+                                              slot.player
+                                                ? handlePitchPointerCancel(event, slot.player.id)
+                                                : undefined
+                                            }
                                           />
                                         </TooltipTrigger>
                                         <TooltipContent className="z-50 w-56 space-y-2">
