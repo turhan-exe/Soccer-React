@@ -488,6 +488,8 @@ const TeamPlanning: React.FC = () => {
   const [isProcessingContract, setIsProcessingContract] = useState(false);
 
   const pitchRef = useRef<HTMLDivElement | null>(null);
+  const stageRef = useRef<HTMLDivElement | null>(null);
+  const pitchSlideRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -548,6 +550,66 @@ const TeamPlanning: React.FC = () => {
       isMounted = false;
     };
   }, [user]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    const mediaQuery = window.matchMedia('(max-width: 1023px)');
+    let animationFrame: number | null = null;
+
+    const scrollToPitchSlide = () => {
+      if (!mediaQuery.matches) {
+        return;
+      }
+
+      const stage = stageRef.current;
+      const slide = pitchSlideRef.current;
+      if (!stage || !slide) {
+        return;
+      }
+
+      const targetLeft = slide.offsetLeft;
+
+      if (typeof stage.scrollTo === 'function') {
+        stage.scrollTo({ left: targetLeft, behavior: 'auto' });
+      } else {
+        stage.scrollLeft = targetLeft;
+      }
+    };
+
+    const requestScroll = () => {
+      if (animationFrame !== null) {
+        window.cancelAnimationFrame(animationFrame);
+      }
+      animationFrame = window.requestAnimationFrame(scrollToPitchSlide);
+    };
+
+    requestScroll();
+
+    const handleChange = () => {
+      requestScroll();
+    };
+
+    if (typeof mediaQuery.addEventListener === 'function') {
+      mediaQuery.addEventListener('change', handleChange);
+      return () => {
+        if (animationFrame !== null) {
+          window.cancelAnimationFrame(animationFrame);
+        }
+        mediaQuery.removeEventListener('change', handleChange);
+      };
+    }
+
+    mediaQuery.addListener(handleChange);
+    return () => {
+      if (animationFrame !== null) {
+        window.cancelAnimationFrame(animationFrame);
+      }
+      mediaQuery.removeListener(handleChange);
+    };
+  }, []);
 
   const renamePlayer = useMemo(
     () => players.find(player => player.id === renamePlayerId) ?? null,
@@ -1023,8 +1085,14 @@ const TeamPlanning: React.FC = () => {
         </header>
 
         <div className="nostalgia-team-planning__stage">
-          <div className="nostalgia-main-menu__stage nostalgia-main-menu__stage--mobile">
-            <div className="nostalgia-main-menu__slide nostalgia-team-planning__slide nostalgia-team-planning__slide--pitch">
+          <div
+            ref={stageRef}
+            className="nostalgia-main-menu__stage nostalgia-main-menu__stage--mobile"
+          >
+            <div
+              ref={pitchSlideRef}
+              className="nostalgia-main-menu__slide nostalgia-team-planning__slide nostalgia-team-planning__slide--pitch"
+            >
               <div className="nostalgia-team-planning__slide-inner">
                 <div className="nostalgia-team-planning__pitch-layout">
                   <Card className="nostalgia-team-planning__pitch-card">
