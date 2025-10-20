@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
@@ -86,8 +86,20 @@ type FormationPositionWithPlayer = {
   position: Player['position'];
   x: number;
   y: number;
+  displayX: number;
+  displayY: number;
   player: Player | null;
 };
+
+const rotatePointClockwise = (x: number, y: number): { x: number; y: number } => ({
+  x: clampPercentageValue(y),
+  y: clampPercentageValue(100 - x),
+});
+
+const rotatePointCounterClockwise = (x: number, y: number): { x: number; y: number } => ({
+  x: clampPercentageValue(100 - y),
+  y: clampPercentageValue(x),
+});
 
 const clampPercentageValue = (value: number): number => {
   if (!Number.isFinite(value)) {
@@ -389,8 +401,8 @@ const PitchPlayerMarker: React.FC<PitchPlayerMarkerProps> = ({
     role="button"
     tabIndex={0}
     className={cn(
-      'group relative flex h-14 w-14 cursor-pointer flex-col items-center justify-center rounded-full border border-white/40 bg-white/10 text-center text-xs text-white shadow-lg transition-all hover:border-white/80 hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 sm:h-16 sm:w-16',
-      isFocused && 'border-white bg-white/30 text-emerald-900',
+      'group relative flex h-14 w-14 cursor-pointer flex-col items-center justify-center rounded-full border border-white/50 bg-white/30 text-center text-xs text-white shadow-lg transition-all hover:border-white/80 hover:bg-white/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 sm:h-16 sm:w-16',
+      isFocused && 'border-white bg-white/70 text-emerald-900',
     )}
     onClick={onSelect}
     onKeyDown={event => {
@@ -663,9 +675,12 @@ const TeamPlanning: React.FC = () => {
     return formations.find(formation => formation.name === selectedFormation) ?? formations[0];
   }, [selectedFormation]);
 
+  const formationLayoutKey = currentFormation.name;
+
   const formationPositions = useMemo<FormationPositionWithPlayer[]>(() => {
     const starters = [...startingEleven];
     const unassigned = [...starters];
+    const layout = customFormations[formationLayoutKey] ?? {};
 
     return currentFormation.positions.map((slot, index) => {
       const matchIndex = unassigned.findIndex(
@@ -674,15 +689,23 @@ const TeamPlanning: React.FC = () => {
       const player =
         matchIndex !== -1 ? unassigned.splice(matchIndex, 1)[0] : unassigned.shift() ?? null;
 
+      const playerId = player?.id ?? null;
+      const customPosition = playerId ? layout[playerId] : undefined;
+      const baseX = customPosition ? customPosition.x : slot.x;
+      const baseY = customPosition ? customPosition.y : slot.y;
+      const rotated = rotatePointClockwise(baseX, baseY);
+
       return {
         slotIndex: index,
         position: slot.position,
-        x: slot.x,
-        y: slot.y,
+        x: baseX,
+        y: baseY,
+        displayX: rotated.x,
+        displayY: rotated.y,
         player,
       };
     });
-  }, [currentFormation, startingEleven]);
+  }, [currentFormation, startingEleven, customFormations, formationLayoutKey]);
 
   const derivedFormationShape = useMemo(
     () =>
@@ -760,6 +783,90 @@ const TeamPlanning: React.FC = () => {
     [players, activeContractPlayerId],
   );
 
+  const applyCustomFormationUpdate = useCallback(
+    (
+      playerId: string,
+      coords: { x: number; y: number } | null,
+      position?: Player['position'],
+      swappedPlayerId?: string | null,
+    ) => {
+      setCustomFormations(prevLayouts => {
+        const previousLayout = prevLayouts[formationLayoutKey] ?? {};
+        const nextLayout = { ...previousLayout };
+        let hasChanged = false;
+
+        if (coords && position) {
+          const canonical = canonicalPosition(position);
+          const normalized: FormationPlayerPosition = {
+            x: clampPercentageValue(coords.x),
+            y: clampPercentageValue(coords.y),
+            position: canonical,
+          };
+          const existing = previousLayout[playerId];
+          const isSame =
+            existing &&
+            Math.abs(existing.x - normalized.x) < 0.01 &&
+            Math.abs(existing.y - normalized.y) < 0.01 &&
+            existing.position === canonical;
+
+          if (!isSame) {
+            nextLayout[playerId] = normalized;
+            hasChanged = true;
+          }
+        } else if (playerId in nextLayout) {
+          delete nextLayout[playerId];
+          hasChanged = true;
+        }
+
+        if (swappedPlayerId && swappedPlayerId in nextLayout) {
+          delete nextLayout[swappedPlayerId];
+          hasChanged = true;
+        }
+
+        if (!hasChanged) {
+          return prevLayouts;
+        }
+
+        const cleanedLayouts = { ...prevLayouts };
+        if (Object.keys(nextLayout).length > 0) {
+          cleanedLayouts[formationLayoutKey] = nextLayout;
+        } else {
+          delete cleanedLayouts[formationLayoutKey];
+        }
+
+        return cleanedLayouts;
+      });
+    },
+    [formationLayoutKey],
+  );
+
+  const pruneInactiveCustomLayouts = useCallback(
+    (starters: Player[]) => {
+      const starterIds = new Set(starters.map(player => player.id));
+      setCustomFormations(prevLayouts => {
+        let hasChanges = false;
+        const nextLayouts: CustomFormationState = {};
+
+        Object.entries(prevLayouts).forEach(([key, layout]) => {
+          const filteredEntries = Object.entries(layout).filter(([playerId]) => starterIds.has(playerId));
+          if (filteredEntries.length !== Object.entries(layout).length) {
+            hasChanges = true;
+          }
+          if (filteredEntries.length > 0) {
+            nextLayouts[key] = Object.fromEntries(filteredEntries);
+          }
+        });
+
+        return hasChanges ? nextLayouts : prevLayouts;
+      });
+    },
+    [],
+  );
+
+  useEffect(() => {
+    pruneInactiveCustomLayouts(startingEleven);
+  }, [startingEleven, pruneInactiveCustomLayouts]);
+
   const movePlayer = (playerId: string, role: Player['squadRole']) => {
     setPlayers(prevPlayers => {
       if (role === 'starting') {
@@ -794,6 +901,17 @@ const TeamPlanning: React.FC = () => {
         toast.error(result.error);
         return prevPlayers;
       }
+      if (result.targetPosition) {
+        const previousLayout = selectedPlayer?.id
+          ? customFormations[formationLayoutKey]?.[selectedPlayer.id]
+          : undefined;
+        applyCustomFormationUpdate(
+          playerId,
+          previousLayout ? { x: previousLayout.x, y: previousLayout.y } : null,
+          result.targetPosition,
+          result.swappedPlayerId,
+        );
+      }
       setFocusedPlayerId(playerId);
       return result.players;
     });
@@ -805,11 +923,26 @@ const TeamPlanning: React.FC = () => {
     if (!droppedId) {
       return;
     }
+
+    const bounds = pitchRef.current?.getBoundingClientRect();
+    if (!bounds) {
+      return;
+    }
+
+    const relativeX = ((event.clientX - bounds.left) / bounds.width) * 100;
+    const relativeY = ((event.clientY - bounds.top) / bounds.height) * 100;
+    const clampedDisplayX = clampPercentageValue(relativeX);
+    const clampedDisplayY = clampPercentageValue(relativeY);
+    const baseCoords = rotatePointCounterClockwise(clampedDisplayX, clampedDisplayY);
+
     setPlayers(prevPlayers => {
       const result = promotePlayerToStartingRoster(prevPlayers, droppedId);
       if (result.error) {
         toast.error(result.error);
         return prevPlayers;
+      }
+      if (result.targetPosition) {
+        applyCustomFormationUpdate(droppedId, baseCoords, result.targetPosition, result.swappedPlayerId);
       }
       setFocusedPlayerId(droppedId);
       return result.players;
@@ -822,6 +955,7 @@ const TeamPlanning: React.FC = () => {
     slot: FormationPositionWithPlayer,
   ) => {
     event.preventDefault();
+    event.stopPropagation();
     const droppedId = event.dataTransfer.getData('text/plain') || draggedPlayerId;
     if (!droppedId) {
       return;
@@ -832,6 +966,9 @@ const TeamPlanning: React.FC = () => {
       if (result.error) {
         toast.error(result.error);
         return prevPlayers;
+      }
+      if (result.targetPosition) {
+        applyCustomFormationUpdate(droppedId, null, result.targetPosition, result.swappedPlayerId);
       }
       setFocusedPlayerId(droppedId);
       return result.players;
@@ -1126,11 +1263,11 @@ const TeamPlanning: React.FC = () => {
                     </CardHeader>
                     <CardContent className="bg-gradient-to-br from-emerald-600/95 via-emerald-700/95 to-emerald-800/95">
                       <div className="relative">
-                        <div className="relative aspect-[3/4] w-full overflow-hidden rounded-2xl bg-gradient-to-b from-emerald-600 via-emerald-700 to-emerald-800 shadow-[0_20px_45px_-25px_rgba(16,80,40,0.8)] sm:aspect-[2/3] lg:aspect-[3/4]">
-                          <div className="absolute inset-0 p-5">
+                        <div className="relative aspect-[4/3] w-full overflow-hidden rounded-2xl bg-gradient-to-r from-emerald-600 via-emerald-700 to-emerald-800 shadow-[0_20px_45px_-25px_rgba(16,80,40,0.8)] sm:aspect-[3/2] lg:aspect-[4/3]">
+                          <div className="absolute inset-0 p-3 sm:p-5">
                             <div
                               ref={pitchRef}
-                              className="relative h-full w-full"
+                              className="relative h-full w-full touch-none"
                               onDragOver={e => e.preventDefault()}
                               onDrop={handlePitchDrop}
                             >
@@ -1140,19 +1277,21 @@ const TeamPlanning: React.FC = () => {
                                   className="absolute inset-0 h-full w-full text-white/60"
                                   pointerEvents="none"
                                 >
-                                  <rect x="0" y="0" width="100" height="100" fill="none" stroke="currentColor" strokeWidth="2" />
-                                  <line x1="0" y1="50" x2="100" y2="50" stroke="currentColor" strokeWidth="1" />
-                                  <circle cx="50" cy="50" r="9" stroke="currentColor" strokeWidth="1" fill="none" />
-                                  <rect x="16" y="0" width="68" height="16" stroke="currentColor" strokeWidth="1" fill="none" />
-                                  <rect x="16" y="84" width="68" height="16" stroke="currentColor" strokeWidth="1" fill="none" />
-                                  <rect x="30" y="0" width="40" height="6" stroke="currentColor" strokeWidth="1" fill="none" />
-                                  <rect x="30" y="94" width="40" height="6" stroke="currentColor" strokeWidth="1" fill="none" />
-                                  <circle cx="50" cy="11" r="1.5" fill="currentColor" />
-                                  <circle cx="50" cy="89" r="1.5" fill="currentColor" />
+                                  <g transform="rotate(90 50 50)">
+                                    <rect x="0" y="0" width="100" height="100" fill="none" stroke="currentColor" strokeWidth="2" />
+                                    <line x1="0" y1="50" x2="100" y2="50" stroke="currentColor" strokeWidth="1" />
+                                    <circle cx="50" cy="50" r="9" stroke="currentColor" strokeWidth="1" fill="none" />
+                                    <rect x="16" y="0" width="68" height="16" stroke="currentColor" strokeWidth="1" fill="none" />
+                                    <rect x="16" y="84" width="68" height="16" stroke="currentColor" strokeWidth="1" fill="none" />
+                                    <rect x="30" y="0" width="40" height="6" stroke="currentColor" strokeWidth="1" fill="none" />
+                                    <rect x="30" y="94" width="40" height="6" stroke="currentColor" strokeWidth="1" fill="none" />
+                                    <circle cx="50" cy="11" r="1.5" fill="currentColor" />
+                                    <circle cx="50" cy="89" r="1.5" fill="currentColor" />
+                                  </g>
                                 </svg>
                               </div>
                               <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                                <ArrowUp className="h-24 w-24 text-white/15" />
+                                <ArrowUp className="h-24 w-24 text-white/15 rotate-90" />
                               </div>
                               <div className="absolute inset-0">
                                 {formationPositions.map(slot => (
@@ -1160,8 +1299,8 @@ const TeamPlanning: React.FC = () => {
                                     key={slot.slotIndex}
                                     className="absolute text-center"
                                     style={{
-                                      left: `${slot.x}%`,
-                                      top: `${slot.y}%`,
+                                      left: `${slot.displayX}%`,
+                                      top: `${slot.displayY}%`,
                                       transform: 'translate(-50%, -50%)',
                                     }}
                                     onDragOver={e => {
@@ -1180,6 +1319,7 @@ const TeamPlanning: React.FC = () => {
                                             onDragStart={event => {
                                               setDraggedPlayerId(slot.player?.id ?? null);
                                               if (slot.player) {
+                                                event.dataTransfer.effectAllowed = 'move';
                                                 event.dataTransfer.setData('text/plain', slot.player.id);
                                               }
                                             }}
@@ -1316,6 +1456,7 @@ const TeamPlanning: React.FC = () => {
                             draggable
                             onDragStart={event => {
                               setDraggedPlayerId(player.id);
+                              event.dataTransfer.effectAllowed = 'move';
                               event.dataTransfer.setData('text/plain', player.id);
                             }}
                             onDragEnd={() => setDraggedPlayerId(null)}
@@ -1349,6 +1490,7 @@ const TeamPlanning: React.FC = () => {
                             draggable
                             onDragStart={event => {
                               setDraggedPlayerId(player.id);
+                              event.dataTransfer.effectAllowed = 'move';
                               event.dataTransfer.setData('text/plain', player.id);
                             }}
                             onDragEnd={() => setDraggedPlayerId(null)}
@@ -1382,6 +1524,7 @@ const TeamPlanning: React.FC = () => {
                             draggable
                             onDragStart={event => {
                               setDraggedPlayerId(player.id);
+                              event.dataTransfer.effectAllowed = 'move';
                               event.dataTransfer.setData('text/plain', player.id);
                             }}
                             onDragEnd={() => setDraggedPlayerId(null)}
