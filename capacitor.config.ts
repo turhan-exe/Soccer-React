@@ -15,7 +15,13 @@ const config: CapacitorConfig = {
     },
   },
   server: {
-    androidScheme: 'https',
+    /**
+     * Use the default http scheme so the Android WebView can load the local
+     * Capacitor server. Using `https` without provisioning certificates causes
+     * the WebView to fail to resolve `/assets/...` which results in a blank
+     * screen after the splash screen.
+     */
+    androidScheme: 'http',
   },
 };
 
