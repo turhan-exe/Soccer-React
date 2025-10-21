@@ -25,7 +25,8 @@ import { cn } from '@/lib/utils';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { BackButton } from '@/components/ui/back-button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-
+import { useViewportScale } from '@/hooks/use-viewport-scale';
+import { useIsMobile } from '@/hooks/use-mobile';
 import '@/styles/nostalgia-theme.css';
 
 const DEFAULT_GAUGE_VALUE = 0.75;
@@ -516,6 +517,10 @@ const TeamPlanning: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [activeContractPlayerId, setActiveContractPlayerId] = useState<string | null>(null);
   const [isProcessingContract, setIsProcessingContract] = useState(false);
+  const isMobile = useIsMobile();
+  const { contentRef: shellContentRef, scale: viewportScale } = useViewportScale<HTMLDivElement>(isMobile);
+  const shellScaledStyle = isMobile ? ({ '--nostalgia-scale': viewportScale } as React.CSSProperties) : undefined;
+  const isShellScaled = isMobile && viewportScale < 0.999;
 
   const pitchRef = useRef<HTMLDivElement | null>(null);
   const stageRef = useRef<HTMLDivElement | null>(null);
@@ -1317,13 +1322,19 @@ const TeamPlanning: React.FC = () => {
   }
 
   return (
+    
     <div className="nostalgia-screen nostalgia-team-planning">
       <div className="nostalgia-screen__gradient" aria-hidden />
       <div className="nostalgia-screen__orb nostalgia-screen__orb--left" aria-hidden />
       <div className="nostalgia-screen__orb nostalgia-screen__orb--right" aria-hidden />
       <div className="nostalgia-screen__noise" aria-hidden />
-      <div className="nostalgia-screen__content">
-        <header className="nostalgia-main-menu__header nostalgia-team-planning__header">
+      <div
+        className="nostalgia-screen__content-shell"
+        data-scale-active={isShellScaled ? 'true' : 'false'}
+        style={shellScaledStyle}
+      >
+        <div className="nostalgia-screen__content" ref={shellContentRef}>
+          <header className="nostalgia-main-menu__header nostalgia-team-planning__header">
           <div className="nostalgia-team-planning__header-title">
             <BackButton />
             <div>
@@ -1797,6 +1808,9 @@ const TeamPlanning: React.FC = () => {
         </DialogContent>
       </Dialog>
     </div>
+    </div>
+
+  
   );
 };
 

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   BatteryCharging,
@@ -51,7 +51,12 @@ const KIT_ICONS: Record<KitType, { icon: LucideIcon; color: string }> = {
   health: { icon: HeartPulse, color: 'text-rose-500' },
 };
 
-const TopBar = () => {
+type TopBarProps = {
+  isVisible: boolean;
+  onDismiss: () => void;
+};
+
+const TopBar = ({ isVisible, onDismiss }: TopBarProps) => {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
@@ -63,6 +68,7 @@ const TopBar = () => {
   const [teamForm, setTeamForm] = useState<string | null>(null);
   const [hasUnseenTrainingResults, setHasUnseenTrainingResults] = useState(false);
   const [hasYouthCandidates, setHasYouthCandidates] = useState(false);
+  const containerRef = useRef<HTMLElement | null>(null);
   const vipIconClass = vipActive ? 'text-amber-300 drop-shadow' : 'text-slate-400';
   const vipButtonClass = vipActive
     ? 'bg-amber-500/10 text-amber-200 hover:bg-amber-500/20 hover:text-amber-100'
@@ -212,6 +218,29 @@ const TopBar = () => {
     return items;
   }, [hasUnseenTrainingResults, hasYouthCandidates]);
 
+  useEffect(() => {
+    if (!isVisible) {
+      return;
+    }
+
+    const handlePointerDown = (event: PointerEvent) => {
+      const node = containerRef.current;
+      if (!node) {
+        return;
+      }
+      if (node.contains(event.target as Node)) {
+        return;
+      }
+      onDismiss();
+    };
+
+    document.addEventListener('pointerdown', handlePointerDown);
+
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown);
+    };
+  }, [isVisible, onDismiss]);
+
   const handlePurchase = async (type: KitType, method: 'ad' | 'diamonds') => {
     try {
       await purchaseKit(type, method);
@@ -238,10 +267,14 @@ const TopBar = () => {
   };
 
   return (
-    <header className="nostalgia-topbar px-3 py-3 sm:px-4">
+    <header
+      ref={containerRef}
+      className="nostalgia-topbar px-3 py-3 sm:px-4"
+      data-visible={isVisible ? 'true' : 'false'}
+    >
       <div className="nostalgia-topbar__inner flex flex-col gap-4">
-        <div className="flex flex-col gap-4 lg:grid lg:grid-cols-[auto_1fr_auto] lg:items-center lg:gap-6">
-          <div className="flex min-w-0 flex-col gap-2 text-sm text-slate-200 sm:flex-row sm:flex-wrap sm:items-center sm:gap-4">
+        <div className="flex w-full flex-nowrap items-center gap-4 overflow-x-auto lg:grid lg:grid-cols-[auto_1fr_auto] lg:items-center lg:gap-6 lg:overflow-visible">
+          <div className="flex min-w-0 flex-nowrap items-center gap-3 overflow-hidden text-sm text-slate-200 sm:gap-4">
             <button
               type="button"
               onClick={() => navigate('/')}
@@ -252,7 +285,7 @@ const TopBar = () => {
             </button>
 
             {user ? (
-              <div className="flex min-w-0 flex-col items-start gap-1 sm:flex-row sm:items-center sm:gap-4">
+              <div className="flex min-w-0 flex-nowrap items-center gap-3 sm:gap-4">
                 <div className="flex items-center gap-3">
                   <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full border border-emerald-300/30 bg-slate-900/70">
                     {user.teamLogo && /^(data:image|https?:\/\/)/.test(user.teamLogo) ? (
@@ -267,7 +300,7 @@ const TopBar = () => {
                   </div>
                   <span className="truncate text-base font-semibold text-foreground sm:text-lg">{user.teamName}</span>
                 </div>
-                <div className="flex flex-wrap items-center gap-2">
+                <div className="flex flex-nowrap items-center gap-2">
                   <Badge
                     variant="secondary"
                     className="border border-white/20 bg-white/10 px-2 py-0.5 text-[11px] text-slate-100 shadow-sm backdrop-blur-sm sm:text-xs"
@@ -334,7 +367,7 @@ const TopBar = () => {
             })}
           </div>
 
-          <div className="flex flex-wrap items-center justify-end gap-2 lg:flex-nowrap">
+          <div className="flex flex-nowrap items-center justify-end gap-2">
             <div className="flex items-center gap-2">
               <Button
                 variant="ghost"
@@ -432,5 +465,3 @@ const TopBar = () => {
 };
 
 export default TopBar;
-
-
