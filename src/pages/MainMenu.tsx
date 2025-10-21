@@ -13,7 +13,6 @@ import {
   Settings,
   ShoppingCart,
   Star,
-  MessageSquare,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -27,6 +26,7 @@ import { upcomingMatches } from '@/lib/data';
 import type { Fixture } from '@/types';
 import '@/styles/nostalgia-theme.css';
 import { formatRatingLabel, normalizeRatingTo100, normalizeRatingTo100OrNull } from '@/lib/player';
+import { useViewportScale } from '@/hooks/use-viewport-scale';
 
 const menuItems = [
   { id: 'team-planning', label: 'Takim Plani', icon: Users, accent: 'sky' },
@@ -40,7 +40,6 @@ const menuItems = [
   { id: 'match-history', label: 'Gecmis Maclar', icon: History, accent: 'slate' },
   { id: 'finance', label: 'Finans', icon: DollarSign, accent: 'cyan' },
   { id: 'settings', label: 'Ayarlar', icon: Settings, accent: 'teal' },
-  { id: 'contact', label: 'Iletisim', icon: MessageSquare, accent: 'emerald' },
   { id: 'legend-pack', label: 'Nostalji Paket', icon: Star, accent: 'pink' },
 ];
 
@@ -107,35 +106,14 @@ export default function MainMenu() {
   const leftMenuItems = menuItems.slice(0, midpoint);
   const rightMenuItems = menuItems.slice(midpoint);
 
-  const [isMobileView, setIsMobileView] = useState(() => {
-    if (typeof window === 'undefined') {
-      return false;
-    }
-    return window.matchMedia('(max-width: 768px)').matches;
-  });
+  const isMobileView = true;
   const [leaguePosition, setLeaguePosition] = useState<number | null>(null);
   const [leaguePoints, setLeaguePoints] = useState<number | null>(null);
   const [hoursToNextMatch, setHoursToNextMatch] = useState<number | null>(null);
   const [matchHighlight, setMatchHighlight] = useState<MatchHighlight | null>(null);
-
-  useEffect(() => {
-    if (typeof window === 'undefined') {
-      return;
-    }
-
-    const mediaQuery = window.matchMedia('(max-width: 768px)');
-    const listener = (event: MediaQueryListEvent) => setIsMobileView(event.matches);
-
-    setIsMobileView(mediaQuery.matches);
-
-    if (typeof mediaQuery.addEventListener === 'function') {
-      mediaQuery.addEventListener('change', listener);
-      return () => mediaQuery.removeEventListener('change', listener);
-    }
-
-    mediaQuery.addListener(listener);
-    return () => mediaQuery.removeListener(listener);
-  }, []);
+  const { contentRef, scale } = useViewportScale<HTMLDivElement>(isMobileView);
+  const scaledStyle = isMobileView ? ({ '--nostalgia-scale': scale } as React.CSSProperties) : undefined;
+  const isScaled = isMobileView && scale < 0.999;
 
   useEffect(() => {
     const loadQuickStats = async () => {
@@ -418,6 +396,29 @@ export default function MainMenu() {
 
   const formatForm = (form: FormBadge[]) => (form.length ? form.join('') : '-');
 
+  const renderQuickPanel = (extraClassName?: string) => (
+    <section className={`nostalgia-quick-panel${extraClassName ? ` ${extraClassName}` : ''}`}>
+      <h2 className="nostalgia-quick-panel__title">Hizli Bakis</h2>
+      <div className="nostalgia-quick-grid">
+        <div className="nostalgia-quick-card">
+          <span className="nostalgia-quick-card__value text-emerald-300">
+            {leaguePosition ?? '-'}
+            {leaguePosition ? '.' : ''}
+          </span>
+          <span className="nostalgia-quick-card__label">Lig Sirasi</span>
+        </div>
+        <div className="nostalgia-quick-card">
+          <span className="nostalgia-quick-card__value text-sky-300">{leaguePoints ?? '-'}</span>
+          <span className="nostalgia-quick-card__label">Puan</span>
+        </div>
+        <div className="nostalgia-quick-card">
+          <span className="nostalgia-quick-card__value text-fuchsia-300">{hoursToNextMatch ?? '-'}</span>
+          <span className="nostalgia-quick-card__label">Saat Sonra</span>
+        </div>
+      </div>
+    </section>
+  );
+
   const highlightElement = matchHighlight ? (
     <section className="nostalgia-match-highlight">
       <div className="nostalgia-match-highlight__overlay" aria-hidden />
@@ -474,65 +475,55 @@ export default function MainMenu() {
   ) : null;
 
   return (
-    <div className="nostalgia-screen">
+    <div className="nostalgia-screen nostalgia-main-menu">
       <div className="nostalgia-screen__gradient" aria-hidden />
       <div className="nostalgia-screen__orb nostalgia-screen__orb--left" aria-hidden />
       <div className="nostalgia-screen__orb nostalgia-screen__orb--right" aria-hidden />
       <div className="nostalgia-screen__noise" aria-hidden />
-      <div className="nostalgia-screen__content">
-        <div
-          className={`nostalgia-main-menu__stage${isMobileView ? ' nostalgia-main-menu__stage--mobile' : ''}`}
-        >
-          {isMobileView ? (
-            <>
-              <div className="nostalgia-main-menu__slide nostalgia-main-menu__slide--highlight">
-                <div className="nostalgia-main-menu__highlight-wrapper">{highlightElement}</div>
-              </div>
-              <div className="nostalgia-main-menu__slide nostalgia-main-menu__slide--actions">
-                <div className="nostalgia-main-menu__mobile-actions">
-                  {menuItems.map(renderMenuCard)}
+      <div
+        className="nostalgia-screen__content-shell"
+        data-scale-active={isScaled ? 'true' : 'false'}
+        style={scaledStyle}
+      >
+        <div className="nostalgia-screen__content" ref={contentRef}>
+          <div
+            className={`nostalgia-main-menu__stage${isMobileView ? ' nostalgia-main-menu__stage--mobile' : ''}`}
+          >
+            {isMobileView ? (
+              <>
+                <div className="nostalgia-main-menu__slide nostalgia-main-menu__slide--highlight">
+                  <div className="nostalgia-main-menu__slide-inner nostalgia-main-menu__slide-inner--highlight">
+                    <div className="nostalgia-main-menu__highlight-wrapper">{highlightElement}</div>
+                  </div>
                 </div>
-              </div>
-            </>
-          ) : (
-            <>
-              <nav
-                className="nostalgia-main-menu__column nostalgia-main-menu__column--left"
-                aria-label="Sol kisayollar"
-              >
-                {leftMenuItems.map(renderMenuCard)}
-              </nav>
-              <div className="nostalgia-main-menu__highlight-wrapper">{highlightElement}</div>
-              <nav
-                className="nostalgia-main-menu__column nostalgia-main-menu__column--right"
-                aria-label="Sag kisayollar"
-              >
-                {rightMenuItems.map(renderMenuCard)}
-              </nav>
-            </>
-          )}
-        </div>
-
-        <section className="nostalgia-quick-panel">
-          <h2 className="nostalgia-quick-panel__title">Hizli Bakis</h2>
-          <div className="nostalgia-quick-grid">
-            <div className="nostalgia-quick-card">
-              <span className="nostalgia-quick-card__value text-emerald-300">
-                {leaguePosition ?? '-'}
-                {leaguePosition ? '.' : ''}
-              </span>
-              <span className="nostalgia-quick-card__label">Lig Sirasi</span>
-            </div>
-            <div className="nostalgia-quick-card">
-              <span className="nostalgia-quick-card__value text-sky-300">{leaguePoints ?? '-'}</span>
-              <span className="nostalgia-quick-card__label">Puan</span>
-            </div>
-            <div className="nostalgia-quick-card">
-              <span className="nostalgia-quick-card__value text-fuchsia-300">{hoursToNextMatch ?? '-'}</span>
-              <span className="nostalgia-quick-card__label">Saat Sonra</span>
-            </div>
+                <div className="nostalgia-main-menu__slide nostalgia-main-menu__slide--actions">
+                  <div className="nostalgia-main-menu__slide-inner nostalgia-main-menu__slide-inner--actions">
+                    <div className="nostalgia-main-menu__mobile-actions">{menuItems.map(renderMenuCard)}</div>
+                    {renderQuickPanel('nostalgia-quick-panel--mobile')}
+                  </div>
+                </div>
+              </>
+            ) : (
+              <>
+                <nav
+                  className="nostalgia-main-menu__column nostalgia-main-menu__column--left"
+                  aria-label="Sol kisayollar"
+                >
+                  {leftMenuItems.map(renderMenuCard)}
+                </nav>
+                <div className="nostalgia-main-menu__highlight-wrapper">{highlightElement}</div>
+                <nav
+                  className="nostalgia-main-menu__column nostalgia-main-menu__column--right"
+                  aria-label="Sag kisayollar"
+                >
+                  {rightMenuItems.map(renderMenuCard)}
+                </nav>
+              </>
+            )}
           </div>
-        </section>
+
+          {!isMobileView ? renderQuickPanel() : null}
+        </div>
       </div>
     </div>
   );

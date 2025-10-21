@@ -47,6 +47,11 @@
   mix-blend-mode: screen;
 }
 
+.legend-pack-shell-wrapper {
+  position: relative;
+  width: 100%;
+}
+
 .legend-pack-shell {
   position: relative;
   z-index: 1;
@@ -126,6 +131,50 @@
   .legend-pack-main {
     grid-template-columns: minmax(0, 360px) minmax(0, 1fr);
     align-items: start;
+  }
+}
+
+@media (max-width: 768px) {
+  .legend-pack-shell-wrapper {
+    height: 100dvh;
+    min-height: 100dvh;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    overflow: hidden;
+  }
+
+  .legend-pack-shell-wrapper > .legend-pack-shell {
+    transform: scale(var(--nostalgia-scale, 1));
+    transform-origin: top center;
+    width: 100%;
+    padding: clamp(2rem, 6vw, 2.5rem) clamp(1rem, 6vw, 2rem);
+    gap: clamp(1.5rem, 5vw, 2.2rem);
+  }
+
+  .legend-pack-header {
+    gap: 1rem;
+    align-items: flex-start;
+  }
+
+  .legend-pack-title {
+    font-size: 1.65rem;
+  }
+
+  .legend-pack-subtitle {
+    font-size: 0.85rem;
+  }
+
+  .legend-pack-main {
+    gap: clamp(1.25rem, 4vw, 1.8rem);
+  }
+
+  .legend-pack-panel {
+    padding: clamp(1.25rem, 5vw, 1.8rem);
+  }
+
+  .legend-pack-rented {
+    gap: 1rem;
   }
 }
 

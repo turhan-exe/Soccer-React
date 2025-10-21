@@ -1,3 +1,4 @@
+import type { CSSProperties } from 'react';
 import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useDiamonds } from '@/contexts/DiamondContext';
@@ -13,6 +14,8 @@ import { getLegendIdFromPlayer, getRentedLegends, rentLegend } from '@/services/
 import { getTeam } from '@/services/team';
 import type { Player } from '@/types';
 import './legend-pack.css';
+import { useViewportScale } from '@/hooks/use-viewport-scale';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 const PACK_COST = 250;
 const RENT_DURATION_DAYS = 30;
@@ -35,6 +38,10 @@ const LegendPackPage = () => {
   const [rented, setRented] = useState<RentedLegend[]>([]);
   const [ownedLegendIds, setOwnedLegendIds] = useState<number[]>([]);
   const [isLoadingTeam, setIsLoadingTeam] = useState(false);
+  const isMobile = useIsMobile();
+  const { contentRef: shellContentRef, scale: viewportScale } = useViewportScale<HTMLDivElement>(isMobile);
+  const shellScaledStyle = isMobile ? ({ '--nostalgia-scale': viewportScale } as CSSProperties) : undefined;
+  const isShellScaled = isMobile && viewportScale < 0.999;
 
   const legendById = useMemo(() => {
     const map = new Map<number, LegendPlayer>();
@@ -232,7 +239,12 @@ const LegendPackPage = () => {
       <div className="legend-pack-orb legend-pack-orb--right" aria-hidden />
       <div className="legend-pack-noise" aria-hidden />
 
-      <div className="legend-pack-shell">
+      <div
+        className="nostalgia-screen__content-shell legend-pack-shell-wrapper"
+        data-scale-active={isShellScaled ? 'true' : 'false'}
+        style={shellScaledStyle}
+      >
+        <div className="legend-pack-shell" ref={shellContentRef}>
         <header className="legend-pack-header">
           <div className="legend-pack-header-main">
             <BackButton />
@@ -344,6 +356,7 @@ const LegendPackPage = () => {
             </div>
           )}
         </section>
+        </div>
       </div>
     </div>
   );
