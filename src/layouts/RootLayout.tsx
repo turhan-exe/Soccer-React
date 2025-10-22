@@ -27,9 +27,9 @@ const RootLayout = () => {
         const last = lastScrollTopRef.current;
         const delta = current - last;
 
-        if (delta < -3) {
-          setIsTopBarVisible(true);
-        } else if (delta > 3 || current > 12) {
+        if (current <= 4) {
+          setIsTopBarVisible(false);
+        } else if (delta > 6 || (current > last && current > 32)) {
           setIsTopBarVisible(true);
         }
 

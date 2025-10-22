@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { useAuth } from '@/contexts/AuthContext';
 import {
@@ -102,18 +102,29 @@ export default function MainMenu() {
   const { user } = useAuth();
   const navigate = useNavigate();
 
-  const midpoint = Math.ceil(menuItems.length / 2);
-  const leftMenuItems = menuItems.slice(0, midpoint);
-  const rightMenuItems = menuItems.slice(midpoint);
-
-  const isMobileView = true;
+  const shouldScaleToViewport = true;
   const [leaguePosition, setLeaguePosition] = useState<number | null>(null);
   const [leaguePoints, setLeaguePoints] = useState<number | null>(null);
   const [hoursToNextMatch, setHoursToNextMatch] = useState<number | null>(null);
   const [matchHighlight, setMatchHighlight] = useState<MatchHighlight | null>(null);
-  const { contentRef, scale } = useViewportScale<HTMLDivElement>(isMobileView);
-  const scaledStyle = isMobileView ? ({ '--nostalgia-scale': scale } as React.CSSProperties) : undefined;
-  const isScaled = isMobileView && scale < 0.999;
+  const [areActionsVisible, setAreActionsVisible] = useState(false);
+  const { contentRef, scale } = useViewportScale<HTMLDivElement>(shouldScaleToViewport);
+  const scaledStyle = shouldScaleToViewport
+    ? ({ '--nostalgia-scale': scale } as React.CSSProperties)
+    : undefined;
+  const isScaled = shouldScaleToViewport && scale < 0.999;
+  const actionsRef = useRef<HTMLDivElement | null>(null);
+  const swipeStateRef = useRef({
+    pointerId: null as number | null,
+    startX: 0,
+    startY: 0,
+    lastX: 0,
+    lastY: 0,
+    active: false,
+    hasDetermined: false,
+    isHorizontal: false,
+    startedInsideActions: false,
+  });
 
   useEffect(() => {
     const loadQuickStats = async () => {
@@ -356,6 +367,114 @@ export default function MainMenu() {
     navigate(`/${itemId}`);
   };
 
+  const resetSwipeState = () => {
+    swipeStateRef.current.pointerId = null;
+    swipeStateRef.current.active = false;
+    swipeStateRef.current.hasDetermined = false;
+    swipeStateRef.current.isHorizontal = false;
+  };
+
+  const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (event.pointerType === 'mouse' && event.button !== 0) {
+      return;
+    }
+
+    const actionsNode = actionsRef.current;
+    const startedInsideActions = actionsNode?.contains(event.target as Node) ?? false;
+
+    swipeStateRef.current.pointerId = event.pointerId;
+    swipeStateRef.current.startX = event.clientX;
+    swipeStateRef.current.startY = event.clientY;
+    swipeStateRef.current.lastX = event.clientX;
+    swipeStateRef.current.lastY = event.clientY;
+    swipeStateRef.current.active = true;
+    swipeStateRef.current.hasDetermined = false;
+    swipeStateRef.current.isHorizontal = false;
+    swipeStateRef.current.startedInsideActions = startedInsideActions;
+
+    try {
+      event.currentTarget.setPointerCapture(event.pointerId);
+    } catch {
+      // ignore
+    }
+  };
+
+  const handlePointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
+    const state = swipeStateRef.current;
+    if (!state.active || state.pointerId !== event.pointerId) {
+      return;
+    }
+
+    state.lastX = event.clientX;
+    state.lastY = event.clientY;
+
+    const deltaX = event.clientX - state.startX;
+    const deltaY = event.clientY - state.startY;
+
+    if (!state.hasDetermined) {
+      if (Math.abs(deltaX) > 14 || Math.abs(deltaY) > 14) {
+        state.hasDetermined = true;
+        state.isHorizontal = Math.abs(deltaX) > Math.abs(deltaY);
+
+        if (!state.isHorizontal) {
+          resetSwipeState();
+          try {
+            event.currentTarget.releasePointerCapture(event.pointerId);
+          } catch {}
+        }
+      }
+    }
+
+    if (state.isHorizontal) {
+      event.preventDefault();
+    }
+  };
+
+  const handlePointerEnd = (event: React.PointerEvent<HTMLDivElement>) => {
+    const state = swipeStateRef.current;
+    if (!state.active || state.pointerId !== event.pointerId) {
+      return;
+    }
+
+    try {
+      if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+        event.currentTarget.releasePointerCapture(event.pointerId);
+      }
+    } catch {}
+
+    const deltaX = event.clientX - state.startX;
+    const deltaY = event.clientY - state.startY;
+    const absDeltaX = Math.abs(deltaX);
+    const absDeltaY = Math.abs(deltaY);
+    const isHorizontalSwipe = absDeltaX > 60 && absDeltaX > absDeltaY;
+
+    if (isHorizontalSwipe) {
+      if (deltaX < 0) {
+        setAreActionsVisible(true);
+      } else if (deltaX > 0) {
+        setAreActionsVisible(false);
+      }
+    } else if (
+      areActionsVisible &&
+      !state.startedInsideActions &&
+      absDeltaX < 10 &&
+      absDeltaY < 10
+    ) {
+      setAreActionsVisible(false);
+    }
+
+    resetSwipeState();
+  };
+
+  const handlePointerCancel = (event: React.PointerEvent<HTMLDivElement>) => {
+    try {
+      if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+        event.currentTarget.releasePointerCapture(event.pointerId);
+      }
+    } catch {}
+    resetSwipeState();
+  };
+
   const renderMenuCard = (item: (typeof menuItems)[number]) => (
     <Card
       key={item.id}
@@ -472,7 +591,24 @@ export default function MainMenu() {
         <span>Stadyum: {matchHighlight.venueName ?? 'Belirlenecek'}</span>
       </div>
     </section>
-  ) : null;
+  ) : (
+    <section className="nostalgia-match-highlight nostalgia-match-highlight--empty">
+      <div className="nostalgia-match-highlight__overlay" aria-hidden />
+      <div className="nostalgia-match-highlight__header">
+        <span className="nostalgia-match-highlight__badge">Sonraki Mac</span>
+        <div className="nostalgia-match-highlight__datetime">Programlanmis mac bulunmuyor.</div>
+      </div>
+      <div className="nostalgia-match-highlight__body" aria-hidden>
+        <div className="nostalgia-match-team">
+          <div className="nostalgia-match-team__name">Hazirlik Devam Ediyor</div>
+        </div>
+      </div>
+      <div className="nostalgia-match-highlight__footer">
+        <span>Rakip bekleniyor</span>
+        <span>Stadyum: Belirlenecek</span>
+      </div>
+    </section>
+  );
 
   return (
     <div className="nostalgia-screen nostalgia-main-menu">
@@ -487,42 +623,29 @@ export default function MainMenu() {
       >
         <div className="nostalgia-screen__content" ref={contentRef}>
           <div
-            className={`nostalgia-main-menu__stage${isMobileView ? ' nostalgia-main-menu__stage--mobile' : ''}`}
+            className="nostalgia-main-menu__viewport"
+            onPointerDown={handlePointerDown}
+            onPointerMove={handlePointerMove}
+            onPointerUp={handlePointerEnd}
+            onPointerCancel={handlePointerCancel}
+            style={{ touchAction: 'pan-y' }}
           >
-            {isMobileView ? (
-              <>
-                <div className="nostalgia-main-menu__slide nostalgia-main-menu__slide--highlight">
-                  <div className="nostalgia-main-menu__slide-inner nostalgia-main-menu__slide-inner--highlight">
-                    <div className="nostalgia-main-menu__highlight-wrapper">{highlightElement}</div>
-                  </div>
-                </div>
-                <div className="nostalgia-main-menu__slide nostalgia-main-menu__slide--actions">
-                  <div className="nostalgia-main-menu__slide-inner nostalgia-main-menu__slide-inner--actions">
-                    <div className="nostalgia-main-menu__mobile-actions">{menuItems.map(renderMenuCard)}</div>
-                    {renderQuickPanel('nostalgia-quick-panel--mobile')}
-                  </div>
-                </div>
-              </>
-            ) : (
-              <>
-                <nav
-                  className="nostalgia-main-menu__column nostalgia-main-menu__column--left"
-                  aria-label="Sol kisayollar"
-                >
-                  {leftMenuItems.map(renderMenuCard)}
-                </nav>
-                <div className="nostalgia-main-menu__highlight-wrapper">{highlightElement}</div>
-                <nav
-                  className="nostalgia-main-menu__column nostalgia-main-menu__column--right"
-                  aria-label="Sag kisayollar"
-                >
-                  {rightMenuItems.map(renderMenuCard)}
-                </nav>
-              </>
-            )}
+            <div className="nostalgia-main-menu__hero">
+              <div className="nostalgia-main-menu__highlight-wrapper">{highlightElement}</div>
+              {renderQuickPanel('nostalgia-quick-panel--pinned')}
+            </div>
+            <div
+              ref={actionsRef}
+              id="main-menu-actions"
+              className="nostalgia-main-menu__actions"
+              data-visible={areActionsVisible ? 'true' : 'false'}
+              aria-hidden={areActionsVisible ? 'false' : 'true'}
+            >
+              <div className="nostalgia-main-menu__actions-grid" role="group" aria-label="Ana menu kisayollari">
+                {menuItems.map(renderMenuCard)}
+              </div>
+            </div>
           </div>
-
-          {!isMobileView ? renderQuickPanel() : null}
         </div>
       </div>
     </div>
