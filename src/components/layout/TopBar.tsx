@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   BatteryCharging,
@@ -14,7 +14,6 @@ import {
   Sun,
   LogOut,
   Bell,
-  Mail,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -63,6 +62,9 @@ const TopBar = () => {
   const [teamForm, setTeamForm] = useState<string | null>(null);
   const [hasUnseenTrainingResults, setHasUnseenTrainingResults] = useState(false);
   const [hasYouthCandidates, setHasYouthCandidates] = useState(false);
+  const [isVisible, setIsVisible] = useState(false);
+  const topBarRef = useRef<HTMLDivElement | null>(null);
+  const lastScrollTopRef = useRef(0);
   const vipIconClass = vipActive ? 'text-amber-300 drop-shadow' : 'text-slate-400';
   const vipButtonClass = vipActive
     ? 'bg-amber-500/10 text-amber-200 hover:bg-amber-500/20 hover:text-amber-100'
@@ -186,6 +188,49 @@ const TopBar = () => {
     };
   }, [user]);
 
+  useEffect(() => {
+    const scrollContainer = document.querySelector<HTMLElement>('[data-app-scroll-container]');
+    const target: HTMLElement | Window = scrollContainer ?? window;
+
+    const handleScroll = () => {
+      const current =
+        target instanceof Window
+          ? window.scrollY || document.documentElement.scrollTop
+          : target.scrollTop;
+
+      if (current > lastScrollTopRef.current && current > 12) {
+        setIsVisible(true);
+      } else if (current <= 4) {
+        setIsVisible(false);
+      }
+
+      lastScrollTopRef.current = Math.max(current, 0);
+    };
+
+    target.addEventListener('scroll', handleScroll, { passive: true });
+    handleScroll();
+
+    return () => {
+      target.removeEventListener('scroll', handleScroll);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isVisible) {
+      return;
+    }
+
+    const handlePointerDown = (event: PointerEvent) => {
+      const element = topBarRef.current;
+      if (element && !element.contains(event.target as Node)) {
+        setIsVisible(false);
+      }
+    };
+
+    document.addEventListener('pointerdown', handlePointerDown);
+    return () => document.removeEventListener('pointerdown', handlePointerDown);
+  }, [isVisible]);
+
   const notifications = useMemo(() => {
     const items: {
       id: string;
@@ -238,23 +283,26 @@ const TopBar = () => {
   };
 
   return (
-    <header className="nostalgia-topbar px-3 py-3 sm:px-4">
-      <div className="nostalgia-topbar__inner flex flex-col gap-4">
-        <div className="flex flex-col gap-4 lg:grid lg:grid-cols-[auto_1fr_auto] lg:items-center lg:gap-6">
-          <div className="flex min-w-0 flex-col gap-2 text-sm text-slate-200 sm:flex-row sm:flex-wrap sm:items-center sm:gap-4">
+    <>
+      <header
+        ref={topBarRef}
+        className={`nostalgia-topbar px-3 py-3 sm:px-4${isVisible ? ' nostalgia-topbar--visible' : ''}`}
+      >
+        <div className="nostalgia-topbar__inner">
+          <div className="nostalgia-topbar__identity">
             <button
               type="button"
               onClick={() => navigate('/')}
-              className="flex shrink-0 items-center rounded-xl border border-white/10 bg-white/5 p-1 transition hover:border-cyan-300/40 hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/40"
+              className="nostalgia-topbar__home-button flex shrink-0 items-center rounded-xl border border-white/10 bg-white/5 p-1 transition hover:border-cyan-300/40 hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/40"
               aria-label="Ana menuye don"
             >
               <AppLogo size="sm" showText textClassName="hidden xl:inline" />
             </button>
 
             {user ? (
-              <div className="flex min-w-0 flex-col items-start gap-1 sm:flex-row sm:items-center sm:gap-4">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full border border-emerald-300/30 bg-slate-900/70">
+              <div className="nostalgia-topbar__identity-info">
+                <div className="nostalgia-topbar__team">
+                  <div className="nostalgia-topbar__team-avatar">
                     {user.teamLogo && /^(data:image|https?:\/\/)/.test(user.teamLogo) ? (
                       <img
                         src={user.teamLogo}
@@ -265,9 +313,11 @@ const TopBar = () => {
                       <span className="text-2xl leading-none">{user.teamLogo ?? '⚽'}</span>
                     )}
                   </div>
-                  <span className="truncate text-base font-semibold text-foreground sm:text-lg">{user.teamName}</span>
+                  <span className="nostalgia-topbar__team-name" title={user.teamName}>
+                    {user.teamName}
+                  </span>
                 </div>
-                <div className="flex flex-wrap items-center gap-2">
+                <div className="nostalgia-topbar__team-meta">
                   <Badge
                     variant="secondary"
                     className="border border-white/20 bg-white/10 px-2 py-0.5 text-[11px] text-slate-100 shadow-sm backdrop-blur-sm sm:text-xs"
@@ -285,7 +335,7 @@ const TopBar = () => {
             ) : null}
           </div>
 
-          <div className="flex w-full items-stretch justify-center gap-2 overflow-x-auto pb-1 lg:w-full lg:justify-center lg:overflow-visible lg:justify-self-center">
+          <div className="nostalgia-topbar__kits" aria-label="Takim kitleri">
             {(Object.keys(KIT_ICONS) as KitType[]).map((type) => {
               const { icon: Icon, color } = KIT_ICONS[type];
               const count = kits[type] ?? 0;
@@ -334,8 +384,8 @@ const TopBar = () => {
             })}
           </div>
 
-          <div className="flex flex-wrap items-center justify-end gap-2 lg:flex-nowrap">
-            <div className="flex items-center gap-2">
+          <div className="nostalgia-topbar__controls">
+            <div className="nostalgia-topbar__control-buttons">
               <Button
                 variant="ghost"
                 size="sm"
@@ -343,15 +393,6 @@ const TopBar = () => {
                 className="text-slate-200 hover:bg-white/10 hover:text-white"
               >
                 {theme === 'light' ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => navigate('/contact')}
-                className="text-slate-200 hover:bg-white/10 hover:text-white"
-              >
-                <Mail className="mr-2 h-4 w-4" />
-                Iletisim
               </Button>
               <Button
                 variant="ghost"
@@ -410,7 +451,7 @@ const TopBar = () => {
             </div>
 
             {isProcessing && <Loader2 className="h-4 w-4 animate-spin text-slate-300" />}
-            <div className="flex items-center gap-1" data-testid="topbar-diamond-balance">
+            <div className="nostalgia-topbar__balance" data-testid="topbar-diamond-balance">
               <Diamond className="h-5 w-5 text-sky-300 drop-shadow" />
               <span className="text-slate-100">{balance}</span>
             </div>
@@ -425,9 +466,9 @@ const TopBar = () => {
             </Button>
           </div>
         </div>
-      </div>
+      </header>
       <KitUsageDialog open={isUsageOpen} kitType={activeKit} onOpenChange={handleUsageOpenChange} />
-    </header>
+    </>
   );
 };
 
