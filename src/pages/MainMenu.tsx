@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { useAuth } from '@/contexts/AuthContext';
 import {
@@ -13,7 +13,6 @@ import {
   Settings,
   ShoppingCart,
   Star,
-  MessageSquare,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -40,7 +39,6 @@ const menuItems = [
   { id: 'match-history', label: 'Gecmis Maclar', icon: History, accent: 'slate' },
   { id: 'finance', label: 'Finans', icon: DollarSign, accent: 'cyan' },
   { id: 'settings', label: 'Ayarlar', icon: Settings, accent: 'teal' },
-  { id: 'contact', label: 'Iletisim', icon: MessageSquare, accent: 'emerald' },
   { id: 'legend-pack', label: 'Nostalji Paket', icon: Star, accent: 'pink' },
 ];
 
@@ -103,39 +101,82 @@ export default function MainMenu() {
   const { user } = useAuth();
   const navigate = useNavigate();
 
-  const midpoint = Math.ceil(menuItems.length / 2);
-  const leftMenuItems = menuItems.slice(0, midpoint);
-  const rightMenuItems = menuItems.slice(midpoint);
-
-  const [isMobileView, setIsMobileView] = useState(() => {
-    if (typeof window === 'undefined') {
-      return false;
-    }
-    return window.matchMedia('(max-width: 768px)').matches;
-  });
   const [leaguePosition, setLeaguePosition] = useState<number | null>(null);
   const [leaguePoints, setLeaguePoints] = useState<number | null>(null);
   const [hoursToNextMatch, setHoursToNextMatch] = useState<number | null>(null);
   const [matchHighlight, setMatchHighlight] = useState<MatchHighlight | null>(null);
+  const [areActionsVisible, setAreActionsVisible] = useState(false);
+  const interactionSurfaceRef = useRef<HTMLDivElement | null>(null);
+  const pointerIdRef = useRef<number | null>(null);
+  const startPointRef = useRef<{ x: number; y: number } | null>(null);
 
   useEffect(() => {
-    if (typeof window === 'undefined') {
+    const node = interactionSurfaceRef.current;
+    if (!node) {
       return;
     }
 
-    const mediaQuery = window.matchMedia('(max-width: 768px)');
-    const listener = (event: MediaQueryListEvent) => setIsMobileView(event.matches);
+    const handlePointerDown = (event: PointerEvent) => {
+      pointerIdRef.current = event.pointerId;
+      startPointRef.current = { x: event.clientX, y: event.clientY };
+    };
 
-    setIsMobileView(mediaQuery.matches);
+    const handlePointerMove = (event: PointerEvent) => {
+      if (pointerIdRef.current !== event.pointerId || !startPointRef.current) {
+        return;
+      }
 
-    if (typeof mediaQuery.addEventListener === 'function') {
-      mediaQuery.addEventListener('change', listener);
-      return () => mediaQuery.removeEventListener('change', listener);
+      const deltaX = event.clientX - startPointRef.current.x;
+      const deltaY = event.clientY - startPointRef.current.y;
+
+      if (Math.abs(deltaX) <= 48 || Math.abs(deltaX) <= Math.abs(deltaY) * 1.2) {
+        return;
+      }
+
+      if (deltaX < 0) {
+        setAreActionsVisible(true);
+      } else {
+        setAreActionsVisible(false);
+      }
+
+      pointerIdRef.current = null;
+      startPointRef.current = null;
+    };
+
+    const handlePointerEnd = (event: PointerEvent) => {
+      if (pointerIdRef.current === event.pointerId) {
+        pointerIdRef.current = null;
+        startPointRef.current = null;
+      }
+    };
+
+    node.addEventListener('pointerdown', handlePointerDown);
+    node.addEventListener('pointermove', handlePointerMove);
+    node.addEventListener('pointerup', handlePointerEnd);
+    node.addEventListener('pointercancel', handlePointerEnd);
+
+    return () => {
+      node.removeEventListener('pointerdown', handlePointerDown);
+      node.removeEventListener('pointermove', handlePointerMove);
+      node.removeEventListener('pointerup', handlePointerEnd);
+      node.removeEventListener('pointercancel', handlePointerEnd);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!areActionsVisible) {
+      return;
     }
 
-    mediaQuery.addListener(listener);
-    return () => mediaQuery.removeListener(listener);
-  }, []);
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setAreActionsVisible(false);
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [areActionsVisible]);
 
   useEffect(() => {
     const loadQuickStats = async () => {
@@ -378,6 +419,12 @@ export default function MainMenu() {
     navigate(`/${itemId}`);
   };
 
+  const hideActions = () => setAreActionsVisible(false);
+
+  const toggleActionsVisibility = () => {
+    setAreActionsVisible((previous) => !previous);
+  };
+
   const renderMenuCard = (item: (typeof menuItems)[number]) => (
     <Card
       key={item.id}
@@ -418,121 +465,149 @@ export default function MainMenu() {
 
   const formatForm = (form: FormBadge[]) => (form.length ? form.join('') : '-');
 
-  const highlightElement = matchHighlight ? (
-    <section className="nostalgia-match-highlight">
+  const highlightElement = (
+    <section
+      className={`nostalgia-match-highlight${
+        matchHighlight ? '' : ' nostalgia-match-highlight--empty'
+      }`}
+      aria-label="Sonraki mac paneli"
+    >
       <div className="nostalgia-match-highlight__overlay" aria-hidden />
-      <div className="nostalgia-match-highlight__header">
-        <span className="nostalgia-match-highlight__badge">{matchHighlight.competition}</span>
-        <div className="nostalgia-match-highlight__datetime">
-          {matchHighlight.dateText}
-          {matchHighlight.timeText ? ` - ${matchHighlight.timeText}` : ''}
-        </div>
-      </div>
+      {matchHighlight ? (
+        <>
+          <div className="nostalgia-match-highlight__header">
+            <span className="nostalgia-match-highlight__badge">{matchHighlight.competition}</span>
+            <div className="nostalgia-match-highlight__datetime">
+              {matchHighlight.dateText}
+              {matchHighlight.timeText ? ` - ${matchHighlight.timeText}` : ''}
+            </div>
+          </div>
 
-      <div className="nostalgia-match-highlight__body">
-        <div className="nostalgia-match-team">
-          <div className="nostalgia-match-team__emblem">
-            {renderLogo(
-              matchHighlight.team.logoUrl ?? matchHighlight.team.logo,
-              'TM',
-              `${matchHighlight.team.name} logosu`,
-            )}
-          </div>
-          <div className="nostalgia-match-team__name">{matchHighlight.team.name}</div>
-          <div className="nostalgia-match-team__meta">
-            Overall: {formatOverall(matchHighlight.team.overall)}
-          </div>
-          <div className="nostalgia-match-team__meta">
-            Form: {formatForm(matchHighlight.team.form)}
-          </div>
-        </div>
-        <div className="nostalgia-match-highlight__vs">VS</div>
+          <div className="nostalgia-match-highlight__body">
+            <div className="nostalgia-match-team">
+              <div className="nostalgia-match-team__emblem">
+                {renderLogo(
+                  matchHighlight.team.logoUrl ?? matchHighlight.team.logo,
+                  'TM',
+                  `${matchHighlight.team.name} logosu`,
+                )}
+              </div>
+              <div className="nostalgia-match-team__name">{matchHighlight.team.name}</div>
+              <div className="nostalgia-match-team__meta">
+                Overall: {formatOverall(matchHighlight.team.overall)}
+              </div>
+              <div className="nostalgia-match-team__meta">
+                Form: {formatForm(matchHighlight.team.form)}
+              </div>
+            </div>
+            <div className="nostalgia-match-highlight__vs">VS</div>
 
-        <div className="nostalgia-match-team">
-          <div className="nostalgia-match-team__emblem">
-            {renderLogo(
-              matchHighlight.opponent.logoUrl ?? matchHighlight.opponent.logo,
-              'TM',
-              `${matchHighlight.opponent.name} logosu`,
-            )}
+            <div className="nostalgia-match-team">
+              <div className="nostalgia-match-team__emblem">
+                {renderLogo(
+                  matchHighlight.opponent.logoUrl ?? matchHighlight.opponent.logo,
+                  'TM',
+                  `${matchHighlight.opponent.name} logosu`,
+                )}
+              </div>
+              <div className="nostalgia-match-team__name">{matchHighlight.opponent.name}</div>
+              <div className="nostalgia-match-team__meta">
+                Overall: {formatOverall(matchHighlight.opponent.overall)}
+              </div>
+              <div className="nostalgia-match-team__meta">
+                Form: {formatForm(matchHighlight.opponent.form)}
+              </div>
+            </div>
           </div>
-          <div className="nostalgia-match-team__name">{matchHighlight.opponent.name}</div>
-          <div className="nostalgia-match-team__meta">
-            Overall: {formatOverall(matchHighlight.opponent.overall)}
-          </div>
-          <div className="nostalgia-match-team__meta">
-            Form: {formatForm(matchHighlight.opponent.form)}
-          </div>
-        </div>
-      </div>
 
-      <div className="nostalgia-match-highlight__footer">
-        <span>{matchHighlight.venue === 'home' ? 'Ev Sahipligi' : 'Deplasman'}</span>
-        <span>Stadyum: {matchHighlight.venueName ?? 'Belirlenecek'}</span>
-      </div>
+          <div className="nostalgia-match-highlight__footer">
+            <span>{matchHighlight.venue === 'home' ? 'Ev Sahipligi' : 'Deplasman'}</span>
+            <span>Stadyum: {matchHighlight.venueName ?? 'Belirlenecek'}</span>
+          </div>
+        </>
+      ) : (
+        <div className="nostalgia-match-highlight__empty">
+          <h2>Sonraki mac bilgisi hazirlaniyor</h2>
+          <p>Fikstur guncellendiginde ozet burada goruntulenecek.</p>
+        </div>
+      )}
     </section>
-  ) : null;
+  );
 
   return (
-    <div className="nostalgia-screen">
+    <div className="nostalgia-screen nostalgia-screen--main-menu">
       <div className="nostalgia-screen__gradient" aria-hidden />
       <div className="nostalgia-screen__orb nostalgia-screen__orb--left" aria-hidden />
       <div className="nostalgia-screen__orb nostalgia-screen__orb--right" aria-hidden />
       <div className="nostalgia-screen__noise" aria-hidden />
-      <div className="nostalgia-screen__content">
+      <div className="nostalgia-screen__content nostalgia-screen__content--main-menu">
         <div
-          className={`nostalgia-main-menu__stage${isMobileView ? ' nostalgia-main-menu__stage--mobile' : ''}`}
+          ref={interactionSurfaceRef}
+          className={`nostalgia-main-menu${areActionsVisible ? ' nostalgia-main-menu--actions-visible' : ''}`}
         >
-          {isMobileView ? (
-            <>
-              <div className="nostalgia-main-menu__slide nostalgia-main-menu__slide--highlight">
-                <div className="nostalgia-main-menu__highlight-wrapper">{highlightElement}</div>
-              </div>
-              <div className="nostalgia-main-menu__slide nostalgia-main-menu__slide--actions">
-                <div className="nostalgia-main-menu__mobile-actions">
-                  {menuItems.map(renderMenuCard)}
+          <div className="nostalgia-main-menu__core">
+            <div className="nostalgia-main-menu__match" role="presentation">
+              {highlightElement}
+            </div>
+            <section
+              className="nostalgia-quick-panel nostalgia-main-menu__quick"
+              aria-label="Hizli bakis paneli"
+            >
+              <h2 className="nostalgia-quick-panel__title">Hizli Bakis</h2>
+              <div className="nostalgia-quick-grid">
+                <div className="nostalgia-quick-card">
+                  <span className="nostalgia-quick-card__value text-emerald-300">
+                    {leaguePosition ?? '-'}
+                    {leaguePosition ? '.' : ''}
+                  </span>
+                  <span className="nostalgia-quick-card__label">Lig Sirasi</span>
+                </div>
+                <div className="nostalgia-quick-card">
+                  <span className="nostalgia-quick-card__value text-sky-300">{leaguePoints ?? '-'}</span>
+                  <span className="nostalgia-quick-card__label">Puan</span>
+                </div>
+                <div className="nostalgia-quick-card">
+                  <span className="nostalgia-quick-card__value text-fuchsia-300">{hoursToNextMatch ?? '-'}</span>
+                  <span className="nostalgia-quick-card__label">Saat Sonra</span>
                 </div>
               </div>
-            </>
-          ) : (
-            <>
-              <nav
-                className="nostalgia-main-menu__column nostalgia-main-menu__column--left"
-                aria-label="Sol kisayollar"
-              >
-                {leftMenuItems.map(renderMenuCard)}
-              </nav>
-              <div className="nostalgia-main-menu__highlight-wrapper">{highlightElement}</div>
-              <nav
-                className="nostalgia-main-menu__column nostalgia-main-menu__column--right"
-                aria-label="Sag kisayollar"
-              >
-                {rightMenuItems.map(renderMenuCard)}
-              </nav>
-            </>
-          )}
-        </div>
-
-        <section className="nostalgia-quick-panel">
-          <h2 className="nostalgia-quick-panel__title">Hizli Bakis</h2>
-          <div className="nostalgia-quick-grid">
-            <div className="nostalgia-quick-card">
-              <span className="nostalgia-quick-card__value text-emerald-300">
-                {leaguePosition ?? '-'}
-                {leaguePosition ? '.' : ''}
-              </span>
-              <span className="nostalgia-quick-card__label">Lig Sirasi</span>
-            </div>
-            <div className="nostalgia-quick-card">
-              <span className="nostalgia-quick-card__value text-sky-300">{leaguePoints ?? '-'}</span>
-              <span className="nostalgia-quick-card__label">Puan</span>
-            </div>
-            <div className="nostalgia-quick-card">
-              <span className="nostalgia-quick-card__value text-fuchsia-300">{hoursToNextMatch ?? '-'}</span>
-              <span className="nostalgia-quick-card__label">Saat Sonra</span>
-            </div>
+            </section>
           </div>
-        </section>
+
+          <aside
+            id="nostalgia-main-menu-actions"
+            className={`nostalgia-main-menu__actions${
+              areActionsVisible ? ' nostalgia-main-menu__actions--visible' : ''
+            }`}
+            aria-hidden={!areActionsVisible}
+          >
+            <div className="nostalgia-main-menu__actions-grid">
+              {menuItems.map(renderMenuCard)}
+            </div>
+          </aside>
+
+          <button
+            type="button"
+            className="nostalgia-main-menu__actions-handle"
+            onClick={toggleActionsVisibility}
+            aria-expanded={areActionsVisible}
+            aria-controls="nostalgia-main-menu-actions"
+          >
+            <span className="sr-only">
+              {areActionsVisible ? 'Kisayollari gizle' : 'Kisayollari goster'}
+            </span>
+            <span className="nostalgia-main-menu__actions-icon" aria-hidden />
+          </button>
+
+          {areActionsVisible ? (
+            <button
+              type="button"
+              className="nostalgia-main-menu__scrim nostalgia-main-menu__scrim--visible"
+              onClick={hideActions}
+              aria-label="Kisayollari gizle"
+            />
+          ) : null}
+        </div>
       </div>
     </div>
   );
