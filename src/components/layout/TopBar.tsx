@@ -65,6 +65,8 @@ const TopBar = () => {
   const [isVisible, setIsVisible] = useState(false);
   const topBarRef = useRef<HTMLDivElement | null>(null);
   const lastScrollTopRef = useRef(0);
+  const swipePointerIdRef = useRef<number | null>(null);
+  const swipeStartPointRef = useRef<{ x: number; y: number } | null>(null);
   const vipIconClass = vipActive ? 'text-amber-300 drop-shadow' : 'text-slate-400';
   const vipButtonClass = vipActive
     ? 'bg-amber-500/10 text-amber-200 hover:bg-amber-500/20 hover:text-amber-100'
@@ -212,6 +214,67 @@ const TopBar = () => {
 
     return () => {
       target.removeEventListener('scroll', handleScroll);
+    };
+  }, []);
+
+  useEffect(() => {
+    const handlePointerDown = (event: PointerEvent) => {
+      if (!event.isPrimary || (event.pointerType !== 'touch' && event.pointerType !== 'pen')) {
+        swipePointerIdRef.current = null;
+        swipeStartPointRef.current = null;
+        return;
+      }
+
+      const topBarElement = topBarRef.current;
+      if (topBarElement && topBarElement.contains(event.target as Node)) {
+        swipePointerIdRef.current = null;
+        swipeStartPointRef.current = null;
+        return;
+      }
+
+      swipePointerIdRef.current = event.pointerId;
+      swipeStartPointRef.current = { x: event.clientX, y: event.clientY };
+    };
+
+    const handlePointerMove = (event: PointerEvent) => {
+      if (swipePointerIdRef.current !== event.pointerId || !swipeStartPointRef.current) {
+        return;
+      }
+
+      const deltaX = event.clientX - swipeStartPointRef.current.x;
+      const deltaY = event.clientY - swipeStartPointRef.current.y;
+
+      if (Math.abs(deltaY) <= 48 || Math.abs(deltaY) <= Math.abs(deltaX) * 1.2) {
+        return;
+      }
+
+      if (deltaY > 0) {
+        setIsVisible(true);
+      } else {
+        setIsVisible(false);
+      }
+
+      swipePointerIdRef.current = null;
+      swipeStartPointRef.current = null;
+    };
+
+    const resetSwipe = (event: PointerEvent) => {
+      if (swipePointerIdRef.current === event.pointerId) {
+        swipePointerIdRef.current = null;
+        swipeStartPointRef.current = null;
+      }
+    };
+
+    document.addEventListener('pointerdown', handlePointerDown, { passive: true });
+    document.addEventListener('pointermove', handlePointerMove, { passive: true });
+    document.addEventListener('pointerup', resetSwipe, { passive: true });
+    document.addEventListener('pointercancel', resetSwipe, { passive: true });
+
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown);
+      document.removeEventListener('pointermove', handlePointerMove);
+      document.removeEventListener('pointerup', resetSwipe);
+      document.removeEventListener('pointercancel', resetSwipe);
     };
   }, []);
 
