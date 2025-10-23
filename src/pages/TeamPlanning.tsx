@@ -35,6 +35,7 @@ import {
   type MetricKey,
 } from '@/features/team-planning/useTeamPlanningStore';
 import './team-planning.css';
+import './TeamPlanningOverrides.css';
 
 const DEFAULT_GAUGE_VALUE = 0.75;
 
@@ -414,9 +415,9 @@ const AlternativePlayerBubble: React.FC<AlternativePlayerBubbleProps> = ({
   const positionLabel = canonicalPosition(player.position);
 
   const rootClasses = cn(
-    'tp-alternative-card group relative flex w-full items-start gap-3 rounded-2xl border px-3 py-2 text-left text-[11px] font-medium transition duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/80 sm:px-[0.875rem] sm:py-[0.625rem]',
+    'tp-alternative-card tp-alt-card group relative flex w-full items-start gap-3 rounded-2xl border px-3 py-2 text-left text-[11px] font-medium transition duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/80 sm:px-[0.875rem] sm:py-[0.625rem]',
     variant === 'panel'
-      ? 'tp-alternative-card--panel border-white/20 bg-white/10 text-white hover:border-white/50 hover:bg-white/15'
+      ? 'tp-alternative-card--panel tp-alt-card--panel border-white/20 bg-white/10 text-white hover:border-white/50 hover:bg-white/15'
       : 'border-white/25 bg-white/5 text-white/95 hover:border-white/50 hover:bg-white/10 backdrop-blur-sm',
   );
 
@@ -428,14 +429,14 @@ const AlternativePlayerBubble: React.FC<AlternativePlayerBubbleProps> = ({
             <span className="line-clamp-2 w-full break-normal text-center text-[9.5px] font-semibold leading-tight">
               {player.name}
             </span>
-            <span className="absolute bottom-0 right-0 rounded-tl-lg bg-emerald-900/90 px-1 text-[8.5px] font-semibold uppercase text-emerald-100 shadow-lg">
+            <span className="badge absolute bottom-0 right-0 rounded-tl-lg bg-emerald-900/90 px-1 text-[8.5px] font-semibold uppercase text-emerald-100 shadow-lg">
               {badgeLabel}
             </span>
           </div>
 
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[10.5px] text-white/70">
-              <span className="font-semibold uppercase tracking-wide text-white/80">{positionLabel}</span>
+              <span className="pos font-semibold uppercase tracking-wide text-white/80">{positionLabel}</span>
               <span>{player.age} yaş</span>
               <span className="font-semibold text-white/80">GEN {formatRatingLabel(player.overall)}</span>
               {showStrengthIndicator ? (
@@ -1731,13 +1732,19 @@ function TeamPlanningContent() {
 
   return (
     <>
-      <div className="flex h-screen flex-col overflow-hidden bg-gradient-to-br from-emerald-900 via-emerald-950 to-slate-950 text-white">
+      <div
+        data-screen="team-planning"
+        className="flex h-screen flex-col overflow-hidden bg-gradient-to-br from-emerald-900 via-emerald-950 to-slate-950 text-white"
+      >
         <header
-          id="tp-topbar"
+          id="app-topbar"
+          data-role="tp-topbar"
           className="flex flex-shrink-0 items-center justify-between border-b border-white/10 bg-black/30 px-5 py-0 backdrop-blur"
         >
           <div className="flex items-center gap-2.5">
-            <BackButton />
+            <div className="icon-btn">
+              <BackButton />
+            </div>
             <div>
               <h1 className="text-base font-semibold sm:text-lg">Takım Planı</h1>
               <p className="text-[11px] text-emerald-100/70 sm:text-xs">
@@ -1767,7 +1774,7 @@ function TeamPlanningContent() {
 
         <div className="grid flex-1 grid-cols-[1.12fr_0.88fr] overflow-hidden">
           <section id="tp-pitch-pane" className="relative flex flex-col overflow-hidden">
-            <div className="tp-pitch-shell flex flex-1 items-center justify-center px-8 pb-24 pt-8">
+            <div id="tp-pitch-wrapper" className="tp-pitch-shell flex flex-1 items-center justify-center px-8 pb-24 pt-8">
               <Pitch
                 ref={pitchRef}
                 slots={formationPositions}
@@ -1784,8 +1791,8 @@ function TeamPlanningContent() {
             </div>
 
             <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex items-start justify-between gap-4 p-6">
-              <div className="tp-formation-card pointer-events-auto flex max-w-xs flex-col gap-2.5 rounded-3xl border border-white/20 bg-black/40 p-[0.9rem] shadow-xl backdrop-blur">
-                <span className="text-[11px] font-semibold uppercase tracking-wide text-emerald-100/80">Formasyon</span>
+              <div className="tp-formation-card tp-mini-card pointer-events-auto flex max-w-xs flex-col gap-2.5 rounded-3xl border border-white/20 bg-black/40 p-[0.9rem] shadow-xl backdrop-blur">
+                <span className="title text-[11px] font-semibold uppercase tracking-wide text-emerald-100/80">Formasyon</span>
                 <div className="flex items-baseline gap-2.5">
                   <span className="text-xl font-bold text-white">{displayFormationName}</span>
                   {manualShapeDiffers ? (
@@ -1807,8 +1814,8 @@ function TeamPlanningContent() {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="tp-squad-count-card pointer-events-auto hidden rounded-3xl border border-white/20 bg-black/40 p-[0.9rem] text-right text-[10px] font-semibold uppercase tracking-wide text-emerald-100 shadow-xl backdrop-blur sm:flex sm:flex-col sm:items-end sm:gap-1">
-                <span>İlk 11 · {startingEleven.length}</span>
+              <div className="tp-squad-count-card tp-mini-card pointer-events-auto hidden rounded-3xl border border-white/20 bg-black/40 p-[0.9rem] text-right text-[10px] font-semibold uppercase tracking-wide text-emerald-100 shadow-xl backdrop-blur sm:flex sm:flex-col sm:items-end sm:gap-1">
+                <span className="title">İlk 11 · {startingEleven.length}</span>
                 <span>Yedek · {benchPlayers.length}</span>
                 <span>Rezerv · {reservePlayers.length}</span>
               </div>
@@ -1909,7 +1916,10 @@ function TeamPlanningContent() {
                 >
                   <div className="mx-auto flex max-w-3xl flex-col gap-6">
                     {selectedPlayer ? (
-                      <Card className="border-white/10 bg-white/5 text-white shadow-lg backdrop-blur">
+                      <Card
+                        id="tp-alt-panel"
+                        className="border-white/10 bg-white/5 text-white shadow-lg backdrop-blur"
+                      >
                       <CardHeader className="pb-3">
                         <CardTitle className="text-sm font-semibold text-white">
                           {canonicalPosition(selectedPlayer.position)} için alternatifler
