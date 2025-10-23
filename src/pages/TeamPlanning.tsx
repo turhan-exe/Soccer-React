@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
@@ -27,12 +27,25 @@ import { cn } from '@/lib/utils';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { BackButton } from '@/components/ui/back-button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import Pitch, { type PitchSlot } from '@/features/team-planning/Pitch';
+import {
+  TeamPlanningProvider,
+  useTeamPlanningStore,
+  type PlayerPosition as StorePlayerPosition,
+  type MetricKey,
+} from '@/features/team-planning/useTeamPlanningStore';
 
 const DEFAULT_GAUGE_VALUE = 0.75;
 
 const PLAYER_RENAME_DIAMOND_COST = 45;
 const PLAYER_RENAME_AD_COOLDOWN_HOURS = 24;
 const CONTRACT_EXTENSION_MONTHS = 18;
+
+const metricOptions: Array<{ key: MetricKey; label: string }> = [
+  { key: 'power', label: 'GÜÇ' },
+  { key: 'motivation', label: 'MOTİVASYON' },
+  { key: 'condition', label: 'KONDİSYON' },
+];
 
 const KNOWN_POSITIONS: Player['position'][] = ['GK', 'CB', 'LB', 'RB', 'CM', 'LM', 'RM', 'CAM', 'LW', 'RW', 'ST'];
 
@@ -240,6 +253,7 @@ function normalizePlayer(player: Player): Player {
     rename: player.rename ?? fallbackRename(),
   };
 }
+
 
 function normalizePlayers(list: Player[]): Player[] {
   return list.map(normalizePlayer);
@@ -458,83 +472,6 @@ const AlternativePlayerBubble: React.FC<AlternativePlayerBubbleProps> = ({
   );
 };
 
-const PITCH_MARKER_RADIUS = 26;
-const PITCH_MARKER_CIRCUMFERENCE = 2 * Math.PI * PITCH_MARKER_RADIUS;
-
-type PitchPlayerMarkerProps = {
-  player: Player;
-  isFocused: boolean;
-  onSelect: () => void;
-  onDragStart: (event: React.DragEvent<HTMLDivElement>) => void;
-  onDragEnd: (event: React.DragEvent<HTMLDivElement>) => void;
-};
-
-const PitchPlayerMarker: React.FC<PitchPlayerMarkerProps> = ({
-  player,
-  isFocused,
-  onSelect,
-  onDragStart,
-  onDragEnd,
-}) => {
-  const rating = normalizeRatingTo100(player.overall);
-  const dashOffset = PITCH_MARKER_CIRCUMFERENCE * (1 - rating / 100);
-
-  return (
-    <div
-      className={cn(
-        'group relative flex h-[3.6rem] w-[3.6rem] flex-col items-center justify-center rounded-full border border-white/30 bg-white/90 px-1.5 text-[9px] font-semibold text-emerald-900 shadow transition-all duration-150 cursor-grab leading-tight text-center',
-        isFocused
-          ? 'ring-4 ring-white/80 ring-offset-2 ring-offset-emerald-600 shadow-lg'
-          : 'hover:border-white/60 hover:ring-2 hover:ring-white/60',
-      )}
-      role="button"
-      tabIndex={0}
-      draggable
-      onClick={onSelect}
-      onKeyDown={event => {
-        if (event.key === 'Enter' || event.key === ' ') {
-          event.preventDefault();
-          onSelect();
-        }
-      }}
-      onDragStart={onDragStart}
-      onDragEnd={onDragEnd}
-    >
-      <svg viewBox="0 0 60 60" className="absolute inset-0 h-full w-full text-emerald-500/70">
-        <circle
-          cx="30"
-          cy="30"
-          r={PITCH_MARKER_RADIUS}
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeOpacity="0.15"
-          fill="none"
-        />
-        <circle
-          cx="30"
-          cy="30"
-          r={PITCH_MARKER_RADIUS}
-          stroke="currentColor"
-          strokeWidth="2.5"
-          strokeDasharray={`${PITCH_MARKER_CIRCUMFERENCE} ${PITCH_MARKER_CIRCUMFERENCE}`}
-          strokeDashoffset={dashOffset}
-          strokeLinecap="round"
-          fill="none"
-          className="transition-[stroke-dashoffset] duration-200 ease-out"
-        />
-      </svg>
-      <span className="relative z-10 block max-h-[2.6rem] w-full overflow-hidden text-ellipsis">
-        {player.name}
-      </span>
-      <div className="relative z-10 mt-1 flex items-center justify-center">
-        <span className="rounded-full bg-emerald-900/90 px-2 py-0.5 text-[10px] font-bold text-emerald-50 shadow-sm">
-          {formatRatingLabel(player.overall)}
-        </span>
-      </div>
-    </div>
-  );
-};
-
 function getPlayerCondition(player: Player): number {
   return clampPerformanceGauge(player.condition, DEFAULT_GAUGE_VALUE);
 }
@@ -551,7 +488,7 @@ function getPlayerPower(player: Player): number {
   });
 }
 
-export default function TeamPlanning() {
+function TeamPlanningContent() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { balance, spend } = useDiamonds();
@@ -575,6 +512,67 @@ export default function TeamPlanning() {
   const pitchRef = useRef<HTMLDivElement | null>(null);
   const dropHandledRef = useRef(false);
   const handledContractsRef = useRef<Set<string>>(new Set());
+
+  const {
+    selectedMetric,
+    setSelectedMetric,
+    setPlayerPositions,
+    updateFormationFromPositions,
+    registerFormationUpdater,
+  } = useTeamPlanningStore();
+
+  const applyFormationPositions = useCallback(
+    (positions: Record<string, StorePlayerPosition>) => {
+      setCustomFormations(prev => {
+        const entries = Object.entries(positions);
+        if (entries.length === 0) {
+          if (!(selectedFormation in prev)) {
+            return prev;
+          }
+          const { [selectedFormation]: _removed, ...rest } = prev;
+          return rest;
+        }
+
+        const layout = entries.reduce<Record<string, FormationPlayerPosition>>(
+          (acc, [playerId, value]) => {
+            acc[playerId] = {
+              x: clampPercentageValue(value.x),
+              y: clampPercentageValue(value.y),
+              position: value.position,
+            };
+            return acc;
+          },
+          {},
+        );
+
+        if (
+          prev[selectedFormation] &&
+          Object.entries(prev[selectedFormation]).length === entries.length &&
+          entries.every(([playerId, value]) => {
+            const current = prev[selectedFormation]?.[playerId];
+            return (
+              current &&
+              current.x === clampPercentageValue(value.x) &&
+              current.y === clampPercentageValue(value.y) &&
+              current.position === value.position
+            );
+          })
+        ) {
+          return prev;
+        }
+
+        return {
+          ...prev,
+          [selectedFormation]: layout,
+        };
+      });
+    },
+    [selectedFormation],
+  );
+
+  useEffect(() => {
+    registerFormationUpdater(applyFormationPositions);
+  }, [registerFormationUpdater, applyFormationPositions]);
 
 
   const filteredPlayers = players.filter(
@@ -1116,6 +1114,60 @@ export default function TeamPlanning() {
     });
   };
 
+  const handlePitchMarkerDragStart = useCallback(
+    (player: Player, event: React.DragEvent<HTMLDivElement>) => {
+      setDraggedPlayerId(player.id);
+      event.dataTransfer.setData('text/plain', player.id);
+      event.dataTransfer.effectAllowed = 'move';
+    },
+    [],
+  );
+
+  const handlePitchMarkerDragEnd = useCallback(
+    (player: Player, event: React.DragEvent<HTMLDivElement>) => {
+      handlePlayerDragEnd(event, player);
+    },
+    [handlePlayerDragEnd],
+  );
+
+  const getMetricValueForPlayer = useCallback(
+    (player: Player, metric: MetricKey): number => {
+      switch (metric) {
+        case 'motivation':
+          return clampPercentageValue(getPlayerMotivation(player) * 100);
+        case 'condition':
+          return clampPercentageValue(getPlayerCondition(player) * 100);
+        default:
+          return normalizeRatingTo100(getPlayerPower(player));
+      }
+    },
+    [],
+  );
+
+  const renderPitchTooltip = useCallback(
+    (player: Player) => (
+      <div className="space-y-2">
+        <div className="text-xs font-semibold">{player.name}</div>
+        <PerformanceGauge
+          label="Güç"
+          value={normalizeRatingTo100(getPlayerPower(player)) / 100}
+          variant="dark"
+        />
+        <PerformanceGauge
+          label="Kondisyon"
+          value={getPlayerCondition(player)}
+          variant="dark"
+        />
+        <PerformanceGauge
+          label="Motivasyon"
+          value={getPlayerMotivation(player)}
+          variant="dark"
+        />
+      </div>
+    ),
+    [],
+  );
+
   const handleListForTransfer = (playerId: string) => {
     navigate('/transfer-market', { state: { listPlayerId: playerId } });
   };
@@ -1366,7 +1418,7 @@ export default function TeamPlanning() {
     [customFormations, selectedFormation],
   );
 
-  const formationPositions = useMemo(() => {
+  const formationPositions: PitchSlot[] = useMemo(() => {
     const starters = players.filter(p => p.squadRole === 'starting');
     const slots = currentFormation.positions;
 
@@ -1472,6 +1524,34 @@ export default function TeamPlanning() {
       };
     });
   }, [currentFormation, manualFormation, players]);
+
+  const buildPositionsMap = useCallback(
+    (slots: PitchSlot[]): Record<string, StorePlayerPosition> =>
+      slots.reduce<Record<string, StorePlayerPosition>>((acc, slot) => {
+        if (!slot.player) {
+          return acc;
+        }
+        acc[slot.player.id] = {
+          x: clampPercentageValue(slot.x),
+          y: clampPercentageValue(slot.y),
+          position: slot.position,
+          slotIndex: slot.slotIndex,
+        };
+        return acc;
+      }, {}),
+    [],
+  );
+
+  useEffect(() => {
+    const positions = buildPositionsMap(formationPositions);
+    setPlayerPositions(positions);
+    updateFormationFromPositions(positions);
+  }, [
+    buildPositionsMap,
+    formationPositions,
+    setPlayerPositions,
+    updateFormationFromPositions,
+  ]);
 
   const derivedFormationShape = useMemo(
     () => deriveFormationShape(formationPositions),
@@ -1630,338 +1710,297 @@ export default function TeamPlanning() {
 
     setFocusedPlayerId(alternativeId);
     setActiveTab('starting');
-    toast.success('Oyuncu ilk 11\'e ta�Y��nd��');
+    toast.success('Oyuncu ilk 11\'e taşındı');
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-green-50 via-emerald-50 to-teal-50 dark:from-green-950 dark:via-emerald-950 dark:to-teal-950">
-      {/* Header */}
-      <div className="bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm border-b p-4">
-        <div className="flex items-center justify-between">
+    <>
+      <div className="flex h-screen flex-col overflow-hidden bg-gradient-to-br from-emerald-900 via-emerald-950 to-slate-950 text-white">
+        <header className="flex flex-shrink-0 items-center justify-between border-b border-white/10 bg-black/30 px-6 py-4 backdrop-blur">
           <div className="flex items-center gap-3">
             <BackButton />
-            <h1 className="text-xl font-bold">Takım Planı</h1>
+            <div>
+              <h1 className="text-lg font-semibold sm:text-xl">Takım Planı</h1>
+              <p className="text-xs text-emerald-100/70 sm:text-sm">Formasyonunuzu yönetin ve kadronuzu düzenleyin</p>
+            </div>
           </div>
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm">
-              <Eye className="h-4 w-4 mr-2" />
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="border-white/30 bg-white/10 text-white shadow-sm transition hover:bg-white/20 hover:text-white"
+            >
+              <Eye className="mr-2 h-4 w-4" />
               Formasyon
             </Button>
-            <Button onClick={handleSave}>
-              <Save className="h-4 w-4 mr-2" />
+            <Button
+              size="sm"
+              onClick={handleSave}
+              className="bg-emerald-400 text-emerald-950 shadow-lg transition hover:bg-emerald-300"
+            >
+              <Save className="mr-2 h-4 w-4" />
               Kaydet
             </Button>
           </div>
-        </div>
-      </div>
+        </header>
 
-      <div className="p-4">
-        <div className="mx-auto max-w-6xl space-y-6">
-        {/* Search & Filter */}
-        <Card className="shadow-sm">
-          <CardContent className="p-4">
-            <div className="flex flex-col gap-3 md:flex-row md:items-center">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Oyuncu ara..."
-                  value={searchTerm}
-                  onChange={e => setSearchTerm(e.target.value)}
-                  className="pl-10"
-                />
+        <div className="grid flex-1 grid-cols-2 overflow-hidden">
+          <section className="relative overflow-hidden">
+            <Pitch
+              ref={pitchRef}
+              slots={formationPositions}
+              onPitchDrop={handlePitchDrop}
+              onPositionDrop={handlePositionDrop}
+              onPlayerDragStart={handlePitchMarkerDragStart}
+              onPlayerDragEnd={handlePitchMarkerDragEnd}
+              onSelectPlayer={playerId => setFocusedPlayerId(playerId)}
+              focusedPlayerId={focusedPlayerId}
+              selectedMetric={selectedMetric}
+              getMetricValue={getMetricValueForPlayer}
+              renderTooltip={renderPitchTooltip}
+            />
+
+            <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex items-start justify-between gap-4 p-6">
+              <div className="pointer-events-auto flex max-w-xs flex-col gap-3 rounded-3xl border border-white/20 bg-black/40 p-4 shadow-xl backdrop-blur">
+                <span className="text-xs font-semibold uppercase tracking-wide text-emerald-100/80">Formasyon</span>
+                <div className="flex items-baseline gap-3">
+                  <span className="text-2xl font-bold text-white">{displayFormationName}</span>
+                  {manualShapeDiffers ? (
+                    <span className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-emerald-100">
+                      {selectedFormation}
+                    </span>
+                  ) : null}
+                </div>
+                <Select value={selectedFormation} onValueChange={setSelectedFormation}>
+                  <SelectTrigger className="w-full border-white/20 bg-white/10 text-white focus:ring-white/50">
+                    <SelectValue placeholder="Formasyon seç" />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-64">
+                    {formations.map(formation => (
+                      <SelectItem key={formation.name} value={formation.name}>
+                        {formation.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
-              <Select
-                value={sortBy}
-                onValueChange={value =>
-                  setSortBy(value as 'role' | 'overall' | 'potential')
-                }
-              >
-              <SelectTrigger className="w-full md:w-40">
-                <SelectValue placeholder="SÄ±rala" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="role">Role göre</SelectItem>
-                <SelectItem value="overall">Ortalamaya göre</SelectItem>
-                <SelectItem value="potential">Maks. potansiyel</SelectItem>
-              </SelectContent>
-            </Select>
+              <div className="pointer-events-auto hidden rounded-3xl border border-white/20 bg-black/40 p-4 text-right text-[11px] font-semibold uppercase tracking-wide text-emerald-100 shadow-xl backdrop-blur sm:flex sm:flex-col sm:items-end sm:gap-1">
+                <span>İlk 11 · {startingEleven.length}</span>
+                <span>Yedek · {benchPlayers.length}</span>
+                <span>Rezerv · {reservePlayers.length}</span>
+              </div>
             </div>
-            </CardContent>
-          </Card>
 
-        <div className="flex flex-nowrap gap-6 overflow-x-auto lg:grid lg:grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)] lg:items-start lg:overflow-visible">
-          {/* Team Formation Overview */}
-          <Card className="order-1 w-full flex-none min-w-[320px] lg:min-w-0 lg:sticky lg:top-24 lg:z-30 lg:self-start">
-            <CardHeader className="flex flex-col gap-3 border-b border-white/60 bg-white/70 backdrop-blur-sm sm:flex-row sm:items-center sm:justify-between dark:border-white/10 dark:bg-slate-900/80">
-            <CardTitle className="flex items-center gap-3">
-              <div className="h-3 w-3 rounded-full bg-green-500" />
-              <div className="flex flex-col text-left">
-                <span>Formasyon</span>
-                <span className="text-sm font-normal text-emerald-900 dark:text-emerald-100">
-                  {displayFormationName}
-                </span>
-                {manualShapeDiffers ? (
-                  <span className="text-xs font-normal text-emerald-700 dark:text-emerald-200/80">
-                    Şablon: {selectedFormation}
-                  </span>
-                ) : null}
-              </div>
-            </CardTitle>
-            <Select value={selectedFormation} onValueChange={setSelectedFormation}>
-              <SelectTrigger className="w-full md:w-40" aria-label="Formasyon">
-                <span className="truncate">{displayFormationName}</span>
-              </SelectTrigger>
-              <SelectContent>
-                {formations.map(f => (
-                  <SelectItem key={f.name} value={f.name}>
-                    {f.name}
-                  </SelectItem>
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 flex justify-start p-6">
+              <div className="pointer-events-auto inline-flex items-center gap-1 rounded-full border border-white/20 bg-black/40 p-1 shadow-xl backdrop-blur">
+                {metricOptions.map(option => (
+                  <button
+                    key={option.key}
+                    type="button"
+                    onClick={() => setSelectedMetric(option.key)}
+                    className={cn(
+                      'rounded-full px-4 py-2 text-[11px] font-semibold uppercase tracking-wider transition duration-150',
+                      selectedMetric === option.key
+                        ? 'bg-emerald-400 text-emerald-950 shadow'
+                        : 'text-emerald-100 hover:bg-white/10',
+                    )}
+                  >
+                    {option.label}
+                  </button>
                 ))}
-              </SelectContent>
-            </Select>
-            </CardHeader>
-            <CardContent className="bg-gradient-to-br from-emerald-600/95 via-emerald-700/95 to-emerald-800/95">
-              <div className="relative">
-                <div className="relative aspect-[3/4] w-full overflow-hidden rounded-2xl bg-gradient-to-b from-emerald-600 via-emerald-700 to-emerald-800 shadow-[0_20px_45px_-25px_rgba(16,80,40,0.8)] sm:aspect-[2/3] lg:aspect-[3/4]">
-                  <div className="absolute inset-0 p-5">
-                    <div
-                      ref={pitchRef}
-                      className="relative h-full w-full"
-                      onDragOver={e => e.preventDefault()}
-                      onDrop={handlePitchDrop}
-                    >
-                      <div className="absolute inset-0 opacity-80">
-                        <svg
-                          viewBox="0 0 100 100"
-                          className="absolute inset-0 h-full w-full text-white/60"
-                          pointerEvents="none"
-                        >
-                          <rect x="0" y="0" width="100" height="100" fill="none" stroke="currentColor" strokeWidth="2" />
-                          <line x1="0" y1="50" x2="100" y2="50" stroke="currentColor" strokeWidth="1" />
-                          <circle cx="50" cy="50" r="9" stroke="currentColor" strokeWidth="1" fill="none" />
-                          <rect x="16" y="0" width="68" height="16" stroke="currentColor" strokeWidth="1" fill="none" />
-                          <rect x="16" y="84" width="68" height="16" stroke="currentColor" strokeWidth="1" fill="none" />
-                          <rect x="30" y="0" width="40" height="6" stroke="currentColor" strokeWidth="1" fill="none" />
-                          <rect x="30" y="94" width="40" height="6" stroke="currentColor" strokeWidth="1" fill="none" />
-                          <circle cx="50" cy="11" r="1.5" fill="currentColor" />
-                          <circle cx="50" cy="89" r="1.5" fill="currentColor" />
-                        </svg>
-                      </div>
-                      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                        <ArrowUp className="h-24 w-24 text-white/15" />
-                      </div>
-                      <div className="absolute inset-0">
-                        {formationPositions.map(({ player, position, x, y, slotIndex }) => (
-                          <div
-                            key={slotIndex}
-                            className="absolute text-center"
-                            style={{
-                              left: `${x}%`,
-                              top: `${y}%`,
-                              transform: 'translate(-50%, -50%)',
-                            }}
-                            onDragOver={e => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                            }}
-                            onDrop={e => handlePositionDrop(e, { position, x, y, slotIndex })}
-                          >
-                            {player ? (
-                              <Tooltip>
-                                <TooltipTrigger asChild>
+              </div>
+            </div>
+          </section>
 
-                                  <PitchPlayerMarker
-
-                                    player={player}
-
-                                    isFocused={player.id === focusedPlayerId}
-
-                                    onSelect={() => setFocusedPlayerId(player.id)}
-
-                                    onDragStart={event => {
-
-                                      setDraggedPlayerId(player.id);
-
-                                      event.dataTransfer.setData('text/plain', player.id);
-
-                                    }}
-
-                                    onDragEnd={event => handlePlayerDragEnd(event, player)}
-
-                                  />
-
-                                </TooltipTrigger>
-                                <TooltipContent className="z-50 w-56 space-y-2">
-                                  <div className="text-xs font-semibold">{player.name}</div>
-                                  <PerformanceGauge label="Güç" value={getPlayerPower(player)} />
-                                  <PerformanceGauge label="Kondisyon" value={getPlayerCondition(player)} />
-                                  <PerformanceGauge label="Motivasyon" value={getPlayerMotivation(player)} />
-                                </TooltipContent>
-                              </Tooltip>
-                            ) : (
-                              <div className="flex h-[3.6rem] w-[3.6rem] items-center justify-center rounded-full border border-dashed border-white/50 bg-white/20 px-1.5 text-[10px] font-semibold uppercase tracking-wide text-white">
-                                {position}
-                              </div>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
+          <aside className="flex h-full flex-col overflow-hidden border-l border-white/10 bg-black/35">
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="flex h-full flex-col">
+              <div className="sticky top-0 z-20 border-b border-white/10 bg-black/50 px-6 py-5 backdrop-blur">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                  <div className="relative flex-1">
+                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-emerald-100/60" />
+                    <Input
+                      placeholder="Oyuncu ara..."
+                      value={searchTerm}
+                      onChange={event => setSearchTerm(event.target.value)}
+                      className="border-white/20 bg-white/10 pl-9 text-white placeholder:text-emerald-100/50 focus-visible:ring-white/50"
+                    />
                   </div>
+                  <Select
+                    value={sortBy}
+                    onValueChange={value => setSortBy(value as 'role' | 'overall' | 'potential')}
+                  >
+                    <SelectTrigger className="border-white/20 bg-white/10 text-white focus:ring-white/50 sm:w-40">
+                      <SelectValue placeholder="Sırala" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="role">Role göre</SelectItem>
+                      <SelectItem value="overall">Ortalamaya göre</SelectItem>
+                      <SelectItem value="potential">Maks. potansiyel</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <TabsList className="mt-4 grid grid-cols-3 gap-2 rounded-full bg-white/10 p-1">
+                  <TabsTrigger
+                    value="starting"
+                    className="rounded-full px-3 py-2 text-xs font-semibold uppercase tracking-wide text-emerald-100 data-[state=active]:bg-emerald-400 data-[state=active]:text-emerald-950"
+                  >
+                    İlk 11 ({startingEleven.length})
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value="bench"
+                    className="rounded-full px-3 py-2 text-xs font-semibold uppercase tracking-wide text-emerald-100 data-[state=active]:bg-emerald-400 data-[state=active]:text-emerald-950"
+                  >
+                    Yedek ({benchPlayers.length})
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value="reserve"
+                    className="rounded-full px-3 py-2 text-xs font-semibold uppercase tracking-wide text-emerald-100 data-[state=active]:bg-emerald-400 data-[state=active]:text-emerald-950"
+                  >
+                    Rezerv ({reservePlayers.length})
+                  </TabsTrigger>
+                </TabsList>
+              </div>
+
+              <div className="flex-1 overflow-y-auto px-6 py-6">
+                <div className="mx-auto flex max-w-3xl flex-col gap-6">
+                  {selectedPlayer ? (
+                    <Card className="border-white/10 bg-white/5 text-white shadow-lg backdrop-blur">
+                      <CardHeader className="pb-3">
+                        <CardTitle className="text-sm font-semibold text-white">
+                          {canonicalPosition(selectedPlayer.position)} için alternatifler
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-3">
+                        {alternativePlayers.length > 0 ? (
+                          <div className="grid gap-2 sm:grid-cols-2">
+                            {alternativePlayers.map(alternative => (
+                              <AlternativePlayerBubble
+                                key={alternative.id}
+                                player={alternative}
+                                onSelect={playerId => handleAlternativeSelection(playerId)}
+                                variant="panel"
+                                compareToPlayer={selectedPlayer}
+                              />
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-xs text-emerald-100/70">
+                            Bu pozisyon için yedek veya rezerv oyuncu bulunmadı.
+                          </p>
+                        )}
+                      </CardContent>
+                    </Card>
+                  ) : null}
+
+                  <TabsContent value="starting" className="mt-0 space-y-4">
+                    {sortedPlayers.length === 0 ? (
+                      <Card className="border-white/10 bg-white/5 text-center text-white shadow-lg backdrop-blur">
+                        <CardContent className="p-8">
+                          <div className="mb-4 text-4xl">⚽</div>
+                          <h3 className="mb-2 text-base font-semibold">İlk 11'inizi oluşturun</h3>
+                          <p className="text-sm text-emerald-100/70">
+                            Yedek kulübesinden oyuncularınızı ilk 11'e taşıyın.
+                          </p>
+                        </CardContent>
+                      </Card>
+                    ) : (
+                      sortedPlayers.map(player => (
+                        <PlayerCard
+                          key={player.id}
+                          player={player}
+                          compact
+                          defaultCollapsed
+                          draggable
+                          onDragStart={event => {
+                            setDraggedPlayerId(player.id);
+                            event.dataTransfer.setData('text/plain', player.id);
+                          }}
+                          onDragEnd={() => setDraggedPlayerId(null)}
+                          onMoveToBench={() => movePlayer(player.id, 'bench')}
+                          onMoveToReserve={() => movePlayer(player.id, 'reserve')}
+                          onListForTransfer={() => handleListForTransfer(player.id)}
+                          onRenamePlayer={() => setRenamePlayerId(player.id)}
+                          onFirePlayer={() => handleFirePlayer(player.id)}
+                        />
+                      ))
+                    )}
+                  </TabsContent>
+
+                  <TabsContent value="bench" className="mt-0 space-y-4">
+                    {sortedPlayers.length === 0 ? (
+                      <Card className="border-white/10 bg-white/5 text-center text-white shadow-lg backdrop-blur">
+                        <CardContent className="p-8">
+                          <div className="mb-4 text-4xl">⚽</div>
+                          <h3 className="mb-2 text-base font-semibold">Yedek kulübesi boş</h3>
+                          <p className="text-sm text-emerald-100/70">
+                            Rezerv oyuncularınızı yedek kulübesine taşıyın.
+                          </p>
+                        </CardContent>
+                      </Card>
+                    ) : (
+                      sortedPlayers.map(player => (
+                        <PlayerCard
+                          key={player.id}
+                          player={player}
+                          compact
+                          defaultCollapsed
+                          draggable
+                          onDragStart={event => {
+                            setDraggedPlayerId(player.id);
+                            event.dataTransfer.setData('text/plain', player.id);
+                          }}
+                          onDragEnd={() => setDraggedPlayerId(null)}
+                          onMoveToStarting={() => movePlayer(player.id, 'starting')}
+                          onMoveToReserve={() => movePlayer(player.id, 'reserve')}
+                          onListForTransfer={() => handleListForTransfer(player.id)}
+                          onRenamePlayer={() => setRenamePlayerId(player.id)}
+                          onFirePlayer={() => handleFirePlayer(player.id)}
+                        />
+                      ))
+                    )}
+                  </TabsContent>
+
+                  <TabsContent value="reserve" className="mt-0 space-y-4">
+                    {sortedPlayers.length === 0 ? (
+                      <Card className="border-white/10 bg-white/5 text-center text-white shadow-lg backdrop-blur">
+                        <CardContent className="p-8">
+                          <div className="mb-4 text-4xl">⚽</div>
+                          <h3 className="mb-2 text-base font-semibold">Rezerv oyuncu yok</h3>
+                          <p className="text-sm text-emerald-100/70">
+                            Altyapıdan oyuncu alın veya pazardan oyuncu satın.
+                          </p>
+                        </CardContent>
+                      </Card>
+                    ) : (
+                      sortedPlayers.map(player => (
+                        <PlayerCard
+                          key={player.id}
+                          player={player}
+                          compact
+                          defaultCollapsed
+                          draggable
+                          onDragStart={event => {
+                            setDraggedPlayerId(player.id);
+                            event.dataTransfer.setData('text/plain', player.id);
+                          }}
+                          onDragEnd={() => setDraggedPlayerId(null)}
+                          onMoveToStarting={() => movePlayer(player.id, 'starting')}
+                          onMoveToBench={() => movePlayer(player.id, 'bench')}
+                          onListForTransfer={() => handleListForTransfer(player.id)}
+                          onRenamePlayer={() => setRenamePlayerId(player.id)}
+                          onFirePlayer={() => handleFirePlayer(player.id)}
+                        />
+                      ))
+                    )}
+                  </TabsContent>
                 </div>
               </div>
-          </CardContent>
-        </Card>
-
-        {/* Player Lists */}
-        <div className="order-2 flex flex-none min-w-[320px] flex-col gap-4 lg:flex-1 lg:min-w-0">
-        {selectedPlayer ? (
-          <Card className="border-emerald-200/20 bg-emerald-900/10 shadow-lg backdrop-blur">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-semibold text-emerald-50">
-                {canonicalPosition(selectedPlayer.position)} için alternatifler
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {alternativePlayers.length > 0 ? (
-                <div className="grid gap-2 sm:grid-cols-2">
-                  {alternativePlayers.map(alternative => (
-                    <AlternativePlayerBubble
-                      key={alternative.id}
-                      player={alternative}
-                      onSelect={playerId => handleAlternativeSelection(playerId)}
-                      variant="panel"
-                      compareToPlayer={selectedPlayer}
-                    />
-                  ))}
-                </div>
-              ) : (
-                <p className="text-xs text-emerald-100/80">
-                  Bu pozisyon için yedek veya rezerv oyuncu bulunmadı.
-                </p>
-              )}
-            </CardContent>
-          </Card>
-        ) : null}
-        <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="flex w-full gap-2 overflow-x-auto sm:overflow-visible">
-            <TabsTrigger value="starting" className="flex-none min-w-[140px] whitespace-nowrap sm:flex-1 sm:min-w-0 sm:w-auto">
-              ilk 11 ({startingEleven.length})
-            </TabsTrigger>
-            <TabsTrigger value="bench" className="flex-none min-w-[140px] whitespace-nowrap sm:flex-1 sm:min-w-0 sm:w-auto">
-              Yedek ({benchPlayers.length})
-            </TabsTrigger>
-            <TabsTrigger value="reserve" className="flex-none min-w-[140px] whitespace-nowrap sm:flex-1 sm:min-w-0 sm:w-auto">
-              Rezerv ({reservePlayers.length})
-            </TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="starting" className="space-y-4 mt-4">
-            {sortedPlayers.length === 0 ? (
-              <Card>
-                <CardContent className="p-8 text-center">
-                  <div className="text-4xl mb-4">&#9917;</div>
-                  <h3 className="font-semibold mb-2">ilk 11'inizi oluÅŸturun</h3>
-                  <p className="text-muted-foreground text-sm">
-                    Yedek kulÃ¼besinden oyuncularÄ±nÄ±zÄ± ilk 11'e taÅŸÄ±yÄ±n
-                  </p>
-                </CardContent>
-              </Card>
-            ) : (
-              sortedPlayers.map(player => (
-                <PlayerCard
-                  key={player.id}
-                  player={player}
-                  compact
-                  defaultCollapsed
-                  draggable
-                  onDragStart={e => {
-                    setDraggedPlayerId(player.id);
-                    e.dataTransfer.setData('text/plain', player.id);
-                  }}
-                  onDragEnd={() => setDraggedPlayerId(null)}
-                  onMoveToBench={() => movePlayer(player.id, 'bench')}
-                  onMoveToReserve={() => movePlayer(player.id, 'reserve')}
-                  onListForTransfer={() => handleListForTransfer(player.id)}
-                  onRenamePlayer={() => setRenamePlayerId(player.id)}
-                  onFirePlayer={() => handleFirePlayer(player.id)}
-                />
-              ))
-            )}
-          </TabsContent>
-
-          <TabsContent value="bench" className="space-y-4 mt-4">
-            {sortedPlayers.length === 0 ? (
-              <Card>
-                <CardContent className="p-8 text-center">
-                  <div className="text-4xl mb-4">&#9917;</div>
-                  <h3 className="font-semibold mb-2">Yedek kulÃ¼besi boÅŸ</h3>
-                  <p className="text-muted-foreground text-sm">
-                    Rezervden oyuncularÄ±nÄ±zÄ± yedek kulÃ¼besine taÅŸÄ±yÄ±n
-                  </p>
-                </CardContent>
-              </Card>
-            ) : (
-              sortedPlayers.map(player => (
-                <PlayerCard
-                  key={player.id}
-                  player={player}
-                  compact
-                  defaultCollapsed
-                  draggable
-                  onDragStart={e => {
-                    setDraggedPlayerId(player.id);
-                    e.dataTransfer.setData('text/plain', player.id);
-                  }}
-                  onDragEnd={() => setDraggedPlayerId(null)}
-                  onMoveToStarting={() => movePlayer(player.id, 'starting')}
-                  onMoveToReserve={() => movePlayer(player.id, 'reserve')}
-                  onListForTransfer={() => handleListForTransfer(player.id)}
-                  onRenamePlayer={() => setRenamePlayerId(player.id)}
-                  onFirePlayer={() => handleFirePlayer(player.id)}
-                />
-              ))
-            )}
-          </TabsContent>
-
-          <TabsContent value="reserve" className="space-y-4 mt-4">
-  {sortedPlayers.length === 0 ? (
-    <Card>
-      <CardContent className="p-8 text-center">
-        <div className="text-4xl mb-4">&#9917;</div>
-        <h3 className="font-semibold mb-2">Rezerv oyuncu yok</h3>
-        <p className="text-muted-foreground text-sm">
-          Altyapıdan oyuncu transfer edin veya pazardan oyuncu satın alın
-        </p>
-      </CardContent>
-    </Card>
-            ) : (
-              sortedPlayers.map(player => (
-                <PlayerCard
-                  key={player.id}
-                  player={player}
-                  compact
-                  defaultCollapsed
-                  draggable
-                  onDragStart={e => {
-                    setDraggedPlayerId(player.id);
-                    e.dataTransfer.setData('text/plain', player.id);
-                  }}
-                  onDragEnd={() => setDraggedPlayerId(null)}
-                  onMoveToStarting={() => movePlayer(player.id, 'starting')}
-                  onMoveToBench={() => movePlayer(player.id, 'bench')}
-                  onListForTransfer={() => handleListForTransfer(player.id)}
-                  onRenamePlayer={() => setRenamePlayerId(player.id)}
-                  onFirePlayer={() => handleFirePlayer(player.id)}
-                />
-              ))
-            )}
-          </TabsContent>
-        </Tabs>
-        </div>
-        </div>
+            </Tabs>
+          </aside>
         </div>
       </div>
+
       <Dialog
         open={Boolean(renamePlayer)}
         onOpenChange={open => {
@@ -2060,14 +2099,14 @@ export default function TeamPlanning() {
           </div>
         </DialogContent>
       </Dialog>
-
-    </div>
+    </>
   );
 }
 
-
-
-
-
-
-
+export default function TeamPlanning() {
+  return (
+    <TeamPlanningProvider>
+      <TeamPlanningContent />
+    </TeamPlanningProvider>
+  );
+}
