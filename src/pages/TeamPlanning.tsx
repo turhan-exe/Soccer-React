@@ -34,6 +34,7 @@ import {
   type PlayerPosition as StorePlayerPosition,
   type MetricKey,
 } from '@/features/team-planning/useTeamPlanningStore';
+import './team-planning.css';
 
 const DEFAULT_GAUGE_VALUE = 0.75;
 
@@ -412,33 +413,28 @@ const AlternativePlayerBubble: React.FC<AlternativePlayerBubbleProps> = ({
   const isStronger = showStrengthIndicator && powerDiff > 0;
   const positionLabel = canonicalPosition(player.position);
 
-  const variantClasses =
+  const rootClasses = cn(
+    'tp-alternative-card group relative flex w-full items-start gap-3 rounded-2xl border px-3 py-2 text-left text-[11px] font-medium transition duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/80 sm:px-[0.875rem] sm:py-[0.625rem]',
     variant === 'panel'
-      ? 'border-white/20 bg-white/10 text-white hover:border-white/50 hover:bg-white/15'
-      : 'border-white/25 bg-white/5 text-white/95 hover:border-white/50 hover:bg-white/10 backdrop-blur-sm';
+      ? 'tp-alternative-card--panel border-white/20 bg-white/10 text-white hover:border-white/50 hover:bg-white/15'
+      : 'border-white/25 bg-white/5 text-white/95 hover:border-white/50 hover:bg-white/10 backdrop-blur-sm',
+  );
 
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <button
-          type="button"
-          onClick={() => onSelect(player.id)}
-          className={cn(
-            'group relative flex w-full items-start gap-3 rounded-2xl border px-3 py-2 text-left text-xs font-medium transition duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/80 sm:px-4 sm:py-3',
-            variantClasses,
-          )}
-        >
-          <div className="relative flex h-14 w-14 flex-shrink-0 items-center justify-center overflow-hidden rounded-xl bg-gradient-to-br from-emerald-300/90 to-emerald-500 px-2 text-emerald-950 shadow-sm">
-            <span className="line-clamp-2 w-full break-normal text-center text-[10px] font-semibold leading-tight">
+        <button type="button" onClick={() => onSelect(player.id)} className={rootClasses}>
+          <div className="relative flex h-12 w-12 flex-shrink-0 items-center justify-center overflow-hidden rounded-xl bg-gradient-to-br from-emerald-300/90 to-emerald-500 px-2 text-emerald-950 shadow-sm">
+            <span className="line-clamp-2 w-full break-normal text-center text-[9.5px] font-semibold leading-tight">
               {player.name}
             </span>
-            <span className="absolute bottom-0 right-0 rounded-tl-lg bg-emerald-900/90 px-1 text-[9px] font-semibold uppercase text-emerald-100 shadow-lg">
+            <span className="absolute bottom-0 right-0 rounded-tl-lg bg-emerald-900/90 px-1 text-[8.5px] font-semibold uppercase text-emerald-100 shadow-lg">
               {badgeLabel}
             </span>
           </div>
 
           <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-white/70">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[10.5px] text-white/70">
               <span className="font-semibold uppercase tracking-wide text-white/80">{positionLabel}</span>
               <span>{player.age} yaş</span>
               <span className="font-semibold text-white/80">GEN {formatRatingLabel(player.overall)}</span>
@@ -512,6 +508,8 @@ function TeamPlanningContent() {
   const pitchRef = useRef<HTMLDivElement | null>(null);
   const dropHandledRef = useRef(false);
   const handledContractsRef = useRef<Set<string>>(new Set());
+  const rightPaneScrollRef = useRef<HTMLDivElement | null>(null);
+  const [isRightHeaderCollapsed, setIsRightHeaderCollapsed] = useState(false);
 
   const {
     selectedMetric,
@@ -573,6 +571,24 @@ function TeamPlanningContent() {
   useEffect(() => {
     registerFormationUpdater(applyFormationPositions);
   }, [registerFormationUpdater, applyFormationPositions]);
+
+  const handleRightPaneScroll = useCallback(
+    (event: React.UIEvent<HTMLDivElement>) => {
+      const collapsed = event.currentTarget.scrollTop >= 24;
+      setIsRightHeaderCollapsed(previous =>
+        previous === collapsed ? previous : collapsed,
+      );
+    },
+    [],
+  );
+
+  useEffect(() => {
+    const container = rightPaneScrollRef.current;
+    if (!container) {
+      return;
+    }
+    setIsRightHeaderCollapsed(container.scrollTop >= 24);
+  }, []);
 
 
   const filteredPlayers = players.filter(
@@ -1716,55 +1732,62 @@ function TeamPlanningContent() {
   return (
     <>
       <div className="flex h-screen flex-col overflow-hidden bg-gradient-to-br from-emerald-900 via-emerald-950 to-slate-950 text-white">
-        <header className="flex flex-shrink-0 items-center justify-between border-b border-white/10 bg-black/30 px-6 py-4 backdrop-blur">
-          <div className="flex items-center gap-3">
+        <header
+          id="tp-topbar"
+          className="flex flex-shrink-0 items-center justify-between border-b border-white/10 bg-black/30 px-5 py-0 backdrop-blur"
+        >
+          <div className="flex items-center gap-2.5">
             <BackButton />
             <div>
-              <h1 className="text-lg font-semibold sm:text-xl">Takım Planı</h1>
-              <p className="text-xs text-emerald-100/70 sm:text-sm">Formasyonunuzu yönetin ve kadronuzu düzenleyin</p>
+              <h1 className="text-base font-semibold sm:text-lg">Takım Planı</h1>
+              <p className="text-[11px] text-emerald-100/70 sm:text-xs">
+                Formasyonunuzu yönetin ve kadronuzu düzenleyin
+              </p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
             <Button
               variant="outline"
               size="sm"
-              className="border-white/30 bg-white/10 text-white shadow-sm transition hover:bg-white/20 hover:text-white"
+              className="tp-topbar-button border-white/30 bg-white/10 text-white shadow-sm transition hover:bg-white/20 hover:text-white h-9 px-3 text-xs sm:text-sm"
             >
-              <Eye className="mr-2 h-4 w-4" />
+              <Eye className="mr-1.5 h-3.5 w-3.5" />
               Formasyon
             </Button>
             <Button
               size="sm"
               onClick={handleSave}
-              className="bg-emerald-400 text-emerald-950 shadow-lg transition hover:bg-emerald-300"
+              className="tp-topbar-button bg-emerald-400 text-emerald-950 shadow-lg transition hover:bg-emerald-300 h-9 px-3 text-xs sm:text-sm"
             >
-              <Save className="mr-2 h-4 w-4" />
+              <Save className="mr-1.5 h-3.5 w-3.5" />
               Kaydet
             </Button>
           </div>
         </header>
 
-        <div className="grid flex-1 grid-cols-2 overflow-hidden">
-          <section className="relative overflow-hidden">
-            <Pitch
-              ref={pitchRef}
-              slots={formationPositions}
-              onPitchDrop={handlePitchDrop}
-              onPositionDrop={handlePositionDrop}
-              onPlayerDragStart={handlePitchMarkerDragStart}
-              onPlayerDragEnd={handlePitchMarkerDragEnd}
-              onSelectPlayer={playerId => setFocusedPlayerId(playerId)}
-              focusedPlayerId={focusedPlayerId}
-              selectedMetric={selectedMetric}
-              getMetricValue={getMetricValueForPlayer}
-              renderTooltip={renderPitchTooltip}
-            />
+        <div className="grid flex-1 grid-cols-[1.12fr_0.88fr] overflow-hidden">
+          <section id="tp-pitch-pane" className="relative flex flex-col overflow-hidden">
+            <div className="tp-pitch-shell flex flex-1 items-center justify-center px-8 pb-24 pt-8">
+              <Pitch
+                ref={pitchRef}
+                slots={formationPositions}
+                onPitchDrop={handlePitchDrop}
+                onPositionDrop={handlePositionDrop}
+                onPlayerDragStart={handlePitchMarkerDragStart}
+                onPlayerDragEnd={handlePitchMarkerDragEnd}
+                onSelectPlayer={playerId => setFocusedPlayerId(playerId)}
+                focusedPlayerId={focusedPlayerId}
+                selectedMetric={selectedMetric}
+                getMetricValue={getMetricValueForPlayer}
+                renderTooltip={renderPitchTooltip}
+              />
+            </div>
 
             <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex items-start justify-between gap-4 p-6">
-              <div className="pointer-events-auto flex max-w-xs flex-col gap-3 rounded-3xl border border-white/20 bg-black/40 p-4 shadow-xl backdrop-blur">
-                <span className="text-xs font-semibold uppercase tracking-wide text-emerald-100/80">Formasyon</span>
-                <div className="flex items-baseline gap-3">
-                  <span className="text-2xl font-bold text-white">{displayFormationName}</span>
+              <div className="tp-formation-card pointer-events-auto flex max-w-xs flex-col gap-2.5 rounded-3xl border border-white/20 bg-black/40 p-[0.9rem] shadow-xl backdrop-blur">
+                <span className="text-[11px] font-semibold uppercase tracking-wide text-emerald-100/80">Formasyon</span>
+                <div className="flex items-baseline gap-2.5">
+                  <span className="text-xl font-bold text-white">{displayFormationName}</span>
                   {manualShapeDiffers ? (
                     <span className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-emerald-100">
                       {selectedFormation}
@@ -1784,7 +1807,7 @@ function TeamPlanningContent() {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="pointer-events-auto hidden rounded-3xl border border-white/20 bg-black/40 p-4 text-right text-[11px] font-semibold uppercase tracking-wide text-emerald-100 shadow-xl backdrop-blur sm:flex sm:flex-col sm:items-end sm:gap-1">
+              <div className="tp-squad-count-card pointer-events-auto hidden rounded-3xl border border-white/20 bg-black/40 p-[0.9rem] text-right text-[10px] font-semibold uppercase tracking-wide text-emerald-100 shadow-xl backdrop-blur sm:flex sm:flex-col sm:items-end sm:gap-1">
                 <span>İlk 11 · {startingEleven.length}</span>
                 <span>Yedek · {benchPlayers.length}</span>
                 <span>Rezerv · {reservePlayers.length}</span>
@@ -1813,59 +1836,80 @@ function TeamPlanningContent() {
           </section>
 
           <aside className="flex h-full flex-col overflow-hidden border-l border-white/10 bg-black/35">
-            <Tabs value={activeTab} onValueChange={setActiveTab} className="flex h-full flex-col">
-              <div className="sticky top-0 z-20 border-b border-white/10 bg-black/50 px-6 py-5 backdrop-blur">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-                  <div className="relative flex-1">
-                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-emerald-100/60" />
-                    <Input
-                      placeholder="Oyuncu ara..."
-                      value={searchTerm}
-                      onChange={event => setSearchTerm(event.target.value)}
-                      className="border-white/20 bg-white/10 pl-9 text-white placeholder:text-emerald-100/50 focus-visible:ring-white/50"
-                    />
+            <div
+              id="tp-right-pane"
+              className="flex h-full flex-col"
+              style={{ contain: 'layout paint', willChange: 'transform' }}
+            >
+              <Tabs
+                value={activeTab}
+                onValueChange={setActiveTab}
+                className="flex h-full flex-col"
+                style={{ contain: 'layout paint', willChange: 'transform' }}
+              >
+                <div
+                  id="tp-right-header"
+                  data-collapsed={isRightHeaderCollapsed}
+                  className="sticky top-0 z-20 border-b border-white/10 bg-black/50 backdrop-blur"
+                >
+                  <div className="px-6 py-5">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                      <div className="relative flex-1">
+                        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-emerald-100/60" />
+                        <Input
+                          placeholder="Oyuncu ara..."
+                          value={searchTerm}
+                          onChange={event => setSearchTerm(event.target.value)}
+                          className="border-white/20 bg-white/10 pl-9 text-white placeholder:text-emerald-100/50 focus-visible:ring-white/50"
+                        />
+                      </div>
+                      <Select
+                        value={sortBy}
+                        onValueChange={value => setSortBy(value as 'role' | 'overall' | 'potential')}
+                      >
+                        <SelectTrigger className="border-white/20 bg-white/10 text-white focus:ring-white/50 sm:w-40">
+                          <SelectValue placeholder="Sırala" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="role">Role göre</SelectItem>
+                          <SelectItem value="overall">Ortalamaya göre</SelectItem>
+                          <SelectItem value="potential">Maks. potansiyel</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <TabsList className="mt-4 grid grid-cols-3 gap-2 rounded-full bg-white/10 p-1">
+                      <TabsTrigger
+                        value="starting"
+                        className="rounded-full px-3 py-2 text-xs font-semibold uppercase tracking-wide text-emerald-100 data-[state=active]:bg-emerald-400 data-[state=active]:text-emerald-950"
+                      >
+                        İlk 11 ({startingEleven.length})
+                      </TabsTrigger>
+                      <TabsTrigger
+                        value="bench"
+                        className="rounded-full px-3 py-2 text-xs font-semibold uppercase tracking-wide text-emerald-100 data-[state=active]:bg-emerald-400 data-[state=active]:text-emerald-950"
+                      >
+                        Yedek ({benchPlayers.length})
+                      </TabsTrigger>
+                      <TabsTrigger
+                        value="reserve"
+                        className="rounded-full px-3 py-2 text-xs font-semibold uppercase tracking-wide text-emerald-100 data-[state=active]:bg-emerald-400 data-[state=active]:text-emerald-950"
+                      >
+                        Rezerv ({reservePlayers.length})
+                      </TabsTrigger>
+                    </TabsList>
                   </div>
-                  <Select
-                    value={sortBy}
-                    onValueChange={value => setSortBy(value as 'role' | 'overall' | 'potential')}
-                  >
-                    <SelectTrigger className="border-white/20 bg-white/10 text-white focus:ring-white/50 sm:w-40">
-                      <SelectValue placeholder="Sırala" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="role">Role göre</SelectItem>
-                      <SelectItem value="overall">Ortalamaya göre</SelectItem>
-                      <SelectItem value="potential">Maks. potansiyel</SelectItem>
-                    </SelectContent>
-                  </Select>
                 </div>
 
-                <TabsList className="mt-4 grid grid-cols-3 gap-2 rounded-full bg-white/10 p-1">
-                  <TabsTrigger
-                    value="starting"
-                    className="rounded-full px-3 py-2 text-xs font-semibold uppercase tracking-wide text-emerald-100 data-[state=active]:bg-emerald-400 data-[state=active]:text-emerald-950"
-                  >
-                    İlk 11 ({startingEleven.length})
-                  </TabsTrigger>
-                  <TabsTrigger
-                    value="bench"
-                    className="rounded-full px-3 py-2 text-xs font-semibold uppercase tracking-wide text-emerald-100 data-[state=active]:bg-emerald-400 data-[state=active]:text-emerald-950"
-                  >
-                    Yedek ({benchPlayers.length})
-                  </TabsTrigger>
-                  <TabsTrigger
-                    value="reserve"
-                    className="rounded-full px-3 py-2 text-xs font-semibold uppercase tracking-wide text-emerald-100 data-[state=active]:bg-emerald-400 data-[state=active]:text-emerald-950"
-                  >
-                    Rezerv ({reservePlayers.length})
-                  </TabsTrigger>
-                </TabsList>
-              </div>
-
-              <div className="flex-1 overflow-y-auto px-6 py-6">
-                <div className="mx-auto flex max-w-3xl flex-col gap-6">
-                  {selectedPlayer ? (
-                    <Card className="border-white/10 bg-white/5 text-white shadow-lg backdrop-blur">
+                <div
+                  id="tp-right-scroll"
+                  ref={rightPaneScrollRef}
+                  className="flex-1 overflow-y-auto px-6 py-6"
+                  onScroll={handleRightPaneScroll}
+                >
+                  <div className="mx-auto flex max-w-3xl flex-col gap-6">
+                    {selectedPlayer ? (
+                      <Card className="border-white/10 bg-white/5 text-white shadow-lg backdrop-blur">
                       <CardHeader className="pb-3">
                         <CardTitle className="text-sm font-semibold text-white">
                           {canonicalPosition(selectedPlayer.position)} için alternatifler
@@ -1873,7 +1917,7 @@ function TeamPlanningContent() {
                       </CardHeader>
                       <CardContent className="space-y-3">
                         {alternativePlayers.length > 0 ? (
-                          <div className="grid gap-2 sm:grid-cols-2">
+                          <div className="grid gap-[6px] sm:grid-cols-2">
                             {alternativePlayers.map(alternative => (
                               <AlternativePlayerBubble
                                 key={alternative.id}
@@ -1997,6 +2041,7 @@ function TeamPlanningContent() {
                 </div>
               </div>
             </Tabs>
+            </div>
           </aside>
         </div>
       </div>
