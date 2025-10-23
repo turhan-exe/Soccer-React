@@ -542,12 +542,25 @@
 }
 
 .nostalgia-card__label {
-  font-size: 0.95rem;
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  font-size: clamp(0.82rem, 1vw + 0.5rem, 0.95rem);
   font-weight: 600;
   letter-spacing: 0.02em;
   text-transform: uppercase;
   color: rgba(226, 232, 240, 0.82);
+  line-height: 1.25;
+  text-align: center;
+  white-space: normal;
+  overflow-wrap: break-word;
   transition: color 0.3s ease;
+}
+
+@supports (text-wrap: balance) {
+  .nostalgia-card__label {
+    text-wrap: balance;
+  }
 }
 
 .nostalgia-card:hover .nostalgia-card__label {

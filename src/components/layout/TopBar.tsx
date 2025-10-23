@@ -206,7 +206,7 @@ const TopBar = () => {
       const hideThreshold = 16;
 
       if (current <= 4) {
-        setIsVisible(false);
+        setIsVisible(true);
       } else {
         if (delta < -showThreshold) {
           setIsVisible(true);
