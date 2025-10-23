@@ -578,8 +578,10 @@ export default function MainMenu() {
             }`}
             aria-hidden={!areActionsVisible}
           >
-            <div className="nostalgia-main-menu__actions-grid">
-              {menuItems.map(renderMenuCard)}
+            <div className="nostalgia-main-menu__actions-frame">
+              <div className="nostalgia-main-menu__actions-grid">
+                {menuItems.map(renderMenuCard)}
+              </div>
             </div>
           </aside>
 
