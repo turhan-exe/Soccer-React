@@ -7,7 +7,9 @@ import type { MetricKey } from './useTeamPlanningStore';
 
 const BASE_PITCH_WIDTH = 680;
 const BASE_PITCH_HEIGHT = 1050;
-const PITCH_MARKER_RADIUS = 26;
+const PITCH_MARKER_SIZE = 70;
+const PITCH_MARKER_CENTER = PITCH_MARKER_SIZE / 2;
+const PITCH_MARKER_RADIUS = 30;
 const PITCH_MARKER_CIRCUMFERENCE = 2 * Math.PI * PITCH_MARKER_RADIUS;
 
 export type PitchSlot = {
@@ -70,14 +72,17 @@ const PitchPlayerMarker: React.FC<PitchPlayerMarkerProps> = ({
       onDragEnd={onDragEnd}
       onClick={onSelect}
       className={cn(
-        'relative flex h-16 w-16 cursor-grab flex-col items-center justify-center rounded-full border border-white/20 bg-emerald-900/70 px-1.5 py-2 text-center text-white shadow-lg transition-colors duration-150 ease-out',
-        isFocused ? 'border-white/60 ring-2 ring-white/80' : 'hover:border-white/40 hover:bg-emerald-800/80',
+        'tp-player-chip relative flex cursor-grab flex-col items-center justify-center rounded-full border border-white/20 bg-emerald-900/75 text-center text-white shadow-lg transition-[transform,box-shadow,border-color,background-color] duration-150 ease-out',
+        isFocused ? 'border-white/60 ring-2 ring-white/80' : 'hover:border-white/40 hover:bg-emerald-800/85',
       )}
     >
-      <svg viewBox="0 0 60 60" className="pointer-events-none absolute inset-0 h-full w-full text-emerald-300/70">
+      <svg
+        viewBox={`0 0 ${PITCH_MARKER_SIZE} ${PITCH_MARKER_SIZE}`}
+        className="pointer-events-none absolute inset-0 h-full w-full text-emerald-300/70"
+      >
         <circle
-          cx="30"
-          cy="30"
+          cx={PITCH_MARKER_CENTER}
+          cy={PITCH_MARKER_CENTER}
           r={PITCH_MARKER_RADIUS}
           stroke="currentColor"
           strokeWidth="2"
@@ -85,11 +90,11 @@ const PitchPlayerMarker: React.FC<PitchPlayerMarkerProps> = ({
           fill="none"
         />
         <circle
-          cx="30"
-          cy="30"
+          cx={PITCH_MARKER_CENTER}
+          cy={PITCH_MARKER_CENTER}
           r={PITCH_MARKER_RADIUS}
           stroke="currentColor"
-          strokeWidth="2.5"
+          strokeWidth="2.75"
           strokeDasharray={`${PITCH_MARKER_CIRCUMFERENCE} ${PITCH_MARKER_CIRCUMFERENCE}`}
           strokeDashoffset={dashOffset}
           strokeLinecap="round"
@@ -97,11 +102,11 @@ const PitchPlayerMarker: React.FC<PitchPlayerMarkerProps> = ({
           className="transition-[stroke-dashoffset] duration-200 ease-out"
         />
       </svg>
-      <span className="relative z-10 block max-h-[2.6rem] w-full overflow-hidden text-ellipsis text-[11px] font-semibold leading-tight">
+      <span className="tp-player-chip__name relative z-10 block max-h-[2.9rem] w-full overflow-hidden text-ellipsis font-semibold leading-tight">
         {player.name}
       </span>
-      <div className="relative z-10 mt-1 flex items-center justify-center">
-        <span className="rounded-full bg-emerald-900/95 px-2 py-0.5 text-[10px] font-bold tracking-wide text-emerald-50 shadow-sm">
+      <div className="tp-player-chip__value relative z-10 mt-1 flex items-center justify-center">
+        <span className="tp-player-chip__value-badge rounded-full px-2 py-0.5 font-bold tracking-wide text-emerald-50 shadow-sm">
           {formatMetricValue(metric, normalizedValue)}
         </span>
       </div>
@@ -173,9 +178,13 @@ const Pitch = forwardRef<HTMLDivElement, PitchProps>((props, forwardedRef) => {
   );
 
   return (
-    <div ref={containerRef} className="relative h-full w-full overflow-hidden bg-gradient-to-br from-emerald-700 via-emerald-800 to-emerald-900">
+    <div
+      ref={containerRef}
+      id="tp-pitch"
+      className="tp-pitch-surface relative w-full overflow-hidden bg-gradient-to-br from-emerald-700 via-emerald-800 to-emerald-900"
+    >
       <div
-        className="absolute left-1/2 top-1/2"
+        className="absolute left-1/2 top-1/2 transition-transform duration-150 ease-out"
         style={{
           width: BASE_PITCH_WIDTH,
           height: BASE_PITCH_HEIGHT,
@@ -232,7 +241,7 @@ const Pitch = forwardRef<HTMLDivElement, PitchProps>((props, forwardedRef) => {
                     </TooltipContent>
                   </Tooltip>
                 ) : (
-                  <div className="flex h-[3.6rem] w-[3.6rem] items-center justify-center rounded-full border border-dashed border-white/50 bg-white/20 px-1.5 text-[10px] font-semibold uppercase tracking-wide text-white">
+                  <div className="flex h-[4.2rem] w-[4.2rem] items-center justify-center rounded-full border border-dashed border-white/50 bg-white/20 px-1.5 text-[10px] font-semibold uppercase tracking-wide text-white">
                     {slot.position}
                   </div>
                 )}
