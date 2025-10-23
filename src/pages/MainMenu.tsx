@@ -421,10 +421,6 @@ export default function MainMenu() {
 
   const hideActions = () => setAreActionsVisible(false);
 
-  const toggleActionsVisibility = () => {
-    setAreActionsVisible((previous) => !previous);
-  };
-
   const renderMenuCard = (item: (typeof menuItems)[number]) => (
     <Card
       key={item.id}
@@ -471,6 +467,7 @@ export default function MainMenu() {
         matchHighlight ? '' : ' nostalgia-match-highlight--empty'
       }`}
       aria-label="Sonraki mac paneli"
+      aria-hidden={areActionsVisible}
     >
       <div className="nostalgia-match-highlight__overlay" aria-hidden />
       {matchHighlight ? (
@@ -585,19 +582,6 @@ export default function MainMenu() {
               {menuItems.map(renderMenuCard)}
             </div>
           </aside>
-
-          <button
-            type="button"
-            className="nostalgia-main-menu__actions-handle"
-            onClick={toggleActionsVisibility}
-            aria-expanded={areActionsVisible}
-            aria-controls="nostalgia-main-menu-actions"
-          >
-            <span className="sr-only">
-              {areActionsVisible ? 'Kisayollari gizle' : 'Kisayollari goster'}
-            </span>
-            <span className="nostalgia-main-menu__actions-icon" aria-hidden />
-          </button>
 
           {areActionsVisible ? (
             <button
