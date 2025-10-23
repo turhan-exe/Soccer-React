@@ -1,0 +1,133 @@
+:root {
+  --tp-pitch-scale: 1.20;
+  --tp-chip-d: 56px;
+  --tp-chip-font: 12px;
+  --tp-chip-sub: 12px;
+  --tp-alt-panel-scale: 0.86;
+  --tp-alt-card-scale: 0.82;
+}
+
+@media (max-width: 1280px) {
+  :root {
+    --tp-pitch-scale: 1.16;
+    --tp-chip-d: 54px;
+    --tp-chip-font: 11.5px;
+    --tp-chip-sub: 11.5px;
+    --tp-alt-panel-scale: 0.84;
+    --tp-alt-card-scale: 0.80;
+  }
+}
+
+@media (max-width: 1024px) {
+  :root {
+    --tp-pitch-scale: 1.12;
+    --tp-chip-d: 52px;
+    --tp-chip-font: 11px;
+    --tp-chip-sub: 11px;
+    --tp-alt-panel-scale: 0.84;
+    --tp-alt-card-scale: 0.80;
+  }
+}
+
+[data-screen="team-planning"] #tp-pitch-wrapper {
+  overflow: hidden !important;
+  display: grid !important;
+  place-items: center !important;
+  width: 100% !important;
+  height: 100% !important;
+  will-change: transform !important;
+}
+
+[data-screen="team-planning"] #tp-pitch {
+  transform: scale(var(--tp-pitch-scale)) !important;
+  transform-origin: center !important;
+  max-height: calc(100% - 56px) !important;
+  aspect-ratio: 105 / 68 !important;
+  will-change: transform !important;
+}
+
+[data-screen="team-planning"] .tp-player-chip {
+  width: var(--tp-chip-d) !important;
+  height: var(--tp-chip-d) !important;
+  min-width: var(--tp-chip-d) !important;
+  min-height: var(--tp-chip-d) !important;
+  padding: 4px !important;
+  will-change: transform !important;
+}
+
+[data-screen="team-planning"] .tp-player-chip .name,
+[data-screen="team-planning"] .tp-player-chip__name {
+  font-size: var(--tp-chip-font) !important;
+  line-height: 1.05 !important;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35) !important;
+}
+
+[data-screen="team-planning"] .tp-player-chip .value,
+[data-screen="team-planning"] .tp-player-chip__value,
+[data-screen="team-planning"] .tp-player-chip__value-badge {
+  font-size: var(--tp-chip-sub) !important;
+  font-weight: 600 !important;
+}
+
+[data-screen="team-planning"] #app-topbar {
+  height: 40px !important;
+  padding-block: 4px !important;
+}
+
+[data-screen="team-planning"] #app-topbar .icon-btn {
+  width: 28px !important;
+  height: 28px !important;
+  min-width: 28px !important;
+  min-height: 28px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+[data-screen="team-planning"] #app-topbar .icon-btn > * {
+  width: 100% !important;
+  height: 100% !important;
+  min-width: 28px !important;
+  min-height: 28px !important;
+  padding: 0 !important;
+}
+
+[data-screen="team-planning"] #app-topbar * {
+  white-space: nowrap !important;
+}
+
+@media (max-width: 1280px) {
+  [data-screen="team-planning"] #app-topbar {
+    height: 38px !important;
+  }
+}
+
+[data-screen="team-planning"] #tp-alt-panel {
+  transform: scale(var(--tp-alt-panel-scale)) !important;
+  transform-origin: top left !important;
+  will-change: transform !important;
+}
+
+[data-screen="team-planning"] .tp-alt-card {
+  transform: scale(var(--tp-alt-card-scale)) !important;
+  transform-origin: top left !important;
+  padding: 10% 9% !important;
+  will-change: transform !important;
+}
+
+[data-screen="team-planning"] .tp-alt-card .badge,
+[data-screen="team-planning"] .tp-alt-card .pos {
+  transform: scale(0.9) !important;
+  display: inline-block !important;
+}
+
+[data-screen="team-planning"] .tp-mini-card {
+  transform: scale(0.88) !important;
+  transform-origin: top left !important;
+  padding: 0.85em !important;
+  will-change: transform !important;
+}
+
+[data-screen="team-planning"] .tp-mini-card .title {
+  font-size: 0.92em !important;
+}
