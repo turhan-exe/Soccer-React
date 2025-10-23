@@ -200,10 +200,19 @@ const TopBar = () => {
           ? window.scrollY || document.documentElement.scrollTop
           : target.scrollTop;
 
-      if (current > lastScrollTopRef.current && current > 12) {
-        setIsVisible(true);
-      } else if (current <= 4) {
+      const previous = lastScrollTopRef.current;
+      const delta = current - previous;
+      const showThreshold = 8;
+      const hideThreshold = 16;
+
+      if (current <= 4) {
         setIsVisible(false);
+      } else {
+        if (delta < -showThreshold) {
+          setIsVisible(true);
+        } else if (delta > hideThreshold) {
+          setIsVisible(false);
+        }
       }
 
       lastScrollTopRef.current = Math.max(current, 0);
