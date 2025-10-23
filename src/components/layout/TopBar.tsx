@@ -1,4 +1,12 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  forwardRef,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   BatteryCharging,
@@ -43,6 +51,7 @@ import KitUsageDialog from '@/components/kit/KitUsageDialog';
 import { toast } from 'sonner';
 import { normalizeRatingTo100 } from '@/lib/player';
 import '@/styles/nostalgia-theme.css';
+import { useSwipeDownReveal, SWIPE_DOWN_DEFAULTS } from '@/hooks/useSwipeDownReveal';
 
 const KIT_ICONS: Record<KitType, { icon: LucideIcon; color: string }> = {
   energy: { icon: BatteryCharging, color: 'text-emerald-500' },
@@ -50,7 +59,28 @@ const KIT_ICONS: Record<KitType, { icon: LucideIcon; color: string }> = {
   health: { icon: HeartPulse, color: 'text-rose-500' },
 };
 
-const TopBar = () => {
+const VISIBILITY_COOLDOWN_MS = 300;
+
+export interface TopBarHandle {
+  isTopBarVisible: boolean;
+  showTopBar: () => void;
+  hideTopBar: () => void;
+  toggleTopBar: () => void;
+}
+
+interface TopBarProps {
+  swipeDownThreshold?: number;
+  swipeTimeMax?: number;
+}
+
+const TopBar = forwardRef<TopBarHandle, TopBarProps>(
+  (
+    {
+      swipeDownThreshold = SWIPE_DOWN_DEFAULTS.threshold,
+      swipeTimeMax = SWIPE_DOWN_DEFAULTS.timeMax,
+    },
+    ref,
+  ) => {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
@@ -64,9 +94,8 @@ const TopBar = () => {
   const [hasYouthCandidates, setHasYouthCandidates] = useState(false);
   const [isVisible, setIsVisible] = useState(false);
   const topBarRef = useRef<HTMLDivElement | null>(null);
-  const lastScrollTopRef = useRef(0);
-  const swipePointerIdRef = useRef<number | null>(null);
-  const swipeStartPointRef = useRef<{ x: number; y: number } | null>(null);
+  const lastVisibilityChangeRef = useRef<number>(0);
+  const focusFrameRef = useRef<number | null>(null);
   const vipIconClass = vipActive ? 'text-amber-300 drop-shadow' : 'text-slate-400';
   const vipButtonClass = vipActive
     ? 'bg-amber-500/10 text-amber-200 hover:bg-amber-500/20 hover:text-amber-100'
@@ -75,6 +104,127 @@ const TopBar = () => {
   const vipTooltip = vipActive
     ? `VIP aktif${vipPlanName ? ` (${vipPlanName})` : ''}`
     : 'VIP paketlerini kesfet';
+
+  const setVisibility = useCallback(
+    (value: boolean, { force = false }: { force?: boolean } = {}) => {
+      setIsVisible((previous) => {
+        if (previous === value) {
+          return previous;
+        }
+
+        const now = Date.now();
+        if (!force && now - lastVisibilityChangeRef.current < VISIBILITY_COOLDOWN_MS) {
+          return previous;
+        }
+
+        lastVisibilityChangeRef.current = now;
+        return value;
+      });
+    },
+    [],
+  );
+
+  const showTopBar = useCallback(() => {
+    setVisibility(true);
+  }, [setVisibility]);
+
+  const hideTopBar = useCallback(() => {
+    setVisibility(false);
+  }, [setVisibility]);
+
+  const forceHideTopBar = useCallback(() => {
+    setVisibility(false, { force: true });
+  }, [setVisibility]);
+
+  const toggleTopBar = useCallback(() => {
+    setVisibility(!isVisible);
+  }, [isVisible, setVisibility]);
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      isTopBarVisible: isVisible,
+      showTopBar,
+      hideTopBar,
+      toggleTopBar,
+    }),
+    [hideTopBar, isVisible, showTopBar, toggleTopBar],
+  );
+
+  useSwipeDownReveal({
+    onSwipeDown: showTopBar,
+    threshold: swipeDownThreshold,
+    timeMax: swipeTimeMax,
+    disabled: isVisible,
+  });
+
+  useEffect(() => {
+    return () => {
+      if (focusFrameRef.current !== null) {
+        cancelAnimationFrame(focusFrameRef.current);
+        focusFrameRef.current = null;
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (focusFrameRef.current !== null) {
+      cancelAnimationFrame(focusFrameRef.current);
+      focusFrameRef.current = null;
+    }
+
+    if (!isVisible) {
+      return;
+    }
+
+    const element = topBarRef.current;
+    if (!element) {
+      return;
+    }
+
+    const focusSelector = [
+      '[data-topbar-focus-target]',
+      'button:not([disabled])',
+      'a[href]',
+      'input:not([disabled]):not([type="hidden"])',
+      'select:not([disabled])',
+      'textarea:not([disabled])',
+      '[tabindex]:not([tabindex="-1"])',
+    ].join(', ');
+
+    const focusTarget = element.querySelector<HTMLElement>(focusSelector);
+    if (!focusTarget) {
+      return;
+    }
+
+    focusFrameRef.current = window.requestAnimationFrame(() => {
+      focusTarget.focus({ preventScroll: true });
+      focusFrameRef.current = null;
+    });
+  }, [isVisible]);
+
+  useEffect(() => {
+    if (!isVisible) {
+      return;
+    }
+
+    const handlePointerDown = (event: PointerEvent) => {
+      const element = topBarRef.current;
+      if (!element) {
+        return;
+      }
+
+      if (!element.contains(event.target as Node)) {
+        forceHideTopBar();
+      }
+    };
+
+    document.addEventListener('pointerdown', handlePointerDown);
+
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown);
+    };
+  }, [forceHideTopBar, isVisible]);
 
   useEffect(() => {
     if (!user) {
@@ -190,119 +340,6 @@ const TopBar = () => {
     };
   }, [user]);
 
-  useEffect(() => {
-    const scrollContainer = document.querySelector<HTMLElement>('[data-app-scroll-container]');
-    const target: HTMLElement | Window = scrollContainer ?? window;
-
-    const handleScroll = () => {
-      const current =
-        target instanceof Window
-          ? window.scrollY || document.documentElement.scrollTop
-          : target.scrollTop;
-
-      const previous = lastScrollTopRef.current;
-      const delta = current - previous;
-      const showThreshold = 8;
-      const hideThreshold = 16;
-
-      if (current <= 4) {
-        setIsVisible(false);
-      } else {
-        if (delta < -showThreshold) {
-          setIsVisible(true);
-        } else if (delta > hideThreshold) {
-          setIsVisible(false);
-        }
-      }
-
-      lastScrollTopRef.current = Math.max(current, 0);
-    };
-
-    target.addEventListener('scroll', handleScroll, { passive: true });
-    handleScroll();
-
-    return () => {
-      target.removeEventListener('scroll', handleScroll);
-    };
-  }, []);
-
-  useEffect(() => {
-    const handlePointerDown = (event: PointerEvent) => {
-      if (!event.isPrimary || (event.pointerType !== 'touch' && event.pointerType !== 'pen')) {
-        swipePointerIdRef.current = null;
-        swipeStartPointRef.current = null;
-        return;
-      }
-
-      const topBarElement = topBarRef.current;
-      if (topBarElement && topBarElement.contains(event.target as Node)) {
-        swipePointerIdRef.current = null;
-        swipeStartPointRef.current = null;
-        return;
-      }
-
-      swipePointerIdRef.current = event.pointerId;
-      swipeStartPointRef.current = { x: event.clientX, y: event.clientY };
-    };
-
-    const handlePointerMove = (event: PointerEvent) => {
-      if (swipePointerIdRef.current !== event.pointerId || !swipeStartPointRef.current) {
-        return;
-      }
-
-      const deltaX = event.clientX - swipeStartPointRef.current.x;
-      const deltaY = event.clientY - swipeStartPointRef.current.y;
-
-      if (Math.abs(deltaY) <= 48 || Math.abs(deltaY) <= Math.abs(deltaX) * 1.2) {
-        return;
-      }
-
-      if (deltaY > 0) {
-        setIsVisible(true);
-      } else {
-        setIsVisible(false);
-      }
-
-      swipePointerIdRef.current = null;
-      swipeStartPointRef.current = null;
-    };
-
-    const resetSwipe = (event: PointerEvent) => {
-      if (swipePointerIdRef.current === event.pointerId) {
-        swipePointerIdRef.current = null;
-        swipeStartPointRef.current = null;
-      }
-    };
-
-    document.addEventListener('pointerdown', handlePointerDown, { passive: true });
-    document.addEventListener('pointermove', handlePointerMove, { passive: true });
-    document.addEventListener('pointerup', resetSwipe, { passive: true });
-    document.addEventListener('pointercancel', resetSwipe, { passive: true });
-
-    return () => {
-      document.removeEventListener('pointerdown', handlePointerDown);
-      document.removeEventListener('pointermove', handlePointerMove);
-      document.removeEventListener('pointerup', resetSwipe);
-      document.removeEventListener('pointercancel', resetSwipe);
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!isVisible) {
-      return;
-    }
-
-    const handlePointerDown = (event: PointerEvent) => {
-      const element = topBarRef.current;
-      if (element && !element.contains(event.target as Node)) {
-        setIsVisible(false);
-      }
-    };
-
-    document.addEventListener('pointerdown', handlePointerDown);
-    return () => document.removeEventListener('pointerdown', handlePointerDown);
-  }, [isVisible]);
-
   const notifications = useMemo(() => {
     const items: {
       id: string;
@@ -359,12 +396,16 @@ const TopBar = () => {
       <header
         ref={topBarRef}
         className={`nostalgia-topbar px-3 py-3 sm:px-4${isVisible ? ' nostalgia-topbar--visible' : ''}`}
+        aria-hidden={!isVisible}
+        data-topbar-state={isVisible ? 'visible' : 'hidden'}
+        role="banner"
       >
         <div className="nostalgia-topbar__inner">
           <div className="nostalgia-topbar__identity">
             <button
               type="button"
               onClick={() => navigate('/')}
+              data-topbar-focus-target
               className="nostalgia-topbar__home-button flex shrink-0 items-center rounded-xl border border-white/10 bg-white/5 p-1 transition hover:border-cyan-300/40 hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/40"
               aria-label="Ana menuye don"
             >
@@ -542,7 +583,9 @@ const TopBar = () => {
       <KitUsageDialog open={isUsageOpen} kitType={activeKit} onOpenChange={handleUsageOpenChange} />
     </>
   );
-};
+});
+
+TopBar.displayName = 'TopBar';
 
 export default TopBar;
 
