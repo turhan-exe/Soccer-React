@@ -35,6 +35,7 @@ import {
   type MetricKey,
 } from '@/features/team-planning/useTeamPlanningStore';
 import './team-planning.css';
+import './TeamPlanningSizing.css';
 
 const DEFAULT_GAUGE_VALUE = 0.75;
 
@@ -518,6 +519,7 @@ function TeamPlanningContent() {
     updateFormationFromPositions,
     registerFormationUpdater,
   } = useTeamPlanningStore();
+
 
   const applyFormationPositions = useCallback(
     (positions: Record<string, StorePlayerPosition>) => {
@@ -1541,6 +1543,7 @@ function TeamPlanningContent() {
     });
   }, [currentFormation, manualFormation, players]);
 
+
   const buildPositionsMap = useCallback(
     (slots: PitchSlot[]): Record<string, StorePlayerPosition> =>
       slots.reduce<Record<string, StorePlayerPosition>>((acc, slot) => {
@@ -1766,8 +1769,8 @@ function TeamPlanningContent() {
         </header>
 
         <div className="grid flex-1 grid-cols-[1.12fr_0.88fr] overflow-hidden">
-          <section id="tp-pitch-pane" className="relative flex flex-col overflow-hidden">
-            <div className="tp-pitch-shell flex flex-1 items-center justify-center px-8 pb-24 pt-8">
+          <section id="tp-left" className="relative h-full overflow-hidden">
+            <div id="tp-pitch-wrapper" className="tp-pitch-shell h-full w-full">
               <Pitch
                 ref={pitchRef}
                 slots={formationPositions}
@@ -1815,7 +1818,10 @@ function TeamPlanningContent() {
             </div>
 
             <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 flex justify-start p-6">
-              <div className="pointer-events-auto inline-flex items-center gap-1 rounded-full border border-white/20 bg-black/40 p-1 shadow-xl backdrop-blur">
+              <div
+                id="tp-metric-panel"
+                className="pointer-events-auto inline-flex items-center gap-1 rounded-full border border-white/20 bg-black/40 p-1 shadow-xl backdrop-blur"
+              >
                 {metricOptions.map(option => (
                   <button
                     key={option.key}
