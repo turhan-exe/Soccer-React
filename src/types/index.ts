@@ -254,6 +254,7 @@ export interface User {
   email: string;
   teamName: string;
   teamLogo: string | null;
+  role?: 'admin' | 'user';
   connectedAccounts: {
     google?: boolean;
     apple?: boolean;

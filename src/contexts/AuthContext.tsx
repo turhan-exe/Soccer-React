@@ -140,6 +140,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       email: firebaseUser.email || '',
       teamName: trimmedName ?? existingTeam?.name ?? desiredTeamName,
       teamLogo: existingTeam?.logo ?? null,
+      role: profile?.role ?? 'user',
       connectedAccounts,
       contactPhone: profile?.contactPhone ?? null,
       contactCrypto: profile?.contactCrypto ?? null,
@@ -220,6 +221,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
               email: firebaseUser.email || '',
               teamName,
               teamLogo: team?.logo ?? null,
+              role: profile?.role ?? 'user',
               connectedAccounts: getConnectedAccounts(firebaseUser),
               contactPhone: profile?.contactPhone ?? null,
               contactCrypto: profile?.contactCrypto ?? null,
@@ -474,6 +476,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           ...prev,
           teamName: team?.name ?? prev.teamName,
           teamLogo: team?.logo ?? prev.teamLogo ?? null,
+          role: profile?.role ?? prev.role ?? 'user',
           contactPhone: profile?.contactPhone ?? prev.contactPhone ?? null,
           contactCrypto: profile?.contactCrypto ?? prev.contactCrypto ?? null,
         };

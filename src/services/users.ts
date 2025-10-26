@@ -4,6 +4,7 @@ import { db } from './firebase';
 export type UserProfile = {
   contactPhone: string | null;
   contactCrypto: string | null;
+  role?: 'admin' | 'user';
 };
 
 const sanitizeContactField = (value: string | null | undefined, maxLength: number): string | null => {
@@ -39,6 +40,7 @@ export const getUserProfile = async (uid: string): Promise<UserProfile | null> =
   return {
     contactPhone: normalizeProfileField(data?.contactPhone),
     contactCrypto: normalizeProfileField(data?.contactCrypto),
+    role: data?.role === 'admin' ? 'admin' : 'user',
   };
 };
 

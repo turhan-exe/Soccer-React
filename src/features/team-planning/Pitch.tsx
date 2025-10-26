@@ -64,13 +64,43 @@ const PitchPlayerMarker: React.FC<PitchPlayerMarkerProps> = ({
 }) => {
   const normalizedValue = Math.max(0, Math.min(100, Number.isFinite(value) ? value : 0));
   const dashOffset = PITCH_MARKER_CIRCUMFERENCE * (1 - normalizedValue / 100);
+  const [isPressing, setIsPressing] = useState(false);
+
+  const handlePressStart = useCallback(() => {
+    setIsPressing(true);
+  }, []);
+
+  const handlePressEnd = useCallback(() => {
+    setIsPressing(false);
+  }, []);
+
+  const handleDragStart = useCallback(
+    (event: React.DragEvent<HTMLDivElement>) => {
+      setIsPressing(true);
+      onDragStart(event);
+    },
+    [onDragStart],
+  );
+
+  const handleDragEnd = useCallback(
+    (event: React.DragEvent<HTMLDivElement>) => {
+      setIsPressing(false);
+      onDragEnd(event);
+    },
+    [onDragEnd],
+  );
 
   return (
     <div
       draggable
-      onDragStart={onDragStart}
-      onDragEnd={onDragEnd}
+      onDragStart={handleDragStart}
+      onDragEnd={handleDragEnd}
       onClick={onSelect}
+      onPointerDown={handlePressStart}
+      onPointerUp={handlePressEnd}
+      onPointerLeave={handlePressEnd}
+      onPointerCancel={handlePressEnd}
+      data-pressed={isPressing ? 'true' : undefined}
       className={cn(
         'tp-player-chip relative flex cursor-grab flex-col items-center justify-center rounded-full border border-white/20 bg-emerald-900/75 text-center text-white shadow-lg transition-[transform,box-shadow,border-color,background-color] duration-150 ease-out',
         isFocused ? 'border-white/60 ring-2 ring-white/80' : 'hover:border-white/40 hover:bg-emerald-800/85',
@@ -102,11 +132,11 @@ const PitchPlayerMarker: React.FC<PitchPlayerMarkerProps> = ({
           className="transition-[stroke-dashoffset] duration-200 ease-out"
         />
       </svg>
-      <span className="tp-player-chip__name relative z-10 block max-h-[2.9rem] w-full overflow-hidden text-ellipsis font-semibold leading-tight">
+      <span className="tp-player-chip__name name relative z-10 block max-h-[2.9rem] w-full overflow-hidden text-ellipsis font-semibold leading-tight">
         {player.name}
       </span>
-      <div className="tp-player-chip__value relative z-10 mt-1 flex items-center justify-center">
-        <span className="tp-player-chip__value-badge rounded-full px-2 py-0.5 font-bold tracking-wide text-emerald-50 shadow-sm">
+      <div className="tp-player-chip__value value relative z-10 mt-1 flex items-center justify-center">
+        <span className="tp-player-chip__value-badge value rounded-full px-2 py-0.5 font-bold tracking-wide text-emerald-50 shadow-sm">
           {formatMetricValue(metric, normalizedValue)}
         </span>
       </div>
