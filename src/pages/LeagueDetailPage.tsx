@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom';
 import { listenStandings, getLeagueTeams } from '@/services/leagues';
 import type { Standing } from '@/types';
 import { Card, CardContent } from '@/components/ui/card';
+import BackButton from '@/components/ui/back-button';
 
 export default function LeagueDetailPage() {
   const { leagueId } = useParams();
@@ -37,7 +38,10 @@ export default function LeagueDetailPage() {
 
   return (
     <div className="p-4">
-      <h1 className="text-xl font-bold mb-4">Lig Detayı</h1>
+      <div className="flex items-center gap-2 mb-4">
+        <BackButton fallbackPath="/leagues" />
+        <h1 className="text-xl font-bold">Lig Detayı</h1>
+      </div>
       <Card>
         <CardContent className="p-0">
           <table className="w-full text-sm">
