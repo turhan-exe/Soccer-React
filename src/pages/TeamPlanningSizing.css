@@ -16,7 +16,9 @@
   height: 100%;
   display: grid;
   place-items: center;
+  padding: 12px;
   overflow: hidden;
+  box-sizing: border-box;
 }
 
 #tp-pitch {
@@ -27,6 +29,7 @@
   object-fit: contain;
   transform-origin: center;
   overflow: hidden;
+  border-radius: 2.75rem;
 }
 
 #tp-pitch,
@@ -112,9 +115,30 @@
 
 @media (max-width: 1024px) {
   :root {
-    --tp-chip-d: 56px;
-    --tp-chip-font: 14px;
-    --tp-chip-sub: 12.5px;
+    --tp-chip-d: clamp(136px, calc(102px + 7.4vh), 228px);
+    --tp-chip-font: clamp(18px, calc(14.5px + 0.75vh), 24px);
+    --tp-chip-sub: clamp(16px, calc(13px + 0.6vh), 21px);
+  }
+
+  #tp-left {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: clamp(6px, 1.4vh, 14px);
+  }
+
+  #tp-pitch-wrapper {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: clamp(6px, 1.4vh, 14px);
+  }
+
+  #tp-pitch {
+    width: 100% !important;
+    height: clamp(580px, 92vh, 1260px) !important;
+    max-width: min(100%, calc(96vh * 0.68));
+    border-radius: clamp(32px, 4vw, 56px);
   }
 
   #tp-metric-panel {
@@ -130,20 +154,26 @@
   }
 }
 
-@media (max-width: 768px) {
+@media (max-width: 900px) and (orientation: portrait) {
   :root {
-    --tp-chip-d: 50px;
-    --tp-chip-font: 13px;
-    --tp-chip-sub: 11.5px;
+    --tp-chip-d: clamp(96px, calc(72px + 5.6vh), 168px);
+    --tp-chip-font: clamp(16px, calc(13px + 0.55vh), 21px);
+    --tp-chip-sub: clamp(14px, calc(11.5px + 0.45vh), 18px);
   }
 
-  #tp-metric-panel {
-    height: clamp(20px, 5vh, 28px);
-    padding-inline: 8px;
+  #tp-pitch {
+    height: clamp(520px, 88vh, 1080px) !important;
+  }
+}
+
+@media (max-width: 768px) and (orientation: landscape) {
+  :root {
+    --tp-chip-d: clamp(150px, calc(118px + 8vh), 250px);
+    --tp-chip-font: clamp(20px, calc(16px + 0.8vh), 26px);
+    --tp-chip-sub: clamp(18px, calc(14px + 0.65vh), 23px);
   }
 
-  #tp-metric-panel button {
-    font-size: 0.6rem;
-    min-height: 30px;
+  #tp-pitch {
+    height: clamp(600px, 94vh, 1320px) !important;
   }
 }

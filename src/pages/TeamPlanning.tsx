@@ -1768,7 +1768,7 @@ function TeamPlanningContent() {
           </div>
         </header>
 
-        <div className="grid flex-1 grid-cols-[1.12fr_0.88fr] overflow-hidden">
+        <div className="grid flex-1 grid-cols-[minmax(0,1fr)_minmax(0,1fr)] overflow-hidden lg:grid-cols-[1.12fr_0.88fr]">
           <section id="tp-left" className="relative h-full overflow-hidden">
             <div id="tp-pitch-wrapper" className="tp-pitch-shell h-full w-full">
               <Pitch
