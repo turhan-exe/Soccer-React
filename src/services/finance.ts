@@ -1,22 +1,43 @@
-﻿import {
-  arrayUnion,
+import {
   collection,
   doc,
-  DocumentReference,
   getDoc,
+  getDocs,
   runTransaction,
   serverTimestamp,
   setDoc,
   Timestamp,
   updateDoc,
+  writeBatch,
 } from 'firebase/firestore';
 import { db } from './firebase';
-import type { Player, Position } from '@/types';
-import { addPlayerToTeam } from './team';
+import type { Player } from '@/types';
 
-const DEFAULT_BALANCE = 250_000;
+export type FinanceHistoryCategory = 'match' | 'sponsor' | 'loan' | 'salary' | 'stadium' | 'transfer';
+
+export interface FinanceHistoryEntry {
+  id: string;
+  type: 'income' | 'expense';
+  category: FinanceHistoryCategory;
+  amount: number;
+  source?: string;
+  timestamp: Timestamp;
+  note?: string;
+}
+
+export interface FinanceDoc {
+  balance: number;
+  updatedAt?: Timestamp;
+}
 
 export type StadiumLevel = 1 | 2 | 3 | 4 | 5;
+
+export interface StadiumState {
+  level: StadiumLevel;
+  incomePerMatch: number;
+  upgradeCost: number;
+  upgradedAt?: Timestamp;
+}
 
 export interface StadiumLevelConfig {
   capacity: number;
@@ -32,65 +53,23 @@ export const STADIUM_LEVELS: Record<StadiumLevel, StadiumLevelConfig> = {
   5: { capacity: 30_000, matchIncome: 20_000, upgradeCost: 200_000 },
 };
 
-export interface StadiumState {
-  level: StadiumLevel;
-  upgradedAt?: Timestamp;
-}
-
-export interface MonthlyExpenseState {
-  amount: number;
-  calculatedAt: Timestamp;
-}
-
-export interface FinanceDoc {
-  balance: number;
-  monthly_expense?: MonthlyExpenseState | null;
-  credit_purchases?: { id: string; amount: number; createdAt: Timestamp }[];
-}
-
-export type FinanceHistoryCategory = 'salary' | 'stadium' | 'match' | 'sponsor' | 'loan' | 'transfer';
-
-export interface FinanceHistoryEntry {
-  id: string;
-  type: 'income' | 'expense';
-  category: FinanceHistoryCategory;
-  amount: number;
-  timestamp: Timestamp;
-  note?: string;
-}
-
-export interface NegotiationOfferEntry {
+export interface CreditPackage {
   id: string;
   amount: number;
-  createdAt: Timestamp;
-  accepted: boolean;
+  price: number;
 }
 
-export interface NegotiationSession {
-  id: string;
-  playerName: string;
-  position: Position;
-  overall: number;
-  patience: number;
-  maxPatience: number;
-  askingSalary: number;
-  transferFee: number;
-  offers: NegotiationOfferEntry[];
-  status: 'pending' | 'accepted' | 'rejected' | 'cancelled' | 'signed';
-  createdAt: Timestamp;
-  updatedAt: Timestamp;
-  agreedSalary?: number;
-}
+export type SponsorType = 'free' | 'premium';
 
 export interface SponsorReward {
   amount: number;
-  cadence: 'daily' | 'weekly';
+  cycle: 'daily' | 'weekly';
 }
 
 export interface SponsorCatalogEntry {
   id: string;
   name: string;
-  type: 'free' | 'premium';
+  type: SponsorType;
   reward: SponsorReward;
   price?: number;
 }
@@ -99,45 +78,44 @@ export interface UserSponsorDoc {
   id: string;
   catalogId: string;
   name: string;
-  type: 'free' | 'premium';
+  type: SponsorType;
   reward: SponsorReward;
   price?: number;
   active: boolean;
-  startDate: Timestamp;
+  activatedAt: Timestamp;
   lastPayoutAt?: Timestamp;
 }
 
-const financeDoc = (uid: string) => doc(db, 'finance', uid);
-const financeHistoryDoc = (uid: string) => doc(db, 'finance_history', uid);
-const stadiumDoc = (uid: string) => doc(db, 'stadium', uid);
-const teamDoc = (uid: string) => doc(db, 'teams', uid);
-const negotiationCollection = (uid: string) => collection(db, 'transferNegotiations', uid, 'sessions');
-const negotiationDoc = (uid: string, negotiationId: string) => doc(db, 'transferNegotiations', uid, 'sessions', negotiationId);
-const sponsorCatalogCollection = collection(db, 'sponsorship_catalog');
-const userSponsorDoc = (uid: string, sponsorId: string) => doc(db, 'users', uid, 'sponsorships', sponsorId);
-
-const randomId = () => {
-  const g = globalThis as { crypto?: { randomUUID?: () => string } };
-  if (g.crypto?.randomUUID) {
-    return g.crypto.randomUUID();
-  }
-  return Math.random().toString(36).slice(2, 10);
-};
-
-const ensureDocument = async (ref: DocumentReference, defaults: Record<string, unknown>) => {
-  const snap = await getDoc(ref);
-  if (!snap.exists()) {
-    await setDoc(ref, defaults);
-  }
-};
-
-export async function ensureFinanceProfile(uid: string): Promise<void> {
-  await Promise.all([
-    ensureDocument(financeDoc(uid), { balance: DEFAULT_BALANCE }),
-    ensureDocument(stadiumDoc(uid), { level: 1 as StadiumLevel }),
-    ensureDocument(financeHistoryDoc(uid), { entries: [] }),
-  ]);
+export interface TeamSalaryRecord {
+  playerId: string;
+  name: string;
+  position: string;
+  overall: number;
+  salary: number;
 }
+
+export interface TeamSalariesDoc {
+  players: TeamSalaryRecord[];
+  total: number;
+  updatedAt?: Timestamp;
+}
+
+const FINANCE_DEFAULT_BALANCE = 50_000;
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+const financeDoc = (uid: string) => doc(db, 'finance', uid);
+const historyCollection = (uid: string) => collection(db, 'finance', 'history', uid);
+const creditCollection = (uid: string) => collection(db, 'finance', 'credits', uid);
+const teamDoc = (teamId: string) => doc(db, 'teams', teamId);
+const teamStadiumDoc = (teamId: string) => doc(db, 'teams', teamId, 'stadium', 'state');
+const teamSalariesDoc = (teamId: string) => doc(db, 'teams', teamId, 'salaries', 'current');
+const teamSalariesScheduleDoc = (teamId: string) => doc(db, 'teams', teamId, 'salaries', 'schedule');
+const sponsorshipCollection = (uid: string) => collection(db, 'users', uid, 'sponsorships');
+
+const randomId = () =>
+  typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+    ? crypto.randomUUID()
+    : Math.random().toString(36).slice(2, 10);
 
 export const getSalaryForOverall = (overall: number): number => {
   if (overall >= 90) return 25_000;
@@ -148,407 +126,482 @@ export const getSalaryForOverall = (overall: number): number => {
   return 3_500;
 };
 
-const appendHistory = async (uid: string, entry: FinanceHistoryEntry) => {
+async function addFinanceHistoryEntry(
+  uid: string,
+  entry: Omit<FinanceHistoryEntry, 'id' | 'timestamp'> & { timestamp?: Timestamp },
+): Promise<void> {
+  const col = historyCollection(uid);
+  const ref = doc(col);
+  await setDoc(ref, {
+    id: ref.id,
+    type: entry.type,
+    category: entry.category,
+    amount: entry.amount,
+    source: entry.source ?? null,
+    note: entry.note ?? null,
+    timestamp: entry.timestamp ?? serverTimestamp(),
+  });
+}
+
+async function ensureFinanceDoc(uid: string): Promise<void> {
+  const ref = financeDoc(uid);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) {
+    await setDoc(ref, { balance: FINANCE_DEFAULT_BALANCE, updatedAt: serverTimestamp() });
+  }
+}
+
+async function ensureStadiumDoc(teamId: string): Promise<void> {
+  const ref = teamStadiumDoc(teamId);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) {
+    const config = STADIUM_LEVELS[1];
+    await setDoc(ref, {
+      level: 1,
+      incomePerMatch: config.matchIncome,
+      upgradeCost: STADIUM_LEVELS[2].upgradeCost,
+      upgradedAt: serverTimestamp(),
+    });
+  }
+}
+
+export async function ensureFinanceProfile(teamId: string): Promise<void> {
+  await Promise.all([ensureFinanceDoc(teamId), ensureStadiumDoc(teamId)]);
+}
+
+const buildSalaryRecords = (players: Player[]): TeamSalaryRecord[] =>
+  players.map((player) => {
+    const overall = typeof player.overall === 'number' ? player.overall : 0;
+    const salary = getSalaryForOverall(overall);
+    return {
+      playerId: String(player.id),
+      name: player.name,
+      position: player.position,
+      overall,
+      salary,
+    };
+  });
+
+export async function syncTeamSalaries(teamId: string): Promise<TeamSalariesDoc> {
+  const teamSnap = await getDoc(teamDoc(teamId));
+  if (!teamSnap.exists()) {
+    throw new Error('Takim bulunamadi.');
+  }
+  const team = teamSnap.data() as { players?: Player[] };
+  const players = buildSalaryRecords(team.players ?? []);
+  const total = players.reduce((sum, record) => sum + record.salary, 0);
   await setDoc(
-    financeHistoryDoc(uid),
+    teamSalariesDoc(teamId),
     {
-      entries: arrayUnion(entry),
+      players,
+      total,
+      updatedAt: serverTimestamp(),
     },
     { merge: true },
   );
-};
+  return { players, total };
+}
 
-const buildHistoryEntry = (
-  type: 'income' | 'expense',
-  category: FinanceHistoryCategory,
-  amount: number,
-  note?: string,
-): FinanceHistoryEntry => ({
-  id: randomId(),
-  type,
-  category,
-  amount,
-  timestamp: Timestamp.now(),
-  note,
-});
+export async function ensureMonthlySalaryCharge(teamId: string): Promise<number | null> {
+  await ensureFinanceProfile(teamId);
+  let chargedAmount: number | null = null;
+  const monthKey = new Date().toISOString().slice(0, 7);
 
-export async function upgradeStadiumLevel(uid: string): Promise<StadiumState> {
-  await ensureFinanceProfile(uid);
-  let historyEntry: FinanceHistoryEntry | null = null;
-  const result = await runTransaction(db, async (tx) => {
-    const stadiumRef = stadiumDoc(uid);
-    const financeRef = financeDoc(uid);
-    const stadiumSnap = await tx.get(stadiumRef);
-    const financeSnap = await tx.get(financeRef);
+  await runTransaction(db, async (tx) => {
+    const financeRef = financeDoc(teamId);
+    const salariesRef = teamSalariesDoc(teamId);
+    const scheduleRef = teamSalariesScheduleDoc(teamId);
+    const teamRef = teamDoc(teamId);
+
+    const [financeSnap, salariesSnap, scheduleSnap, teamSnap] = await Promise.all([
+      tx.get(financeRef),
+      tx.get(salariesRef),
+      tx.get(scheduleRef),
+      tx.get(teamRef),
+    ]);
+
+    const schedule = scheduleSnap.exists() ? (scheduleSnap.data() as { lastChargedMonth?: string }) : {};
+    if (schedule.lastChargedMonth === monthKey) {
+      chargedAmount = null;
+      return;
+    }
+
+    const teamData = teamSnap.data() as { players?: Player[]; budget?: number; transferBudget?: number } | undefined;
+    const salaryRecords = salariesSnap.exists()
+      ? ((salariesSnap.data() as TeamSalariesDoc).players ?? [])
+      : buildSalaryRecords(teamData?.players ?? []);
+    const total = salaryRecords.reduce((sum, record) => sum + record.salary, 0);
+    if (total <= 0) {
+      chargedAmount = null;
+      return;
+    }
+
+    const balanceSource = Number.isFinite(teamData?.budget)
+      ? Number(teamData?.budget)
+      : Number.isFinite(teamData?.transferBudget)
+        ? Number(teamData?.transferBudget)
+        : (financeSnap.data()?.balance ?? FINANCE_DEFAULT_BALANCE);
+    const balance = Math.max(0, Math.round(balanceSource));
+    if (balance < total) {
+      throw new Error('Yetersiz bakiye.');
+    }
+
+    tx.set(
+      teamSalariesDoc(teamId),
+      {
+        players: salaryRecords,
+        total,
+        updatedAt: serverTimestamp(),
+      },
+      { merge: true },
+    );
+    const nextBalance = balance - total;
+    tx.update(financeRef, {
+      balance: nextBalance,
+      updatedAt: serverTimestamp(),
+    });
+    tx.set(
+      teamRef,
+      {
+        budget: nextBalance,
+        transferBudget: nextBalance,
+      },
+      { merge: true },
+    );
+    tx.set(
+      scheduleRef,
+      {
+        lastChargedMonth: monthKey,
+        lastChargedAt: serverTimestamp(),
+        lastAmount: total,
+      },
+      { merge: true },
+    );
+    chargedAmount = total;
+  });
+
+  if (chargedAmount && chargedAmount > 0) {
+    await addFinanceHistoryEntry(teamId, {
+      type: 'expense',
+      category: 'salary',
+      amount: chargedAmount,
+      note: `${monthKey} maas odemesi`,
+    });
+  }
+
+  return chargedAmount;
+}
+
+export async function upgradeStadiumLevel(teamId: string): Promise<StadiumState> {
+  await ensureFinanceProfile(teamId);
+  let upgraded: StadiumState | null = null;
+  const teamRef = teamDoc(teamId);
+
+  await runTransaction(db, async (tx) => {
+    const stadiumRef = teamStadiumDoc(teamId);
+    const financeRef = financeDoc(teamId);
+    const [stadiumSnap, financeSnap, teamSnap] = await Promise.all([
+      tx.get(stadiumRef),
+      tx.get(financeRef),
+      tx.get(teamRef),
+    ]);
     const currentLevel = (stadiumSnap.data()?.level ?? 1) as StadiumLevel;
     if (currentLevel >= 5) {
-      throw new Error('Stadyum zaten maksimum seviyede');
+      throw new Error('Stadyum zaten maksimum seviyede.');
     }
     const nextLevel = (currentLevel + 1) as StadiumLevel;
-    const cost = STADIUM_LEVELS[nextLevel].upgradeCost;
-    const balance = (financeSnap.data()?.balance ?? DEFAULT_BALANCE) as number;
-    if (balance < cost) {
-      throw new Error('Yetersiz bakiye');
+    const nextConfig = STADIUM_LEVELS[nextLevel];
+    const teamData = teamSnap.data() as { budget?: number; transferBudget?: number } | undefined;
+    const balanceSource = Number.isFinite(teamData?.budget)
+      ? Number(teamData?.budget)
+      : Number.isFinite(teamData?.transferBudget)
+        ? Number(teamData?.transferBudget)
+        : (financeSnap.data()?.balance ?? FINANCE_DEFAULT_BALANCE);
+    const balance = Math.max(0, Math.round(balanceSource));
+    if (balance < nextConfig.upgradeCost) {
+      throw new Error('Yetersiz bakiye.');
     }
+
     tx.set(
       stadiumRef,
       {
         level: nextLevel,
+        incomePerMatch: nextConfig.matchIncome,
+        upgradeCost: STADIUM_LEVELS[Math.min(5, nextLevel + 1) as StadiumLevel]?.upgradeCost ?? 0,
         upgradedAt: serverTimestamp(),
       },
       { merge: true },
     );
+    const nextBalance = balance - nextConfig.upgradeCost;
+    tx.update(financeRef, {
+      balance: nextBalance,
+      updatedAt: serverTimestamp(),
+    });
     tx.set(
-      financeRef,
+      teamRef,
       {
-        balance: balance - cost,
+        budget: nextBalance,
+        transferBudget: nextBalance,
       },
       { merge: true },
     );
-    historyEntry = buildHistoryEntry('expense', 'stadium', cost, `Seviye ${nextLevel} gelistirme`);
-    return { level: nextLevel, upgradedAt: Timestamp.now() } satisfies StadiumState;
-  });
-  if (historyEntry) {
-    await appendHistory(uid, historyEntry);
-  }
-  return result;
-}
-
-export async function calculateMonthlySalaries(uid: string): Promise<number> {
-  await ensureFinanceProfile(uid);
-  let historyEntry: FinanceHistoryEntry | null = null;
-  const total = await runTransaction(db, async (tx) => {
-    const teamRef = teamDoc(uid);
-    const financeRef = financeDoc(uid);
-    const teamSnap = await tx.get(teamRef);
-    const financeSnap = await tx.get(financeRef);
-    if (!teamSnap.exists()) {
-      throw new Error('Takim bulunamadi');
-    }
-    const teamData = teamSnap.data() as { players?: Player[] };
-    const players = teamData.players ?? [];
-    if (!players.length) {
-      throw new Error('Takimda oyuncu yok');
-    }
-    const updatedPlayers = players.map((player) => {
-      const salary = getSalaryForOverall(player.overall);
-      return {
-        ...player,
-        contract: {
-          status: player.contract?.status ?? 'active',
-          expiresAt: player.contract?.expiresAt ?? new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
-          salary,
-        },
-      } as Player;
-    });
-    const totalSalary = updatedPlayers.reduce((sum, player) => sum + (player.contract?.salary ?? 0), 0);
-    const balance = (financeSnap.data()?.balance ?? DEFAULT_BALANCE) as number;
-    if (balance < totalSalary) {
-      throw new Error('Yetersiz bakiye');
-    }
-    tx.update(teamRef, { players: updatedPlayers });
-    tx.set(
-      financeRef,
-      {
-        balance: balance - totalSalary,
-        monthly_expense: {
-          amount: totalSalary,
-          calculatedAt: serverTimestamp(),
-        },
-      },
-      { merge: true },
-    );
-    historyEntry = buildHistoryEntry('expense', 'salary', totalSalary, 'Aylik Maas');
-    return totalSalary;
-  });
-  if (historyEntry) {
-    await appendHistory(uid, historyEntry);
-  }
-  return total;
-}
-
-const buildNegotiatedPlayer = (session: NegotiationSession, salary: number): Player => {
-  const attributeValue = Math.min(0.95, Math.max(0.4, session.overall / 100));
-  const attr = () => Number(attributeValue.toFixed(3));
-  return {
-    id: `neg-${session.id}`,
-    name: session.playerName,
-    position: session.position,
-    roles: [session.position],
-    overall: session.overall,
-    potential: Math.min(99, session.overall + 5),
-    attributes: {
-      strength: attr(),
-      acceleration: attr(),
-      topSpeed: attr(),
-      dribbleSpeed: attr(),
-      jump: attr(),
-      tackling: attr(),
-      ballKeeping: attr(),
-      passing: attr(),
-      longBall: attr(),
-      agility: attr(),
-      shooting: attr(),
-      shootPower: attr(),
-      positioning: attr(),
-      reaction: attr(),
-      ballControl: attr(),
-    },
-    age: 24,
-    height: 182,
-    weight: 78,
-    condition: 0.85,
-    motivation: 0.82,
-    injuryStatus: 'healthy',
-    squadRole: 'reserve',
-    contract: {
-      status: 'active',
-      salary,
-      expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
-    },
-  };
-};
-
-export interface NegotiationPayload {
-  playerName: string;
-  position: Position;
-  overall: number;
-  transferFee: number;
-}
-
-export async function createNegotiationSession(uid: string, payload: NegotiationPayload): Promise<void> {
-  await ensureFinanceProfile(uid);
-  const financeRef = financeDoc(uid);
-  const sessionRef = doc(negotiationCollection(uid));
-  const askingSalary = Math.round(payload.overall * 150);
-  let historyEntry: FinanceHistoryEntry | null = null;
-  await runTransaction(db, async (tx) => {
-    const financeSnap = await tx.get(financeRef);
-    const balance = (financeSnap.data()?.balance ?? DEFAULT_BALANCE) as number;
-    if (balance < payload.transferFee) {
-      throw new Error('Transfer ucreti icin bakiye yetersiz');
-    }
-    tx.set(
-      financeRef,
-      { balance: balance - payload.transferFee },
-      { merge: true },
-    );
-    tx.set(sessionRef, {
-      id: sessionRef.id,
-      playerName: payload.playerName,
-      position: payload.position,
-      overall: payload.overall,
-      patience: 3,
-      maxPatience: 3,
-      askingSalary,
-      transferFee: payload.transferFee,
-      offers: [],
-      status: 'pending',
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    });
-    historyEntry = buildHistoryEntry('expense', 'transfer', payload.transferFee, payload.playerName);
-  });
-  if (historyEntry) {
-    await appendHistory(uid, historyEntry);
-  }
-}
-
-export async function submitNegotiationOffer(uid: string, sessionId: string, amount: number): Promise<'pending' | 'accepted' | 'rejected'> {
-  const sessionRef = negotiationDoc(uid, sessionId);
-  let result: 'pending' | 'accepted' | 'rejected' = 'pending';
-  await runTransaction(db, async (tx) => {
-    const sessionSnap = await tx.get(sessionRef);
-    if (!sessionSnap.exists()) {
-      throw new Error('Gorusme bulunamadi');
-    }
-    const session = sessionSnap.data() as NegotiationSession;
-    if (session.status !== 'pending') {
-      throw new Error('Gorusme tamamlanmis');
-    }
-    const offers = [...(session.offers ?? [])];
-    offers.push({ id: randomId(), amount, createdAt: Timestamp.now(), accepted: amount >= session.askingSalary });
-    const update: Partial<NegotiationSession> = {
-      offers,
-      updatedAt: serverTimestamp(),
+    upgraded = {
+      level: nextLevel,
+      incomePerMatch: nextConfig.matchIncome,
+      upgradeCost: STADIUM_LEVELS[Math.min(5, nextLevel + 1) as StadiumLevel]?.upgradeCost ?? 0,
     };
-    if (amount >= session.askingSalary) {
-      update.status = 'accepted';
-      update.agreedSalary = amount;
-      result = 'accepted';
-    } else {
-      const nextPatience = Math.max(0, session.patience - 1);
-      update.patience = nextPatience;
-      if (nextPatience === 0) {
-        update.status = 'rejected';
-        result = 'rejected';
-      }
-    }
-    tx.update(sessionRef, update);
   });
-  if (result === 'accepted') {
-    await finalizeNegotiationHire(uid, sessionId);
+
+  if (!upgraded) {
+    throw new Error('Stadyum guncellenemedi.');
   }
-  return result;
-}
 
-export async function acceptNegotiationSession(uid: string, sessionId: string): Promise<void> {
-  const sessionRef = negotiationDoc(uid, sessionId);
-  await runTransaction(db, async (tx) => {
-    const sessionSnap = await tx.get(sessionRef);
-    if (!sessionSnap.exists()) {
-      throw new Error('Gorusme bulunamadi');
-    }
-    const session = sessionSnap.data() as NegotiationSession;
-    if (session.status !== 'pending') {
-      throw new Error('Gorusme aktif degil');
-    }
-    tx.update(sessionRef, {
-      status: 'accepted',
-      agreedSalary: session.askingSalary,
-      updatedAt: serverTimestamp(),
-    });
+  await addFinanceHistoryEntry(teamId, {
+    type: 'expense',
+    category: 'stadium',
+    amount: STADIUM_LEVELS[upgraded.level].upgradeCost,
+    note: `Stadyum ${upgraded.level}. seviye`,
   });
-  await finalizeNegotiationHire(uid, sessionId);
+
+  return upgraded;
 }
 
-export async function cancelNegotiationSession(uid: string, sessionId: string): Promise<void> {
-  const sessionRef = negotiationDoc(uid, sessionId);
-  const financeRef = financeDoc(uid);
-  let historyEntry: FinanceHistoryEntry | null = null;
+export async function recordCreditPurchase(teamId: string, pack: CreditPackage): Promise<void> {
+  await ensureFinanceProfile(teamId);
   await runTransaction(db, async (tx) => {
-    const [sessionSnap, financeSnap] = await Promise.all([tx.get(sessionRef), tx.get(financeRef)]);
-    if (!sessionSnap.exists()) {
-      throw new Error('Gorusme bulunamadi');
-    }
-    const session = sessionSnap.data() as NegotiationSession;
-    if (session.status !== 'pending') {
-      throw new Error('Yalnizca aktif gorusmeler iptal edilebilir');
-    }
-    const balance = (financeSnap.data()?.balance ?? DEFAULT_BALANCE) as number;
+    const financeRef = financeDoc(teamId);
+    const teamRef = teamDoc(teamId);
+    const [financeSnap, teamSnap] = await Promise.all([tx.get(financeRef), tx.get(teamRef)]);
+    const teamData = teamSnap.data() as { budget?: number; transferBudget?: number } | undefined;
+    const currentBalanceSource = Number.isFinite(teamData?.budget)
+      ? Number(teamData?.budget)
+      : Number.isFinite(teamData?.transferBudget)
+        ? Number(teamData?.transferBudget)
+        : (financeSnap.data()?.balance ?? FINANCE_DEFAULT_BALANCE);
+    const nextBalance = Math.max(0, Math.round(currentBalanceSource + pack.amount));
     tx.set(
       financeRef,
       {
-        balance: balance + session.transferFee,
+        balance: nextBalance,
+        updatedAt: serverTimestamp(),
       },
       { merge: true },
     );
-    tx.update(sessionRef, {
-      status: 'cancelled',
-      updatedAt: serverTimestamp(),
-    });
-    historyEntry = buildHistoryEntry('income', 'transfer', session.transferFee, 'Iade');
-  });
-  if (historyEntry) {
-    await appendHistory(uid, historyEntry);
-  }
-}
-
-async function finalizeNegotiationHire(uid: string, sessionId: string) {
-  const sessionSnap = await getDoc(negotiationDoc(uid, sessionId));
-  if (!sessionSnap.exists()) {
-    return;
-  }
-  const session = sessionSnap.data() as NegotiationSession;
-  if (session.status === 'signed') {
-    return;
-  }
-  const salary = session.agreedSalary ?? session.askingSalary;
-  const player = buildNegotiatedPlayer(session, salary);
-  await addPlayerToTeam(uid, player);
-  await updateDoc(negotiationDoc(uid, sessionId), {
-    status: 'signed',
-    agreedSalary: salary,
-    updatedAt: serverTimestamp(),
-  });
-}
-
-export interface SponsorPayload {
-  name: string;
-  type: 'free' | 'premium';
-  reward: SponsorReward;
-  price?: number;
-}
-
-export async function createSponsorCatalogEntry(payload: SponsorPayload): Promise<void> {
-  const ref = doc(sponsorCatalogCollection);
-  await setDoc(ref, {
-    id: ref.id,
-    ...payload,
-    createdAt: serverTimestamp(),
-  });
-}
-
-export async function attachSponsorToUser(uid: string, sponsor: SponsorCatalogEntry): Promise<void> {
-  await ensureFinanceProfile(uid);
-  const financeRef = financeDoc(uid);
-  let historyEntry: FinanceHistoryEntry | null = null;
-  await runTransaction(db, async (tx) => {
-    const financeSnap = await tx.get(financeRef);
-    const balance = (financeSnap.data()?.balance ?? DEFAULT_BALANCE) as number;
-    if (sponsor.type === 'premium' && sponsor.price && balance < sponsor.price) {
-      throw new Error('Sponsor icin yeterli bakiye yok');
-    }
-    if (sponsor.type === 'premium' && sponsor.price) {
-      tx.set(
-        financeRef,
-        { balance: balance - sponsor.price },
-        { merge: true },
-      );
-      historyEntry = buildHistoryEntry('expense', 'sponsor', sponsor.price, sponsor.name);
-    }
     tx.set(
-      userSponsorDoc(uid, sponsor.id),
+      teamRef,
       {
-        id: sponsor.id,
-        catalogId: sponsor.id,
-        name: sponsor.name,
-        type: sponsor.type,
-        reward: sponsor.reward,
-        price: sponsor.price ?? null,
-        active: true,
-        startDate: serverTimestamp(),
+        budget: nextBalance,
+        transferBudget: nextBalance,
       },
       { merge: true },
     );
   });
-  if (historyEntry) {
-    await appendHistory(uid, historyEntry);
-  }
+
+  const creditsRef = doc(creditCollection(teamId));
+  await setDoc(creditsRef, {
+    id: creditsRef.id,
+    packageId: pack.id,
+    amount: pack.amount,
+    price: pack.price,
+    purchasedAt: serverTimestamp(),
+  });
+
+  await addFinanceHistoryEntry(teamId, {
+    type: 'income',
+    category: 'loan',
+    amount: pack.amount,
+    note: `Kredi paketi (${pack.id})`,
+  });
 }
 
-export async function settleSponsorIncome(uid: string, sponsorId: string): Promise<number> {
-  const sponsorRef = userSponsorDoc(uid, sponsorId);
-  const financeRef = financeDoc(uid);
-  let historyEntry: FinanceHistoryEntry | null = null;
-  const amount = await runTransaction(db, async (tx) => {
-    const [sponsorSnap, financeSnap] = await Promise.all([tx.get(sponsorRef), tx.get(financeRef)]);
+export async function activateSponsor(teamId: string, sponsor: SponsorCatalogEntry): Promise<void> {
+  await ensureFinanceProfile(teamId);
+  const col = sponsorshipCollection(teamId);
+  const existing = await getDocs(col);
+  const batch = writeBatch(db);
+
+  existing.forEach((docSnap) => {
+    const isSelectedSponsor = docSnap.id === sponsor.id;
+    batch.set(
+      docSnap.ref,
+      {
+        active: isSelectedSponsor,
+        ...(isSelectedSponsor
+          ? {
+              catalogId: sponsor.id,
+              name: sponsor.name,
+              type: sponsor.type,
+              reward: sponsor.reward,
+              price: sponsor.price ?? null,
+              activatedAt: serverTimestamp(),
+            }
+          : {}),
+      },
+      { merge: true },
+    );
+  });
+
+  if (!existing.docs.some((docSnap) => docSnap.id === sponsor.id)) {
+    const ref = doc(col, sponsor.id);
+    batch.set(ref, {
+      id: sponsor.id,
+      catalogId: sponsor.id,
+      name: sponsor.name,
+      type: sponsor.type,
+      reward: sponsor.reward,
+      price: sponsor.price ?? null,
+      active: true,
+      activatedAt: serverTimestamp(),
+    });
+  }
+
+  await batch.commit();
+}
+
+export async function applySponsorEarnings(teamId: string, sponsorId: string): Promise<number> {
+  await ensureFinanceProfile(teamId);
+  const ref = doc(sponsorshipCollection(teamId), sponsorId);
+  const financeRef = financeDoc(teamId);
+  const teamRef = teamDoc(teamId);
+  let payout = 0;
+
+  await runTransaction(db, async (tx) => {
+    const [sponsorSnap, financeSnap, teamSnap] = await Promise.all([tx.get(ref), tx.get(financeRef), tx.get(teamRef)]);
     if (!sponsorSnap.exists()) {
-      throw new Error('Sponsor bulunamadi');
+      throw new Error('Sponsor bulunamadi.');
     }
-    const sponsor = sponsorSnap.data() as UserSponsorDoc;
-    const now = Timestamp.now();
-    const lastPayout = sponsor.lastPayoutAt ?? sponsor.startDate;
-    const cadenceMs = sponsor.reward.cadence === 'daily' ? 24 * 60 * 60 * 1000 : 7 * 24 * 60 * 60 * 1000;
-    const due = Math.floor((now.toMillis() - lastPayout.toMillis()) / cadenceMs);
-    if (due <= 0) {
-      throw new Error('Bugun icin odeme yapildi');
+    const data = sponsorSnap.data() as UserSponsorDoc;
+    if (!data.active) {
+      throw new Error('Sponsor aktif degil.');
     }
-    const payout = due * sponsor.reward.amount;
-    const balance = (financeSnap.data()?.balance ?? DEFAULT_BALANCE) as number;
+    const reward = data.reward;
+    const cadenceMs = reward.cycle === 'weekly' ? 7 * DAY_MS : DAY_MS;
+    const lastPayout = data.lastPayoutAt ? data.lastPayoutAt.toMillis() : data.activatedAt.toMillis();
+    const now = Date.now();
+    const periods = Math.floor((now - lastPayout) / cadenceMs);
+    if (periods <= 0) {
+      throw new Error('Bugun icin odeme yapildi.');
+    }
+    payout = periods * reward.amount;
+    const teamData = teamSnap.data() as { budget?: number; transferBudget?: number } | undefined;
+    const balanceSource = Number.isFinite(teamData?.budget)
+      ? Number(teamData?.budget)
+      : Number.isFinite(teamData?.transferBudget)
+        ? Number(teamData?.transferBudget)
+        : (financeSnap.data()?.balance ?? FINANCE_DEFAULT_BALANCE);
+    const balance = Math.max(0, Math.round(balanceSource));
+
+    const nextBalance = balance + payout;
+    tx.update(financeRef, {
+      balance: nextBalance,
+      updatedAt: serverTimestamp(),
+    });
     tx.set(
-      financeRef,
-      { balance: balance + payout },
+      teamRef,
+      {
+        budget: nextBalance,
+        transferBudget: nextBalance,
+      },
       { merge: true },
     );
-    tx.update(sponsorRef, {
-      lastPayoutAt: now,
+    tx.update(ref, {
+      lastPayoutAt: Timestamp.fromMillis(lastPayout + periods * cadenceMs),
+      updatedAt: serverTimestamp(),
     });
-    historyEntry = buildHistoryEntry('income', 'sponsor', payout, sponsor.name);
-    return payout;
   });
-  if (historyEntry) {
-    await appendHistory(uid, historyEntry);
-  }
-  return amount;
+
+  await addFinanceHistoryEntry(teamId, {
+    type: 'income',
+    category: 'sponsor',
+    amount: payout,
+    note: 'Sponsor getirisi',
+  });
+
+  return payout;
 }
+
+export interface ExpectedRevenueBreakdown {
+  monthly: number;
+  matchEstimate: number;
+  sponsorEstimate: number;
+  matchesPerMonth: number;
+}
+
+export function getExpectedRevenue(stadium: StadiumState | null, sponsors: UserSponsorDoc[]): ExpectedRevenueBreakdown {
+  const matchesPerMonth = 4;
+  const matchIncome = stadium?.incomePerMatch ?? STADIUM_LEVELS[stadium?.level ?? 1].matchIncome;
+  const matchEstimate = Math.max(0, matchIncome * matchesPerMonth);
+  const sponsorEstimate = sponsors
+    .filter((sponsor) => sponsor.active)
+    .reduce((sum, sponsor) => {
+      const multiplier = sponsor.reward.cycle === 'daily' ? 30 : 4;
+      return sum + sponsor.reward.amount * multiplier;
+    }, 0);
+  return {
+    monthly: matchEstimate + sponsorEstimate,
+    matchEstimate,
+    sponsorEstimate,
+    matchesPerMonth,
+  };
+}
+
+export interface TransferFinanceRecordOptions {
+  amount: number;
+  playerName?: string;
+  contextId?: string;
+  note?: string;
+}
+
+export async function recordTransferExpense(teamId: string, payload: TransferFinanceRecordOptions): Promise<void> {
+  if (!payload.amount || payload.amount <= 0) {
+    return;
+  }
+  await ensureFinanceProfile(teamId);
+  await addFinanceHistoryEntry(teamId, {
+    type: 'expense',
+    category: 'transfer',
+    amount: payload.amount,
+    source: payload.contextId ?? payload.playerName ?? undefined,
+    note: payload.note ?? (payload.playerName ? `${payload.playerName} transfer ucreti` : 'Transfer ucreti'),
+  });
+}
+
+export async function recordTransferRefund(teamId: string, payload: TransferFinanceRecordOptions): Promise<void> {
+  if (!payload.amount || payload.amount <= 0) {
+    return;
+  }
+  await ensureFinanceProfile(teamId);
+  await addFinanceHistoryEntry(teamId, {
+    type: 'income',
+    category: 'transfer',
+    amount: payload.amount,
+    source: payload.contextId ?? payload.playerName ?? undefined,
+    note: payload.note ?? (payload.playerName ? `${payload.playerName} transfer iadesi` : 'Transfer iadesi'),
+  });
+}
+
+export async function syncFinanceBalanceWithTeam(teamId: string): Promise<number> {
+  await ensureFinanceProfile(teamId);
+  const teamSnap = await getDoc(teamDoc(teamId));
+  if (!teamSnap.exists()) {
+    throw new Error('Takim bulunamadi.');
+  }
+  const team = teamSnap.data() as { budget?: number; transferBudget?: number } | undefined;
+  const rawBalance = Number.isFinite(team?.transferBudget)
+    ? Number(team?.transferBudget)
+    : Number.isFinite(team?.budget)
+      ? Number(team?.budget)
+      : FINANCE_DEFAULT_BALANCE;
+  const balance = Math.max(0, Math.round(rawBalance));
+  await setDoc(
+    financeDoc(teamId),
+    {
+      balance,
+      updatedAt: serverTimestamp(),
+    },
+    { merge: true },
+  );
+  return balance;
+}
+
+export { ensureMonthlySalaryCharge as calculateMonthlySalaries };

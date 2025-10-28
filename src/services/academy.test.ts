@@ -18,8 +18,8 @@ const getDocMock = vi.fn();
 const updateDocMock = vi.fn();
 
 vi.mock('firebase/firestore', () => ({
-  doc: (...args: unknown[]) => docMock(...args),
-  collection: (...args: unknown[]) => collectionMock(...args),
+  doc: (...args: unknown[]) => docMock(),
+  collection: (...args: unknown[]) => collectionMock(),
   runTransaction: (...args: unknown[]) => runTransactionMock(...args),
   serverTimestamp: vi.fn(),
   Timestamp: { fromDate: (...args: unknown[]) => fromDateMock(...args) },
@@ -28,7 +28,12 @@ vi.mock('firebase/firestore', () => ({
   updateDoc: (...args: unknown[]) => updateDocMock(...args),
 }));
 
-vi.mock('./team', () => ({ addPlayerToTeam: vi.fn() }));
+const addPlayerToTeamMock = vi.fn();
+const updatePlayerSalaryMock = vi.fn();
+vi.mock('./team', () => ({
+  addPlayerToTeam: addPlayerToTeamMock,
+  updatePlayerSalary: updatePlayerSalaryMock,
+}));
 
 describe('resetCooldownWithDiamonds', () => {
   it('throws when not enough diamonds', async () => {
@@ -80,8 +85,22 @@ describe('candidate status updates', () => {
       exists: () => true,
       data: () => ({ player: { name: 'a', position: 'MID', overall: 0.5, age: 17, potential: 0.9, traits: [], attributes: { topSpeed: 0.5, shooting: 0.5 } } }),
     });
-    await acceptCandidate('uid', 'cid');
+    updatePlayerSalaryMock.mockClear();
+    const player = await acceptCandidate('uid', 'cid');
     expect(updateDocMock).toHaveBeenCalledWith({}, { status: 'accepted' });
+    expect(player).toBeDefined();
+    expect(updatePlayerSalaryMock).not.toHaveBeenCalled();
+  });
+
+  it('updates salary when provided', async () => {
+    getDocMock.mockResolvedValueOnce({
+      exists: () => true,
+      data: () => ({ player: { name: 'b', position: 'FWD', overall: 0.7, age: 18, potential: 0.95, traits: [], attributes: { topSpeed: 0.7, shooting: 0.8 } } }),
+    });
+    addPlayerToTeamMock.mockResolvedValue(undefined);
+    updatePlayerSalaryMock.mockClear();
+    const player = await acceptCandidate('uid', 'cid-salary', { salary: 12345 });
+    expect(updatePlayerSalaryMock).toHaveBeenCalledWith('uid', player.id, 12345);
   });
 
   it('marks candidate as released', async () => {

@@ -16,9 +16,10 @@ import {
 import { db } from './firebase';
 import { toast } from 'sonner';
 import { generateMockCandidate, CandidatePlayer } from '@/features/academy/generateMockCandidate';
-import { addPlayerToTeam } from './team';
+import { addPlayerToTeam, updatePlayerSalary } from './team';
 import type { Player } from '@/types';
 import { calculateOverall, getRoles } from '@/lib/player';
+import { getSalaryForOverall } from './finance';
 
 export const ACADEMY_COOLDOWN_MS = 2 * 60 * 60 * 1000; // 2 saat
 
@@ -96,7 +97,7 @@ export async function pullNewCandidate(uid: string): Promise<AcademyCandidate> {
     return newCandidate;
   } catch (err) {
     console.warn(err);
-    toast.error((err as Error).message || 'İşlem başarısız');
+    toast.error((err as Error).message || 'Islem basarisiz');
     throw err;
   }
 }
@@ -118,10 +119,10 @@ export async function resetCooldownWithDiamonds(uid: string): Promise<void> {
         'academy.nextPullAt': Timestamp.fromDate(now),
       });
     });
-    toast.success('Süre sıfırlandı');
+    toast.success('Sure sifirlandi');
   } catch (err) {
     console.warn(err);
-    toast.error((err as Error).message || 'İşlem başarısız');
+    toast.error((err as Error).message || 'Islem basarisiz');
     throw err;
   }
 }
@@ -136,7 +137,7 @@ function mapPosition(pos: string): Player['position'] {
   return mapping[pos] ?? 'CM';
 }
 
-function candidateToPlayer(id: string, c: CandidatePlayer): Player {
+function candidateToPlayer(id: string, c: CandidatePlayer, salaryOverride?: number): Player {
   const randomAttr = () => parseFloat(Math.random().toFixed(3));
   const position = mapPosition(c.position);
   const attributes: Player['attributes'] = {
@@ -156,12 +157,14 @@ function candidateToPlayer(id: string, c: CandidatePlayer): Player {
     reaction: randomAttr(),
     ballControl: randomAttr(),
   };
+  const overall = calculateOverall(position, attributes);
+  const salary = salaryOverride ?? getSalaryForOverall(overall);
   return {
     id,
     name: c.name,
     position,
     roles: getRoles(position),
-    overall: calculateOverall(position, attributes),
+    overall,
     potential: c.potential,
     attributes,
     age: c.age,
@@ -171,24 +174,38 @@ function candidateToPlayer(id: string, c: CandidatePlayer): Player {
     condition: parseFloat((0.65 + Math.random() * 0.3).toFixed(3)),
     motivation: parseFloat((0.6 + Math.random() * 0.35).toFixed(3)),
     injuryStatus: 'healthy',
+    contract: {
+      status: 'active',
+      salary,
+      expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
+      extensions: 0,
+    },
   };
 }
 
-export async function acceptCandidate(uid: string, candidateId: string): Promise<void> {
+export interface AcceptCandidateOptions {
+  salary?: number;
+}
+
+export async function acceptCandidate(uid: string, candidateId: string, options?: AcceptCandidateOptions): Promise<Player> {
   const candidateRef = doc(db, 'users', uid, 'academyCandidates', candidateId);
   try {
     const snap = await getDoc(candidateRef);
     if (!snap.exists()) {
-      throw new Error('Aday bulunamadı');
+      throw new Error('Aday bulunamadi');
     }
     const data = snap.data() as { player: CandidatePlayer };
-    const player = candidateToPlayer(candidateId, data.player);
+    const player = candidateToPlayer(candidateId, data.player, options?.salary);
     await addPlayerToTeam(uid, player);
+    if (options?.salary) {
+      await updatePlayerSalary(uid, player.id, options.salary);
+    }
     await updateDoc(candidateRef, { status: 'accepted' });
-    toast.success('Oyuncu takıma eklendi');
+    toast.success('Oyuncu takimina eklendi');
+    return player;
   } catch (err) {
     console.warn(err);
-    toast.error('İşlem başarısız');
+    toast.error('Islem basarisiz');
     throw err;
   }
 }
@@ -197,10 +214,10 @@ export async function releaseCandidate(uid: string, candidateId: string): Promis
   const ref = doc(db, 'users', uid, 'academyCandidates', candidateId);
   try {
     await updateDoc(ref, { status: 'released' });
-    toast.success('Oyuncu serbest bırakıldı');
+    toast.success('Oyuncu serbest birakildi');
   } catch (err) {
     console.warn(err);
-    toast.error('İşlem başarısız');
+    toast.error('Islem basarisiz');
     throw err;
   }
 }

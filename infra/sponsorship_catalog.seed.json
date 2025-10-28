@@ -1,0 +1,31 @@
+[
+  {
+    "id": "starter-partner",
+    "name": "Starter Partner",
+    "type": "free",
+    "reward": {
+      "amount": 1200,
+      "cycle": "weekly"
+    }
+  },
+  {
+    "id": "regional-booster",
+    "name": "Regional Booster",
+    "type": "premium",
+    "reward": {
+      "amount": 3500,
+      "cycle": "weekly"
+    },
+    "price": 15000
+  },
+  {
+    "id": "global-elite",
+    "name": "Global Elite",
+    "type": "premium",
+    "reward": {
+      "amount": 2500,
+      "cycle": "daily"
+    },
+    "price": 50000
+  }
+]

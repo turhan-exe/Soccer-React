@@ -404,6 +404,32 @@ export const addPlayerToTeam = async (userId: string, player: Player) => {
   return updatedPlayers;
 };
 
+export const updatePlayerSalary = async (userId: string, playerId: string, salary: number): Promise<void> => {
+  const teamRef = doc(db, 'teams', userId);
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(teamRef);
+    if (!snap.exists()) {
+      throw new Error('Takim bulunamadi.');
+    }
+    const data = snap.data() as { players?: Player[] };
+    const players = data.players ?? [];
+    const index = players.findIndex((player) => String(player.id) === String(playerId));
+    if (index === -1) {
+      throw new Error('Oyuncu bulunamadi.');
+    }
+    const player = players[index];
+    const contract = {
+      status: player.contract?.status ?? 'active',
+      salary,
+      expiresAt: player.contract?.expiresAt ?? new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
+      extensions: player.contract?.extensions ?? 0,
+    };
+    const nextPlayers = [...players];
+    nextPlayers[index] = { ...player, contract };
+    tx.update(teamRef, { players: nextPlayers });
+  });
+};
+
 /**
  * Server-side lineup setter (calls Cloud Function 'setLineup')
  */
