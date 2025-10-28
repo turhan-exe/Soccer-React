@@ -35,7 +35,7 @@ import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Player, TransferListing } from '@/types';
-import { adjustTeamBudget, getTeam } from '@/services/team';
+import { getTeam } from '@/services/team';
 import {
   createTransferListing,
   cancelTransferListing,
@@ -48,8 +48,19 @@ import { getLegendIdFromPlayer } from '@/services/legends';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { PlayerStatusCard } from '@/components/ui/player-status-card';
 import { cn } from '@/lib/utils';
-import { formatRatingLabel } from '@/lib/player';
+import { formatRatingLabel, normalizeRatingTo100 } from '@/lib/player';
+import { NegotiationDialog, NegotiationContext } from '@/features/negotiation/NegotiationDialog';
+import { finalizeNegotiationAttempt, recordTransferHistory, type NegotiationAttempt } from '@/services/negotiation';
+import {
+  syncTeamSalaries,
+  ensureMonthlySalaryCharge,
+  recordTransferExpense,
+  recordTransferRefund,
+  syncFinanceBalanceWithTeam,
+} from '@/services/finance';
+import { updatePlayerSalary } from '@/services/team';
 import './transfer-market.css';
+import { useTeamBudget } from '@/hooks/useTeamBudget';
 
 const POSITIONS: Player['position'][] = [
   'GK',
@@ -106,7 +117,7 @@ const mapSortToService = (sort: SortOption): MarketSortOption => {
 };
 
 const formatPrice = (value: number) =>
-  `${value.toLocaleString('tr-TR')} ₺`;
+  `${value.toLocaleString('tr-TR')} $`;
 
 const formatOverall = (value: number) => formatRatingLabel(value);
 
@@ -126,10 +137,10 @@ const resolveMarketplaceError = (error: unknown): MarketplaceErrorMessage => {
 
     if (import.meta.env.DEV && indexLink) {
       return {
-        title: 'Firestore indeksine ihtiyaç var.',
-        description: 'Eksik composite indexi oluşturmak için aşağıdaki bağlantıyı kullan.',
+        title: 'Firestore indeksine ihtiyac var.',
+        description: 'Eksik composite indexi olusturmak icin asagidaki baglantiyi kullan.',
         action: {
-          label: 'İndeksi Oluştur',
+          label: 'Indeksi Olustur',
           onClick: () => {
             if (typeof window !== 'undefined') {
               window.open(indexLink, '_blank', 'noopener,noreferrer');
@@ -140,18 +151,18 @@ const resolveMarketplaceError = (error: unknown): MarketplaceErrorMessage => {
     }
 
     return {
-      title: 'Veri yüklenemedi.',
+      title: 'Veri yuklenemedi.',
     };
   }
 
   if (err.message.includes('permission')) {
     return {
-      title: 'Pazar okunamıyor. Kuralları güncelliyor musunuz?',
+      title: 'Pazar okunamiyor. Kurallari guncelliyor musunuz?',
     };
   }
 
   return {
-    title: err.message || 'Beklenmedik bir hata oluştu.',
+    title: err.message || 'Beklenmedik bir hata olustu.',
   };
 };
 
@@ -162,6 +173,7 @@ export default function TransferMarket() {
   const [teamPlayers, setTeamPlayers] = useState<Player[]>([]);
   const [teamName, setTeamName] = useState<string>('');
   const [teamBudget, setTeamBudget] = useState<number>(0);
+  const { budget: liveBudget, adjustBudget } = useTeamBudget();
   const [isLoadingTeam, setIsLoadingTeam] = useState(false);
   const [listings, setListings] = useState<TransferListing[]>([]);
   const [myListings, setMyListings] = useState<TransferListing[]>([]);
@@ -179,6 +191,9 @@ export default function TransferMarket() {
     sortBy: 'overall-desc',
   });
   const [expandedListingId, setExpandedListingId] = useState<string | null>(null);
+  const [negotiationOpen, setNegotiationOpen] = useState(false);
+  const [negotiationContext, setNegotiationContext] = useState<NegotiationContext | null>(null);
+  const [pendingListing, setPendingListing] = useState<TransferListing | null>(null);
   const previousListingCount = useRef<number>(0);
   const [isDesktop, setIsDesktop] = useState(() => {
     if (typeof window === 'undefined') {
@@ -186,6 +201,12 @@ export default function TransferMarket() {
     }
     return window.matchMedia('(min-width: 768px)').matches;
   });
+
+  useEffect(() => {
+    if (typeof liveBudget === 'number') {
+      setTeamBudget(liveBudget);
+    }
+  }, [liveBudget]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -211,7 +232,7 @@ export default function TransferMarket() {
   const loadTeam = useCallback(async () => {
     if (!user) {
       setTeamPlayers([]);
-      setTeamName('Takımım');
+      setTeamName('Takimim');
       setTeamBudget(0);
       return;
     }
@@ -219,7 +240,7 @@ export default function TransferMarket() {
     try {
       const team = await getTeam(user.id);
       setTeamPlayers(team?.players ?? []);
-      setTeamName(team?.name ?? user.teamName ?? 'Takımım');
+      setTeamName(team?.name ?? user.teamName ?? 'Takimim');
       const nextBudget = Number.isFinite(team?.transferBudget)
         ? Number(team?.transferBudget)
         : Number.isFinite(team?.budget)
@@ -227,8 +248,8 @@ export default function TransferMarket() {
           : 0;
       setTeamBudget(nextBudget);
     } catch (error) {
-      console.error('[TransferMarket] takımı yükleme hatası', error);
-      toast.error('Takım bilgileri alınamadı.', {
+      console.error('[TransferMarket] takimi yukleme hatasi', error);
+      toast.error('Takim bilgileri alinamadi.', {
         description: error instanceof Error ? error.message : undefined,
       });
     } finally {
@@ -383,7 +404,7 @@ export default function TransferMarket() {
       const targetPlayer = teamPlayers.find(player => player.id === targetPlayerFromState);
       if (targetPlayer?.market?.locked || (targetPlayer && getLegendIdFromPlayer(targetPlayer) !== null)) {
         toast.error('Oyuncu pazara eklenemiyor.', {
-          description: 'Nostalji paketinden alınan oyuncular transfer pazarında satılamaz.',
+          description: 'Nostalji paketinden alinan oyuncular transfer pazarinda satilamaz.',
         });
       } else {
         toast.error('Oyuncu pazara eklenemiyor.', {
@@ -402,7 +423,7 @@ export default function TransferMarket() {
           <TableCell colSpan={6} className="py-12 text-center text-muted-foreground">
             <div className="flex items-center justify-center gap-2">
               <Loader2 className="h-4 w-4 animate-spin" />
-              İlanlar yükleniyor...
+              Ilanlar yukleniyor...
             </div>
           </TableCell>
         </TableRow>
@@ -413,7 +434,7 @@ export default function TransferMarket() {
       return (
         <TableRow>
           <TableCell colSpan={6} className="py-12 text-center text-muted-foreground">
-            Filtrenize uyan aktif ilan bulunamadı.
+            Filtrenize uyan aktif ilan bulunamadi.
           </TableCell>
         </TableRow>
       );
@@ -425,7 +446,7 @@ export default function TransferMarket() {
       const position = player?.position ?? listing.pos ?? 'N/A';
       const overallValue = player?.overall ?? listing.overall ?? 0;
       const potentialValue = player?.potential ?? overallValue;
-      const ageDisplay = player?.age ?? '—';
+      const ageDisplay = player?.age ?? '-';
       const sellerUid = listing.sellerUid ?? listing.sellerId;
       const isExpanded = expandedListingId === listing.id;
 
@@ -463,7 +484,7 @@ export default function TransferMarket() {
                       {name}
                     </span>
                     <span className="text-xs text-muted-foreground">
-                      Yaş {ageDisplay} · Potansiyel {formatOverall(potentialValue)}
+                      Yas {ageDisplay} - Potansiyel {formatOverall(potentialValue)}
                     </span>
                   </button>
                 </PopoverTrigger>
@@ -480,7 +501,7 @@ export default function TransferMarket() {
               <div>
                 <div className="font-semibold">{name}</div>
                 <div className="text-xs text-muted-foreground">
-                  Yaş {ageDisplay} · Potansiyel {formatOverall(potentialValue)}
+                  Yas {ageDisplay} - Potansiyel {formatOverall(potentialValue)}
                 </div>
               </div>
             )}
@@ -509,10 +530,10 @@ export default function TransferMarket() {
               {purchasingId === listing.id ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  İşlem Yapılıyor
+                  Islem Yapiliyor
                 </>
               ) : (
-                'Satın Al'
+                'Satin Al'
               )}
             </Button>
           </TableCell>
@@ -526,7 +547,7 @@ export default function TransferMarket() {
       return (
         <div className="flex items-center justify-center gap-2 rounded-xl border border-white/20 bg-white/5 py-6 text-sm text-slate-300">
           <Loader2 className="h-4 w-4 animate-spin" />
-          İlanlar yükleniyor...
+          Ilanlar yukleniyor...
         </div>
       );
     }
@@ -534,7 +555,7 @@ export default function TransferMarket() {
     if (listings.length === 0) {
       return (
         <div className="rounded-xl border border-white/20 bg-white/5 p-4 text-center text-sm text-slate-300">
-          Filtrenize uyan aktif ilan bulunamadı.
+          Filtrenize uyan aktif ilan bulunamadi.
         </div>
       );
     }
@@ -545,7 +566,7 @@ export default function TransferMarket() {
       const position = player?.position ?? listing.pos ?? 'N/A';
       const overallValue = player?.overall ?? listing.overall ?? 0;
       const potentialValue = player?.potential ?? overallValue;
-      const ageDisplay = player?.age ?? '—';
+      const ageDisplay = player?.age ?? '-';
       const sellerUid = listing.sellerUid ?? listing.sellerId;
 
       return (
@@ -557,7 +578,7 @@ export default function TransferMarket() {
             <div>
               <div className="text-base font-semibold text-foreground">{name}</div>
               <div className="text-xs text-muted-foreground">
-                Yaş {ageDisplay} · Potansiyel {formatOverall(potentialValue)}
+                Yas {ageDisplay} - Potansiyel {formatOverall(potentialValue)}
               </div>
             </div>
             <Badge variant="outline" className="border-white/20 bg-white/5 text-slate-100">
@@ -566,11 +587,11 @@ export default function TransferMarket() {
           </div>
           <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 text-xs text-muted-foreground">
             <div>
-              <span className="font-medium text-foreground">Güç Ortalaması</span>
+              <span className="font-medium text-foreground">Guc Ortalamasi</span>
               <div>{formatOverall(overallValue)}</div>
             </div>
             <div>
-              <span className="font-medium text-foreground">Satıcı</span>
+              <span className="font-medium text-foreground">Satici</span>
               <div>{listing.sellerTeamName}</div>
             </div>
             <div>
@@ -590,10 +611,10 @@ export default function TransferMarket() {
             {purchasingId === listing.id ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                İşlem Yapılıyor
+                Islem Yapiliyor
               </>
             ) : (
-              'Satın Al'
+              'Satin Al'
             )}
           </Button>
         </div>
@@ -603,18 +624,23 @@ export default function TransferMarket() {
 
   const handleAddFunds = async () => {
     if (!user) {
-      toast.error('Giriş yapmalısın.');
+      toast.error('Giris yapmalisin.');
       return;
     }
 
     setIsAddingFunds(true);
     try {
-      const updatedBudget = await adjustTeamBudget(user.id, 10_000);
-      setTeamBudget(updatedBudget);
-      toast.success('Takım bütçene 10.000 ₺ eklendi.');
+      const updatedBudget = await adjustBudget(10_000);
+      if (typeof updatedBudget === 'number') {
+        setTeamBudget(updatedBudget);
+      }
+      await syncFinanceBalanceWithTeam(user.id).catch(err =>
+        console.warn('[TransferMarket] finance sync failed after funds add', err),
+      );
+      toast.success('Takim butcene 10.000 $ eklendi.');
     } catch (error) {
       console.error('[TransferMarket] budget adjust error', error);
-      toast.error('Bütçe güncellenemedi.', {
+      toast.error('Butce guncellenemedi.', {
         description: error instanceof Error ? error.message : undefined,
       });
     } finally {
@@ -624,21 +650,21 @@ export default function TransferMarket() {
 
   const handleCreateListing = async () => {
     if (!user) {
-      toast.error('Giriş yapmalısın.');
+      toast.error('Giris yapmalisin.');
       return;
     }
     const player = availablePlayers.find(p => p.id === selectedPlayerId);
     if (!player) {
-      toast.error('Pazara koymak için bir oyuncu seç.');
+      toast.error('Pazara koymak icin bir oyuncu sec.');
       return;
     }
     if (player.market?.locked || getLegendIdFromPlayer(player) !== null) {
-      toast.error('Bu oyuncu transfer pazarında satılamaz.');
+      toast.error('Bu oyuncu transfer pazarinda satilamaz.');
       return;
     }
     const priceValue = Number(price);
     if (!Number.isFinite(priceValue) || priceValue <= 0) {
-      toast.error('Geçerli bir fiyat gir.');
+      toast.error('Gecerli bir fiyat gir.');
       return;
     }
 
@@ -648,12 +674,12 @@ export default function TransferMarket() {
         player,
         price: priceValue,
       });
-      toast.success(`${player.name} transfer pazarına eklendi.`);
+      toast.success(`${player.name} transfer pazarina eklendi.`);
       setSelectedPlayerId('');
       setPrice('');
       await loadTeam();
     } catch (error) {
-      toast.error('İlan oluşturulamadı.', {
+      toast.error('Ilan olusturulamadi.', {
         description: error instanceof Error ? error.message : undefined,
       });
     } finally {
@@ -663,17 +689,17 @@ export default function TransferMarket() {
 
   const handleCancelListing = async (listingId: string) => {
     if (!user) {
-      toast.error('Giriş yapmalısın.');
+      toast.error('Giris yapmalisin.');
       return;
     }
 
     setCancellingId(listingId);
     try {
       await cancelTransferListing(listingId);
-      toast.success('İlan transfer pazarından kaldırıldı.');
+      toast.success('Ilan transfer pazarindan kaldirildi.');
       await loadTeam();
     } catch (error) {
-      toast.error('İlan kaldırılamadı.', {
+      toast.error('Ilan kaldirilamadi.', {
         description: error instanceof Error ? error.message : undefined,
       });
     } finally {
@@ -683,36 +709,141 @@ export default function TransferMarket() {
 
   const handlePurchase = async (listing: TransferListing) => {
     if (!user) {
-      toast.error('Giriş yapmalısın.');
+      toast.error('Giris yapmalisin.');
       return;
     }
     const sellerUid = listing.sellerUid ?? listing.sellerId;
     if (sellerUid === user.id) {
-      toast.error('Kendi oyuncunu satın alamazsın.');
+      toast.error('Kendi oyuncunu satin alamazsin.');
       return;
     }
 
     if (teamBudget < listing.price) {
-      toast.error('Bütçen yetersiz.', {
-        description: 'Satın alma testleri için sağdaki butondan bütçene 10.000 ₺ ekleyebilirsin.',
+      toast.error('Butcen yetersiz.', {
+        description: 'Satin alma testleri icin sagdaki butondan butcene 10.000 $ ekleyebilirsin.',
       });
       return;
     }
 
+    const player = listing.player;
+    if (!player) {
+      toast.error('Oyuncu bilgisi eksik.');
+      return;
+    }
+    const baseOverall = player.overall ?? listing.overall ?? 0;
+    const overallRating = normalizeRatingTo100(baseOverall);
+
     setExpandedListingId(prev => (prev === listing.id ? null : prev));
+    setPendingListing(listing);
+    setNegotiationContext({
+      playerId: player.id,
+      playerName: player.name,
+      overall: overallRating,
+      position: player.position ?? listing.pos,
+      transferFee: listing.price,
+      source: 'transfer',
+      contextId: listing.id,
+    });
+    setNegotiationOpen(true);
+  };
+
+  const handleNegotiationAccepted = async ({ salary, attempt }: { salary: number; attempt: NegotiationAttempt }) => {
+    if (!user || !pendingListing) {
+      return;
+    }
+    const listing = pendingListing;
+    const contextId = attempt.contextId ?? listing.id;
+    const transferAmount = attempt.transferFee ?? listing.price ?? 0;
     setPurchasingId(listing.id);
     try {
       await purchaseTransferListing(listing.id, user.id);
-      toast.success(`${listing.player.name} takımıza katıldı!`);
-      setTeamBudget(prev => Math.max(0, prev - listing.price));
       await loadTeam();
+      const syncedBalance = await syncFinanceBalanceWithTeam(user.id).catch(err => {
+        console.warn('[TransferMarket] finance balance sync failed', err);
+        return null;
+      });
+      if (typeof syncedBalance === 'number') {
+        setTeamBudget(syncedBalance);
+      }
+      if (transferAmount > 0) {
+        await recordTransferExpense(user.id, {
+          amount: transferAmount,
+          playerName: attempt.playerName,
+          contextId,
+        }).catch(err => console.warn('[TransferMarket] transfer expense log failed', err));
+      }
+      const playerId = listing.player?.id ?? attempt.playerId;
+      if (playerId) {
+        await updatePlayerSalary(user.id, playerId, salary);
+        await syncTeamSalaries(user.id);
+      } else {
+        await syncTeamSalaries(user.id);
+      }
+      await ensureMonthlySalaryCharge(user.id).catch(() => undefined);
+      await finalizeNegotiationAttempt(user.id, attempt.id, { accepted: true, salary });
+      await recordTransferHistory(user.id, {
+        playerId: attempt.playerId,
+        playerName: attempt.playerName,
+        overall: attempt.overall,
+        transferFee: attempt.transferFee,
+        salary,
+        source: 'transfer',
+        attemptId: attempt.id,
+        contextId,
+        accepted: true,
+      });
+      const displayName = listing.player?.name ?? attempt.playerName;
+      toast.success(`${displayName} takimina katildi!`);
     } catch (error) {
-      toast.error('Satın alma başarısız.', {
+      console.error('[TransferMarket] negotiation purchase failed', error);
+      toast.error('Satin alma basarisiz.', {
         description: error instanceof Error ? error.message : undefined,
       });
+      if (user) {
+        await finalizeNegotiationAttempt(user.id, attempt.id, { accepted: false });
+      }
     } finally {
       setPurchasingId('');
+      setNegotiationOpen(false);
+      setPendingListing(null);
+      setNegotiationContext(null);
     }
+  };
+
+  const handleNegotiationRejected = async ({ attempt }: { attempt: NegotiationAttempt }) => {
+    const listing = pendingListing;
+    if (user) {
+      await finalizeNegotiationAttempt(user.id, attempt.id, { accepted: false });
+      const contextId = attempt.contextId ?? listing?.id ?? attempt.playerId;
+      const refundAmount = attempt.transferFee ?? listing?.price ?? 0;
+      const syncedBalance = await syncFinanceBalanceWithTeam(user.id).catch(err => {
+        console.warn('[TransferMarket] finance balance sync failed', err);
+        return null;
+      });
+      if (typeof syncedBalance === 'number') {
+        setTeamBudget(syncedBalance);
+      }
+      if (refundAmount > 0) {
+        await recordTransferRefund(user.id, {
+          amount: refundAmount,
+          playerName: attempt.playerName,
+          contextId,
+        }).catch(err => console.warn('[TransferMarket] transfer refund log failed', err));
+      }
+      await recordTransferHistory(user.id, {
+        playerId: attempt.playerId,
+        playerName: attempt.playerName,
+        overall: attempt.overall,
+        transferFee: attempt.transferFee,
+        source: 'transfer',
+        attemptId: attempt.id,
+        contextId,
+        accepted: false,
+      });
+    }
+    setNegotiationOpen(false);
+    setPendingListing(null);
+    setNegotiationContext(null);
   };
 
   return (
@@ -726,10 +857,10 @@ export default function TransferMarket() {
           <div className="transfer-market-header__main">
             <BackButton />
             <div className="transfer-market-header__title">
-              <h1>Transfer Pazarı</h1>
+              <h1>Transfer Pazari</h1>
               <p>
-                Oyuncularını pazara çıkar, eksik bölgeler için yeni yıldızlar keşfet. Mevkilere, ortalama güce ve fiyata göre
-                filtreleyerek hedeflediğin transferi kolayca bul.
+                Oyuncularini pazara cikar, eksik bolgeler icin yeni yildizlar kesfet. Mevkilere, ortalama guce ve fiyata gore
+                filtreleyerek hedefledigin transferi kolayca bul.
               </p>
             </div>
           </div>
@@ -738,11 +869,11 @@ export default function TransferMarket() {
               <Shield className="h-6 w-6" />
             </div>
             <div className="transfer-market-summary__info">
-              <span>Takım</span>
-              <strong>{teamName || user?.teamName || 'Takımım'}</strong>
+              <span>Takim</span>
+              <strong>{teamName || user?.teamName || 'Takimim'}</strong>
             </div>
             <div className="transfer-market-summary__info">
-              <span>Bütçe</span>
+              <span>Butce</span>
               <strong>{formatPrice(teamBudget)}</strong>
             </div>
           </div>
@@ -765,10 +896,10 @@ export default function TransferMarket() {
                     }
                   >
                     <SelectTrigger className="border-white/20 bg-slate-900/60 text-slate-100">
-                      <SelectValue placeholder="Mevki seç" />
+                      <SelectValue placeholder="Mevki sec" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">Tümü</SelectItem>
+                      <SelectItem value="all">Tumu</SelectItem>
                       {POSITIONS.map(position => (
                         <SelectItem key={position} value={position}>
                           {position}
@@ -783,7 +914,7 @@ export default function TransferMarket() {
                     inputMode="numeric"
                     type="number"
                     min={0}
-                    placeholder="Örn. 500000"
+                    placeholder="Orn. 500000"
                     value={filters.maxPrice}
                     onChange={event =>
                       setFilters(prev => ({ ...prev, maxPrice: event.target.value }))
@@ -792,7 +923,7 @@ export default function TransferMarket() {
                   />
                 </div>
                 <div>
-                  <label className="text-xs font-medium uppercase text-slate-300">Sıralama</label>
+                  <label className="text-xs font-medium uppercase text-slate-300">Siralama</label>
                   <Select
                     value={filters.sortBy}
                     onValueChange={value =>
@@ -800,13 +931,13 @@ export default function TransferMarket() {
                     }
                   >
                     <SelectTrigger className="border-white/20 bg-slate-900/60 text-slate-100">
-                      <SelectValue placeholder="Sırala" />
+                      <SelectValue placeholder="Sirala" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="overall-desc">Güç (Yüksek → Düşük)</SelectItem>
-                      <SelectItem value="overall-asc">Güç (Düşük → Yüksek)</SelectItem>
-                      <SelectItem value="price-asc">Fiyat (Düşük → Yüksek)</SelectItem>
-                      <SelectItem value="price-desc">Fiyat (Yüksek → Düşük)</SelectItem>
+                      <SelectItem value="overall-desc">Guc (Yuksek → Dusuk)</SelectItem>
+                      <SelectItem value="overall-asc">Guc (Dusuk → Yuksek)</SelectItem>
+                      <SelectItem value="price-asc">Fiyat (Dusuk → Yuksek)</SelectItem>
+                      <SelectItem value="price-desc">Fiyat (Yuksek → Dusuk)</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -820,10 +951,10 @@ export default function TransferMarket() {
                       <TableRow>
                         <TableHead>Oyuncu</TableHead>
                         <TableHead>Mevki</TableHead>
-                        <TableHead>Güç Ortalaması</TableHead>
-                        <TableHead>Satıcı</TableHead>
+                        <TableHead>Guc Ortalamasi</TableHead>
+                        <TableHead>Satici</TableHead>
                         <TableHead>Fiyat</TableHead>
-                        <TableHead className="text-right">İşlem</TableHead>
+                        <TableHead className="text-right">Islem</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>{renderDesktopListings()}</TableBody>
@@ -841,7 +972,7 @@ export default function TransferMarket() {
             <div className="transfer-market-budget">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="transfer-market-budget__label">Kalan Bütçe</p>
+                  <p className="transfer-market-budget__label">Kalan Butce</p>
                   <p className="transfer-market-budget__value">{formatPrice(teamBudget)}</p>
                 </div>
                 <Button
@@ -856,23 +987,23 @@ export default function TransferMarket() {
                       Ekleniyor
                     </>
                   ) : (
-                    '+10.000 ₺ Ekle'
+                    '+10.000 $ Ekle'
                   )}
                 </Button>
               </div>
               <p className="mt-4 text-xs text-slate-400">
-                Test amaçlı bütçene hızlıca para eklemek için bu butonu kullanabilirsin. İşlem Firebase üzerinde kaydedilir.
+                Test amacli butcene hizlica para eklemek icin bu butonu kullanabilirsin. Islem Firebase uzerinde kaydedilir.
               </p>
             </div>
 
             <div className="transfer-market-form">
               <h2 className="flex items-center gap-2 text-lg font-semibold text-white">
                 <PlusCircle className="h-5 w-5 text-emerald-300" />
-                Oyuncu İlanı Oluştur
+                Oyuncu Ilani Olustur
               </h2>
               <div className="mt-4 space-y-4">
                 <div>
-                  <label className="text-xs font-medium uppercase text-slate-300">Oyuncu Seç</label>
+                  <label className="text-xs font-medium uppercase text-slate-300">Oyuncu Sec</label>
                   <Select
                     value={selectedPlayerId}
                     onValueChange={value => setSelectedPlayerId(value)}
@@ -882,30 +1013,30 @@ export default function TransferMarket() {
                       <SelectValue
                         placeholder={
                           isLoadingTeam
-                            ? 'Takım yükleniyor...'
+                            ? 'Takim yukleniyor...'
                             : availablePlayers.length === 0
-                              ? 'Pazara koyabileceğin oyuncu kalmadı'
-                              : 'Oyuncu seç'
+                              ? 'Pazara koyabilecegin oyuncu kalmadi'
+                              : 'Oyuncu sec'
                         }
                       />
                     </SelectTrigger>
                     <SelectContent>
                       {availablePlayers.map(player => (
                         <SelectItem key={player.id} value={player.id}>
-                          {player.name} · {player.position} · Overall {formatOverall(player.overall)}
+                          {player.name} - {player.position} - Overall {formatOverall(player.overall)}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
                 <div>
-                  <label className="text-xs font-medium uppercase text-slate-300">Satış Fiyatı (₺)</label>
+                  <label className="text-xs font-medium uppercase text-slate-300">Satis Fiyati ($)</label>
                   <Input
                     type="number"
                     inputMode="numeric"
                     min={1}
                     step="10000"
-                    placeholder="Örn. 250000"
+                    placeholder="Orn. 250000"
                     value={price}
                     onChange={event => setPrice(event.target.value)}
                     disabled={isListing}
@@ -920,30 +1051,30 @@ export default function TransferMarket() {
                   {isListing ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      İlan Oluşturuluyor
+                      Ilan Olusturuluyor
                     </>
                   ) : (
                     'Pazara Ekle'
                   )}
                 </Button>
                 <p className="text-xs text-slate-400">
-                  İlan verdiğin oyuncular satılana kadar kadronda görünmeye devam eder. Satış gerçekleştiğinde oyuncu yeni
-                  takımına otomatik olarak transfer edilir.
+                  Ilan verdigin oyuncular satilana kadar kadronda gorunmeye devam eder. Satis gerceklestiginde oyuncu yeni
+                  takimina otomatik olarak transfer edilir.
                 </p>
               </div>
             </div>
 
             <div className="transfer-market-listings">
-              <h2 className="text-lg font-semibold text-white">Aktif İlanların</h2>
+              <h2 className="text-lg font-semibold text-white">Aktif Ilanlarin</h2>
               <div className="mt-4">
                 {isMyListingsLoading ? (
                   <div className="flex items-center gap-2 text-sm text-slate-300">
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    İlanların yükleniyor...
+                    Ilanlarin yukleniyor...
                   </div>
                 ) : myListings.length === 0 ? (
                   <p className="text-sm text-slate-400">
-                    Şu anda pazarda aktif ilanların bulunmuyor.
+                    Su anda pazarda aktif ilanlarin bulunmuyor.
                   </p>
                 ) : (
                   <ul>
@@ -958,7 +1089,7 @@ export default function TransferMarket() {
                           <div className="flex flex-col">
                             <span>{name}</span>
                             <span className="text-xs text-slate-400">
-                              {position} · Overall {formatOverall(overallValue)}
+                              {position} - Overall {formatOverall(overallValue)}
                             </span>
                           </div>
                           <div className="flex items-center gap-3">
@@ -973,10 +1104,10 @@ export default function TransferMarket() {
                               {cancellingId === listing.id ? (
                                 <>
                                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                  Kaldırılıyor
+                                  Kaldiriliyor
                                 </>
                               ) : (
-                                'Kaldır'
+                                'Kaldir'
                               )}
                             </Button>
                           </div>
@@ -990,6 +1121,18 @@ export default function TransferMarket() {
           </div>
         </div>
       </div>
+      <NegotiationDialog
+        open={negotiationOpen}
+        context={negotiationContext}
+        onClose={() => {
+          setNegotiationOpen(false);
+          setPendingListing(null);
+          setNegotiationContext(null);
+        }}
+        onAccepted={handleNegotiationAccepted}
+        onRejected={handleNegotiationRejected}
+      />
+
     </div>
   );
 }
