@@ -9,6 +9,20 @@ const RARITY_LABELS: Record<LegendPlayer['rarity'], string> = {
   common: 'Klasik',
 };
 
+const POSITION_LABELS: Record<LegendPlayer['position'], string> = {
+  GK: 'Kaleci',
+  CB: 'Defans (Stoper)',
+  LB: 'Defans (Sol Bek)',
+  RB: 'Defans (Sag Bek)',
+  CM: 'Merkez Orta Saha',
+  LM: 'Kanat (Sol)',
+  RM: 'Kanat (Sag)',
+  CAM: 'Ofansif Orta Saha',
+  LW: 'Hucum (Sol Kanat)',
+  RW: 'Hucum (Sag Kanat)',
+  ST: 'Forvet',
+};
+
 interface Props {
   player: LegendPlayer;
   onRent?: (p: LegendPlayer) => void;
@@ -28,6 +42,7 @@ export default function LegendCard({ player, onRent, onRelease }: Props) {
     () => `url("${encodeURI(player.image)}")`,
     [player.image],
   );
+  const positionLabel = POSITION_LABELS[player.position] ?? player.position;
 
   return (
     <div className="legend-card-wrapper">
@@ -42,27 +57,32 @@ export default function LegendCard({ player, onRent, onRelease }: Props) {
             <span className="legend-card-tag">Güç {player.rating}</span>
             <span className={`legend-card-rarity ${player.rarity}`}>{rarityLabel}</span>
           </div>
-          <div className="legend-card-actions">
-            {onRent && (
-              <Button
-                size="sm"
-                variant="ghost"
-                className="legend-card-accept"
-                onClick={() => onRent(player)}
-              >
-                Kabul Et
-              </Button>
-            )}
-            {onRelease && (
-              <Button
-                size="sm"
-                variant="ghost"
-                className="legend-card-release"
-                onClick={() => onRelease(player)}
-              >
-                Serbest Bırak
-              </Button>
-            )}
+          <div className="legend-card-bottom">
+            <span className="legend-card-role">
+              {player.position} - {positionLabel}
+            </span>
+            <div className="legend-card-actions">
+              {onRent && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="legend-card-accept"
+                  onClick={() => onRent(player)}
+                >
+                  Kabul Et
+                </Button>
+              )}
+              {onRelease && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="legend-card-release"
+                  onClick={() => onRelease(player)}
+                >
+                  Serbest Bırak
+                </Button>
+              )}
+            </div>
           </div>
         </div>
       </div>

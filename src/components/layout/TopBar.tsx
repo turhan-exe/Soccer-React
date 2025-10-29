@@ -43,8 +43,18 @@ import { useDiamonds } from '@/contexts/DiamondContext';
 import { useInventory } from '@/contexts/InventoryContext';
 import { getMyLeagueId, getFixturesForTeam } from '@/services/leagues';
 import { getTeam } from '@/services/team';
-import { finalizeExpiredTrainingSession, getUnviewedTrainingCount } from '@/services/training';
-import { getYouthCandidates } from '@/services/youth';
+import {
+  finalizeExpiredTrainingSession,
+  getActiveTraining,
+  getUnviewedTrainingCount,
+  listenActiveTraining,
+} from '@/services/training';
+import {
+  getYouthCandidates,
+  getYouthGenerationAvailability,
+  listenYouthCandidates,
+  listenYouthGenerationAvailability,
+} from '@/services/youth';
 import type { KitType } from '@/types';
 import { KIT_CONFIG, formatKitEffect } from '@/lib/kits';
 import KitUsageDialog from '@/components/kit/KitUsageDialog';
@@ -91,8 +101,11 @@ const TopBar = forwardRef<TopBarHandle, TopBarProps>(
   const [teamOverall, setTeamOverall] = useState<number | null>(null);
   const [teamForm, setTeamForm] = useState<string | null>(null);
   const [hasUnseenTrainingResults, setHasUnseenTrainingResults] = useState(false);
+  const [isTrainingFacilityAvailable, setIsTrainingFacilityAvailable] = useState(false);
   const [hasYouthCandidates, setHasYouthCandidates] = useState(false);
+  const [canGenerateYouthCandidate, setCanGenerateYouthCandidate] = useState(false);
   const [isVisible, setIsVisible] = useState(false);
+  const [isNotificationOpen, setIsNotificationOpen] = useState(false);
   const topBarRef = useRef<HTMLDivElement | null>(null);
   const lastVisibilityChangeRef = useRef<number>(0);
   const focusFrameRef = useRef<number | null>(null);
@@ -295,17 +308,34 @@ const TopBar = forwardRef<TopBarHandle, TopBarProps>(
   useEffect(() => {
     if (!user) {
       setHasUnseenTrainingResults(false);
+      setIsTrainingFacilityAvailable(false);
       setHasYouthCandidates(false);
+      setCanGenerateYouthCandidate(false);
       return;
     }
 
     let cancelled = false;
+    let unsubscribeYouth: (() => void) | null = null;
+    let unsubscribeTraining: (() => void) | null = null;
+    let unsubscribeYouthGeneration: (() => void) | null = null;
 
     const loadNotifications = async () => {
       try {
         await finalizeExpiredTrainingSession(user.id);
       } catch (error) {
         console.warn('[TopBar] antrenman yenileme basarisiz', error);
+      }
+
+      try {
+        const activeSession = await getActiveTraining(user.id);
+        if (!cancelled) {
+          setIsTrainingFacilityAvailable(!activeSession);
+        }
+      } catch (error) {
+        console.warn('[TopBar] antrenman sahasi durumu yuklenemedi', error);
+        if (!cancelled) {
+          setIsTrainingFacilityAvailable(false);
+        }
       }
 
       try {
@@ -331,12 +361,66 @@ const TopBar = forwardRef<TopBarHandle, TopBarProps>(
           setHasYouthCandidates(false);
         }
       }
+
+      try {
+        const ready = await getYouthGenerationAvailability(user.id);
+        if (!cancelled) {
+          setCanGenerateYouthCandidate(ready);
+        }
+      } catch (error) {
+        console.warn('[TopBar] altyapi uretim durumu yuklenemedi', error);
+        if (!cancelled) {
+          setCanGenerateYouthCandidate(false);
+        }
+      }
     };
 
     loadNotifications();
 
+    try {
+      unsubscribeYouth = listenYouthCandidates(user.id, (list) => {
+        if (!cancelled) {
+          setHasYouthCandidates(list.length > 0);
+        }
+      });
+    } catch (error) {
+      console.warn('[TopBar] altyapi bildirim dinleyicisi basarisiz', error);
+      if (!cancelled) {
+        setHasYouthCandidates(false);
+      }
+    }
+
+    try {
+      unsubscribeTraining = listenActiveTraining(user.id, (session) => {
+        if (!cancelled) {
+          setIsTrainingFacilityAvailable(!session);
+        }
+      });
+    } catch (error) {
+      console.warn('[TopBar] antrenman dinleyicisi basarisiz', error);
+      if (!cancelled) {
+        setIsTrainingFacilityAvailable(false);
+      }
+    }
+
+    try {
+      unsubscribeYouthGeneration = listenYouthGenerationAvailability(user.id, (ready) => {
+        if (!cancelled) {
+          setCanGenerateYouthCandidate(ready);
+        }
+      });
+    } catch (error) {
+      console.warn('[TopBar] altyapi uretim dinleyicisi basarisiz', error);
+      if (!cancelled) {
+        setCanGenerateYouthCandidate(false);
+      }
+    }
+
     return () => {
       cancelled = true;
+      unsubscribeYouth?.();
+      unsubscribeTraining?.();
+      unsubscribeYouthGeneration?.();
     };
   }, [user]);
 
@@ -345,13 +429,24 @@ const TopBar = forwardRef<TopBarHandle, TopBarProps>(
       id: string;
       message: string;
       icon: LucideIcon;
+      path: string;
     }[] = [];
+
+    if (isTrainingFacilityAvailable && !hasUnseenTrainingResults) {
+      items.push({
+        id: 'training-ready',
+        message: 'Antrenman sahasi musait. Yeni calisma baslatabilirsin.',
+        icon: Dumbbell,
+        path: '/training',
+      });
+    }
 
     if (hasUnseenTrainingResults) {
       items.push({
         id: 'training',
         message: 'Gormediginiz antrenman sonuclari hazir.',
         icon: Dumbbell,
+        path: '/training',
       });
     }
 
@@ -360,11 +455,27 @@ const TopBar = forwardRef<TopBarHandle, TopBarProps>(
         id: 'youth',
         message: 'Altyapidan takima katilabilecek oyuncular var.',
         icon: UserPlus,
+        path: '/youth',
+      });
+    } else if (canGenerateYouthCandidate) {
+      items.push({
+        id: 'youth-generate',
+        message: 'Altyapi merkezinde yeni oyuncu uretimi icin hazirsin.',
+        icon: UserPlus,
+        path: '/youth',
       });
     }
 
     return items;
-  }, [hasUnseenTrainingResults, hasYouthCandidates]);
+  }, [canGenerateYouthCandidate, hasUnseenTrainingResults, hasYouthCandidates, isTrainingFacilityAvailable]);
+
+  const handleNotificationClick = useCallback(
+    (path: string) => {
+      setIsNotificationOpen(false);
+      navigate(path);
+    },
+    [navigate],
+  );
 
   const handlePurchase = async (type: KitType, method: 'ad' | 'diamonds') => {
     try {
@@ -527,7 +638,7 @@ const TopBar = forwardRef<TopBarHandle, TopBarProps>(
                 </div>
                 <span className="sr-only">VIP magazasi</span>
               </Button>
-              <Popover>
+              <Popover open={isNotificationOpen} onOpenChange={setIsNotificationOpen}>
                 <PopoverTrigger asChild>
                   <Button variant="ghost" size="sm" className="text-slate-200 hover:bg-white/10 hover:text-white">
                     <div className="relative">
@@ -540,11 +651,17 @@ const TopBar = forwardRef<TopBarHandle, TopBarProps>(
                 </PopoverTrigger>
                 <PopoverContent align="end" className="w-64 p-2">
                   {notifications.length > 0 ? (
-                    <ul className="space-y-2">
-                      {notifications.map(({ id, message, icon: Icon }) => (
-                        <li key={id} className="flex items-start gap-2 text-sm">
-                          <Icon className="mt-0.5 h-4 w-4 text-primary" />
-                          <span className="text-muted-foreground">{message}</span>
+                    <ul className="space-y-1.5">
+                      {notifications.map(({ id, message, icon: Icon, path }) => (
+                        <li key={id}>
+                          <button
+                            type="button"
+                            onClick={() => handleNotificationClick(path)}
+                            className="flex w-full items-start gap-2 rounded-md px-2 py-1 text-left text-sm text-muted-foreground transition hover:bg-muted/80 hover:text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                          >
+                            <Icon className="mt-0.5 h-4 w-4 text-primary" />
+                            <span>{message}</span>
+                          </button>
                         </li>
                       ))}
                     </ul>

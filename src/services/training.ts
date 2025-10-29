@@ -12,6 +12,8 @@ import {
   query,
   where,
   writeBatch,
+  onSnapshot,
+  type Unsubscribe,
 } from 'firebase/firestore';
 import { db } from '@/services/firebase';
 import { getTeam, saveTeamPlayers } from '@/services/team';
@@ -53,6 +55,32 @@ const trainingHistoryDoc = (uid: string, id: string) =>
 export async function getActiveTraining(uid: string): Promise<ActiveTrainingSession | null> {
   const snap = await getDoc(trainingDoc(uid));
   return snap.exists() ? (snap.data() as ActiveTrainingSession) : null;
+}
+
+export function listenActiveTraining(
+  uid: string,
+  cb: (session: ActiveTrainingSession | null) => void,
+): Unsubscribe {
+  const ref = trainingDoc(uid);
+  return onSnapshot(
+    ref,
+    snap => {
+      if (!snap.exists()) {
+        cb(null);
+        return;
+      }
+      cb(snap.data() as ActiveTrainingSession);
+    },
+    error => {
+      if (isPermissionError(error)) {
+        console.warn('[training.listenActiveTraining] Permission denied', error);
+        cb(null);
+        return;
+      }
+
+      console.error('[training.listenActiveTraining] Snapshot failed', error);
+    },
+  );
 }
 
 export async function setActiveTraining(uid: string, session: ActiveTrainingSession): Promise<void> {

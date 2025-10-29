@@ -5,6 +5,10 @@ import { useInventory } from '@/contexts/InventoryContext';
 import { Button } from '@/components/ui/button';
 import { BackButton } from '@/components/ui/back-button';
 import InfoPopupButton from '@/components/ui/info-popup-button';
+import {
+  Dialog,
+  DialogContent,
+} from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import LegendCard from './LegendCard';
 import { LEGEND_PLAYERS, type LegendPlayer } from './players';
@@ -32,6 +36,7 @@ const LegendPackPage = () => {
   const { balance, spend } = useDiamonds();
   const { vipNostalgiaFreeAvailable, consumeVipNostalgiaReward } = useInventory();
   const [current, setCurrent] = useState<LegendPlayer | null>(null);
+  const [isDialogOpen, setDialogOpen] = useState(false);
   const [rented, setRented] = useState<RentedLegend[]>([]);
   const [ownedLegendIds, setOwnedLegendIds] = useState<number[]>([]);
   const [isLoadingTeam, setIsLoadingTeam] = useState(false);
@@ -109,6 +114,14 @@ const LegendPackPage = () => {
   }, [legendById, user]);
 
   const ownedLegendSet = useMemo(() => new Set(ownedLegendIds), [ownedLegendIds]);
+
+  useEffect(() => {
+    if (current) {
+      setDialogOpen(true);
+    } else {
+      setDialogOpen(false);
+    }
+  }, [current]);
 
   useEffect(() => {
     if (!user || typeof window === 'undefined') {
@@ -287,32 +300,28 @@ const LegendPackPage = () => {
             {isLoadingTeam ? (
               <p className="text-sm text-slate-300/80">Takım bilgileri yükleniyor...</p>
             ) : current ? (
-              <p className="text-sm text-amber-200">
-                Çektiğin kart seni bekliyor. Kabul etmeden veya serbest bırakmadan yeni paket
-                açamazsın.
-              </p>
+              <div className="flex flex-col gap-2 text-sm text-amber-200">
+                <span>
+                  Çektiğin kart seni bekliyor. Kabul etmeden veya serbest bırakmadan yeni paket
+                  açamazsın.
+                </span>
+                {!isDialogOpen ? (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="w-fit border-amber-300/40 bg-amber-300/10 text-amber-100 hover:bg-amber-300/15"
+                    onClick={() => setDialogOpen(true)}
+                  >
+                    Kartı Göster
+                  </Button>
+                ) : null}
+              </div>
             ) : allCollected ? (
               <p className="text-sm text-emerald-200">Tüm nostalji efsanelerine sahipsin!</p>
             ) : (
               <p className="text-sm text-slate-300/80">
                 Eksik kartlarını tamamlamak için paket açmaya devam et.
               </p>
-            )}
-          </section>
-
-          <section className="legend-pack-card-slot">
-            {current ? (
-              <LegendCard player={current} onRent={handleRent} onRelease={handleRelease} />
-            ) : (
-              <div className="legend-pack-placeholder">
-                <InfoPopupButton
-                  title="Nostalji Paketi"
-                  triggerLabel="Yeni efsane kartı bilgisi"
-                  triggerClassName="h-12 w-12 rounded-2xl border-white/20 bg-transparent text-amber-200 hover:border-amber-300"
-                  contentClassName="bg-slate-950/95"
-                  message="Yeni bir efsane için paketi aç ve kartı kulübüne kat."
-                />
-              </div>
             )}
           </section>
         </main>
@@ -345,6 +354,12 @@ const LegendPackPage = () => {
           )}
         </section>
       </div>
+
+      <Dialog open={Boolean(current) && isDialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent className="legend-pack-dialog">
+          {current ? <LegendCard player={current} onRent={handleRent} onRelease={handleRelease} /> : null}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

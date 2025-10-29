@@ -107,6 +107,53 @@ export function listenYouthCandidates(
   };
 }
 
+export async function getYouthGenerationAvailability(uid: string): Promise<boolean> {
+  const ref = doc(db, 'users', uid);
+  try {
+    const snap = await getDoc(ref);
+    if (!snap.exists()) {
+      return true;
+    }
+    const data = snap.data() as UserDoc | undefined;
+    const nextAt = data?.youth?.nextGenerateAt?.toDate();
+    return !nextAt || nextAt.getTime() <= Date.now();
+  } catch (error) {
+    if (isFirestorePermissionError(error)) {
+      console.warn('[youth.getYouthGenerationAvailability] Permission denied', error);
+      return false;
+    }
+
+    throw error;
+  }
+}
+
+export function listenYouthGenerationAvailability(
+  uid: string,
+  cb: (ready: boolean) => void,
+): Unsubscribe {
+  const ref = doc(db, 'users', uid);
+
+  return onSnapshot(
+    ref,
+    snap => {
+      const data = snap.data() as UserDoc | undefined;
+      const nextAt = data?.youth?.nextGenerateAt?.toDate();
+      const ready = !nextAt || nextAt.getTime() <= Date.now();
+      cb(ready);
+    },
+    error => {
+      if (isFirestorePermissionError(error)) {
+        console.warn('[youth.listenYouthGenerationAvailability] Permission denied', error);
+        cb(false);
+        return;
+      }
+
+      console.error('[youth.listenYouthGenerationAvailability] Snapshot failed', error);
+      cb(false);
+    },
+  );
+}
+
 export async function createYouthCandidate(
   uid: string,
   player: Player,
