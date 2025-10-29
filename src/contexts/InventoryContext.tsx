@@ -11,7 +11,7 @@ import { getTeam, saveTeamPlayers } from '@/services/team';
 export type KitInventory = Record<KitType, number>;
 export type KitPurchaseMethod = 'ad' | 'diamonds';
 
-export type VipPlan = 'weekly' | 'monthly' | 'yearly';
+export type VipPlan = 'monthly' | 'semiAnnual' | 'yearly';
 
 export interface VipPlanConfig {
   label: string;
@@ -22,26 +22,28 @@ export interface VipPlanConfig {
 }
 
 export const VIP_PLAN_CONFIG: Record<VipPlan, VipPlanConfig> = {
-  weekly: {
-    label: 'Haftalik VIP',
-    description: 'Kisa sureli avantajlar icin ideal.',
-    durationDays: 7,
-    diamondCost: 900,
-    perks: [
-      'Gunluk +1 enerji, moral ve saglik kiti',
-      '%5 sure kisalmasi',
-      'Aylik 1 yildiz oyuncu karti',
-    ],
-  },
   monthly: {
     label: 'Aylik VIP',
-    description: 'Daha uzun sureli premium destek.',
+    description: 'Haftalik avantajlari aylik olarak devam ettir.',
     durationDays: 30,
     diamondCost: 2800,
     perks: [
       'Gunluk +1 enerji, moral ve saglik kiti',
       '%5 sure kisalmasi',
       'Her ay 1 yildiz oyuncu karti',
+    ],
+  },
+  semiAnnual: {
+    label: '6 Aylik VIP',
+    description: 'Uzun vadeli premium destek ve ekstra hediyeler.',
+    durationDays: 180,
+    diamondCost: 15000,
+    perks: [
+      'Gunluk +1 enerji, moral ve saglik kiti',
+      '%5 sure kisalmasi',
+      'Her ay 1 yildiz oyuncu karti',
+      'Aninda 2 yildiz oyuncu karti',
+      'Aninda her kitten 5 adet',
     ],
   },
   yearly: {
@@ -52,10 +54,18 @@ export const VIP_PLAN_CONFIG: Record<VipPlan, VipPlanConfig> = {
     perks: [
       'Gunluk +1 enerji, moral ve saglik kiti',
       '%5 sure kisalmasi',
-      'Her ay 1 yildiz oyuncu karti',
+      'Her ay 2 yildiz oyuncu karti',
+      'Aninda 3 yildiz oyuncu karti',
+      'Aninda her kitten 10 adet',
       'Ozel sezon ici kampanyalar',
     ],
   },
+};
+
+const VIP_ACTIVATION_BONUSES: Record<VipPlan, { kitAmount: number; starCards: number; nostalgiaTokens: number }> = {
+  monthly: { kitAmount: 1, starCards: 0, nostalgiaTokens: 1 },
+  semiAnnual: { kitAmount: 5, starCards: 2, nostalgiaTokens: 2 },
+  yearly: { kitAmount: 10, starCards: 3, nostalgiaTokens: 3 },
 };
 
 interface VipState {
@@ -68,6 +78,7 @@ interface VipState {
   plan: VipPlan | null;
   nostalgiaFreeAvailable: boolean;
   nostalgiaFreeClaimedAt: string | null;
+  nostalgiaFreeTokens: number;
 }
 
 interface InventoryStorage {
@@ -166,6 +177,7 @@ const DEFAULT_VIP_STATE: VipState = {
   plan: null,
   nostalgiaFreeAvailable: false,
   nostalgiaFreeClaimedAt: null,
+  nostalgiaFreeTokens: 0,
 };
 
 const createDefaultInventory = (): InventoryStorage => ({
@@ -188,7 +200,14 @@ const getMonthKeyFromIso = (value: string | null): string | null => {
   return formatMonthKey(parsed);
 };
 const isValidVipPlan = (value: unknown): value is VipPlan =>
-  value === 'weekly' || value === 'monthly' || value === 'yearly';
+  value === 'monthly' || value === 'semiAnnual' || value === 'yearly';
+
+const normalizeVipPlan = (value: unknown): VipPlan | null => {
+  if (value === 'weekly') {
+    return 'monthly';
+  }
+  return isValidVipPlan(value) ? value : null;
+};
 
 const computeVipActive = (state: { isActive: boolean; expiresAt: string | null }): boolean => {
   if (!state.isActive) {
@@ -207,7 +226,7 @@ const computeVipActive = (state: { isActive: boolean; expiresAt: string | null }
 const sanitizeVip = (candidate: Partial<VipState> | null | undefined): VipState => {
   const activatedAt = typeof candidate?.activatedAt === 'string' ? candidate?.activatedAt : null;
   const expiresAt = typeof candidate?.expiresAt === 'string' ? candidate.expiresAt : null;
-  const plan = isValidVipPlan(candidate?.plan) ? candidate?.plan : null;
+  const plan = normalizeVipPlan(candidate?.plan);
   const durationReductionPercent =
     typeof candidate?.durationReductionPercent === 'number'
       ? candidate.durationReductionPercent
@@ -225,6 +244,12 @@ const sanitizeVip = (candidate: Partial<VipState> | null | undefined): VipState 
       ? candidate.nostalgiaFreeClaimedAt
       : null;
   const rawFreeAvailable = Boolean(candidate?.nostalgiaFreeAvailable);
+  const nostalgiaFreeTokens =
+    typeof candidate?.nostalgiaFreeTokens === 'number' && Number.isFinite(candidate.nostalgiaFreeTokens)
+      ? Math.max(0, Math.floor(candidate.nostalgiaFreeTokens))
+      : rawFreeAvailable
+        ? 1
+        : DEFAULT_VIP_STATE.nostalgiaFreeTokens;
 
   const base: VipState = {
     isActive: Boolean(candidate?.isActive),
@@ -234,15 +259,16 @@ const sanitizeVip = (candidate: Partial<VipState> | null | undefined): VipState 
     lastMonthlyStarCardDate,
     starCardCredits,
     plan,
-    nostalgiaFreeAvailable: rawFreeAvailable,
+    nostalgiaFreeAvailable: rawFreeAvailable || nostalgiaFreeTokens > 0,
     nostalgiaFreeClaimedAt,
+    nostalgiaFreeTokens,
   };
 
   const isActive = computeVipActive(base);
   return {
     ...base,
     isActive,
-    nostalgiaFreeAvailable: isActive && rawFreeAvailable,
+    nostalgiaFreeAvailable: isActive && nostalgiaFreeTokens > 0,
   };
 };
 
@@ -497,6 +523,7 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       }
 
       const config = VIP_PLAN_CONFIG[plan] ?? VIP_PLAN_CONFIG.monthly;
+      const activationBonus = VIP_ACTIVATION_BONUSES[plan] ?? VIP_ACTIVATION_BONUSES.monthly;
       const durationMs = config.durationDays * 24 * 60 * 60 * 1000;
       setIsProcessing(true);
 
@@ -505,8 +532,9 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
         const now = new Date();
         const activatedIso = now.toISOString();
-        let grantedWelcomeBundle = false;
-        let nostalgiaUnlocked = false;
+        let grantedKitBonus: number | null = null;
+        let grantedStarCards = 0;
+        let nostalgiaUnlocked = 0;
 
         setInventory((prev) => {
           const vipState = sanitizeVip(prev.vip);
@@ -515,28 +543,44 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           const nowTime = now.getTime();
           const baseTime = currentExpiry > nowTime ? currentExpiry : nowTime;
           const nextExpiry = new Date(baseTime + durationMs).toISOString();
-          const shouldGrantFreeNostalgia = !vipState.nostalgiaFreeClaimedAt;
-
           const nextVip: VipState = {
             ...vipState,
             isActive: true,
             plan,
             activatedAt: activatedIso,
             expiresAt: nextExpiry,
-            nostalgiaFreeAvailable: shouldGrantFreeNostalgia,
+            nostalgiaFreeTokens: vipState.nostalgiaFreeTokens ?? 0,
+            nostalgiaFreeAvailable: vipState.nostalgiaFreeAvailable,
+            starCardCredits: vipState.starCardCredits ?? 0,
           };
 
-          const nextKits = wasActive
-            ? prev.kits
-            : {
-                ...prev.kits,
-                energy: (prev.kits.energy ?? 0) + 1,
-                morale: (prev.kits.morale ?? 0) + 1,
-                health: (prev.kits.health ?? 0) + 1,
-              };
+          const nextKits = { ...prev.kits };
 
-          grantedWelcomeBundle = !wasActive;
-          nostalgiaUnlocked = shouldGrantFreeNostalgia;
+          const shouldGrantKits =
+            activationBonus.kitAmount > 0 && (plan !== 'monthly' || !wasActive);
+
+          if (shouldGrantKits) {
+            KIT_TYPES.forEach((type) => {
+              nextKits[type] = (nextKits[type] ?? 0) + activationBonus.kitAmount;
+            });
+            grantedKitBonus = activationBonus.kitAmount;
+          }
+
+          if (activationBonus.starCards > 0 && plan !== 'monthly') {
+            nextVip.starCardCredits = (nextVip.starCardCredits ?? 0) + activationBonus.starCards;
+            grantedStarCards = activationBonus.starCards;
+          }
+
+          const nostalgiaTokensGranted = Math.max(0, activationBonus.nostalgiaTokens ?? 0);
+          if (nostalgiaTokensGranted > 0) {
+            const currentTokens = Math.max(0, nextVip.nostalgiaFreeTokens ?? 0);
+            const updatedTokens = currentTokens + nostalgiaTokensGranted;
+            nextVip.nostalgiaFreeTokens = updatedTokens;
+            nextVip.nostalgiaFreeAvailable = updatedTokens > 0;
+            nostalgiaUnlocked = nostalgiaTokensGranted;
+          } else {
+            nextVip.nostalgiaFreeAvailable = nextVip.nostalgiaFreeTokens > 0;
+          }
 
           return {
             ...prev,
@@ -548,16 +592,25 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         toast.success(`${config.label} aktif edildi.`, {
           description: `VIP avantajlarin ${config.durationDays} gun boyunca acik.`,
         });
-        if (grantedWelcomeBundle) {
+        if (grantedKitBonus) {
           showKitRewardToast({
-            title: 'VIP hosgeldin bonusu',
-            subtitle: 'Enerji, moral ve saglik kitlerinden birer adet kazandin.',
-            kits: KIT_TYPES.map((type) => ({ type, amount: 1 })),
+            title: 'VIP bonus hediyesi',
+            subtitle: `Enerji, moral ve saglik kitlerinden ${grantedKitBonus} adet kazandin.`,
+            kits: KIT_TYPES.map((type) => ({ type, amount: grantedKitBonus ?? 0 })),
           });
         }
-        if (nostalgiaUnlocked) {
+        if (grantedStarCards > 0) {
+          toast.success('VIP yildiz oyuncu bonusu', {
+            description: `${grantedStarCards} yildiz oyuncu karti hesabina eklendi.`,
+          });
+        }
+        if (nostalgiaUnlocked > 0) {
+          const description =
+            nostalgiaUnlocked === 1
+              ? 'Nostalji paketini bir kez ucretsiz acabilirsin.'
+              : `Nostalji paketlerini ${nostalgiaUnlocked} kez ucretsiz acabilirsin.`;
           toast.success('VIP nostalji hediyesi', {
-            description: 'Nostalji paketini bir kere ucretsiz acabilirsin.',
+            description,
           });
         }
         processDailyReward();
@@ -612,6 +665,7 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }
 
     let outcome: 'success' | 'notVip' | 'already' = 'already';
+    let grantedAmount = 1;
 
     setInventory((prev) => {
       const vipState = sanitizeVip(prev.vip);
@@ -626,18 +680,25 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         return prev;
       }
       outcome = 'success';
+      const claimAmount = vipState.plan === 'yearly' ? 2 : 1;
+      grantedAmount = claimAmount;
       return {
         ...prev,
         vip: {
           ...vipState,
           lastMonthlyStarCardDate: new Date().toISOString(),
-          starCardCredits: (vipState.starCardCredits ?? 0) + 1,
+          starCardCredits: (vipState.starCardCredits ?? 0) + claimAmount,
         },
       };
     });
 
     if (outcome === 'success') {
-      toast.success('VIP yildiz oyuncu karti hesabina eklendi.');
+      const claimAmount = grantedAmount;
+      const message =
+        claimAmount === 1
+          ? 'VIP yildiz oyuncu karti hesabina eklendi.'
+          : `${claimAmount} VIP yildiz oyuncu karti hesabina eklendi.`;
+      toast.success(message);
     } else if (outcome === 'notVip') {
       toast.error('Bu ozellik sadece VIP uyeler icin.');
     } else {
@@ -651,11 +712,17 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       if (!vipState.nostalgiaFreeAvailable) {
         return prev;
       }
+      const currentTokens = Math.max(0, vipState.nostalgiaFreeTokens ?? 0);
+      if (currentTokens <= 0) {
+        return prev;
+      }
+      const nextTokens = currentTokens - 1;
       return {
         ...prev,
         vip: {
           ...vipState,
-          nostalgiaFreeAvailable: false,
+          nostalgiaFreeTokens: nextTokens,
+          nostalgiaFreeAvailable: nextTokens > 0,
           nostalgiaFreeClaimedAt: new Date().toISOString(),
         },
       };

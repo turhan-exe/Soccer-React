@@ -60,7 +60,7 @@ const VipStorePage: React.FC = () => {
             <div>
               <h1 className="text-3xl font-bold text-white">VIP Paketleri</h1>
               <p className="mt-1 text-sm text-slate-300">
-                Haftalik, aylik veya yillik paketlerden birini secerek kulubune premium avantajlar ekle.
+                Aylik, 6 aylik veya yillik paketlerden birini secerek kulubune premium avantajlar ekle.
               </p>
             </div>
           </div>
@@ -104,7 +104,8 @@ const VipStorePage: React.FC = () => {
               <ul className="mt-2 list-disc space-y-1 pl-5 text-sm">
                 <li>Gunluk +1 enerji, moral ve saglik kiti</li>
                 <li>%5 antrenman ve sure kisalmasi</li>
-                <li>Her ay 1 yildiz oyuncu karti</li>
+                <li>Her ay en az 1 yildiz oyuncu karti (yillik pakette 2 adet)</li>
+                <li>Planina gore ekstra kit ve oyuncu bonuslari</li>
               </ul>
             </div>
           </CardContent>
