@@ -1,7 +1,9 @@
 .legend-pack-page {
   position: relative;
   min-height: 100vh;
-  overflow: hidden;
+  min-height: 100dvh;
+  overflow-x: hidden;
+  overflow-y: auto;
   background: radial-gradient(circle at top left, #1e1b4b 0%, #0f172a 45%, #020617 100%);
   color: #e2e8f0;
 }
@@ -124,8 +126,8 @@
 
 @media (min-width: 1024px) {
   .legend-pack-main {
-    grid-template-columns: minmax(0, 360px) minmax(0, 1fr);
-    align-items: start;
+    max-width: 540px;
+    margin: 0 auto;
   }
 }
 
@@ -298,4 +300,50 @@
   font-size: 0.9rem;
   font-weight: 500;
   color: rgba(148, 163, 184, 0.85);
+}
+
+.legend-pack-dialog {
+  --legend-dialog-pad: clamp(0.9rem, 3vw, 1.35rem);
+  width: auto;
+  max-width: none;
+  border-radius: 30px;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  background: rgba(2, 6, 23, 0.95);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--legend-dialog-pad);
+  gap: 0;
+  color: #e2e8f0;
+  box-shadow: 0 32px 80px rgba(2, 6, 23, 0.6);
+  backdrop-filter: blur(22px);
+  overflow: visible;
+}
+
+@supports (padding: max(0px)) {
+  .legend-pack-dialog {
+    padding-top: max(var(--legend-dialog-pad), env(safe-area-inset-top) + 0.9rem);
+    padding-bottom: max(var(--legend-dialog-pad), env(safe-area-inset-bottom) + 0.9rem);
+    padding-left: max(var(--legend-dialog-pad), env(safe-area-inset-left) + 0.9rem);
+    padding-right: max(var(--legend-dialog-pad), env(safe-area-inset-right) + 0.9rem);
+  }
+}
+
+.legend-pack-dialog__header {
+  width: 100%;
+  align-items: center;
+  text-align: center;
+  gap: 0.75rem;
+}
+
+.legend-pack-dialog__description {
+  color: rgba(226, 232, 240, 0.78);
+  width: 100%;
+}
+
+.legend-pack-dialog .legend-card-wrapper {
+  width: min(300px, 78vw);
+  max-width: min(312px, 82vw);
+  margin: 0 auto;
 }
