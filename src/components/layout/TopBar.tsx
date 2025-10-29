@@ -70,6 +70,7 @@ const KIT_ICONS: Record<KitType, { icon: LucideIcon; color: string }> = {
 };
 
 const VISIBILITY_COOLDOWN_MS = 300;
+const KIT_ROTATION_INTERVAL_MS = 2000;
 
 export interface TopBarHandle {
   isTopBarVisible: boolean;
@@ -96,6 +97,7 @@ const TopBar = forwardRef<TopBarHandle, TopBarProps>(
   const { theme, toggleTheme } = useTheme();
   const { balance } = useDiamonds();
   const { kits, purchaseKit, isProcessing, vipActive, vipStatus } = useInventory();
+  const kitTypes = useMemo(() => Object.keys(KIT_ICONS) as KitType[], []);
   const [activeKit, setActiveKit] = useState<KitType | null>(null);
   const [isUsageOpen, setIsUsageOpen] = useState(false);
   const [teamOverall, setTeamOverall] = useState<number | null>(null);
@@ -106,6 +108,8 @@ const TopBar = forwardRef<TopBarHandle, TopBarProps>(
   const [canGenerateYouthCandidate, setCanGenerateYouthCandidate] = useState(false);
   const [isVisible, setIsVisible] = useState(false);
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
+  const [currentKitIndex, setCurrentKitIndex] = useState(0);
+  const [isKitMenuOpen, setIsKitMenuOpen] = useState(false);
   const topBarRef = useRef<HTMLDivElement | null>(null);
   const lastVisibilityChangeRef = useRef<number>(0);
   const focusFrameRef = useRef<number | null>(null);
@@ -117,6 +121,8 @@ const TopBar = forwardRef<TopBarHandle, TopBarProps>(
   const vipTooltip = vipActive
     ? `VIP aktif${vipPlanName ? ` (${vipPlanName})` : ''}`
     : 'VIP paketlerini kesfet';
+  const kitCount = kitTypes.length;
+  const currentKitType = kitTypes[currentKitIndex] ?? null;
 
   const setVisibility = useCallback(
     (value: boolean, { force = false }: { force?: boolean } = {}) => {
@@ -179,6 +185,30 @@ const TopBar = forwardRef<TopBarHandle, TopBarProps>(
       }
     };
   }, []);
+
+  useEffect(() => {
+    if (!isVisible || isKitMenuOpen || kitCount <= 1) {
+      return;
+    }
+
+    const rotationInterval = window.setInterval(() => {
+      setCurrentKitIndex((previous) => (previous + 1) % kitCount);
+    }, KIT_ROTATION_INTERVAL_MS);
+
+    return () => {
+      window.clearInterval(rotationInterval);
+    };
+  }, [isVisible, isKitMenuOpen, kitCount]);
+
+  useEffect(() => {
+    if (kitCount === 0) {
+      return;
+    }
+
+    if (currentKitIndex >= kitCount) {
+      setCurrentKitIndex(0);
+    }
+  }, [currentKitIndex, kitCount]);
 
   useEffect(() => {
     if (focusFrameRef.current !== null) {
@@ -560,52 +590,69 @@ const TopBar = forwardRef<TopBarHandle, TopBarProps>(
           </div>
 
           <div className="nostalgia-topbar__kits" aria-label="Takim kitleri">
-            {(Object.keys(KIT_ICONS) as KitType[]).map((type) => {
-              const { icon: Icon, color } = KIT_ICONS[type];
-              const count = kits[type] ?? 0;
-              const config = KIT_CONFIG[type];
-              const effectText = formatKitEffect(type);
+            <div className="nostalgia-topbar__kits-viewport" aria-live="polite">
+              {kitTypes.map((type, index) => {
+                const isActiveKit = type === currentKitType;
+                const { icon: Icon, color } = KIT_ICONS[type];
+                const count = kits[type] ?? 0;
+                const config = KIT_CONFIG[type];
+                const effectText = formatKitEffect(type);
 
-              return (
-                <DropdownMenu key={type}>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="flex items-center gap-2 whitespace-nowrap text-slate-200 hover:bg-white/10 hover:text-white"
+                return (
+                  <div
+                    key={type}
+                    className={`nostalgia-topbar__kit${isActiveKit ? ' nostalgia-topbar__kit--active' : ''}`}
+                    aria-hidden={!isActiveKit}
+                  >
+                    <DropdownMenu
+                      open={isActiveKit ? isKitMenuOpen : false}
+                      onOpenChange={(open) => {
+                        if (open) {
+                          setCurrentKitIndex(index);
+                        }
+                        setIsKitMenuOpen(open);
+                      }}
                     >
-                      <Icon className={`h-4 w-4 ${color}`} />
-                      <span className="text-sm font-medium">{config.label}</span>
-                      <Badge
-                        variant={count > 0 ? 'secondary' : 'outline'}
-                        className="border border-white/20 bg-white/10 px-1.5 py-0 text-[11px] text-slate-100"
-                      >
-                        {count}
-                      </Badge>
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="start" className="w-64">
-                    <DropdownMenuLabel>{config.label}</DropdownMenuLabel>
-                    <p className="px-2 text-xs text-muted-foreground">{config.description}</p>
-                    {effectText && (
-                      <p className="px-2 pb-2 text-xs font-medium text-emerald-600 dark:text-emerald-400">
-                        {effectText}
-                      </p>
-                    )}
-                    <DropdownMenuItem disabled={isProcessing} onClick={() => handlePurchase(type, 'ad')}>
-                      Reklam izle (+{config.adReward})
-                    </DropdownMenuItem>
-                    <DropdownMenuItem disabled={isProcessing} onClick={() => handlePurchase(type, 'diamonds')}>
-                      {config.diamondCost} Elmas ile Satin Al
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem disabled={count === 0 || isProcessing} onClick={() => handleUse(type)}>
-                      {count === 0 ? 'Stok Yok' : 'Kiti Kullan'}
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              );
-            })}
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="flex items-center gap-2 whitespace-nowrap text-slate-200 hover:bg-white/10 hover:text-white"
+                        >
+                          <Icon className={`h-4 w-4 ${color}`} />
+                          <span className="text-sm font-medium">{config.label}</span>
+                          <Badge
+                            variant={count > 0 ? 'secondary' : 'outline'}
+                            className="border border-white/20 bg-white/10 px-1.5 py-0 text-[11px] text-slate-100"
+                          >
+                            {count}
+                          </Badge>
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="start" className="w-64">
+                        <DropdownMenuLabel>{config.label}</DropdownMenuLabel>
+                        <p className="px-2 text-xs text-muted-foreground">{config.description}</p>
+                        {effectText && (
+                          <p className="px-2 pb-2 text-xs font-medium text-emerald-600 dark:text-emerald-400">
+                            {effectText}
+                          </p>
+                        )}
+                        <DropdownMenuItem disabled={isProcessing} onClick={() => handlePurchase(type, 'ad')}>
+                          Reklam izle (+{config.adReward})
+                        </DropdownMenuItem>
+                        <DropdownMenuItem disabled={isProcessing} onClick={() => handlePurchase(type, 'diamonds')}>
+                          {config.diamondCost} Elmas ile Satin Al
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem disabled={count === 0 || isProcessing} onClick={() => handleUse(type)}>
+                          {count === 0 ? 'Stok Yok' : 'Kiti Kullan'}
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                );
+              })}
+            </div>
           </div>
 
           <div className="nostalgia-topbar__controls">
