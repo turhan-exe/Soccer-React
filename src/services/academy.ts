@@ -19,6 +19,7 @@ import { generateMockCandidate, CandidatePlayer } from '@/features/academy/gener
 import { addPlayerToTeam, updatePlayerSalary } from './team';
 import type { Player } from '@/types';
 import { calculateOverall, getRoles } from '@/lib/player';
+import { addGameYears } from '@/lib/gameTime';
 import { getSalaryForOverall } from './finance';
 
 export const ACADEMY_COOLDOWN_MS = 2 * 60 * 60 * 1000; // 2 saat
@@ -168,6 +169,7 @@ function candidateToPlayer(id: string, c: CandidatePlayer, salaryOverride?: numb
     potential: c.potential,
     attributes,
     age: c.age,
+    ageUpdatedAt: new Date().toISOString(),
     height: 180,
     weight: 75,
     squadRole: 'reserve',
@@ -177,7 +179,7 @@ function candidateToPlayer(id: string, c: CandidatePlayer, salaryOverride?: numb
     contract: {
       status: 'active',
       salary,
-      expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
+      expiresAt: addGameYears(new Date(), 1).toISOString(),
       extensions: 0,
     },
   };

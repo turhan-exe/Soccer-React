@@ -23,6 +23,7 @@ import {
 } from '@/components/ui/select';
 import { formations } from '@/lib/formations';
 import { calculatePowerIndex, formatRatingLabel, normalizeRatingTo100 } from '@/lib/player';
+import { formatContractCountdown } from '@/lib/contracts';
 import { cn } from '@/lib/utils';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { BackButton } from '@/components/ui/back-button';
@@ -511,6 +512,7 @@ function TeamPlanningContent() {
   const handledContractsRef = useRef<Set<string>>(new Set());
   const rightPaneScrollRef = useRef<HTMLDivElement | null>(null);
   const [isRightHeaderCollapsed, setIsRightHeaderCollapsed] = useState(false);
+  const teamLeagueIdRef = useRef<string | null>(null);
 
   const {
     selectedMetric,
@@ -1301,6 +1303,11 @@ function TeamPlanningContent() {
         });
       }
 
+      teamLeagueIdRef.current =
+        typeof (team as { leagueId?: string | null } | null)?.leagueId === 'string'
+          ? (team as { leagueId?: string | null }).leagueId
+          : null;
+
       const normalized = normalizePlayers(team.players);
       setPlayers(normalized);
 
@@ -1959,6 +1966,7 @@ function TeamPlanningContent() {
                         <PlayerCard
                           key={player.id}
                           player={player}
+                          leagueId={teamLeagueIdRef.current}
                           compact
                           defaultCollapsed
                           draggable
@@ -1993,6 +2001,7 @@ function TeamPlanningContent() {
                         <PlayerCard
                           key={player.id}
                           player={player}
+                          leagueId={teamLeagueIdRef.current}
                           compact
                           defaultCollapsed
                           draggable
@@ -2027,6 +2036,7 @@ function TeamPlanningContent() {
                         <PlayerCard
                           key={player.id}
                           player={player}
+                          leagueId={teamLeagueIdRef.current}
                           compact
                           defaultCollapsed
                           draggable
@@ -2119,7 +2129,7 @@ function TeamPlanningContent() {
           {activeContractPlayer ? (
             <div className="space-y-3">
               <div className="rounded-md border border-muted bg-muted/40 p-3 text-sm">
-                <p>Bitiş Tarihi: {getContractExpiration(activeContractPlayer)?.toLocaleDateString('tr-TR') ?? '-'}</p>
+                <p>{formatContractCountdown(getContractExpiration(activeContractPlayer), teamLeagueIdRef.current)}</p>
                 <p>Mevcut Rol: {activeContractPlayer.squadRole}</p>
               </div>
               <p className="text-sm text-muted-foreground">
@@ -2161,3 +2171,4 @@ export default function TeamPlanning() {
     </TeamPlanningProvider>
   );
 }
+

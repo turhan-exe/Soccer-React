@@ -42,6 +42,7 @@ export interface Player {
     ballControl: number;
   };
   age: number;
+  ageUpdatedAt?: string | null;
   height: number;
   weight: number;
   condition: number;
@@ -88,6 +89,7 @@ export interface ClubTeam {
   kitHome: string;
   kitAway: string;
   logo?: string | null;
+  leagueId?: string | null;
   /** @deprecated use transferBudget */
   budget?: number;
   transferBudget?: number;

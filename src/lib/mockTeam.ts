@@ -48,6 +48,7 @@ function makePlayer(id: number, forced?: Position): Player {
     potential: Math.min(1, overall + Math.random() * (1 - overall)),
     attributes,
     age: 18 + Math.floor(Math.random() * 15),
+    ageUpdatedAt: new Date().toISOString(),
     height: 170 + Math.floor(Math.random() * 20),
     weight: 65 + Math.floor(Math.random() * 20),
     squadRole: 'reserve',

@@ -16,6 +16,7 @@ import {
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { calculatePowerIndex, formatRatingLabel } from '@/lib/player';
 import { cn } from '@/lib/utils';
+import { formatContractCountdown } from '@/lib/contracts';
 
 interface PlayerCardProps {
   player: Player;
@@ -34,6 +35,7 @@ interface PlayerCardProps {
   draggable?: boolean;
   onDragStart?: (e: React.DragEvent<HTMLDivElement>) => void;
   onDragEnd?: (e: React.DragEvent<HTMLDivElement>) => void;
+  leagueId?: string | null;
 }
 
 const POSITION_COLOR: Record<string, string> = {
@@ -67,6 +69,7 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({
   draggable = false,
   onDragStart,
   onDragEnd,
+  leagueId = null,
 }) => {
   const [collapsed, setCollapsed] = useState(defaultCollapsed);
   const cardRef = useRef<HTMLDivElement | null>(null);
@@ -135,9 +138,7 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({
   const contractLabel =
     contractStatus === 'released'
       ? 'Serbest'
-      : contractExpiresAt
-        ? `Söz.: ${contractExpiresAt.toLocaleDateString('tr-TR')}`
-        : 'Söz.: -';
+      : formatContractCountdown(contractExpiresAt, leagueId);
   const power = useMemo(
     () =>
       calculatePowerIndex({
@@ -311,3 +312,4 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({
     </Card>
   );
 };
+

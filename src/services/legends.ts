@@ -33,6 +33,7 @@ function legendToPlayer(id: string, legend: LegendPlayer): Player {
     potential: rating,
     attributes,
     age: 35,
+    ageUpdatedAt: new Date().toISOString(),
     height: 180,
     weight: 75,
     squadRole: 'reserve',
