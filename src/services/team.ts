@@ -6,6 +6,7 @@ import { auth, db, functions } from '@/services/firebase';
 import { Player, ClubTeam, CustomFormationMap } from '@/types';
 import { generateRandomName } from '@/lib/names';
 import { calculateOverall, getRoles } from '@/lib/player';
+import { addGameYears, applyGameAgingToPlayers } from '@/lib/gameTime';
 import { formations } from '@/lib/formations';
 
 const positions: Player['position'][] = ['GK','CB','LB','RB','CM','LM','RM','CAM','LW','RW','ST'];
@@ -14,12 +15,10 @@ const CONTRACT_MIN_YEARS = 2;
 const CONTRACT_MAX_YEARS = 4;
 
 const createInitialContract = (): NonNullable<Player['contract']> => {
-  const current = new Date();
   const years = Math.floor(Math.random() * (CONTRACT_MAX_YEARS - CONTRACT_MIN_YEARS + 1)) + CONTRACT_MIN_YEARS;
-  const base = new Date(current);
-  base.setFullYear(base.getFullYear() + years);
+  const expiresAt = addGameYears(new Date(), years).toISOString();
   return {
-    expiresAt: base.toISOString(),
+    expiresAt,
     status: 'active',
     salary: Math.floor(1500 + Math.random() * 3500),
     extensions: 0,
@@ -78,6 +77,7 @@ const generatePlayer = (
     potential,
     attributes,
     age: Math.floor(Math.random() * 17) + 18,
+    ageUpdatedAt: new Date().toISOString(),
     height: 180,
     weight: 75,
     squadRole: 'reserve',
@@ -187,8 +187,40 @@ export const createInitialTeam = async (
 };
 
 export const getTeam = async (userId: string): Promise<ClubTeam | null> => {
-  const snap = await getDoc(doc(db, 'teams', userId));
-  return snap.exists() ? (snap.data() as ClubTeam) : null;
+  const ref = doc(db, 'teams', userId);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) {
+    return null;
+  }
+
+  const team = snap.data() as ClubTeam | null;
+  if (!team) {
+    return null;
+  }
+
+  const leagueId =
+    typeof (team as { leagueId?: string | null } | null)?.leagueId === 'string'
+      ? (team as { leagueId?: string | null }).leagueId
+      : null;
+
+  const { players: agedPlayers, changed } = applyGameAgingToPlayers(
+    team.players ?? [],
+    new Date(),
+    { leagueId },
+  );
+
+  if (changed) {
+    try {
+      await saveTeamPlayers(userId, agedPlayers);
+    } catch (error) {
+      console.warn('[team.getTeam] failed to persist calendar aging', error);
+    }
+  }
+
+  return {
+    ...team,
+    players: agedPlayers,
+  };
 };
 
 export const updateTeamName = async (userId: string, teamName: string) => {
@@ -421,7 +453,7 @@ export const updatePlayerSalary = async (userId: string, playerId: string, salar
     const contract = {
       status: player.contract?.status ?? 'active',
       salary,
-      expiresAt: player.contract?.expiresAt ?? new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
+      expiresAt: player.contract?.expiresAt ?? addGameYears(new Date(), 1).toISOString(),
       extensions: player.contract?.extensions ?? 0,
     };
     const nextPlayers = [...players];
