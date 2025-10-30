@@ -271,10 +271,15 @@ type PromoteToStartingResult = {
   targetPosition?: Player['position'];
 };
 
+type PromotePlayerOptions = {
+  targetPlayerId?: string | null;
+};
+
 function promotePlayerToStartingRoster(
   roster: Player[],
   playerId: string,
   targetPosition?: Player['position'],
+  options: PromotePlayerOptions = {},
 ): PromoteToStartingResult {
   const playerIndex = roster.findIndex(player => player.id === playerId);
   if (playerIndex === -1) {
@@ -283,24 +288,42 @@ function promotePlayerToStartingRoster(
 
   const player = roster[playerIndex];
   const currentRole = player.squadRole;
-  const desiredPosition = targetPosition ?? player.position;
-  const canonicalTarget = canonicalPosition(desiredPosition);
+  const targetPlayerId = options.targetPlayerId && options.targetPlayerId !== playerId
+    ? options.targetPlayerId
+    : null;
+
+  let occupantIndex = -1;
+  if (targetPlayerId) {
+    occupantIndex = roster.findIndex(
+      candidate =>
+        candidate.id === targetPlayerId && candidate.squadRole === 'starting',
+    );
+  }
+
+  if (occupantIndex === -1) {
+    occupantIndex = roster.findIndex(
+      candidate =>
+        candidate.id !== playerId &&
+        candidate.squadRole === 'starting' &&
+        canonicalPosition(candidate.position) === canonicalPosition(targetPosition ?? player.position),
+    );
+  }
+
+  const occupant = occupantIndex !== -1 ? roster[occupantIndex] : null;
+  const resolvedTargetPosition =
+    targetPosition ?? (occupant ? occupant.position : player.position);
+  const canonicalTarget = canonicalPosition(resolvedTargetPosition);
   const isAlreadyStartingSameSpot =
     currentRole === 'starting' &&
     canonicalPosition(player.position) === canonicalTarget &&
-    (!targetPosition || player.position === targetPosition);
+    (!targetPosition || player.position === resolvedTargetPosition) &&
+    (!occupant || occupant.id === player.id);
 
   if (isAlreadyStartingSameSpot) {
     return { players: roster, updated: false, targetPosition: canonicalTarget };
   }
 
   const startersCount = roster.filter(p => p.squadRole === 'starting').length;
-  const occupantIndex = roster.findIndex(
-    candidate =>
-      candidate.id !== playerId &&
-      candidate.squadRole === 'starting' &&
-      canonicalPosition(candidate.position) === canonicalTarget,
-  );
 
   if (currentRole !== 'starting' && startersCount >= 11 && occupantIndex === -1) {
     return {
@@ -312,18 +335,27 @@ function promotePlayerToStartingRoster(
 
   const updatedRoster = [...roster];
   let swappedPlayerId: string | null = null;
+  const previousPosition = player.position;
   updatedRoster[playerIndex] = {
     ...player,
-    position: desiredPosition,
+    position: resolvedTargetPosition,
     squadRole: 'starting',
   };
 
-  if (occupantIndex !== -1 && currentRole !== 'starting') {
-    swappedPlayerId = roster[occupantIndex].id;
-    updatedRoster[occupantIndex] = {
-      ...roster[occupantIndex],
-      squadRole: currentRole,
-    };
+  if (occupantIndex !== -1 && occupant) {
+    swappedPlayerId = occupant.id;
+    if (currentRole === 'starting') {
+      updatedRoster[occupantIndex] = {
+        ...occupant,
+        position: previousPosition,
+        squadRole: 'starting',
+      };
+    } else {
+      updatedRoster[occupantIndex] = {
+        ...occupant,
+        squadRole: currentRole,
+      };
+    }
   }
 
   return {
@@ -1646,38 +1678,161 @@ function TeamPlanningContent() {
     e.stopPropagation();
     const playerId = e.dataTransfer.getData('text/plain') || draggedPlayerId;
     if (!playerId) return;
-    let errorMessage: string | null = null;
-    let updated = false;
-    let result: PromoteToStartingResult | null = null;
-    setPlayers(prev => {
-      const promotion = promotePlayerToStartingRoster(prev, playerId, slot.position);
-      result = promotion;
-      if (promotion.error) {
-        errorMessage = promotion.error;
-        return prev;
-      }
-      if (!promotion.updated) {
-        return prev;
-      }
-      updated = true;
-      return promotion.players;
-    });
 
-    if (errorMessage) {
-      toast.error('Pozisyon gncellenemedi', { description: errorMessage });
-    } else if (updated) {
+    const draggedPlayer = players.find(p => p.id === playerId);
+    if (!draggedPlayer) {
+      setDraggedPlayerId(null);
+      return;
+    }
+
+    const targetPlayer = slot.player ?? null;
+    if (targetPlayer && targetPlayer.id === draggedPlayer.id) {
       dropHandledRef.current = true;
       updatePlayerManualPosition(selectedFormation, playerId, {
         x: slot.x,
         y: slot.y,
         position: slot.position,
       });
-      if (result?.swappedPlayerId) {
-        removePlayerFromCustomFormations(result.swappedPlayerId);
-      }
       setFocusedPlayerId(playerId);
-      toast.success('Oyuncu ilk 11\'e tand');
+      setDraggedPlayerId(null);
+      return;
     }
+
+    const previousRole = draggedPlayer.squadRole;
+    if (!targetPlayer && previousRole !== 'starting') {
+      const startingCount = players.filter(player => player.squadRole === 'starting').length;
+      if (startingCount >= 11) {
+        toast.error('Pozisyon gncellenemedi', {
+          description: 'lk 11 dolu. Ayn mevkideki bir oyuncuyu karmadan yeni oyuncu ekleyemezsin.',
+        });
+        setDraggedPlayerId(null);
+        return;
+      }
+    }
+
+    const originSlot =
+      formationPositions.find(entry => entry.player?.id === draggedPlayer.id) ?? null;
+
+    let errorMessage: string | null = null;
+    let updated = false;
+
+    setPlayers(prev => {
+      const draggedState = prev.find(player => player.id === playerId);
+      if (!draggedState) {
+        errorMessage = 'Oyuncu bulunamad.';
+        return prev;
+      }
+
+      const targetState = targetPlayer
+        ? prev.find(player => player.id === targetPlayer.id) ?? null
+        : null;
+
+      if (targetPlayer && !targetState) {
+        errorMessage = 'Hedef oyuncu bulunamad.';
+        return prev;
+      }
+
+      if (!targetState && draggedState.squadRole !== 'starting') {
+        const starters = prev.filter(player => player.squadRole === 'starting').length;
+        if (starters >= 11) {
+          errorMessage = 'lk 11 dolu. Ayn mevkideki bir oyuncuyu karmadan yeni oyuncu ekleyemezsin.';
+          return prev;
+        }
+      }
+
+      const next: Player[] = [];
+
+      prev.forEach(current => {
+        if (current.id === draggedState.id) {
+          if (targetState) {
+            if (draggedState.squadRole === 'starting') {
+              const updatedTarget: Player = {
+                ...targetState,
+                squadRole: 'starting',
+                position: originSlot?.position ?? draggedState.position,
+              };
+              next.push(updatedTarget);
+            } else {
+              const updatedTarget: Player = {
+                ...targetState,
+                squadRole: draggedState.squadRole,
+              };
+              next.push(updatedTarget);
+            }
+          } else {
+            const updatedDragged: Player = {
+              ...current,
+              squadRole: 'starting',
+              position: slot.position,
+            };
+            next.push(updatedDragged);
+          }
+          updated = true;
+          return;
+        }
+
+        if (targetState && current.id === targetState.id) {
+          const updatedDragged: Player = {
+            ...draggedState,
+            squadRole: 'starting',
+            position: slot.position,
+          };
+          next.push(updatedDragged);
+          return;
+        }
+
+        next.push(current);
+      });
+
+      if (!updated) {
+        errorMessage = 'Pozisyon gncellenemedi.';
+        return prev;
+      }
+
+      return normalizePlayers(next);
+    });
+
+    if (errorMessage) {
+      toast.error('Pozisyon gncellenemedi', { description: errorMessage });
+      setDraggedPlayerId(null);
+      return;
+    }
+
+    if (updated) {
+      dropHandledRef.current = true;
+      updatePlayerManualPosition(selectedFormation, playerId, {
+        x: slot.x,
+        y: slot.y,
+        position: slot.position,
+      });
+
+      if (targetPlayer) {
+        if (previousRole === 'starting') {
+          if (originSlot) {
+            updatePlayerManualPosition(selectedFormation, targetPlayer.id, {
+              x: originSlot.x,
+              y: originSlot.y,
+              position: originSlot.position,
+            });
+          } else {
+            removePlayerFromCustomFormations(targetPlayer.id);
+          }
+        } else {
+          removePlayerFromCustomFormations(targetPlayer.id);
+        }
+      }
+
+      setFocusedPlayerId(playerId);
+      const successMessage = targetPlayer
+        ? previousRole === 'starting'
+          ? 'Oyuncular yer degistirdi'
+          : 'Oyuncular degisti'
+        : previousRole === 'starting'
+          ? 'Oyuncu sahada yeniden konumlandırıldı'
+          : 'Oyuncu ilk 11\'e tand';
+      toast.success(successMessage);
+    }
+
     setDraggedPlayerId(null);
   };
 
@@ -1701,7 +1856,9 @@ function TeamPlanningContent() {
     let swappedPlayerId: string | null = null;
 
     setPlayers(prev => {
-      const result = promotePlayerToStartingRoster(prev, alternativeId, selectedPlayer.position);
+      const result = promotePlayerToStartingRoster(prev, alternativeId, selectedPlayer.position, {
+        targetPlayerId: selectedPlayer.id,
+      });
       if (result.error) {
         errorMessage = result.error;
         return prev;
