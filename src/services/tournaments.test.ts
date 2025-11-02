@@ -44,9 +44,40 @@ describe('buildKnockoutBracket', () => {
     expect(byeMatch).toBeDefined();
     expect(byeMatch?.autoAdvanceSeed).toBeTruthy();
 
-    const kickoffStr = formatInTimeZone(bracket.rounds[0].matches[0].scheduledAt, 'Europe/Istanbul', 'HH:mm');
+    const firstMatch = bracket.rounds[0].matches.find((m) => !m.isBye)!;
+    const kickoffStr = formatInTimeZone(firstMatch.scheduledAt, 'Europe/Istanbul', 'HH:mm');
     expect(kickoffStr).toBe('15:00');
+    expect(firstMatch.legs).toHaveLength(1);
+    expect(formatInTimeZone(firstMatch.legs[0].scheduledAt, 'Europe/Istanbul', 'HH:mm')).toBe('15:00');
   });
+
+  it('supports two-legged ties with alternating venues on the same day', () => {
+    const participants: TournamentParticipant[] = [
+      makeParticipant('A1', 1, 60, 25, 55, 'L1'),
+      makeParticipant('A2', 1, 58, 20, 50, 'L2'),
+      makeParticipant('B1', 2, 52, 15, 40, 'L1'),
+      makeParticipant('B2', 2, 50, 12, 38, 'L2'),
+    ];
+
+    const bracket = buildKnockoutBracket(participants, {
+      name: 'Two-Leg Test',
+      slug: 'two-leg-test',
+      kickoffHour: 10,
+      legKickoffHours: [10, 20],
+      timezone: 'Europe/Istanbul',
+      startDate: new Date('2025-01-01T00:00:00Z'),
+      roundSpacingDays: 3,
+      legsPerTie: 2,
+    });
+
+    const match = bracket.rounds[0].matches.find((m) => !m.isBye)!;
+    expect(match.legs).toHaveLength(2);
+    expect(formatInTimeZone(match.legs[0].scheduledAt, 'Europe/Istanbul', 'HH:mm')).toBe('10:00');
+    expect(formatInTimeZone(match.legs[1].scheduledAt, 'Europe/Istanbul', 'HH:mm')).toBe('20:00');
+    expect(match.legs[0].homeParticipant?.teamId).toBe(match.awayParticipant?.teamId);
+    expect(match.legs[1].homeParticipant?.teamId).toBe(match.homeParticipant?.teamId);
+  });
+
 });
 
 describe('buildConferenceLeagueTournament', () => {
@@ -61,7 +92,7 @@ describe('buildConferenceLeagueTournament', () => {
     ];
 
     const champions = buildKnockoutBracket(participants, {
-      name: 'Þampiyonlar',
+      name: 'Åžampiyonlar',
       slug: 'champions',
       kickoffHour: 15,
       timezone: 'Europe/Istanbul',
@@ -88,3 +119,4 @@ describe('buildConferenceLeagueTournament', () => {
     expect(kickoffStr).toBe('12:00');
   });
 });
+

@@ -22,6 +22,15 @@ export interface SlotSourceWinner {
 
 export type SlotSource = SlotSourceSeed | SlotSourceWinner;
 
+export interface KnockoutMatchLeg {
+  leg: number;
+  scheduledAt: Date;
+  homeSeed: number | null;
+  awaySeed: number | null;
+  homeParticipant: TournamentParticipant | null;
+  awayParticipant: TournamentParticipant | null;
+}
+
 export interface KnockoutMatch {
   id: string;
   round: number;
@@ -35,6 +44,7 @@ export interface KnockoutMatch {
   awaySource?: SlotSourceWinner;
   isBye: boolean;
   autoAdvanceSeed: number | null;
+  legs: KnockoutMatchLeg[];
 }
 
 export interface TournamentRound {

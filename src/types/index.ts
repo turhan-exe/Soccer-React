@@ -271,5 +271,12 @@ export type { LeagueDoc, LeagueState } from './league';
 export type { TeamDoc, Lineup } from './team';
 export type { FixtureDoc, FixtureStatus } from './fixture';
 export type { MatchPlanDoc } from './matchPlan';
-export type { TournamentParticipant, KnockoutMatch, TournamentRound, TournamentBracket, KnockoutResult } from './tournament';
+export type {
+  TournamentParticipant,
+  KnockoutMatch,
+  KnockoutMatchLeg,
+  TournamentRound,
+  TournamentBracket,
+  KnockoutResult,
+} from './tournament';
 
