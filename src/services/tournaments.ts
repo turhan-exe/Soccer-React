@@ -4,6 +4,7 @@ import { collection, getDocs, query, where } from 'firebase/firestore';
 
 import type {
   KnockoutMatch,
+  KnockoutMatchLeg,
   KnockoutResult,
   TournamentBracket,
   TournamentParticipant,
@@ -20,6 +21,8 @@ interface BuildBracketOptions {
   timezone?: string;
   startDate?: Date;
   roundSpacingDays?: number;
+  legsPerTie?: number;
+  legKickoffHours?: number[];
 }
 
 interface ConferenceOptions extends Omit<BuildBracketOptions, 'name' | 'slug' | 'kickoffHour'> {
@@ -99,6 +102,19 @@ export function buildKnockoutBracket(
 
   const bracketSize = 1 << Math.ceil(Math.log2(seeded.length));
   const seedOrder = buildSeedOrder(bracketSize);
+  const legsPerTie = Math.max(1, options.legsPerTie ?? 1);
+  const resolvedLegHours: number[] = [];
+  for (let legIndex = 0; legIndex < legsPerTie; legIndex++) {
+    if (options.legKickoffHours && options.legKickoffHours[legIndex] != null) {
+      resolvedLegHours.push(options.legKickoffHours[legIndex]!);
+    } else if (legIndex === 0) {
+      resolvedLegHours.push(options.kickoffHour);
+    } else {
+      const previous = resolvedLegHours[legIndex - 1];
+      const nextHour = previous + 6;
+      resolvedLegHours.push(nextHour > 23 ? 23 : nextHour);
+    }
+  }
 
   const rounds: TournamentRound[] = [];
   let currentEntries: Entry[] = seedOrder.map((seed) => ({ type: 'seed', seed }));
@@ -121,15 +137,34 @@ export function buildKnockoutBracket(
       const hasHome = !!homeParticipant || !!homeSource;
       const hasAway = !!awayParticipant || !!awaySource;
       const isBye = hasHome && !hasAway || hasAway && !hasHome;
-      const autoAdvanceSeed = isBye
-        ? homeParticipant?.seed ?? awayParticipant?.seed ?? null
-        : null;
+      const autoAdvanceSeed = isBye ? homeParticipant?.seed ?? awayParticipant?.seed ?? null : null;
+      let legs: KnockoutMatchLeg[] = [];
+      if (!isBye) {
+        legs = Array.from({ length: legsPerTie }, (_, legIndex) => {
+          const swapHome = legsPerTie > 1 && legIndex % 2 === 0;
+          const legHomeSeed = swapHome ? awaySeed : homeSeed;
+          const legAwaySeed = swapHome ? homeSeed : awaySeed;
+          const legHomeParticipant = swapHome ? awayParticipant : homeParticipant;
+          const legAwayParticipant = swapHome ? homeParticipant : awayParticipant;
+          const legHour =
+            resolvedLegHours[legIndex] ?? resolvedLegHours[resolvedLegHours.length - 1] ?? options.kickoffHour;
+          const legKickoff = kickoffForRound(startDate, timezone, legHour, roundIdx, roundSpacingDays);
+          return {
+            leg: legIndex + 1,
+            scheduledAt: legKickoff,
+            homeSeed: legHomeSeed ?? null,
+            awaySeed: legAwaySeed ?? null,
+            homeParticipant: legHomeParticipant ?? null,
+            awayParticipant: legAwayParticipant ?? null,
+          };
+        });
+      }
 
       matches.push({
         id,
         round: roundIdx + 1,
         roundName: roundName(bracketSize, roundIdx),
-        scheduledAt: kickoff,
+        scheduledAt: legs[0]?.scheduledAt ?? kickoff,
         homeSeed,
         awaySeed,
         homeParticipant: homeParticipant ?? null,
@@ -138,6 +173,7 @@ export function buildKnockoutBracket(
         awaySource,
         isBye,
         autoAdvanceSeed,
+        legs,
       });
     }
 
@@ -205,12 +241,21 @@ export async function fetchChampionsLeagueParticipants(): Promise<TournamentPart
 
 export async function buildChampionsLeagueTournament(options?: Partial<BuildBracketOptions>): Promise<TournamentBracket> {
   const participants = await fetchChampionsLeagueParticipants();
-  const kickoffHour = options?.kickoffHour ?? 15;
-  const name = options?.name ?? 'Þampiyonlar Ligi';
+  const legsPerTie = options?.legsPerTie ?? 2;
+  const kickoffHour = options?.legKickoffHours?.[0] ?? options?.kickoffHour ?? 11;
+  const name = options?.name ?? 'Åžampiyonlar Ligi';
   const slug = options?.slug ?? 'champions-league';
   const timezone = options?.timezone ?? DEFAULT_TIMEZONE;
   const startDate = options?.startDate ?? new Date();
   const roundSpacingDays = options?.roundSpacingDays ?? 2;
+  const legKickoffHours = options?.legKickoffHours ? [...options.legKickoffHours] : [kickoffHour, 20];
+  if (legKickoffHours.length === 0) {
+    legKickoffHours.push(kickoffHour);
+  }
+  while (legKickoffHours.length < legsPerTie) {
+    const prev = legKickoffHours[legKickoffHours.length - 1];
+    legKickoffHours.push(prev >= 23 ? 23 : prev + 6);
+  }
 
   return buildKnockoutBracket(participants, {
     name,
@@ -219,6 +264,8 @@ export async function buildChampionsLeagueTournament(options?: Partial<BuildBrac
     timezone,
     startDate,
     roundSpacingDays,
+    legsPerTie,
+    legKickoffHours,
   });
 }
 
