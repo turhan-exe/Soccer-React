@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "597848278073",
+    "firebase_url": "https://osm-react-default-rtdb.firebaseio.com",
+    "project_id": "osm-react",
+    "storage_bucket": "osm-react.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:597848278073:android:d8c5e88f5c80e7590d39e8",
+        "android_client_info": {
+          "package_name": "com.nerbuss.fhsmanager"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "597848278073-t4s3cbbr0k32629q6912u2rhp98ea9nv.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.nerbuss.fhsmanager",
+            "certificate_hash": "f5fd63ca3377f0d69e0dfad4ab0a4c292b2cdca3"
+          }
+        },
+        {
+          "client_id": "597848278073-ba5jeobfm46pp8st667ceedsgnitpkvo.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCqyMBCbDegFkUQsbQgFsIEUPc-qUohSQQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "597848278073-ba5jeobfm46pp8st667ceedsgnitpkvo.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

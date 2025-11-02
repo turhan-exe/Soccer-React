@@ -43,6 +43,23 @@ const getRegisterErrorMessage = (error: unknown): string => {
 };
 
 const getSocialAuthErrorMessage = (provider: 'google' | 'apple', error: unknown): string => {
+  const normalizeMessage = (err: unknown) => {
+    if (err && typeof err === 'object' && 'message' in err) {
+      return String((err as { message?: string }).message ?? '');
+    }
+    if (typeof err === 'string') {
+      return err;
+    }
+    return '';
+  };
+
+  const message = normalizeMessage(error).trim();
+  if (provider === 'google') {
+    if (/^10:?/.test(message)) {
+      return 'Google oturumu başlatılamadı. Firebase projenize Android SHA-1/SHA-256 imzalarını ekleyip yeni google-services.json dosyasını indirin ve projeye kopyalayın.';
+    }
+  }
+
   if (error instanceof FirebaseError) {
     const codeMap: Record<string, string> = {
       'auth/popup-blocked': 'Tarayici acilir pencere engellemesini kaldirin ve tekrar deneyin.',
@@ -60,6 +77,9 @@ const getSocialAuthErrorMessage = (provider: 'google' | 'apple', error: unknown)
   }
   if (error instanceof Error && error.message) {
     return error.message;
+  }
+  if (message) {
+    return message;
   }
   return provider === 'google' ? 'Google ile giris basarisiz' : 'Apple ile giris basarisiz';
 };
