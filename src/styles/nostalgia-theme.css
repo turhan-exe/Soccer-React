@@ -994,7 +994,7 @@
   .nostalgia-main-menu__actions-grid {
     --nostalgia-card-track: clamp(2.4rem, 10.8vw, 3.4rem);
     max-width: clamp(120px, 63vw, 190px);
-    grid-template-columns: repeat(2, minmax(var(--nostalgia-card-track), 1fr));
+    grid-template-columns: repeat(3, minmax(var(--nostalgia-card-track), 1fr));
   }
 }
 
@@ -1002,7 +1002,7 @@
   .nostalgia-main-menu__actions-grid {
     --nostalgia-card-track: clamp(2rem, 15vw, 3rem);
     max-width: clamp(110px, 84vw, 170px);
-    grid-template-columns: minmax(var(--nostalgia-card-track), 1fr);
+    grid-template-columns: repeat(3, minmax(var(--nostalgia-card-track), 1fr));
   }
 }
 
