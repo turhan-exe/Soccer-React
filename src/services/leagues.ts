@@ -426,7 +426,16 @@ export async function getFixturesForTeamSlotAware(
 ): Promise<Fixture[]> {
   try {
     const base = await getFixturesForTeam(leagueId, teamId);
-    if (base.length > 0) return base;
+    if (base.length > 0) {
+      const hasMissingTeamIds = base.some((fixture) => {
+        const hasHome = typeof fixture.homeTeamId === 'string' && fixture.homeTeamId.trim().length > 0;
+        const hasAway = typeof fixture.awayTeamId === 'string' && fixture.awayTeamId.trim().length > 0;
+        return !hasHome || !hasAway;
+      });
+      if (!hasMissingTeamIds) {
+        return base;
+      }
+    }
   } catch {}
 
   // Fallback: build via slots
@@ -462,6 +471,46 @@ export async function getFixturesForTeamSlotAware(
 }
 
 /** Ligdeki takımları getir */
+function needsHumanNameLookup(id: string, name?: string | null): boolean {
+  if (!id || id.startsWith('slot-')) return false;
+  const label = (name ?? '').trim();
+  if (!label) return true;
+  if (/^bot\b/i.test(label)) return false;
+  if (/^slot\b/i.test(label)) return true;
+  return label === id;
+}
+
+async function hydrateTeamNames(
+  teams: { id: string; name: string }[]
+): Promise<{ id: string; name: string }[]> {
+  const lookupIds = Array.from(
+    new Set(
+      teams.filter((team) => needsHumanNameLookup(team.id, team.name)).map((team) => team.id)
+    )
+  );
+  if (lookupIds.length === 0) return teams;
+
+  const resolved = new Map<string, string>();
+  await Promise.all(
+    lookupIds.map(async (teamId) => {
+      try {
+        const snap = await getDoc(doc(db, 'teams', teamId));
+        if (!snap.exists()) return;
+        const data = snap.data() as { name?: string };
+        const friendly = (data?.name ?? '').trim();
+        if (friendly) {
+          resolved.set(teamId, friendly);
+        }
+      } catch {
+        // Silent: network/cache errors should not break fixtures view.
+      }
+    })
+  );
+
+  if (resolved.size === 0) return teams;
+  return teams.map((team) => (resolved.has(team.id) ? { ...team, name: resolved.get(team.id)! } : team));
+}
+
 export async function getLeagueTeams(
   leagueId: string
 ): Promise<{ id: string; name: string }[]> {
@@ -479,24 +528,27 @@ export async function getLeagueTeams(
     });
     // De-duplicate by id preserving first occurrence
     const seen = new Set<string>();
-    return rows.filter((r) => (seen.has(r.id) ? false : (seen.add(r.id), true)));
+    const deduped = rows.filter((r) => (seen.has(r.id) ? false : (seen.add(r.id), true)));
+    return hydrateTeamNames(deduped);
   }
 
   // Legacy teams subcollection
   const teamsSnap = await getDocs(collection(db, 'leagues', leagueId, 'teams'));
   if (!teamsSnap.empty) {
-    return teamsSnap.docs.map((d) => {
+    const legacy = teamsSnap.docs.map((d) => {
       const data = d.data() as { name?: string };
       return { id: d.id, name: data.name ?? d.id };
     });
+    return hydrateTeamNames(legacy);
   }
 
   // Fallback to slots if standings/teams absent
   const slots = await getDocs(collection(db, 'leagues', leagueId, 'slots'));
-  return slots.docs.map((d) => {
+  const slotList = slots.docs.map((d) => {
     const s = d.data() as any;
     return { id: s.teamId || `slot-${s.slotIndex}`, name: s.name || s.teamId || `Bot ${s.botId || s.slotIndex}` };
   });
+  return hydrateTeamNames(slotList);
 }
 
 /**
