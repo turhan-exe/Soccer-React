@@ -139,6 +139,7 @@ export default function MatchPreview() {
   const [teamForm, setTeamForm] = useState<Array<'W' | 'D' | 'L'>>([]);
   const [teamName, setTeamName] = useState<string>('Takımım');
   const [teamLogo, setTeamLogo] = useState<string | null>(null);
+  const [teamStadiumName, setTeamStadiumName] = useState<string | null>(null);
   const [startingEleven, setStartingEleven] = useState<Player[]>([]);
   const [showAllKeyPlayers, setShowAllKeyPlayers] = useState(false);
   const [selectedKeyPlayer, setSelectedKeyPlayer] = useState<KeyPlayer | null>(null);
@@ -156,6 +157,7 @@ export default function MatchPreview() {
       setMatchInfo(fallbackMatch);
       setTeamName('Takımım');
       setTeamLogo(null);
+      setTeamStadiumName(null);
       setStartingEleven([]);
       setTeamOverall(null);
       setTeamForm([]);
@@ -178,6 +180,8 @@ export default function MatchPreview() {
       if (team) {
         setTeamName(team.name);
         setTeamLogo(team.logo && team.logo.trim() ? team.logo : null);
+        const trimmedStadium = team.stadium?.name?.trim();
+        setTeamStadiumName(trimmedStadium?.length ? trimmedStadium : null);
         const starters = sortLineupPlayers(
           team.players.filter(p => p.squadRole === 'starting'),
         );
@@ -192,6 +196,7 @@ export default function MatchPreview() {
       } else {
         setTeamName('Takımım');
         setTeamLogo(null);
+        setTeamStadiumName(null);
         setStartingEleven([]);
         setTeamOverall(null);
       }
@@ -357,6 +362,11 @@ export default function MatchPreview() {
         derivedForm.length ? derivedForm : baseMatch?.opponentStats?.form ?? [];
 
       const opponentLogoEmoji = opponent?.logo && opponent.logo.trim() ? opponent.logo : baseMatch?.opponentLogo ?? '⚽';
+      const opponentStadiumName = opponent?.stadium?.name?.trim();
+      const fallbackVenueName = baseMatch?.venueName;
+      const resolvedVenueName = nextFixture.home
+        ? teamStadiumName ?? fallbackVenueName
+        : (opponentStadiumName?.length ? opponentStadiumName : null) ?? fallbackVenueName;
 
       setMatchInfo({
         id: nextFixture.fixture.id,
@@ -368,7 +378,7 @@ export default function MatchPreview() {
         venue: nextFixture.home ? 'home' : 'away',
         status: 'scheduled',
         competition: baseMatch?.competition ?? 'Lig Maçı',
-        venueName: baseMatch?.venueName,
+        venueName: resolvedVenueName ?? undefined,
         opponentStats:
           overallValue != null || formValue.length || keyPlayerValue.length
             ? {
@@ -383,7 +393,7 @@ export default function MatchPreview() {
     return () => {
       cancelled = true;
     };
-  }, [nextFixture, fallbackMatch]);
+  }, [nextFixture, fallbackMatch, teamStadiumName]);
 
   useEffect(() => {
     if (!keyPlayers.length) {

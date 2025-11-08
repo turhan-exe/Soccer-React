@@ -263,6 +263,8 @@ export default function MainMenu() {
         const teamForm = computeForm(fixtures, user.id);
         const teamName = myTeam?.name ?? user.teamName ?? 'Takimim';
         const teamLogo = myTeam?.logo ?? user.teamLogo ?? null;
+        const teamStadiumRaw = myTeam?.stadium?.name?.trim();
+        const teamStadiumName = teamStadiumRaw?.length ? teamStadiumRaw : null;
 
         const createHighlightFromFallback = () => {
           const fallbackMatch = upcomingMatches[0];
@@ -279,12 +281,18 @@ export default function MainMenu() {
             ?? (hasValidDate
               ? fallbackDate.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })
               : '');
+          const fallbackVenue = fallbackMatch.venue ?? 'home';
+          const resolvedVenueName =
+            fallbackVenue === 'home'
+              ? teamStadiumName ?? fallbackMatch.venueName
+              : fallbackMatch.venueName;
+
           setMatchHighlight({
             competition: fallbackMatch.competition ?? 'Lig Maci',
             dateText,
             timeText,
-            venue: fallbackMatch.venue ?? 'home',
-            venueName: fallbackMatch.venueName,
+            venue: fallbackVenue,
+            venueName: resolvedVenueName,
             team: {
               name: teamName,
               logo: teamLogo,
@@ -315,6 +323,7 @@ export default function MainMenu() {
         let opponentForm: FormBadge[] = [];
         let opponentLogo: string | null | undefined = null;
         let opponentLogoUrl: string | null | undefined = null;
+        let opponentStadiumName: string | null = null;
 
         if (opponentId) {
           try {
@@ -326,6 +335,8 @@ export default function MainMenu() {
             opponentOverall = calculateTeamOverall(opponentTeam?.players ?? null);
             opponentForm = opponentFixtures.length ? computeForm(opponentFixtures, opponentId) : [];
             opponentLogo = opponentTeam?.logo ?? null;
+            const opponentStadiumRaw = opponentTeam?.stadium?.name?.trim();
+            opponentStadiumName = opponentStadiumRaw?.length ? opponentStadiumRaw : null;
           } catch (error) {
             console.warn('[MainMenu] opponent info load failed', error);
           }
@@ -354,13 +365,17 @@ export default function MainMenu() {
           hour: '2-digit',
           minute: '2-digit',
         });
+        const fallbackVenueName = fallbackMatch?.venueName;
+        const resolvedVenueName = isHome
+          ? teamStadiumName ?? fallbackVenueName
+          : opponentStadiumName ?? fallbackVenueName;
 
         setMatchHighlight({
           competition: fallbackMatch?.competition ?? 'Lig Maci',
           dateText,
           timeText,
           venue: isHome ? 'home' : 'away',
-          venueName: fallbackMatch?.venueName,
+          venueName: resolvedVenueName ?? undefined,
           team: {
             name: teamName,
             logo: teamLogo,
