@@ -1,122 +1,215 @@
 <!DOCTYPE html>
-<html lang="en-us">
-  <head>
+<html lang="en">
+<head>
     <meta charset="utf-8">
-    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-    <title>Unity WebGL Player | OSM</title>
-    <link rel="shortcut icon" href="TemplateData/favicon.ico">
+    <title>FHS</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1">
     <link rel="stylesheet" href="TemplateData/style.css">
-  </head>
-  <body>
-    <div id="unity-container" class="unity-desktop">
-      <canvas id="unity-canvas" width=960 height=600 tabindex="-1"></canvas>
-      <div id="unity-loading-bar">
-        <div id="unity-logo"></div>
-        <div id="unity-progress-bar-empty">
-          <div id="unity-progress-bar-full"></div>
+</head>
+<body>
+    <div id="unity-container">
+        <canvas id="unity-canvas" tabindex="-1"></canvas>
+        <div id="unity-loading-bar">
+            <div id="unity-logo"></div>
+            <div id="unity-progress-bar-empty">
+                <div id="unity-progress-bar-full"></div>
+            </div>
         </div>
-      </div>
-      <div id="unity-warning"> </div>
-      <div id="unity-footer">
-        <div id="unity-webgl-logo"></div>
-        <div id="unity-fullscreen-button"></div>
-        <div id="unity-build-title">OSM</div>
-      </div>
+        <div id="unity-warning"></div>
     </div>
+
     <script>
+        (function setupMatchBridgeAPI() {
+            const queue = [];
+            const allowedCommands = new Set(["showTeams", "publishTeams", "loadByKeys", "hideOverlay"]);
+            const messageTarget = "unity-match-bridge";
 
-      var container = document.querySelector("#unity-container");
-      var canvas = document.querySelector("#unity-canvas");
-      var loadingBar = document.querySelector("#unity-loading-bar");
-      var progressBarFull = document.querySelector("#unity-progress-bar-full");
-      var fullscreenButton = document.querySelector("#unity-fullscreen-button");
-      var warningBanner = document.querySelector("#unity-warning");
+            function serializePayload(payload) {
+                if (typeof payload === "string") {
+                    return payload;
+                }
 
-      // Shows a temporary message banner/ribbon for a few seconds, or
-      // a permanent error message on top of the canvas if type=='error'.
-      // If type=='warning', a yellow highlight color is used.
-      // Modify or remove this function to customize the visually presented
-      // way that non-critical warnings and error messages are presented to the
-      // user.
-      function unityShowBanner(msg, type) {
-        function updateBannerVisibility() {
-          warningBanner.style.display = warningBanner.children.length ? 'block' : 'none';
-        }
-        var div = document.createElement('div');
-        div.innerHTML = msg;
-        warningBanner.appendChild(div);
-        if (type == 'error') div.style = 'background: red; padding: 10px;';
-        else {
-          if (type == 'warning') div.style = 'background: yellow; padding: 10px;';
-          setTimeout(function() {
-            warningBanner.removeChild(div);
-            updateBannerVisibility();
-          }, 5000);
-        }
-        updateBannerVisibility();
-      }
+                try {
+                    return JSON.stringify(payload || {});
+                } catch (err) {
+                    console.warn("[MatchBridge] Payload JSON.stringify hatasi", err);
+                    return "{}";
+                }
+            }
 
-      var buildUrl = "Build";
-      var loaderUrl = buildUrl + "/Builds.loader.js";
-      var config = {
-        dataUrl: buildUrl + "/Builds.data",
-        frameworkUrl: buildUrl + "/Builds.framework.js",
-        codeUrl: buildUrl + "/Builds.wasm",
-        streamingAssetsUrl: "StreamingAssets",
-        companyName: "NERBUSS",
-        productName: "OSM",
-        productVersion: "1.0.0",
-        showBanner: unityShowBanner,
-      };
+            function sendMessage(method, payload) {
+                if (!window.__unityMatchBridgeInstance) {
+                    return false;
+                }
 
-      // By default, Unity keeps WebGL canvas render target size matched with
-      // the DOM size of the canvas element (scaled by window.devicePixelRatio)
-      // Set this to false if you want to decouple this synchronization from
-      // happening inside the engine, and you would instead like to size up
-      // the canvas DOM size and WebGL render target sizes yourself.
-      // config.matchWebGLToCanvasSize = false;
+                window.__unityMatchBridgeInstance.SendMessage("MatchBridge", method, serializePayload(payload));
+                return true;
+            }
 
-      if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
-        // Mobile device style: fill the whole browser client area with the game canvas:
+            function enqueue(method, payload) {
+                if (!sendMessage(method, payload)) {
+                    queue.push({ method, payload });
+                }
+            }
 
-        var meta = document.createElement('meta');
-        meta.name = 'viewport';
-        meta.content = 'width=device-width, height=device-height, initial-scale=1.0, user-scalable=no, shrink-to-fit=yes';
-        document.getElementsByTagName('head')[0].appendChild(meta);
-        container.className = "unity-mobile";
-        canvas.className = "unity-mobile";
+            function flushQueue() {
+                if (!window.__unityMatchBridgeInstance || queue.length === 0) {
+                    return;
+                }
 
-        // To lower canvas resolution on mobile devices to gain some
-        // performance, uncomment the following line:
-        // config.devicePixelRatio = 1;
+                while (queue.length) {
+                    const entry = queue.shift();
+                    sendMessage(entry.method, entry.payload);
+                }
+            }
 
+            function notifyParent(type, detail) {
+                if (!window.parent || window.parent === window) {
+                    return;
+                }
 
-      } else {
-        // Desktop style: Render the game canvas in a window that can be maximized to fullscreen:
+                try {
+                    window.parent.postMessage({ source: messageTarget, type, detail }, "*");
+                } catch (err) {
+                    console.warn("[MatchBridge] postMessage gonderilemedi", err);
+                }
+            }
 
-        canvas.style.width = "960px";
-        canvas.style.height = "600px";
-      }
+            function exposeApiToParent(api) {
+                if (!window.parent || window.parent === window) {
+                    return;
+                }
 
-      loadingBar.style.display = "block";
+                try {
+                    window.parent.MatchBridgeAPI = api;
+                    window.parent.__unityMatchBridgeAPI = api;
+                    if (typeof window.parent.dispatchEvent === "function") {
+                        window.parent.dispatchEvent(new CustomEvent("unityMatchBridgeApiReady"));
+                    }
+                } catch (err) {
+                    console.warn("[MatchBridge] Parent MatchBridgeAPI paylasilamadi", err);
+                }
+            }
 
-      var script = document.createElement("script");
-      script.src = loaderUrl;
-      script.onload = () => {
-        createUnityInstance(canvas, config, (progress) => {
-          progressBarFull.style.width = 100 * progress + "%";
-              }).then((unityInstance) => {
-                loadingBar.style.display = "none";
-                fullscreenButton.onclick = () => {
-                  unityInstance.SetFullscreen(1);
-                };
-              }).catch((message) => {
-                alert(message);
-              });
+            function handleInboundMessage(event, api) {
+                const data = event && event.data;
+                if (!data || data.target !== messageTarget) {
+                    return;
+                }
+
+                const action = typeof data.action === "string" ? data.action : "";
+                if (!allowedCommands.has(action)) {
+                    console.warn("[MatchBridge] Tanimsiz mesaj eylemi", action);
+                    return;
+                }
+
+                const handler = api[action];
+                if (typeof handler !== "function") {
+                    console.warn("[MatchBridge] Handler bulunamadi", action);
+                    return;
+                }
+
+                handler(data.payload);
+            }
+
+            const api = {
+                showTeams(payload) {
+                    enqueue("ShowTeams", payload);
+                },
+                publishTeams(payload) {
+                    enqueue("PublishTeams", payload);
+                },
+                loadByKeys(payload) {
+                    enqueue("LoadByKeys", payload);
+                },
+                hideOverlay(payload) {
+                    enqueue("HideOverlay", payload);
+                }
             };
 
-      document.body.appendChild(script);
+            window.MatchBridgeAPI = api;
+            window.addEventListener("message", (event) => handleInboundMessage(event, api), false);
+            exposeApiToParent(api);
 
+            window.__registerMatchBridgeInstance = function(instance) {
+                window.__unityMatchBridgeInstance = instance;
+                flushQueue();
+                notifyParent("ready");
+
+                if (window.parent && typeof window.parent.onUnityReady === "function") {
+                    try {
+                        window.parent.onUnityReady(instance);
+                    } catch (err) {
+                        console.warn("[MatchBridge] onUnityReady callback hata verdi", err);
+                    }
+                }
+            };
+
+            window.__matchBridgeDispatch = function(payload) {
+                try {
+                    const detail = typeof payload === "string" ? payload : JSON.stringify(payload || {});
+                    if (window.parent && typeof window.parent.dispatchEvent === "function") {
+                        window.parent.dispatchEvent(new CustomEvent("unityMatchFinished", { detail }));
+                    }
+                    notifyParent("matchFinished", detail);
+                } catch (err) {
+                    console.error("[MatchBridge] unityMatchFinished dispatch edilemedi", err);
+                }
+            };
+        })();
     </script>
-  </body>
+
+    <script src="Build/Builds.loader.js"></script>
+    <script>
+        const container = document.getElementById("unity-container");
+        const canvas = document.getElementById("unity-canvas");
+        const loadingBar = document.getElementById("unity-loading-bar");
+        const progressBarFull = document.getElementById("unity-progress-bar-full");
+        const warningBanner = document.getElementById("unity-warning");
+
+        const buildUrl = "Build";
+        const config = {
+            dataUrl: buildUrl + "/Builds.data",
+            frameworkUrl: buildUrl + "/Builds.framework.js",
+            codeUrl: buildUrl + "/Builds.wasm",
+            streamingAssetsUrl: "StreamingAssets",
+            companyName: "NERBUSS",
+            productName: "FHS",
+            productVersion: "1.0.0",
+            showBanner: unityShowBanner
+        };
+
+        function unityShowBanner(msg, type) {
+            function updateBannerVisibility() {
+                warningBanner.style.display = warningBanner.children.length ? "block" : "none";
+            }
+
+            const div = document.createElement("div");
+            div.innerHTML = msg;
+            warningBanner.appendChild(div);
+            updateBannerVisibility();
+            if (type === "warning") {
+                div.className = "warning";
+            } else {
+                div.className = "error";
+            }
+
+            setTimeout(() => {
+                warningBanner.removeChild(div);
+                updateBannerVisibility();
+            }, 5000);
+        }
+
+        loadingBar.style.display = "block";
+
+        createUnityInstance(canvas, config, (progress) => {
+            progressBarFull.style.width = (100 * progress) + "%";
+        }).then((unityInstance) => {
+            loadingBar.style.display = "none";
+            window.__registerMatchBridgeInstance(unityInstance);
+        }).catch((message) => {
+            console.error(message);
+        });
+    </script>
+</body>
 </html>

@@ -7,6 +7,7 @@ export type BridgeMatchRequest = {
   matchId?: string;
   homeTeamKey: string; // Resources/Database/<key>.asset (e.g., "Istanbul", "London")
   awayTeamKey: string; // Resources/Database/<key>.asset
+  requestToken?: string; // optional correlation id echoed back with results
   autoStart?: boolean;
   aiLevel?: string; // e.g., "Legendary"
   userTeam?: 'None' | 'Home' | 'Away';
@@ -17,6 +18,7 @@ export type BridgeMatchRequest = {
 
 export type BridgeMatchResult = {
   matchId?: string;
+  requestToken?: string;
   homeTeam?: string;
   awayTeam?: string;
   homeGoals?: number;
@@ -28,6 +30,21 @@ type UnityInstance = {
   SendMessage: (goName: string, method: string, param?: any) => void;
   SetFullscreen?: (enabled: number) => void;
 };
+
+type RegisterFn = ((instance: UnityInstance) => any) & {
+  __unityBridgePatched?: boolean;
+  __unityBridgeOriginal?: (instance: UnityInstance) => any;
+};
+
+type BridgeChildWindow = Window &
+  typeof globalThis & {
+    MGX?: any;
+    __MGX__?: any;
+    onUnityReady?: (u: UnityInstance) => void;
+    MatchBridgeAPI?: MatchBridgeAPI;
+    __registerMatchBridgeInstance?: RegisterFn;
+    __unityMatchBridgeInstance?: UnityInstance;
+  };
 
 export type UnityBridge = {
   isReady: () => boolean;
@@ -52,8 +69,9 @@ export function prepareUnityIframeBridge(
   }
 ): UnityBridge {
   let unity: UnityInstance | null = null;
-  let childWin: (Window & typeof globalThis & { MGX?: any; __MGX__?: any; onUnityReady?: (u: UnityInstance) => void; MatchBridgeAPI?: MatchBridgeAPI }) | null = null;
+  let childWin: BridgeChildWindow | null = null;
   const queue: BridgeMatchRequest[] = [];
+  let restoreGlobalOnUnityReady: (() => void) | null = null;
 
   const log = opts?.log || (() => {});
 
@@ -111,6 +129,54 @@ export function prepareUnityIframeBridge(
     flushQueue();
   };
 
+  const patchUnityRegister = () => {
+    if (!childWin) return;
+    const current = childWin.__registerMatchBridgeInstance;
+    if (typeof current !== 'function') {
+      if (!restoreGlobalOnUnityReady) {
+        const parentWin = iframe.ownerDocument?.defaultView ?? window;
+        const previous = (parentWin as any).onUnityReady;
+        const fallback = (instance: UnityInstance) => {
+          try {
+            onChildUnityReady(instance);
+          } catch (err) {
+            log('[UnityBridge] fallback onUnityReady failed', err);
+          }
+          if (typeof previous === 'function') {
+            try {
+              previous.call(parentWin, instance);
+            } catch (err) {
+              log('[UnityBridge] previous onUnityReady failed', err);
+            }
+          }
+        };
+        (parentWin as any).onUnityReady = fallback;
+        restoreGlobalOnUnityReady = () => {
+          if ((parentWin as any).onUnityReady === fallback) {
+            (parentWin as any).onUnityReady = previous;
+          }
+          restoreGlobalOnUnityReady = null;
+        };
+        log('[UnityBridge] __registerMatchBridgeInstance missing, installed global fallback');
+      }
+      return;
+    }
+    if ((current as RegisterFn).__unityBridgePatched) return;
+    const original = current;
+    const patched: RegisterFn = function patchedRegister(this: unknown, instance: UnityInstance) {
+      const result = original.call(this ?? childWin, instance);
+      try {
+        onChildUnityReady(instance);
+      } catch (err) {
+        log('[UnityBridge] patched onUnityReady failed', err);
+      }
+      return result;
+    };
+    patched.__unityBridgePatched = true;
+    patched.__unityBridgeOriginal = original;
+    childWin.__registerMatchBridgeInstance = patched;
+  };
+
   const onUnityResult = (ev: Event) => {
     try {
       const ce = ev as CustomEvent<string>;
@@ -131,13 +197,14 @@ export function prepareUnityIframeBridge(
   const onLoad = () => {
     try {
       if (!iframe.contentWindow) return;
-      childWin = iframe.contentWindow as any;
+      childWin = iframe.contentWindow as BridgeChildWindow;
 
       // Listen results in the child window (event is dispatched there)
       childWin.addEventListener?.('unityMatchFinished', onUnityResult);
 
       // Provide a hook used by the template to notify readiness
       childWin.onUnityReady = onChildUnityReady;
+      patchUnityRegister();
 
       // Pre-wait for API readiness (non-blocking)
       try {
@@ -251,6 +318,12 @@ export function prepareUnityIframeBridge(
       try {
         (childWin as any)?.removeEventListener?.('unityMatchFinished', onUnityResult as any);
       } catch {}
+      if (restoreGlobalOnUnityReady) {
+        try {
+          restoreGlobalOnUnityReady();
+        } catch {}
+        restoreGlobalOnUnityReady = null;
+      }
       unity = null;
       childWin = null;
       queue.splice(0, queue.length);
@@ -293,26 +366,58 @@ export type RuntimeTeam = {
   awayKit?: KitSpec;
 };
 
-export type ShowTeamsPayload = {
-  home: RuntimeTeam;
-  away: RuntimeTeam;
-  aiLevel?: string; // e.g., Legendary
-  userTeam?: 'None' | 'Home' | 'Away';
-  dayTime?: string; // e.g., Night
-  autoStart?: boolean; // if true, proceed to pre-match; if false, stay in selection
-  openMenu?: boolean; // open team selection UI (handled by C#)
-  select?: boolean;   // auto select injected teams
-};
 
 // -------------
 // Team Selection
 // -------------
 
+export type TeamKitColors = {
+  primary?: string;
+  secondary?: string;
+  text?: string;
+  shorts?: string;
+  socks?: string;
+  gkPrimary?: string;
+  gkSecondary?: string;
+};
+
+export type PublishedPlayer = {
+  playerId: string;
+  name: string;
+  order?: number;
+  position?: string;
+  overall?: number;
+  attributes?: Record<string, number>;
+};
+
+export type PublishedTeam = {
+  teamKey: string;
+  teamName: string;
+  formation?: string;
+  kit?: TeamKitColors;
+  lineup: PublishedPlayer[];
+  bench?: PublishedPlayer[];
+};
+
 export type PublishTeamsPayload = {
-  home?: RuntimeTeam | null;
-  away?: RuntimeTeam | null;
-  openMenu?: boolean; // Open TeamSelection UI
-  select?: boolean; // Auto select injected teams
+  homeTeam: PublishedTeam;
+  awayTeam: PublishedTeam;
+  homeTeamKey?: string;
+  awayTeamKey?: string;
+  cacheOnly?: boolean;
+};
+
+export type ShowTeamsPayload = {
+  homeTeam: PublishedTeam;
+  awayTeam: PublishedTeam;
+  homeTeamKey: string;
+  awayTeamKey: string;
+  aiLevel?: string; // e.g., Legendary
+  userTeam?: 'None' | 'Home' | 'Away';
+  dayTime?: string; // e.g., Night
+  autoStart?: boolean; // if true, proceed to pre-match; if false, stay in selection
+  openMenu?: boolean; // open team selection UI (handled by C#)
+  select?: boolean; // auto select injected teams
 };
 
 export type PreselectMenuPayload = {
@@ -352,6 +457,153 @@ export function toUnityFormationEnum(label?: string | null): string | undefined 
   const base = m[1].replace(/-/g, '_');
   const variant = (m[2] || '').toUpperCase();
   return `_${base}${variant ? `_${variant}` : ''}`;
+}
+
+const UNITY_ATTRIBUTE_KEYS = [
+  'strength',
+  'acceleration',
+  'topspeed',
+  'dribblespeed',
+  'jump',
+  'tackling',
+  'ballkeeping',
+  'passing',
+  'longball',
+  'agility',
+  'shooting',
+  'shootpower',
+  'positioning',
+  'reaction',
+  'ballcontrol',
+  'height',
+  'weight',
+] as const;
+
+const ZERO_ATTRIBUTES_TEMPLATE: Record<string, number> = UNITY_ATTRIBUTE_KEYS.reduce(
+  (acc, key) => {
+    acc[key] = 0;
+    return acc;
+  },
+  {} as Record<string, number>
+);
+
+export function runtimeTeamToPublishedTeam(
+  team: RuntimeTeam,
+  opts: { teamKey: string; preferAwayKit?: boolean; fallbackName?: string }
+): PublishedTeam {
+  const { teamKey, preferAwayKit = false, fallbackName } = opts;
+  const lineupNames = Array.isArray(team.players) ? [...team.players] : [];
+  while (lineupNames.length < 11) {
+    lineupNames.push(`Player ${lineupNames.length + 1}`);
+  }
+
+  const lineup = lineupNames.slice(0, 11).map((name, index) => {
+    const player = team.playersData?.[index];
+    return {
+      playerId: player?.id || `${teamKey}-L${index + 1}`,
+      name,
+      order: index + 1,
+      position: player?.position,
+      overall: player?.overall,
+      attributes: normalizePlayerAttributes(player?.attributes),
+    };
+  });
+
+  const benchNames = Array.isArray(team.bench) ? [...team.bench] : [];
+  const bench = benchNames.slice(0, 9).map((name, index) => {
+    const player = team.benchData?.[index];
+    return {
+      playerId: player?.id || `${teamKey}-B${index + 1}`,
+      name,
+      order: lineup.length + index + 1,
+      position: player?.position,
+      overall: player?.overall,
+      attributes: normalizePlayerAttributes(player?.attributes),
+    };
+  });
+
+  return {
+    teamKey,
+    teamName: team.name || fallbackName || teamKey,
+    formation: normalizeFormationForPublish(team.formation),
+    kit: resolveKitColors(team, teamKey, preferAwayKit),
+    lineup,
+    bench: bench.length ? bench : undefined,
+  };
+}
+
+function normalizePlayerAttributes(attrs?: Record<string, number>): Record<string, number> {
+  if (!attrs || !Object.keys(attrs).length) {
+    return { ...ZERO_ATTRIBUTES_TEMPLATE };
+  }
+  const sanitized = new Map<string, number>();
+  for (const [rawKey, rawValue] of Object.entries(attrs)) {
+    const key = rawKey.toLowerCase().replace(/[\s_-]/g, '');
+    const value = typeof rawValue === 'number' ? rawValue : Number(rawValue);
+    if (!Number.isFinite(value)) continue;
+    sanitized.set(key, value);
+  }
+  const result: Record<string, number> = {};
+  for (const key of UNITY_ATTRIBUTE_KEYS) {
+    result[key] = sanitized.has(key) ? sanitized.get(key)! : 0;
+  }
+  return result;
+}
+
+function resolveKitColors(team: RuntimeTeam, teamKey: string, preferAwayKit: boolean): TeamKitColors {
+  const preferred = preferAwayKit ? team.awayKit ?? team.homeKit : team.homeKit ?? team.awayKit;
+  return kitSpecToTeamKitColors(preferred) || fallbackKitFromKey(teamKey || team.name || 'TEAM', preferAwayKit);
+}
+
+function normalizeFormationForPublish(value?: string | null): string | undefined {
+  if (!value) return undefined;
+  if (!value.startsWith('_')) return value;
+  return value
+    .slice(1)
+    .split('_')
+    .filter(Boolean)
+    .join('-');
+}
+
+function kitSpecToTeamKitColors(kit?: KitSpec | null): TeamKitColors | undefined {
+  if (!kit) return undefined;
+  const { color1, color2, color3, shorts, socks } = kit;
+  if (!color1 && !color2 && !color3 && !shorts && !socks) return undefined;
+  return {
+    primary: color1,
+    secondary: color2,
+    text: color3,
+    shorts,
+    socks,
+    gkPrimary: shorts || color2 || color1,
+    gkSecondary: socks || color3 || color2 || color1,
+  };
+}
+
+const KIT_COLOR_PALETTE = ['#0EA5E9', '#DC2626', '#16A34A', '#F97316', '#7C3AED', '#0D9488', '#E11D48', '#2563EB'];
+
+function fallbackKitFromKey(teamKey: string, preferAwayKit: boolean): TeamKitColors {
+  const hash = Math.abs(hashString(teamKey));
+  const primary = KIT_COLOR_PALETTE[hash % KIT_COLOR_PALETTE.length];
+  const accent = KIT_COLOR_PALETTE[(hash + 3) % KIT_COLOR_PALETTE.length];
+  return {
+    primary: preferAwayKit ? accent : primary,
+    secondary: preferAwayKit ? '#0F172A' : '#FFFFFF',
+    text: preferAwayKit ? '#F8FAFC' : '#0F172A',
+    shorts: preferAwayKit ? '#0F172A' : '#F8FAFC',
+    socks: preferAwayKit ? accent : primary,
+    gkPrimary: preferAwayKit ? '#FFFFFF' : '#111827',
+    gkSecondary: preferAwayKit ? accent : '#FFFFFF',
+  };
+}
+
+function hashString(value: string): number {
+  let hash = 0;
+  for (let i = 0; i < value.length; i += 1) {
+    hash = (hash << 5) - hash + value.charCodeAt(i);
+    hash |= 0;
+  }
+  return hash;
 }
 
 /**

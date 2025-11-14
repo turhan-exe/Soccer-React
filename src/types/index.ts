@@ -154,6 +154,25 @@ export interface Match {
   };
 }
 
+export interface MatchGoalEvent {
+  minute: number;
+  team: 'home' | 'away';
+  type: 'goal';
+  description?: string;
+  homeScore: number;
+  awayScore: number;
+}
+
+export interface MatchTimeline {
+  matchId: string;
+  leagueId: string | null;
+  homeTeamId?: string | null;
+  awayTeamId?: string | null;
+  score?: { home: number; away: number } | null;
+  goalTimeline: MatchGoalEvent[];
+  date?: string | null;
+}
+
 export interface Team {
   name: string;
   logo: string;
@@ -201,6 +220,7 @@ export interface Fixture {
   score: { home: number; away: number } | null;
   // Optional replay storage path (when Unity integration lands)
   replayPath?: string;
+  goalTimeline?: MatchGoalEvent[];
 }
 
 export interface Standing {

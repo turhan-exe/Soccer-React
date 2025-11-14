@@ -339,21 +339,22 @@ export async function getFixturesForTeam(
   }
 
   // Firestore Timestamp → Date dönüştür ve tarihe göre sırala (artan)
-  const list: Fixture[] = snap.docs.map((d) => {
-    const raw = d.data() as any;
-    const ts = raw.date as { toDate: () => Date };
-    return {
-      id: d.id,
-      round: raw.round,
-      date: ts.toDate(),
-      homeTeamId: raw.homeTeamId,
-      awayTeamId: raw.awayTeamId,
-      participants: raw.participants ?? [raw.homeTeamId, raw.awayTeamId],
-      status: raw.status,
-      score: raw.score ?? null,
-      replayPath: raw.replayPath,
-    } satisfies Fixture;
-  });
+    const list: Fixture[] = snap.docs.map((d) => {
+      const raw = d.data() as any;
+      const ts = raw.date as { toDate: () => Date };
+      return {
+        id: d.id,
+        round: raw.round,
+        date: ts.toDate(),
+        homeTeamId: raw.homeTeamId,
+        awayTeamId: raw.awayTeamId,
+        participants: raw.participants ?? [raw.homeTeamId, raw.awayTeamId],
+        status: raw.status,
+        score: raw.score ?? null,
+        replayPath: raw.replayPath,
+        goalTimeline: raw.goalTimeline ?? [],
+      } satisfies Fixture;
+    });
 
   // İstemci tarafı tarih sıralaması: her zaman artan
   (list as { date: Date }[]).sort((a, b) => a.date.getTime() - b.date.getTime());
@@ -398,6 +399,7 @@ export async function getFixtureByIdAcrossLeagues(
     status: raw.status,
     score: raw.score ?? null,
     replayPath: raw.replayPath,
+    goalTimeline: raw.goalTimeline ?? [],
   };
   // leagues/{leagueId}/fixtures/{matchId}
   const leagueId = d.ref.parent.parent!.id;
@@ -463,6 +465,7 @@ export async function getFixturesForTeamSlotAware(
         status: raw.status,
         score: raw.score ?? null,
         replayPath: raw.replayPath,
+        goalTimeline: raw.goalTimeline ?? [],
       } as Fixture;
     })
     .filter((m) => m.homeTeamId === teamId || m.awayTeamId === teamId)

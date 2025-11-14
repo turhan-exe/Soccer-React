@@ -15,7 +15,7 @@ import {
   getFixturesForTeam,
   playNextScheduledDay,
 } from '@/services/leagues';
-import type { Fixture } from '@/types';
+import type { Fixture, MatchGoalEvent } from '@/types';
 import { formatInTimeZone } from 'date-fns-tz';
 import { tr } from 'date-fns/locale';
 import { httpsCallable } from 'firebase/functions';
@@ -27,6 +27,7 @@ import { BackButton } from '@/components/ui/back-button';
 interface DisplayFixture extends Fixture {
   opponent: string;
   home: boolean;
+  goalTimeline?: MatchGoalEvent[];
 }
 
 const TZ = 'Europe/Istanbul';
@@ -281,6 +282,30 @@ export default function MyFixturesPage() {
                                 {m.home ? myTeamName : m.opponent} {scoreText} {m.home ? m.opponent : myTeamName}
                               </div>
                               <div className="text-muted-foreground">{when} · {homeAway}</div>
+                              {isPlayed && m.goalTimeline?.length ? (
+                                <div className="mt-1 space-y-1 text-xs text-muted-foreground">
+                                  {m.goalTimeline.map((ev, idx) => {
+                                    const teamLabel =
+                                      ev.team === 'home'
+                                        ? m.home
+                                          ? myTeamName
+                                          : m.opponent
+                                        : m.home
+                                          ? m.opponent
+                                          : myTeamName;
+                                    return (
+                                      <div key={`${ev.minute}-${ev.team}-${idx}`} className="flex items-center gap-2">
+                                        <span className="font-semibold">{ev.minute}'</span>
+                                        <span className="flex-1">{teamLabel}</span>
+                                        <span className="whitespace-nowrap">
+                                          {ev.homeScore}-{ev.awayScore}
+                                          {ev.description ? ` · ${ev.description}` : ''}
+                                        </span>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              ) : null}
                             </div>
                           </div>
                           <div className="flex items-center gap-2">

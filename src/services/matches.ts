@@ -1,6 +1,7 @@
 import { getDatabase, ref as dbRef, onChildAdded, off, query, orderByChild } from 'firebase/database';
 import { httpsCallable } from 'firebase/functions';
 import { functions } from './firebase';
+import type { MatchTimeline } from '@/types';
 
 export interface LiveEvent {
   ts: number;
@@ -20,6 +21,12 @@ export async function getReplay(replayPath: string): Promise<string> {
   const data = resp.data as any;
   if (data && data.ok && typeof data.url === 'string') return data.url as string;
   throw new Error('Replay URL alınamadı');
+}
+
+export async function getMatchTimeline(matchId: string): Promise<MatchTimeline> {
+  const fn = httpsCallable(functions, 'getMatchTimeline');
+  const resp = await fn({ matchId });
+  return resp.data as MatchTimeline;
 }
 
 /**
