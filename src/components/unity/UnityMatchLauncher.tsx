@@ -1,5 +1,13 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { prepareUnityIframeBridge, waitForMatchBridgeAPIOnWindow, type BridgeMatchRequest, type BridgeMatchResult, type PublishTeamsPayload, type ShowTeamsPayload } from '@/services/unityBridge';
+import {
+  prepareUnityIframeBridge,
+  waitForMatchBridgeAPIOnWindow,
+  toUnityFormationEnum,
+  type BridgeMatchRequest,
+  type BridgeMatchResult,
+  type PublishTeamsPayload,
+  type ShowTeamsPayload,
+} from '@/services/unityBridge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -9,8 +17,18 @@ type Props = {
   autoPayload?: BridgeMatchRequest | null;
   autoPublishPayload?: PublishTeamsPayload | null;
   autoShowTeamsPayload?: ShowTeamsPayload | null;
-  onResult?: (result: BridgeMatchResult) => void;
+ onResult?: (result: BridgeMatchResult) => void;
 };
+
+function convertPublishPayloadToShow(payload: PublishTeamsPayload): ShowTeamsPayload {
+  return {
+    homeTeam: payload.homeTeam,
+    awayTeam: payload.awayTeam,
+    homeTeamKey: payload.homeTeamKey ?? payload.homeTeam.teamKey,
+    awayTeamKey: payload.awayTeamKey ?? payload.awayTeam.teamKey,
+    autoStart: false,
+  };
+}
 
 /**
  * Embeds Unity WebGL and exposes a start button to send a BridgeMatchRequest
@@ -153,9 +171,8 @@ export function UnityMatchLauncher({ title = 'Unity WebGL', autoPayload = null, 
   // When Unity is ready, optionally showTeams or publishTeams first, then start match
   useEffect(() => {
     if (!ready || !bridge || !apiReady) return;
-    const derivedShow: ShowTeamsPayload | null = autoShowTeamsPayload || (autoPublishPayload && autoPublishPayload.home && autoPublishPayload.away
-      ? { home: autoPublishPayload.home, away: autoPublishPayload.away, autoStart: false }
-      : null);
+    const derivedShow: ShowTeamsPayload | null =
+      autoShowTeamsPayload || (autoPublishPayload ? convertPublishPayloadToShow(autoPublishPayload) : null);
     const showStr = derivedShow ? JSON.stringify(derivedShow) : '';
     const pubStr = autoPublishPayload ? JSON.stringify(autoPublishPayload) : '';
     const matchStr = autoPayload ? JSON.stringify(autoPayload) : '';

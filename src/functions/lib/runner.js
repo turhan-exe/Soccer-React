@@ -57,6 +57,7 @@ async function processMatch(leagueRef, doc) {
     const awayRef = leagueRef.collection('standings').doc(data.awayTeamId);
     const homeScore = Math.floor(Math.random() * 5);
     const awayScore = Math.floor(Math.random() * 5);
+    const goalTimeline = buildGoalTimeline(homeScore, awayScore, `${doc.id}-${data.homeTeamId || 'home'}-${data.awayTeamId || 'away'}`);
     await doc.ref.update({ status: 'in_progress' });
     await db.runTransaction(async (tx) => {
         const homeSnap = await tx.get(homeRef);
@@ -116,6 +117,7 @@ async function processMatch(leagueRef, doc) {
         tx.update(doc.ref, {
             status: 'played',
             score: { home: homeScore, away: awayScore },
+            goalTimeline,
         });
         tx.set(homeRef, hs, { merge: true });
         tx.set(awayRef, as, { merge: true });
@@ -173,6 +175,7 @@ async function processSlotMatch(leagueRef, doc) {
     const awayRef = leagueRef.collection('standings').doc(String(data.awaySlot));
     const homeScore = Math.floor(Math.random() * 5);
     const awayScore = Math.floor(Math.random() * 5);
+    const goalTimeline = buildGoalTimeline(homeScore, awayScore, `${doc.id}-${data.homeSlot}-${data.awaySlot}`);
     await doc.ref.update({ status: 'in_progress' });
     await db.runTransaction(async (tx) => {
         const homeSnap = await tx.get(homeRef);
@@ -207,8 +210,62 @@ async function processSlotMatch(leagueRef, doc) {
             hs.Pts++;
             as.Pts++;
         }
-        tx.update(doc.ref, { status: 'played', score: { home: homeScore, away: awayScore } });
+        tx.update(doc.ref, {
+            status: 'played',
+            score: { home: homeScore, away: awayScore },
+            goalTimeline,
+        });
         tx.set(homeRef, hs, { merge: true });
         tx.set(awayRef, as, { merge: true });
     });
+}
+function buildGoalTimeline(homeScore, awayScore, seed) {
+    const totalGoals = homeScore + awayScore;
+    if (totalGoals === 0)
+        return [];
+    const prng = createSeededRandom(seed);
+    const minutes = new Set();
+    while (minutes.size < totalGoals) {
+        minutes.add(Math.floor(prng() * 89) + 1);
+    }
+    const sortedMinutes = [...minutes].sort((a, b) => a - b);
+    const teams = [];
+    teams.push(...Array(homeScore).fill('home'));
+    teams.push(...Array(awayScore).fill('away'));
+    shuffle(teams, prng);
+    let homeGoals = 0;
+    let awayGoals = 0;
+    return sortedMinutes.map((minute, index) => {
+        const team = teams[index] || 'home';
+        if (team === 'home')
+            homeGoals += 1;
+        else
+            awayGoals += 1;
+        return {
+            minute,
+            team,
+            type: 'goal',
+            homeScore: homeGoals,
+            awayScore: awayGoals,
+            description: team === 'home' ? 'Ev golü' : 'Deplasman golü',
+        };
+    });
+}
+function createSeededRandom(seed) {
+    let value = 0;
+    for (let i = 0; i < seed.length; i += 1) {
+        value = (value * 31 + seed.charCodeAt(i)) >>> 0;
+    }
+    if (value === 0)
+        value = 1;
+    return () => {
+        value = (Math.imul(value, 48271) + 1) % 2147483647;
+        return value / 2147483647;
+    };
+}
+function shuffle(array, rand) {
+    for (let i = array.length - 1; i > 0; i -= 1) {
+        const j = Math.floor(rand() * (i + 1));
+        [array[i], array[j]] = [array[j], array[i]];
+    }
 }

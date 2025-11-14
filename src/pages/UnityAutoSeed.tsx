@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { UnityMatchLauncher } from '@/components/unity/UnityMatchLauncher';
 import { makeMockTeam } from '@/lib/mockTeam';
 import type { ClubTeam, Player } from '@/types';
+import { runtimeTeamToPublishedTeam } from '@/services/unityBridge';
 import type { ShowTeamsPayload, RuntimePlayer, RuntimeTeam } from '@/services/unityBridge';
 
 function mapPlayerToRuntime(p: Player): RuntimePlayer {
@@ -59,11 +60,17 @@ export default function UnityAutoSeed() {
   const [seed, setSeed] = useState(1);
 
   const payload: ShowTeamsPayload = useMemo(() => {
-    const home = makeMockTeam('H' + seed, 'Catalagna');
-    const away = makeMockTeam('A' + seed, 'Royal');
+    const homeClub = makeMockTeam(`H${seed}`, 'Catalagna');
+    const awayClub = makeMockTeam(`A${seed}`, 'Royal');
+    const homeRuntime = mapMockTeam(homeClub, '4-4-2');
+    const awayRuntime = mapMockTeam(awayClub, '4-4-2');
+    const homeKey = `auto-home-${seed}`;
+    const awayKey = `auto-away-${seed}`;
     return {
-      home: mapMockTeam(home, '4-4-2'),
-      away: mapMockTeam(away, '4-4-2'),
+      homeTeam: runtimeTeamToPublishedTeam(homeRuntime, { teamKey: homeKey, preferAwayKit: false }),
+      awayTeam: runtimeTeamToPublishedTeam(awayRuntime, { teamKey: awayKey, preferAwayKit: true }),
+      homeTeamKey: homeKey,
+      awayTeamKey: awayKey,
       autoStart: false,
       openMenu: true,
       select: true,

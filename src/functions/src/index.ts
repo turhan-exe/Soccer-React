@@ -5,6 +5,7 @@ export { orchestrate19TRT } from './orchestrate/orchestrate19trt.js';
 export { startMatchHttp } from './orchestrate/startMatch.js';
 export { onResultFinalize } from './results/onResultFinalize.js';
 export { getReplay } from './results/getReplay.js';
+export { getMatchTimeline } from './matchTimeline.js';
 export {
   marketCreateListing,
   marketCancelListing,
