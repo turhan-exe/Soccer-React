@@ -219,7 +219,7 @@ export function prepareUnityIframeBridge(
   };
 
   // If the frame is already loaded when we attach
-  if (iframe.complete) {
+  if (iframe. contentWindow && iframe.contentDocument && iframe.contentDocument.readyState === 'complete') {
     setTimeout(onLoad, 0);
   } else {
     iframe.addEventListener('load', onLoad, { once: true });
