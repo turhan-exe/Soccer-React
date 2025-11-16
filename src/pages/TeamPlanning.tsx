@@ -119,6 +119,57 @@ const squadRoleWeight = (role?: Player['squadRole'] | 'youth'): number => {
   }
 };
 
+type PlayerBaseline = {
+  naturalPosition: Player['position'];
+  naturalOverall: number;
+};
+
+type DisplayPlayer = Player & {
+  originalOverall: number;
+  assignedOverall: number;
+  isOutOfPosition: boolean;
+};
+
+const POSITION_ATTRIBUTE_WEIGHTS: Record<Player['position'], Record<keyof Player['attributes'], number>> = {
+  GK: { strength: 0.15, acceleration: 0.05, topSpeed: 0.05, dribbleSpeed: 0.05, jump: 0.2, tackling: 0.1, ballKeeping: 0.15, passing: 0.1, longBall: 0.05, agility: 0.05, shooting: 0, shootPower: 0.05, positioning: 0.05, reaction: 0.1, ballControl: 0.05 },
+  CB: { strength: 0.25, acceleration: 0.1, topSpeed: 0.05, dribbleSpeed: 0, jump: 0.2, tackling: 0.25, ballKeeping: 0, passing: 0.05, longBall: 0.1, agility: 0.05, shooting: 0, shootPower: 0, positioning: 0.15, reaction: 0.15, ballControl: 0.05 },
+  LB: { strength: 0.15, acceleration: 0.2, topSpeed: 0.15, dribbleSpeed: 0.1, jump: 0.05, tackling: 0.2, ballKeeping: 0, passing: 0.1, longBall: 0.1, agility: 0.1, shooting: 0, shootPower: 0, positioning: 0.05, reaction: 0.1, ballControl: 0.05 },
+  RB: { strength: 0.15, acceleration: 0.2, topSpeed: 0.15, dribbleSpeed: 0.1, jump: 0.05, tackling: 0.2, ballKeeping: 0, passing: 0.1, longBall: 0.1, agility: 0.1, shooting: 0, shootPower: 0, positioning: 0.05, reaction: 0.1, ballControl: 0.05 },
+  CM: { strength: 0.1, acceleration: 0.1, topSpeed: 0.05, dribbleSpeed: 0.15, jump: 0, tackling: 0.15, ballKeeping: 0.05, passing: 0.2, longBall: 0.15, agility: 0.15, shooting: 0.05, shootPower: 0.05, positioning: 0.1, reaction: 0.1, ballControl: 0.2 },
+  LM: { strength: 0.05, acceleration: 0.2, topSpeed: 0.15, dribbleSpeed: 0.2, jump: 0, tackling: 0.05, ballKeeping: 0, passing: 0.2, longBall: 0.1, agility: 0.15, shooting: 0.1, shootPower: 0.05, positioning: 0.05, reaction: 0.05, ballControl: 0.25 },
+  RM: { strength: 0.05, acceleration: 0.2, topSpeed: 0.15, dribbleSpeed: 0.2, jump: 0, tackling: 0.05, ballKeeping: 0, passing: 0.2, longBall: 0.1, agility: 0.15, shooting: 0.1, shootPower: 0.05, positioning: 0.05, reaction: 0.05, ballControl: 0.25 },
+  CAM: { strength: 0.05, acceleration: 0.15, topSpeed: 0.1, dribbleSpeed: 0.2, jump: 0, tackling: 0.05, ballKeeping: 0, passing: 0.25, longBall: 0.1, agility: 0.15, shooting: 0.2, shootPower: 0.15, positioning: 0.1, reaction: 0.1, ballControl: 0.25 },
+  LW: { strength: 0.05, acceleration: 0.25, topSpeed: 0.2, dribbleSpeed: 0.2, jump: 0, tackling: 0, ballKeeping: 0, passing: 0.15, longBall: 0.05, agility: 0.2, shooting: 0.25, shootPower: 0.2, positioning: 0.1, reaction: 0.05, ballControl: 0.25 },
+  RW: { strength: 0.05, acceleration: 0.25, topSpeed: 0.2, dribbleSpeed: 0.2, jump: 0, tackling: 0, ballKeeping: 0, passing: 0.15, longBall: 0.05, agility: 0.2, shooting: 0.25, shootPower: 0.2, positioning: 0.1, reaction: 0.05, ballControl: 0.25 },
+  ST: { strength: 0.15, acceleration: 0.2, topSpeed: 0.25, dribbleSpeed: 0.15, jump: 0.05, tackling: 0, ballKeeping: 0, passing: 0.1, longBall: 0.05, agility: 0.1, shooting: 0.25, shootPower: 0.25, positioning: 0.2, reaction: 0.1, ballControl: 0.15 },
+};
+
+const DEFAULT_WEIGHTS = Object.fromEntries(
+  Object.keys(POSITION_ATTRIBUTE_WEIGHTS.ST).map(key => [key, 1]),
+) as Record<keyof Player['attributes'], number>;
+
+const getPositionAttributeWeights = (position: Player['position']) =>
+  POSITION_ATTRIBUTE_WEIGHTS[position] || DEFAULT_WEIGHTS;
+
+const computePositionOverall = (
+  position: Player['position'],
+  attributes: Player['attributes'],
+): number => {
+  const weights = getPositionAttributeWeights(position);
+  let totalWeight = 0;
+  let score = 0;
+  for (const [key, weight] of Object.entries(weights) as Array<
+    [keyof Player['attributes'], number]
+  >) {
+    const value = attributes[key];
+    if (!Number.isFinite(value)) continue;
+    score += (value * weight);
+    totalWeight += weight;
+  }
+  if (totalWeight === 0) return 0;
+  return parseFloat((score / totalWeight).toFixed(2));
+};
+
 const canonicalPosition = (value?: string | null): Player['position'] => {
   if (!value) return 'CM';
   const key = value.toUpperCase().replace(/[^A-Z]/g, '');
@@ -130,6 +181,31 @@ const canonicalPosition = (value?: string | null): Player['position'] => {
   }
   return 'CM';
 };
+
+function buildDisplayPlayer(player: Player, baseline?: PlayerBaseline): DisplayPlayer {
+  const baselinePosition = canonicalPosition(baseline?.naturalPosition ?? player.position);
+  const canonicalAssigned = canonicalPosition(player.position);
+  const allowedPositions = new Set<Player['position']>(
+    (player.roles ?? [player.position]).map(role => canonicalPosition(role)),
+  );
+  if (allowedPositions.size === 0) {
+    allowedPositions.add(baselinePosition);
+  }
+
+  const originalOverall = baseline?.naturalOverall ?? player.overall;
+  const isOutOfPosition = player.squadRole === 'starting' && !allowedPositions.has(canonicalAssigned);
+  const computedOverall = isOutOfPosition
+    ? Math.max(0, Math.min(originalOverall, computePositionOverall(canonicalAssigned, player.attributes)))
+    : originalOverall;
+
+  return {
+    ...player,
+    overall: computedOverall,
+    originalOverall,
+    assignedOverall: computedOverall,
+    isOutOfPosition,
+  };
+}
 
 const parsePercentage = (value: unknown): number => {
   const numeric = typeof value === 'number' ? value : Number(value);
@@ -412,7 +488,7 @@ const deriveFormationShape = (positions: FormationSnapshot[]): string | null => 
 };
 
 type AlternativePlayerBubbleProps = {
-  player: Player;
+  player: DisplayPlayer;
   onSelect: (playerId: string) => void;
   variant?: 'pitch' | 'panel';
   compareToPlayer?: Player | null;
@@ -472,6 +548,11 @@ const AlternativePlayerBubble: React.FC<AlternativePlayerBubbleProps> = ({
               <span className="font-semibold uppercase tracking-wide text-white/80">{positionLabel}</span>
               <span>{player.age} yaş</span>
               <span className="font-semibold text-white/80">GEN {formatRatingLabel(player.overall)}</span>
+              {player.originalOverall > player.assignedOverall ? (
+                <span className="text-[10px] uppercase tracking-wide text-emerald-200">
+                  Orj: {formatRatingLabel(player.originalOverall)}
+                </span>
+              ) : null}
               {showStrengthIndicator ? (
                 <span
                   className={cn(
@@ -523,6 +604,7 @@ function TeamPlanningContent() {
   const { user } = useAuth();
   const { balance, spend } = useDiamonds();
   const [players, setPlayers] = useState<Player[]>([]);
+  const playerBaselineRef = useRef<Record<string, PlayerBaseline>>({});
   const [searchTerm, setSearchTerm] = useState('');
   const [activeTab, setActiveTab] = useState('starting');
   const [selectedFormation, setSelectedFormation] = useState(formations[0].name);
@@ -553,6 +635,26 @@ function TeamPlanningContent() {
     updateFormationFromPositions,
     registerFormationUpdater,
   } = useTeamPlanningStore();
+
+  useEffect(() => {
+    players.forEach(player => {
+      if (playerBaselineRef.current[player.id]) {
+        return;
+      }
+      playerBaselineRef.current[player.id] = {
+        naturalPosition: player.position,
+        naturalOverall: player.overall,
+      };
+    });
+  }, [players]);
+
+  const displayPlayers = useMemo(
+    () =>
+      players.map(player =>
+        buildDisplayPlayer(player, playerBaselineRef.current[player.id]),
+      ),
+    [players],
+  );
 
 
   const applyFormationPositions = useCallback(
@@ -627,10 +729,18 @@ function TeamPlanningContent() {
   }, []);
 
 
-  const filteredPlayers = players.filter(
+  const filteredPlayers = displayPlayers.filter(
     player =>
       player.name.toLowerCase().includes(searchTerm.toLowerCase()) &&
       player.squadRole === activeTab,
+  );
+
+  const getRatingAnnotation = useCallback(
+    (player: DisplayPlayer) =>
+      player.originalOverall > player.assignedOverall
+        ? `Orj: ${formatRatingLabel(player.originalOverall)}`
+        : undefined,
+    [],
   );
 
   const POSITION_ORDER: Player['position'][] = [
@@ -661,19 +771,21 @@ function TeamPlanningContent() {
   });
 
   const renamePlayer = useMemo(
-    () => players.find(player => player.id === renamePlayerId) ?? null,
-    [players, renamePlayerId],
+    () => displayPlayers.find(player => player.id === renamePlayerId) ?? null,
+    [displayPlayers, renamePlayerId],
   );
 
   const activeContractPlayer = useMemo(
-    () => players.find(player => player.id === activeContractId) ?? null,
-    [players, activeContractId],
+    () => displayPlayers.find(player => player.id === activeContractId) ?? null,
+    [displayPlayers, activeContractId],
   );
 
   const isRenameAdAvailable = renamePlayer ? isRenameAdReady(renamePlayer) : true;
   const renameAdAvailableAt = renamePlayer
     ? getRenameAdAvailability(renamePlayer)
     : null;
+
+  const [manualSlotPositions, setManualSlotPositions] = useState<Record<string, FormationPlayerPosition>>({});
 
   const removePlayerFromCustomFormations = (playerId: string) => {
     setCustomFormations(prev => {
@@ -704,6 +816,14 @@ function TeamPlanningContent() {
       }
 
       return Object.fromEntries(nextEntries) as CustomFormationState;
+    });
+    setManualSlotPositions(prev => {
+      if (!(playerId in prev)) {
+        return prev;
+      }
+      const next = { ...prev };
+      delete next[playerId];
+      return next;
     });
   };
 
@@ -1088,11 +1208,23 @@ function TeamPlanningContent() {
 
     dropHandledRef.current = true;
 
+    const nearestSlot = findNearestSlot(coordinates);
+    const finalPosition = nearestSlot?.position ?? player.position;
+
     if (player.squadRole === 'starting') {
-      updatePlayerManualPosition(selectedFormation, playerId, {
+      if (finalPosition !== player.position) {
+        setPlayers(prev =>
+          normalizePlayers(
+            prev.map(current =>
+              current.id === playerId ? { ...current, position: finalPosition } : current,
+            ),
+          ),
+        );
+      }
+      applyManualPosition(playerId, {
         x: coordinates.x,
         y: coordinates.y,
-        position: player.position,
+        position: finalPosition,
       });
       setFocusedPlayerId(playerId);
       toast.success('Oyuncu sahada yeniden konumlandırıldı');
@@ -1105,7 +1237,7 @@ function TeamPlanningContent() {
     let result: PromoteToStartingResult | null = null;
 
     setPlayers(prev => {
-      const promotion = promotePlayerToStartingRoster(prev, playerId);
+      const promotion = promotePlayerToStartingRoster(prev, playerId, finalPosition);
       result = promotion;
       if (promotion.error) {
         errorMessage = promotion.error;
@@ -1121,10 +1253,10 @@ function TeamPlanningContent() {
     if (errorMessage) {
       toast.error('Oyuncu eklenemedi', { description: errorMessage });
     } else if (updated) {
-      updatePlayerManualPosition(selectedFormation, playerId, {
+      applyManualPosition(playerId, {
         x: coordinates.x,
         y: coordinates.y,
-        position: player.position,
+        position: finalPosition,
       });
       if (result?.swappedPlayerId) {
         removePlayerFromCustomFormations(result.swappedPlayerId);
@@ -1159,11 +1291,40 @@ function TeamPlanningContent() {
       return;
     }
 
-    updatePlayerManualPosition(selectedFormation, player.id, {
+    const nearestSlot = findNearestSlot(coordinates);
+    const finalPosition = nearestSlot?.position ?? player.position;
+    if (finalPosition !== player.position) {
+      setPlayers(prev =>
+        normalizePlayers(
+          prev.map(current =>
+            current.id === player.id ? { ...current, position: finalPosition } : current,
+          ),
+        ),
+      );
+    }
+
+    applyManualPosition(player.id, {
       x: coordinates.x,
       y: coordinates.y,
-      position: player.position,
+      position: finalPosition,
     });
+  };
+
+  const applyManualPosition = (
+    playerId: string,
+    data: FormationPlayerPosition,
+    formationName = selectedFormation,
+  ) => {
+    const normalized: FormationPlayerPosition = {
+      x: clampPercentageValue(data.x),
+      y: clampPercentageValue(data.y),
+      position: data.position,
+    };
+    updatePlayerManualPosition(formationName, playerId, normalized);
+    setManualSlotPositions(prev => ({
+      ...prev,
+      [playerId]: normalized,
+    }));
   };
 
   const handlePitchMarkerDragStart = useCallback(
@@ -1183,7 +1344,7 @@ function TeamPlanningContent() {
   );
 
   const getMetricValueForPlayer = useCallback(
-    (player: Player, metric: MetricKey): number => {
+    (player: DisplayPlayer, metric: MetricKey): number => {
       switch (metric) {
         case 'motivation':
           return clampPercentageValue(getPlayerMotivation(player) * 100);
@@ -1197,7 +1358,7 @@ function TeamPlanningContent() {
   );
 
   const renderPitchTooltip = useCallback(
-    (player: Player) => (
+    (player: DisplayPlayer) => (
       <div className="space-y-2">
         <div className="text-xs font-semibold">{player.name}</div>
         <PerformanceGauge
@@ -1215,6 +1376,12 @@ function TeamPlanningContent() {
           value={getPlayerMotivation(player)}
           variant="dark"
         />
+        {player.originalOverall > player.overall ? (
+          <div className="text-[11px] text-muted-foreground">
+            Orjinal: {formatRatingLabel(player.originalOverall)} / Şuanki:{' '}
+            {formatRatingLabel(player.overall)}
+          </div>
+        ) : null}
       </div>
     ),
     [],
@@ -1432,11 +1599,11 @@ function TeamPlanningContent() {
       return;
     }
 
-    setCustomFormations(prev => {
-      const startingIds = new Set(
-        players.filter(player => player.squadRole === 'starting').map(player => player.id),
-      );
+    const startingIds = new Set(
+      players.filter(player => player.squadRole === 'starting').map(player => player.id),
+    );
 
+    setCustomFormations(prev => {
       let changed = false;
       const next: CustomFormationState = {};
 
@@ -1461,11 +1628,19 @@ function TeamPlanningContent() {
 
       return next;
     });
+
+    setManualSlotPositions(prev => {
+      const entries = Object.entries(prev).filter(([playerId]) => startingIds.has(playerId));
+      if (entries.length === Object.keys(prev).length) {
+        return prev;
+      }
+      return Object.fromEntries(entries);
+    });
   }, [players]);
 
-  const startingEleven = players.filter(p => p.squadRole === 'starting');
-  const benchPlayers = players.filter(p => p.squadRole === 'bench');
-  const reservePlayers = players.filter(p => p.squadRole === 'reserve');
+  const startingEleven = displayPlayers.filter(p => p.squadRole === 'starting');
+  const benchPlayers = displayPlayers.filter(p => p.squadRole === 'bench');
+  const reservePlayers = displayPlayers.filter(p => p.squadRole === 'reserve');
 
   const currentFormation =
     formations.find(f => f.name === selectedFormation) ?? formations[0];
@@ -1476,7 +1651,7 @@ function TeamPlanningContent() {
   );
 
   const formationPositions: PitchSlot[] = useMemo(() => {
-    const starters = players.filter(p => p.squadRole === 'starting');
+    const starters = displayPlayers.filter(p => p.squadRole === 'starting');
     const slots = currentFormation.positions;
 
     if (starters.length === 0) {
@@ -1568,6 +1743,17 @@ function TeamPlanningContent() {
       }
 
       const { player, manual } = assigned;
+      const manualOverride = manualSlotPositions[player.id];
+      if (manualOverride) {
+        return {
+          position: manualOverride.position ?? slot.position,
+          x: clampPercentageValue(manualOverride.x),
+          y: clampPercentageValue(manualOverride.y),
+          player,
+          slotIndex: idx,
+        };
+      }
+
       if (!manual) {
         return { ...slot, player, slotIndex: idx };
       }
@@ -1580,8 +1766,27 @@ function TeamPlanningContent() {
         slotIndex: idx,
       };
     });
-  }, [currentFormation, manualFormation, players]);
+  }, [currentFormation, manualFormation, players, manualSlotPositions]);
 
+
+  const findNearestSlot = useCallback(
+    (coords: {x: number; y: number}): PitchSlot | null => {
+      if (!formationPositions.length) return null;
+      let best: PitchSlot | null = null;
+      let bestDist = Number.POSITIVE_INFINITY;
+      formationPositions.forEach(slot => {
+        const dx = slot.x - coords.x;
+        const dy = slot.y - coords.y;
+        const dist = dx * dx + dy * dy;
+        if (dist < bestDist) {
+          bestDist = dist;
+          best = slot;
+        }
+      });
+      return best;
+    },
+    [formationPositions],
+  );
 
   const buildPositionsMap = useCallback(
     (slots: PitchSlot[]): Record<string, StorePlayerPosition> =>
@@ -1637,8 +1842,8 @@ function TeamPlanningContent() {
 
   const selectedPlayer = useMemo(() => {
     if (!focusedPlayerId) return null;
-    return players.find(p => p.id === focusedPlayerId) ?? null;
-  }, [players, focusedPlayerId]);
+    return displayPlayers.find(p => p.id === focusedPlayerId) ?? null;
+  }, [displayPlayers, focusedPlayerId]);
 
   const alternativePlayers = useMemo(() => {
     if (!selectedPlayer) {
@@ -1647,7 +1852,7 @@ function TeamPlanningContent() {
 
     const target = canonicalPosition(selectedPlayer.position);
 
-    const alternatives = players.filter(player => {
+    const alternatives = displayPlayers.filter(player => {
       if (player.id === selectedPlayer.id) {
         return false;
       }
@@ -1688,7 +1893,7 @@ function TeamPlanningContent() {
     const targetPlayer = slot.player ?? null;
     if (targetPlayer && targetPlayer.id === draggedPlayer.id) {
       dropHandledRef.current = true;
-      updatePlayerManualPosition(selectedFormation, playerId, {
+      applyManualPosition(playerId, {
         x: slot.x,
         y: slot.y,
         position: slot.position,
@@ -1800,7 +2005,7 @@ function TeamPlanningContent() {
 
     if (updated) {
       dropHandledRef.current = true;
-      updatePlayerManualPosition(selectedFormation, playerId, {
+      applyManualPosition(playerId, {
         x: slot.x,
         y: slot.y,
         position: slot.position,
@@ -1809,7 +2014,7 @@ function TeamPlanningContent() {
       if (targetPlayer) {
         if (previousRole === 'starting') {
           if (originSlot) {
-            updatePlayerManualPosition(selectedFormation, targetPlayer.id, {
+            applyManualPosition(targetPlayer.id, {
               x: originSlot.x,
               y: originSlot.y,
               position: originSlot.position,
@@ -1881,10 +2086,14 @@ function TeamPlanningContent() {
 
     removePlayerFromCustomFormations(alternativeId);
     manualLayouts.forEach(({ formation, layout }) => {
-      updatePlayerManualPosition(formation, alternativeId, {
-        ...layout,
-        position: selectedPlayer.position,
-      });
+      applyManualPosition(
+        alternativeId,
+        {
+          ...layout,
+          position: selectedPlayer.position,
+        },
+        formation,
+      );
     });
     removePlayerFromCustomFormations(selectedPlayer.id);
     if (swappedPlayerId && swappedPlayerId !== selectedPlayer.id) {
@@ -2124,6 +2333,7 @@ function TeamPlanningContent() {
                           key={player.id}
                           player={player}
                           leagueId={teamLeagueIdRef.current}
+                          ratingAnnotation={getRatingAnnotation(player)}
                           compact
                           defaultCollapsed
                           draggable
@@ -2159,6 +2369,7 @@ function TeamPlanningContent() {
                           key={player.id}
                           player={player}
                           leagueId={teamLeagueIdRef.current}
+                          ratingAnnotation={getRatingAnnotation(player)}
                           compact
                           defaultCollapsed
                           draggable
@@ -2194,6 +2405,7 @@ function TeamPlanningContent() {
                           key={player.id}
                           player={player}
                           leagueId={teamLeagueIdRef.current}
+                          ratingAnnotation={getRatingAnnotation(player)}
                           compact
                           defaultCollapsed
                           draggable

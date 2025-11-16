@@ -36,6 +36,7 @@ interface PlayerCardProps {
   onDragStart?: (e: React.DragEvent<HTMLDivElement>) => void;
   onDragEnd?: (e: React.DragEvent<HTMLDivElement>) => void;
   leagueId?: string | null;
+  ratingAnnotation?: string;
 }
 
 const POSITION_COLOR: Record<string, string> = {
@@ -70,6 +71,7 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({
   onDragStart,
   onDragEnd,
   leagueId = null,
+  ratingAnnotation,
 }) => {
   const [collapsed, setCollapsed] = useState(defaultCollapsed);
   const cardRef = useRef<HTMLDivElement | null>(null);
@@ -246,6 +248,9 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({
                     <TooltipContent>Maks. Potansiyel: {formatRatingLabel(player.potential)}</TooltipContent>
                   </Tooltip>
                 </div>
+                {ratingAnnotation ? (
+                  <div className="text-[10px] text-muted-foreground">{ratingAnnotation}</div>
+                ) : null}
                 <div className="flex flex-wrap gap-1">
                   {(player.roles ?? []).map((role) => (
                     <Badge key={role} variant="outline" className={cn('text-xs', compact && 'text-[10px]')}>

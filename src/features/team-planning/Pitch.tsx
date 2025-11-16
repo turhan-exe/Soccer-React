@@ -5,11 +5,11 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { cn } from '@/lib/utils';
 import type { MetricKey } from './useTeamPlanningStore';
 
-const BASE_PITCH_WIDTH = 680;
-const BASE_PITCH_HEIGHT = 1050;
-const PITCH_MARKER_SIZE = 70;
+const BASE_PITCH_WIDTH = 840;
+const BASE_PITCH_HEIGHT = 1310;
+const PITCH_MARKER_SIZE = 90;
 const PITCH_MARKER_CENTER = PITCH_MARKER_SIZE / 2;
-const PITCH_MARKER_RADIUS = 30;
+const PITCH_MARKER_RADIUS = 40;
 const PITCH_MARKER_CIRCUMFERENCE = 2 * Math.PI * PITCH_MARKER_RADIUS;
 
 export type PitchSlot = {
