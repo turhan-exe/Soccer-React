@@ -3,10 +3,12 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Slider } from '@/components/ui/slider';
 import { PlayerCard } from '@/components/ui/player-card';
 import { PerformanceGauge, clampPerformanceGauge } from '@/components/ui/performance-gauge';
 import { Player, CustomFormationMap } from '@/types';
 import { getTeam, saveTeamPlayers, createInitialTeam } from '@/services/team';
+import { buildSalaryNegotiationProfile, clampNumber, formatSalary } from '@/lib/contractNegotiation';
 import { completeLegendRental, getLegendIdFromPlayer } from '@/services/legends';
 import { auth } from '@/services/firebase';
 import { useAuth } from '@/contexts/AuthContext';
@@ -620,6 +622,9 @@ function TeamPlanningContent() {
   const [pendingContractIds, setPendingContractIds] = useState<string[]>([]);
   const [activeContractId, setActiveContractId] = useState<string | null>(null);
   const [isProcessingContract, setIsProcessingContract] = useState(false);
+  const [negotiationPlayerId, setNegotiationPlayerId] = useState<string | null>(null);
+  const [negotiationOffer, setNegotiationOffer] = useState(0);
+  const [isNegotiatingSalary, setIsNegotiatingSalary] = useState(false);
 
   const pitchRef = useRef<HTMLDivElement | null>(null);
   const dropHandledRef = useRef(false);
@@ -779,6 +784,47 @@ function TeamPlanningContent() {
     () => displayPlayers.find(player => player.id === activeContractId) ?? null,
     [displayPlayers, activeContractId],
   );
+
+  const negotiationPlayer = useMemo(
+    () => displayPlayers.find(player => player.id === negotiationPlayerId) ?? null,
+    [displayPlayers, negotiationPlayerId],
+  );
+
+  const salaryNegotiationProfile = useMemo(
+    () =>
+      negotiationPlayer
+        ? buildSalaryNegotiationProfile(negotiationPlayer, { gaugeFallback: DEFAULT_GAUGE_VALUE })
+        : null,
+    [negotiationPlayer],
+  );
+
+  useEffect(() => {
+    if (!salaryNegotiationProfile) {
+      setNegotiationOffer(0);
+      return;
+    }
+    setNegotiationOffer(prev => {
+      if (prev >= salaryNegotiationProfile.floor && prev <= salaryNegotiationProfile.ceiling) {
+        return prev;
+      }
+      return salaryNegotiationProfile.managerSuggested;
+    });
+  }, [salaryNegotiationProfile]);
+
+  const negotiationConfidence = useMemo(() => {
+    if (!salaryNegotiationProfile) {
+      return 0;
+    }
+    const range = Math.max(1, salaryNegotiationProfile.ceiling - salaryNegotiationProfile.floor);
+    const relative = clampNumber(
+      (negotiationOffer - salaryNegotiationProfile.floor) / range,
+      0,
+      1,
+    );
+    const motivationBonus =
+      (clampPerformanceGauge(negotiationPlayer?.motivation) - DEFAULT_GAUGE_VALUE) * 0.35;
+    return clampNumber(0.35 + relative * 0.6 + motivationBonus, 0, 0.98);
+  }, [negotiationOffer, salaryNegotiationProfile, negotiationPlayer]);
 
   const isRenameAdAvailable = renamePlayer ? isRenameAdReady(renamePlayer) : true;
   const renameAdAvailableAt = renamePlayer
@@ -1005,60 +1051,80 @@ function TeamPlanningContent() {
     }
   };
 
-  const handleExtendContract = async (playerId: string) => {
-    if (!user || isProcessingContract) {
-      return;
-    }
-    const userId = user.id;
-    const target = players.find(player => player.id === playerId);
+  const openSalaryNegotiation = (playerId: string) => {
+    const target = displayPlayers.find(player => player.id === playerId);
     if (!target) {
       return;
     }
     if (getLegendIdFromPlayer(target) !== null) {
-      toast.error('Nostalji paketinden alınan oyuncuların sözleşmeleri uzatılamaz.');
+      toast.error('Nostalji oyuncularıyla maaş pazarlığı yapılmaz.');
       return;
     }
+    setNegotiationPlayerId(playerId);
+  };
 
-    setIsProcessingContract(true);
+  const handleConfirmSalaryNegotiation = async () => {
+    if (!user || !negotiationPlayer || !salaryNegotiationProfile) {
+      return;
+    }
+    const clampedOffer = clampNumber(
+      Math.round(negotiationOffer),
+      salaryNegotiationProfile.floor,
+      salaryNegotiationProfile.ceiling,
+    );
+    const userId = user.id;
     const previousPlayers = players.map(player => ({ ...player }));
     const now = new Date();
-    const currentExpiry = getContractExpiration(target);
+    const currentExpiry = getContractExpiration(negotiationPlayer);
     const baseDate = currentExpiry && currentExpiry.getTime() > now.getTime() ? currentExpiry : now;
     const newExpiry = addMonths(baseDate, CONTRACT_EXTENSION_MONTHS);
 
     const updatedPlayers = players.map(player => {
-      if (player.id !== playerId) {
+      if (player.id !== negotiationPlayer.id) {
         return player;
       }
-      const existingContract = player.contract ?? {
+      const currentContract = player.contract ?? {
         expiresAt: newExpiry.toISOString(),
         status: 'active',
-        salary: 0,
+        salary: clampedOffer,
         extensions: 0,
       };
       return {
         ...player,
         contract: {
-          ...existingContract,
-          status: 'active',
+          ...currentContract,
+          salary: clampedOffer,
           expiresAt: newExpiry.toISOString(),
-          extensions: (existingContract.extensions ?? 0) + 1,
+          status: 'active',
+          extensions: (currentContract.extensions ?? 0) + 1,
         },
+        motivation: clampPerformanceGauge(
+          player.motivation + Math.min(0.08, negotiationConfidence * 0.2),
+          DEFAULT_GAUGE_VALUE,
+        ),
       };
     });
 
     setPlayers(updatedPlayers);
+    setIsNegotiatingSalary(true);
     try {
       await saveTeamPlayers(userId, updatedPlayers);
-      toast.success(`${target.name} ile sözleşme uzatıldı`);
-      finalizeContractDecision(playerId);
+      toast.success(
+        `${negotiationPlayer.name} maaşı ${formatSalary(clampedOffer)} oldu ve sözleşmesi ${CONTRACT_EXTENSION_MONTHS} ay uzatıldı.`,
+      );
+      finalizeContractDecision(negotiationPlayer.id);
+      setNegotiationPlayerId(null);
     } catch (error) {
-      console.error('[TeamPlanning] extend contract failed', error);
-      toast.error('Sözleşme uzatılamadı');
+      console.error('[TeamPlanning] salary negotiation failed', error);
+      toast.error('Maaş pazarlığı tamamlanamadı.');
       setPlayers(previousPlayers);
     } finally {
-      setIsProcessingContract(false);
+      setIsNegotiatingSalary(false);
     }
+  };
+
+  const handleExtendContract = (playerId: string) => {
+    openSalaryNegotiation(playerId);
   };
 
   const handleReleaseContract = async (playerId: string) => {
@@ -2328,7 +2394,9 @@ function TeamPlanningContent() {
                         </CardContent>
                       </Card>
                     ) : (
-                      sortedPlayers.map(player => (
+                    sortedPlayers.map(player => {
+                      const canAdjustContract = getLegendIdFromPlayer(player) === null;
+                      return (
                         <PlayerCard
                           key={player.id}
                           player={player}
@@ -2347,8 +2415,15 @@ function TeamPlanningContent() {
                           onListForTransfer={() => handleListForTransfer(player.id)}
                           onRenamePlayer={() => setRenamePlayerId(player.id)}
                           onFirePlayer={() => handleFirePlayer(player.id)}
+                          onNegotiateSalary={
+                            canAdjustContract ? () => openSalaryNegotiation(player.id) : undefined
+                          }
+                          onExtendContract={
+                            canAdjustContract ? () => handleExtendContract(player.id) : undefined
+                          }
                         />
-                      ))
+                      );
+                    })
                     )}
                   </TabsContent>
 
@@ -2364,7 +2439,9 @@ function TeamPlanningContent() {
                         </CardContent>
                       </Card>
                     ) : (
-                      sortedPlayers.map(player => (
+                    sortedPlayers.map(player => {
+                      const canAdjustContract = getLegendIdFromPlayer(player) === null;
+                      return (
                         <PlayerCard
                           key={player.id}
                           player={player}
@@ -2383,8 +2460,15 @@ function TeamPlanningContent() {
                           onListForTransfer={() => handleListForTransfer(player.id)}
                           onRenamePlayer={() => setRenamePlayerId(player.id)}
                           onFirePlayer={() => handleFirePlayer(player.id)}
+                          onNegotiateSalary={
+                            canAdjustContract ? () => openSalaryNegotiation(player.id) : undefined
+                          }
+                          onExtendContract={
+                            canAdjustContract ? () => handleExtendContract(player.id) : undefined
+                          }
                         />
-                      ))
+                      );
+                    })
                     )}
                   </TabsContent>
 
@@ -2400,7 +2484,9 @@ function TeamPlanningContent() {
                         </CardContent>
                       </Card>
                     ) : (
-                      sortedPlayers.map(player => (
+                    sortedPlayers.map(player => {
+                      const canAdjustContract = getLegendIdFromPlayer(player) === null;
+                      return (
                         <PlayerCard
                           key={player.id}
                           player={player}
@@ -2419,8 +2505,15 @@ function TeamPlanningContent() {
                           onListForTransfer={() => handleListForTransfer(player.id)}
                           onRenamePlayer={() => setRenamePlayerId(player.id)}
                           onFirePlayer={() => handleFirePlayer(player.id)}
+                          onNegotiateSalary={
+                            canAdjustContract ? () => openSalaryNegotiation(player.id) : undefined
+                          }
+                          onExtendContract={
+                            canAdjustContract ? () => handleExtendContract(player.id) : undefined
+                          }
                         />
-                      ))
+                      );
+                    })
                     )}
                   </TabsContent>
                 </div>
@@ -2476,6 +2569,97 @@ function TeamPlanningContent() {
             </Button>
             <Button disabled={isRenamingPlayer} onClick={() => handleRenamePlayer('purchase')}>
               {PLAYER_RENAME_DIAMOND_COST} Elmasla Onayla
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={Boolean(negotiationPlayer)}
+        onOpenChange={open => {
+          if (!open) {
+            setNegotiationPlayerId(null);
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Maaş Pazarlığı</DialogTitle>
+            <DialogDescription>
+              {negotiationPlayer
+                ? `${negotiationPlayer.name} ile yeni maaş teklifi üzerinde çalışılıyor.`
+                : 'Bir oyuncu seçin.'}
+            </DialogDescription>
+          </DialogHeader>
+          {salaryNegotiationProfile && negotiationPlayer ? (
+            <div className="space-y-3">
+              <div className="rounded-md border border-muted bg-muted/40 p-3 text-sm space-y-1">
+                <p>Güncel maaş: {formatSalary(salaryNegotiationProfile.baseSalary)}</p>
+                <p>Oyuncunun beklentisi: {formatSalary(salaryNegotiationProfile.demand)}</p>
+                <p>
+                  Aralık: {formatSalary(salaryNegotiationProfile.floor)} –{' '}
+                  {formatSalary(salaryNegotiationProfile.ceiling)}
+                </p>
+              </div>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  <span>Teklifiniz</span>
+                  <span>{formatSalary(negotiationOffer)}</span>
+                </div>
+                <Slider
+                  min={salaryNegotiationProfile.floor}
+                  max={salaryNegotiationProfile.ceiling}
+                  step={25}
+                  value={[negotiationOffer]}
+                  onValueChange={value => {
+                    const next = Number(value?.[0] ?? 0);
+                    if (!Number.isFinite(next)) {
+                      return;
+                    }
+                    setNegotiationOffer(next);
+                  }}
+                />
+                <Input
+                  type="number"
+                  value={negotiationOffer}
+                  min={salaryNegotiationProfile.floor}
+                  max={salaryNegotiationProfile.ceiling}
+                  onChange={event => {
+                    const next = Number(event.target.value);
+                    if (!Number.isFinite(next)) {
+                      return;
+                    }
+                    setNegotiationOffer(
+                      clampNumber(
+                        Math.round(next),
+                        salaryNegotiationProfile.floor,
+                        salaryNegotiationProfile.ceiling,
+                      ),
+                    );
+                  }}
+                />
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Tahmini kabul şansı: %{Math.round(negotiationConfidence * 100)}
+              </p>
+              <p className="text-xs text-muted-foreground">{salaryNegotiationProfile.narrative}</p>
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">Oyuncu bilgisi yükleniyor.</p>
+          )}
+          <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:justify-end">
+            <Button variant="secondary" onClick={() => setNegotiationPlayerId(null)}>
+              Vazgeç
+            </Button>
+            <Button
+              disabled={
+                isNegotiatingSalary ||
+                !salaryNegotiationProfile ||
+                !Number.isFinite(negotiationOffer)
+              }
+              onClick={handleConfirmSalaryNegotiation}
+            >
+              Teklifi Gönder
             </Button>
           </div>
         </DialogContent>
