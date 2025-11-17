@@ -83,7 +83,8 @@ export interface UserSponsorDoc {
   price?: number;
   active: boolean;
   activatedAt: Timestamp;
-  lastPayoutAt?: Timestamp;
+  lastPayoutAt?: Timestamp | null;
+  nextPayoutAt?: Timestamp | null;
 }
 
 export interface TeamSalaryRecord {
@@ -434,6 +435,8 @@ export async function activateSponsor(teamId: string, sponsor: SponsorCatalogEnt
               reward: sponsor.reward,
               price: sponsor.price ?? null,
               activatedAt: serverTimestamp(),
+              lastPayoutAt: null,
+              nextPayoutAt: null,
             }
           : {}),
       },
@@ -452,6 +455,8 @@ export async function activateSponsor(teamId: string, sponsor: SponsorCatalogEnt
       price: sponsor.price ?? null,
       active: true,
       activatedAt: serverTimestamp(),
+      lastPayoutAt: null,
+      nextPayoutAt: null,
     });
   }
 
@@ -476,9 +481,14 @@ export async function applySponsorEarnings(teamId: string, sponsorId: string): P
     }
     const reward = data.reward;
     const cadenceMs = reward.cycle === 'weekly' ? 7 * DAY_MS : DAY_MS;
-    const lastPayout = data.lastPayoutAt ? data.lastPayoutAt.toMillis() : data.activatedAt.toMillis();
-    const now = Date.now();
-    const periods = Math.floor((now - lastPayout) / cadenceMs);
+    const nowMs = sponsorSnap.readTime?.toMillis() ?? Date.now();
+    const lastPayoutMs = data.lastPayoutAt?.toMillis();
+    const lastPayout = lastPayoutMs ?? data.activatedAt.toMillis();
+    const nextPayoutAt = data.nextPayoutAt?.toMillis();
+    if (nextPayoutAt && nowMs < nextPayoutAt) {
+      throw new Error('Bir sonraki sponsorluk odemesi henüz hazir degil.');
+    }
+    const periods = Math.floor((nowMs - lastPayout) / cadenceMs);
     if (periods <= 0) {
       throw new Error('Bugun icin odeme yapildi.');
     }
@@ -505,7 +515,8 @@ export async function applySponsorEarnings(teamId: string, sponsorId: string): P
       { merge: true },
     );
     tx.update(ref, {
-      lastPayoutAt: Timestamp.fromMillis(lastPayout + periods * cadenceMs),
+      lastPayoutAt: Timestamp.fromMillis(nowMs),
+      nextPayoutAt: Timestamp.fromMillis(nowMs + cadenceMs),
       updatedAt: serverTimestamp(),
     });
   });

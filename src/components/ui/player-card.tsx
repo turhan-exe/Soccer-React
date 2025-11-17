@@ -27,6 +27,8 @@ interface PlayerCardProps {
   onListForTransfer?: () => void;
   onReleasePlayer?: () => void;
   onRenamePlayer?: () => void;
+  onNegotiateSalary?: () => void;
+  onExtendContract?: () => void;
   onFirePlayer?: () => void;
   showActions?: boolean;
   compact?: boolean;
@@ -62,6 +64,8 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({
   onListForTransfer,
   onReleasePlayer,
   onRenamePlayer,
+  onNegotiateSalary,
+  onExtendContract,
   onFirePlayer,
   showActions = true,
   compact = false,
@@ -286,14 +290,20 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({
                   {player.squadRole !== 'reserve' && onMoveToReserve && (
                     <DropdownMenuItem onClick={onMoveToReserve}>Rezerve Al</DropdownMenuItem>
                   )}
-                  {(onRenamePlayer || onListForTransfer || onReleasePlayer || onFirePlayer) && (
+                  {(onRenamePlayer || onNegotiateSalary || onListForTransfer || onExtendContract || onReleasePlayer || onFirePlayer) && (
                     <DropdownMenuSeparator />
                   )}
                   {onRenamePlayer && (
                     <DropdownMenuItem onClick={onRenamePlayer}>İsim Özelleştir</DropdownMenuItem>
                   )}
+                  {onNegotiateSalary && (
+                    <DropdownMenuItem onClick={onNegotiateSalary}>Maaş Pazarlığı</DropdownMenuItem>
+                  )}
                   {onListForTransfer && (
                     <DropdownMenuItem onClick={onListForTransfer}>Oyuncuyu Sat</DropdownMenuItem>
+                  )}
+                  {onExtendContract && (
+                    <DropdownMenuItem onClick={onExtendContract}>Sözleşmeyi Uzat</DropdownMenuItem>
                   )}
                   {onReleasePlayer && (
                     <DropdownMenuItem onClick={onReleasePlayer}>Serbest Bırak</DropdownMenuItem>

@@ -4,8 +4,10 @@ import { generateRoundRobinFixtures, nextDay19TR } from './utils/schedule.js';
 import './_firebase.js';
 import { getFirestore, FieldValue, Timestamp, } from 'firebase-admin/firestore';
 import { getAuth } from 'firebase-admin/auth';
+import { normalizeCapacity } from './utils/roundrobin.js';
 const db = getFirestore();
 const ADMIN_SECRET = functions.config()?.admin?.secret || '';
+const DEFAULT_FORMING_CAPACITY = normalizeCapacity(22);
 /**
  * Core logic for assigning a team to a league. Ensures a team is only placed
  * into one league and that a new league is created when none are available.
@@ -35,7 +37,7 @@ export async function assignTeam(teamId, teamName, ownerUid) {
             const newLeagueData = {
                 name: `League ${nextSeason}`,
                 season: nextSeason,
-                capacity: 22,
+                capacity: DEFAULT_FORMING_CAPACITY,
                 timezone: 'Europe/Istanbul',
                 state: 'forming',
                 rounds: 21,
@@ -75,12 +77,13 @@ export async function assignTeam(teamId, teamName, ownerUid) {
             // Do not write yet; just remember to create it later
             pendingNewLeague = { ref: newLeagueRef, data: newLeagueData };
             chosenLeagueRef = newLeagueRef;
-            chosenLeagueData = { teamCount: 0, capacity: 22 };
+            chosenLeagueData = { teamCount: 0, capacity: DEFAULT_FORMING_CAPACITY };
         }
         else {
             const doc = formingSnap.docs[0];
             const data = doc.data();
-            const capacity = data.capacity ?? 22;
+            const requestedCapacity = data.capacity ?? DEFAULT_FORMING_CAPACITY;
+            const capacity = normalizeCapacity(requestedCapacity);
             const count = data.teamCount ?? 0;
             if (count >= capacity) {
                 // Mark this forming league to be finalized and create a new one
@@ -94,7 +97,7 @@ export async function assignTeam(teamId, teamName, ownerUid) {
                 const { newLeagueRef, newLeagueData } = await prepareNewFormingLeague();
                 pendingNewLeague = { ref: newLeagueRef, data: newLeagueData };
                 chosenLeagueRef = newLeagueRef;
-                chosenLeagueData = { teamCount: 0, capacity: 22 };
+                chosenLeagueData = { teamCount: 0, capacity: DEFAULT_FORMING_CAPACITY };
             }
             else {
                 chosenLeagueRef = doc.ref;
@@ -102,7 +105,8 @@ export async function assignTeam(teamId, teamName, ownerUid) {
             }
         }
         // 3) Assign team into chosen league (respect capacity in case of retry/concurrency).
-        const capacity = chosenLeagueData.capacity ?? 22;
+        const requestedCapacity = chosenLeagueData.capacity ?? DEFAULT_FORMING_CAPACITY;
+        const capacity = normalizeCapacity(requestedCapacity);
         const currentCount = chosenLeagueData.teamCount ?? 0;
         // Double-check team doc doesn't exist under this league (idempotency on retries)
         const teamDocRef = chosenLeagueRef.collection('teams').doc(teamId);
@@ -162,6 +166,7 @@ export async function assignTeam(teamId, teamName, ownerUid) {
                 teamCount: newCount,
                 // Also mirror teams under league doc as an array for quick reads
                 teams: FieldValue.arrayUnion({ id: teamId, name: teamName }),
+                capacity,
             };
             if (newCount === capacity) {
                 const startDate = nextDay19TR();

@@ -4,6 +4,11 @@ export interface SlotMatch {
   awaySlot: number;
 }
 
+export function normalizeCapacity(requested: number): number {
+  const value = Math.max(2, Math.floor(requested));
+  return value % 2 === 0 ? value : value + 1;
+}
+
 /**
  * Double round-robin for slots [1..n]. If n is odd, inserts a BYE and drops BYE pairs.
  * Returns 2*(n-1) rounds with balanced home/away.
@@ -39,4 +44,3 @@ export function generateDoubleRoundRobinSlots(n: number): SlotMatch[] {
 
   return [...firstLeg, ...secondLeg];
 }
-

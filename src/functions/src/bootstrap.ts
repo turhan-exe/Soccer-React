@@ -3,7 +3,10 @@ import './_firebase.js';
 import { getFirestore, FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { getAuth } from 'firebase-admin/auth';
 import { formatInTimeZone } from 'date-fns-tz';
-import { generateDoubleRoundRobinSlots } from './utils/roundrobin.js';
+import {
+  generateDoubleRoundRobinSlots,
+  normalizeCapacity,
+} from './utils/roundrobin.js';
 import { nextMonthOrThisMonthFirstAt19, monthKeyTR, dateForRound } from './utils/time.js';
 
 const db = getFirestore();
@@ -61,7 +64,10 @@ function pickBotsForLeague(allBotIds: string[], used: Set<string>, count: number
 
 async function runBootstrap() {
   const LEAGUE_COUNT = Number(process.env.LEAGUE_COUNT || DEFAULTS.LEAGUE_COUNT);
-  const CAPACITY = Number(process.env.LEAGUE_CAPACITY || DEFAULTS.CAPACITY);
+  const requestedCapacity = Number(
+    process.env.LEAGUE_CAPACITY || DEFAULTS.CAPACITY,
+  );
+  const capacity = normalizeCapacity(requestedCapacity);
   const ROUNDS = Number(process.env.ROUNDS_PER_SEASON || DEFAULTS.ROUNDS);
   const TIMEZONE = DEFAULTS.TIMEZONE;
 
@@ -79,13 +85,13 @@ async function runBootstrap() {
   }
 
   // Ensure bot pool
-  await ensureBots(LEAGUE_COUNT * CAPACITY);
+  await ensureBots(LEAGUE_COUNT * capacity);
   const botSnap = await db.collection('bots').get();
   const botIds = botSnap.docs.map((d) => d.id);
   const botNames = new Map(botSnap.docs.map((d) => [d.id, (d.data() as any).name || d.id]));
   const usedBotIds = new Set<string>();
 
-  const fixturesTemplate = generateDoubleRoundRobinSlots(CAPACITY);
+  const fixturesTemplate = generateDoubleRoundRobinSlots(capacity);
 
   // Create leagues + slots + fixtures + standings
   for (let i = 1; i <= LEAGUE_COUNT; i++) {
@@ -93,7 +99,7 @@ async function runBootstrap() {
     const leagueData = {
       name: `Lig ${i}`,
       season: 1,
-      capacity: CAPACITY,
+      capacity,
       timezone: TIMEZONE,
       state: 'scheduled' as const,
       createdAt: FieldValue.serverTimestamp(),
@@ -104,7 +110,7 @@ async function runBootstrap() {
     await ref.set(leagueData);
 
     // Slots
-    const leagueBots = pickBotsForLeague(botIds, usedBotIds, CAPACITY);
+  const leagueBots = pickBotsForLeague(botIds, usedBotIds, capacity);
     const slotBatch = db.batch();
     leagueBots.forEach((botId, idx) => {
       const slotIndex = idx + 1;
@@ -151,7 +157,7 @@ async function runBootstrap() {
 
     let batch = db.batch();
     let ops = 0;
-    for (const f of fixturesTemplate) {
+  for (const f of fixturesTemplate) {
       const date = dateForRound(startDate, f.round);
       const docRef = ref.collection('fixtures').doc();
       const homeTeamId = slotMap.get(f.homeSlot)?.teamId || null;
