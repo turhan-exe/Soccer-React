@@ -247,8 +247,11 @@ export function UnityMatchLauncher({ title = 'Unity WebGL', autoPayload = null, 
             <div
               className={cn(
                 'relative w-full overflow-hidden rounded-xl border bg-black',
-                fullscreenActive ? 'flex-1 min-h-[420px] md:min-h-[520px]' : 'aspect-[16/9] min-h-[360px] sm:min-h-[420px] md:min-h-[520px]'
+                fullscreenActive
+                  ? 'flex-1 min-h-[420px] md:min-h-[520px]'
+                  : 'aspect-[16/9] min-h-[240px] sm:min-h-[300px] md:min-h-[360px] max-h-[65vh]'
               )}
+              style={!fullscreenActive ? { maxHeight: 'min(65vh, 520px)' } : undefined}
             >
               <iframe ref={iframeRef} src={src} title="Unity Bridge Iframe" className="h-full w-full" allowFullScreen />
             </div>
