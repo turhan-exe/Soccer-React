@@ -7,6 +7,7 @@ import {
   getRedirectResult,
   GoogleAuthProvider,
   OAuthProvider,
+  sendPasswordResetEmail,
   signInWithCredential,
   type UserCredential,
 } from 'firebase/auth';
@@ -20,6 +21,9 @@ export const signUp = (email: string, password: string) =>
 
 export const signIn = (email: string, password: string) =>
   signInWithEmailAndPassword(auth, email, password);
+
+export const requestPasswordReset = (email: string) =>
+  sendPasswordResetEmail(auth, email);
 
 export const signOutUser = async () => {
   if (isNativePlatform) {

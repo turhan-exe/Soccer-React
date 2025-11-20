@@ -18,6 +18,7 @@ import {
   signInWithGoogle,
   signInWithApple,
   getAuthRedirectResult,
+  requestPasswordReset,
 } from '@/services/auth';
 import { createInitialTeam, getTeam, updateTeamName } from '@/services/team';
 import { requestAssign } from '@/services/leagues';
@@ -33,6 +34,7 @@ interface AuthContextType {
   loginWithApple: () => Promise<void>;
   registerWithGoogle: (teamName: string) => Promise<void>;
   registerWithApple: (teamName: string) => Promise<void>;
+  resetPassword: (email: string) => Promise<void>;
   isAuthReady: boolean;
   isLoading: boolean;
   refreshTeamInfo: () => Promise<void>;
@@ -387,6 +389,20 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
+  const resetPassword = async (email: string) => {
+    const trimmedEmail = email.trim();
+    if (!trimmedEmail) {
+      throw new Error('E-posta gerekli');
+    }
+
+    setIsLoading(true);
+    try {
+      await requestPasswordReset(trimmedEmail);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const logout = async () => {
     await signOutUser();
     setUser(null);
@@ -497,6 +513,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         loginWithApple,
         registerWithGoogle,
         registerWithApple,
+        resetPassword,
         isAuthReady,
         isLoading,
         refreshTeamInfo,

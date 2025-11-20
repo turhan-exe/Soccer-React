@@ -17,6 +17,28 @@ export type InjuryStatus = 'healthy' | 'injured';
 
 export type KitType = 'energy' | 'morale' | 'health';
 
+export type TeamBadge = {
+  url: string;
+  alt?: string;
+  width?: number;
+  height?: number;
+  contentType?: string;
+};
+
+export type TeamKitAsset = {
+  textureUrl: string;
+  normalMapUrl?: string | null;
+  contentType?: string;
+  width?: number;
+  height?: number;
+};
+
+export type TeamKitAssets = {
+  home?: TeamKitAsset | null;
+  away?: TeamKitAsset | null;
+  third?: TeamKitAsset | null;
+};
+
 export interface Player {
   id: string;
   name: string;
@@ -89,6 +111,10 @@ export interface ClubTeam {
   kitHome: string;
   kitAway: string;
   logo?: string | null;
+  /** Opsiyonel: Unity TeamSelection için logonun URL ve meta bilgisi */
+  badge?: TeamBadge | null;
+  /** Opsiyonel: Unity kit dokuları (home/away/third) */
+  kit?: TeamKitAssets | null;
   leagueId?: string | null;
   /** @deprecated use transferBudget */
   budget?: number;

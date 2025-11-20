@@ -14,6 +14,8 @@ import type {
   RuntimePlayer,
   RuntimeTeam,
   ShowTeamsPayload,
+  TeamBadge,
+  TeamKitAssets,
 } from '@/services/unityBridge';
 import { runtimeTeamToPublishedTeam, toUnityFormationEnum } from '@/services/unityBridge';
 
@@ -338,6 +340,10 @@ function buildRuntimeTeam(team: ClubTeam | null, fallbackName: string): RuntimeT
   const bench = benchPlayers.map((p) => p.name);
   const benchData = benchPlayers.map(mapPlayerToRuntime);
 
+  const badge: TeamBadge | undefined =
+    team.badge ?? (team.logo ? { url: team.logo, alt: `${team.name} logo` } : undefined);
+  const kitAssets: TeamKitAssets | undefined = team.kit ?? undefined;
+
   return {
     name: team.name || fallbackName,
     players,
@@ -345,6 +351,8 @@ function buildRuntimeTeam(team: ClubTeam | null, fallbackName: string): RuntimeT
     bench,
     benchData,
     formation: guessFormation(lineup),
+    badge,
+    kitAssets,
   };
 }
 

@@ -84,6 +84,27 @@ const getSocialAuthErrorMessage = (provider: 'google' | 'apple', error: unknown)
   return provider === 'google' ? 'Google ile giris basarisiz' : 'Apple ile giris basarisiz';
 };
 
+const getPasswordResetErrorMessage = (error: unknown): string => {
+  if (error instanceof FirebaseError) {
+    const map: Record<string, string> = {
+      'auth/invalid-email': 'Ge��erli bir e-posta adresi girin.',
+      'auth/user-not-found': 'Bu e-posta ile kay��tl�� kullan��c�� bulunamad��.',
+      'auth/too-many-requests': 'Çok fazla deneme yap��ld��. Lütfen daha sonra tekrar deneyin.',
+    };
+    const friendly = map[error.code];
+    if (friendly) {
+      return friendly;
+    }
+    if (error.message) {
+      return error.message;
+    }
+  }
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+  return '�?ifre s��f��rlama ba��lant��s�� g��nderilemedi';
+};
+
 export default function Auth() {
   const {
     login,
@@ -92,6 +113,7 @@ export default function Auth() {
     loginWithApple,
     registerWithGoogle,
     registerWithApple,
+    resetPassword,
     isLoading,
   } = useAuth();
   const [loginForm, setLoginForm] = useState({ email: '', password: '' });
@@ -99,6 +121,9 @@ export default function Auth() {
   const [socialTeamName, setSocialTeamName] = useState('');
   const [socialProvider, setSocialProvider] = useState<'google' | 'apple' | null>(null);
   const [isSocialDialogOpen, setIsSocialDialogOpen] = useState(false);
+  const [isResetDialogOpen, setIsResetDialogOpen] = useState(false);
+  const [resetEmail, setResetEmail] = useState('');
+  const [isSendingReset, setIsSendingReset] = useState(false);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -114,6 +139,25 @@ export default function Auth() {
     } catch (error) {
       toast.error('Giriş başarısız');
       console.error("login error:", error);
+    }
+  };
+
+  const handlePasswordReset = async (event: React.FormEvent) => {
+    event.preventDefault();
+    const email = (resetEmail || loginForm.email).trim();
+    if (!email) {
+      toast.error('Lütfen e-posta adresinizi girin');
+      return;
+    }
+    setIsSendingReset(true);
+    try {
+      await resetPassword(email);
+      toast.success('�?ifre s��f��rlama ba��lant��s�� e-postan��za g��nderildi.');
+      setIsResetDialogOpen(false);
+    } catch (error) {
+      toast.error(getPasswordResetErrorMessage(error));
+    } finally {
+      setIsSendingReset(false);
     }
   };
 
@@ -227,6 +271,20 @@ export default function Auth() {
                     onChange={(e) => setLoginForm(prev => ({ ...prev, password: e.target.value }))}
                     disabled={isLoading}
                   />
+                </div>
+                <div className="flex justify-end">
+                  <Button
+                    type="button"
+                    variant="link"
+                    className="px-0 text-xs"
+                    onClick={() => {
+                      setResetEmail(loginForm.email);
+                      setIsResetDialogOpen(true);
+                    }}
+                    disabled={isLoading}
+                  >
+                    Şifremi Unuttum
+                  </Button>
                 </div>
                 <Button type="submit" className="w-full" disabled={isLoading}>
                   {isLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
@@ -350,6 +408,54 @@ export default function Auth() {
           </div>
         </CardContent>
       </Card>
+      <Dialog
+        open={isResetDialogOpen}
+        onOpenChange={(open) => {
+          setIsResetDialogOpen(open);
+          if (!open) {
+            setResetEmail('');
+          }
+        }}
+      >
+        <DialogContent>
+          <form onSubmit={handlePasswordReset} className="space-y-4">
+            <DialogHeader>
+              <DialogTitle>�?ifreyi S��f��rla</DialogTitle>
+              <DialogDescription>
+                Kay��tl�� e-posta adresine s��f��rlama ba��lant��s�� g��nderece�Yiz.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-2">
+              <Label htmlFor="reset-email">E-posta</Label>
+              <Input
+                id="reset-email"
+                type="email"
+                placeholder="ornek@email.com"
+                value={resetEmail}
+                onChange={(event) => setResetEmail(event.target.value)}
+                disabled={isSendingReset || isLoading}
+              />
+            </div>
+            <DialogFooter className="gap-2 sm:gap-0">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setIsResetDialogOpen(false);
+                  setResetEmail('');
+                }}
+                disabled={isSendingReset}
+              >
+                Vazge��
+              </Button>
+              <Button type="submit" disabled={isSendingReset || isLoading}>
+                {isSendingReset ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                Ba��lant�� G��nder
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
       <Dialog
         open={isSocialDialogOpen}
         onOpenChange={(open) => {
