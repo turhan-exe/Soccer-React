@@ -16,7 +16,8 @@
     "gcs:lifecycle:describe": "node scripts/gcs-lifecycle.mjs describe",
     "pretest:e2e": "vite build",
     "test:e2e": "playwright test",
-    "league:verify": "node scripts/league-quick-verify.mjs"
+    "league:verify": "node scripts/league-quick-verify.mjs",
+    "team:patch-assets": "node scripts/patch-team-assets.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^7.4.3",
@@ -92,6 +93,7 @@
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react-swc": "^3.5.0",
+    "firebase-admin": "^12.7.0",
     "autoprefixer": "^10.4.20",
     "eslint": "^9.9.0",
     "eslint-plugin-react-hooks": "^5.1.0-rc.0",

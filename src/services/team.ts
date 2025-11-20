@@ -3,7 +3,7 @@ import { FirebaseError } from 'firebase/app';
 import type { User as FirebaseAuthUser } from 'firebase/auth';
 import { httpsCallable } from 'firebase/functions';
 import { auth, db, functions } from '@/services/firebase';
-import { Player, ClubTeam, CustomFormationMap } from '@/types';
+import { Player, ClubTeam, CustomFormationMap, TeamBadge, TeamKitAssets } from '@/types';
 import { generateRandomName } from '@/lib/names';
 import { calculateOverall, getRoles } from '@/lib/player';
 import { addGameYears, applyGameAgingToPlayers } from '@/lib/gameTime';
@@ -238,6 +238,14 @@ export const updateTeamLogo = async (userId: string, logo: string | null) => {
     payload,
     { merge: true },
   );
+};
+
+export const updateTeamAssets = async (
+  userId: string,
+  payload: { badge?: TeamBadge | null; kit?: TeamKitAssets | null },
+) => {
+  const sanitized = sanitizeFirestoreData(payload);
+  await setDoc(doc(db, 'teams', userId), sanitized, { merge: true });
 };
 
 export const adjustTeamBudget = async (userId: string, amount: number): Promise<number> => {

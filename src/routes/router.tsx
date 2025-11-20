@@ -18,6 +18,7 @@ import UnityAutoSeed from '@/pages/UnityAutoSeed';
 import LiveDebugPage from '@/pages/LiveDebugPage';
 import MatchWatcherPage from '@/pages/MatchWatcherPage';
 import Finance from '@/pages/Finance';
+import TeamAssetsPage from '@/pages/TeamAssets';
 import Settings from '@/pages/Settings';
 import ContactPage from '@/pages/Contact';
 import NotFound from '@/pages/NotFound';
@@ -47,6 +48,7 @@ export const router = createBrowserRouter(
         { path: '/match-simulation-demo', element: <MatchSimulationDemo /> },
         { path: '/match-simulation-iframe', element: <MatchSimulationIframe /> },
         { path: '/unity-auto-seed', element: <UnityAutoSeed /> },
+        { path: '/team-assets', element: <TeamAssetsPage /> },
         { path: '/live-debug', element: <LiveDebugPage /> },
         { path: '/match/:id', element: <MatchWatcherPage /> },
         { path: '/match-history', element: <MyFixturesPage /> },

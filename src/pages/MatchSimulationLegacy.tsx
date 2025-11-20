@@ -677,15 +677,16 @@ const KIT_COLOR_PALETTE = ['#0EA5E9', '#DC2626', '#16A34A', '#F97316', '#7C3AED'
 function fallbackKitFromKey(teamKey: string, preferAwayKit: boolean): TeamKitColors {
   const hash = Math.abs(hashString(teamKey));
   const primary = KIT_COLOR_PALETTE[hash % KIT_COLOR_PALETTE.length];
-  const accent = KIT_COLOR_PALETTE[(hash + 3) % KIT_COLOR_PALETTE.length];
+  const accentColor = KIT_COLOR_PALETTE[(hash + 3) % KIT_COLOR_PALETTE.length];
   return {
-    primary: preferAwayKit ? accent : primary,
+    primary: preferAwayKit ? accentColor : primary,
+    accent: preferAwayKit ? accentColor : primary,
     secondary: preferAwayKit ? '#0F172A' : '#FFFFFF',
     text: preferAwayKit ? '#F8FAFC' : '#0F172A',
     shorts: preferAwayKit ? '#0F172A' : '#F8FAFC',
-    socks: preferAwayKit ? accent : primary,
+    socks: preferAwayKit ? accentColor : primary,
     gkPrimary: preferAwayKit ? '#FFFFFF' : '#111827',
-    gkSecondary: preferAwayKit ? accent : '#FFFFFF',
+    gkSecondary: preferAwayKit ? accentColor : '#FFFFFF',
   };
 }
 
@@ -743,9 +744,13 @@ function normalizeTeamKitColors(source: Record<string, unknown> | undefined): Te
   const text = pickColor(source, ['text', 'textColor']);
   if (text) {
     kit.text = text;
-  } else {
-    const accent = pickColor(source, ['accent', 'color3']);
-    if (accent) kit.text = accent;
+  }
+  const accent = pickColor(source, ['accent', 'color3']);
+  if (accent) {
+    kit.accent = accent;
+    if (!kit.text) {
+      kit.text = accent;
+    }
   }
   const shorts = pickColor(source, ['shorts', 'shirt', 'shortColor']);
   if (shorts) kit.shorts = shorts;

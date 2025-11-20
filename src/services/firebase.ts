@@ -6,6 +6,7 @@ import {
   persistentMultipleTabManager,
 } from 'firebase/firestore';
 import { getFunctions, connectFunctionsEmulator } from 'firebase/functions';
+import { getStorage } from 'firebase/storage';
 import { initializeAppCheck, ReCaptchaV3Provider } from 'firebase/app-check';
 import { Capacitor } from '@capacitor/core';
 
@@ -41,6 +42,7 @@ export const db = __global.__FM_DB__;
 // Region from env (Plan 2.0: europe-west1). Fallback to 'europe-west1'.
 const FUNCTIONS_REGION = import.meta.env.VITE_FUNCTIONS_REGION || 'europe-west1';
 export const functions = getFunctions(app, FUNCTIONS_REGION);
+export const storage = getStorage(app, firebaseConfig.storageBucket);
 
 // Optional: connect to emulator in dev if configured
 if (import.meta.env.DEV && import.meta.env.VITE_USE_FUNCTIONS_EMULATOR === '1') {

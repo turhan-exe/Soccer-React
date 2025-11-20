@@ -3,6 +3,28 @@
 // - Sends JSON to Unity C# `MatchBridge.LoadMatchFromJSON`
 // - Listens to `unityMatchFinished` events emitted from Unity's WebGL plugin
 
+export type TeamBadge = {
+  url: string;
+  alt?: string;
+  width?: number;
+  height?: number;
+  contentType?: string;
+};
+
+export type TeamKitAsset = {
+  textureUrl: string;
+  normalMapUrl?: string | null;
+  contentType?: string;
+  width?: number;
+  height?: number;
+};
+
+export type TeamKitAssets = {
+  home?: TeamKitAsset | null;
+  away?: TeamKitAsset | null;
+  third?: TeamKitAsset | null;
+};
+
 export type BridgeMatchRequest = {
   matchId?: string;
   homeTeamKey: string; // Resources/Database/<key>.asset (e.g., "Istanbul", "London")
@@ -346,12 +368,36 @@ export type RuntimePlayer = {
 };
 
 export type KitSpec = {
-  // Accept both hex (#RRGGBB[AA]) or "r,g,b[,a]" strings
+  primary?: string;
+  primaryColor?: string;
+  main?: string;
+  mainColor?: string;
+  secondary?: string;
+  secondaryColor?: string;
+  text?: string;
+  textColor?: string;
+  accent?: string;
   color1?: string;
   color2?: string;
   color3?: string;
   shorts?: string;
+  shirt?: string;
+  shortColor?: string;
   socks?: string;
+  sockColor?: string;
+  gkPrimary?: string;
+  goalkeeperPrimary?: string;
+  keeperPrimary?: string;
+  gkSecondary?: string;
+  goalkeeperSecondary?: string;
+  keeperSecondary?: string;
+  // Optional: direct texture fields for kit assets
+  textureUrl?: string;
+  normalMapUrl?: string | null;
+  contentType?: string;
+  width?: number;
+  height?: number;
+  [key: string]: unknown;
 };
 
 export type RuntimeTeam = {
@@ -364,6 +410,10 @@ export type RuntimeTeam = {
   // Optional kit fields used by TeamSelection publish flow
   homeKit?: KitSpec;
   awayKit?: KitSpec;
+  // Optional: direct badge and kit asset URLs
+  badge?: TeamBadge | null;
+  kitAssets?: TeamKitAssets | null;
+  kit?: TeamKitAssets | null; // alias for compatibility
 };
 
 
@@ -375,6 +425,7 @@ export type TeamKitColors = {
   primary?: string;
   secondary?: string;
   text?: string;
+  accent?: string;
   shorts?: string;
   socks?: string;
   gkPrimary?: string;
@@ -395,6 +446,8 @@ export type PublishedTeam = {
   teamName: string;
   formation?: string;
   kit?: TeamKitColors;
+  badge?: TeamBadge;
+  kitAssets?: TeamKitAssets;
   lineup: PublishedPlayer[];
   bench?: PublishedPlayer[];
 };
@@ -527,6 +580,8 @@ export function runtimeTeamToPublishedTeam(
     teamName: team.name || fallbackName || teamKey,
     formation: normalizeFormationForPublish(team.formation),
     kit: resolveKitColors(team, teamKey, preferAwayKit),
+    badge: normalizeBadge(team.badge),
+    kitAssets: resolveKitAssets(team, preferAwayKit),
     lineup,
     bench: bench.length ? bench : undefined,
   };
@@ -565,36 +620,189 @@ function normalizeFormationForPublish(value?: string | null): string | undefined
     .join('-');
 }
 
-function kitSpecToTeamKitColors(kit?: KitSpec | null): TeamKitColors | undefined {
-  if (!kit) return undefined;
-  const { color1, color2, color3, shorts, socks } = kit;
-  if (!color1 && !color2 && !color3 && !shorts && !socks) return undefined;
+function normalizeKitColor(value?: string | null): string | undefined {
+  if (!value) return undefined;
+  const trimmed = value.trim();
+  if (!trimmed) return undefined;
+
+  const hexMatch = trimmed.match(/^#?([0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/i);
+  if (hexMatch) {
+    let hex = hexMatch[1];
+    if (hex.length === 3 || hex.length === 4) {
+      hex = hex
+        .split('')
+        .map((char) => char + char)
+        .join('');
+    }
+    return `#${hex.toUpperCase()}`;
+  }
+
+  const rgbMatch = trimmed.match(/^rgba?\(([^)]+)\)$/i);
+  if (rgbMatch) {
+    const parts = rgbMatch[1].split(',').map((part) => part.trim());
+    if (parts.length >= 3) {
+      const clamp255 = (num: number): number => Math.max(0, Math.min(255, Math.round(num)));
+      const parseComponent = (input: string): number => {
+        const percentMatch = input.match(/^([0-9.]+)%$/);
+        if (percentMatch) {
+          return clamp255((Number(percentMatch[1]) / 100) * 255);
+        }
+        const numeric = Number(input);
+        return Number.isNaN(numeric) ? 0 : clamp255(numeric);
+      };
+      const toHex = (num: number) => num.toString(16).padStart(2, '0').toUpperCase();
+      const r = parseComponent(parts[0]);
+      const g = parseComponent(parts[1]);
+      const b = parseComponent(parts[2]);
+      let result = `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+      if (parts.length >= 4) {
+        const alphaRaw = Number(parts[3]);
+        const alpha = Number.isNaN(alphaRaw) ? 1 : Math.max(0, Math.min(1, alphaRaw));
+        const alphaByte = Math.round(alpha * 255);
+        result += toHex(alphaByte);
+      }
+      return result;
+    }
+  }
+
+  return undefined;
+}
+
+function normalizeBadge(badge?: TeamBadge | null): TeamBadge | undefined {
+  if (!badge || typeof badge.url !== 'string') return undefined;
+  const url = badge.url.trim();
+  if (!url) return undefined;
+
+  const width = Number(badge.width);
+  const height = Number(badge.height);
+
   return {
-    primary: color1,
-    secondary: color2,
-    text: color3,
-    shorts,
-    socks,
-    gkPrimary: shorts || color2 || color1,
-    gkSecondary: socks || color3 || color2 || color1,
+    url,
+    alt: badge.alt?.trim() || undefined,
+    contentType: badge.contentType || undefined,
+    width: Number.isFinite(width) && width > 0 ? width : undefined,
+    height: Number.isFinite(height) && height > 0 ? height : undefined,
   };
 }
 
-const KIT_COLOR_PALETTE = ['#0EA5E9', '#DC2626', '#16A34A', '#F97316', '#7C3AED', '#0D9488', '#E11D48', '#2563EB'];
+function normalizeKitAsset(
+  asset?: (TeamKitAsset | null) | (KitSpec | null)
+): TeamKitAsset | undefined {
+  if (!asset || typeof (asset as any).textureUrl !== 'string') return undefined;
+  const textureUrl = (asset as any).textureUrl?.trim?.() || '';
+  if (!textureUrl) return undefined;
+
+  const normalMapUrlRaw = (asset as any).normalMapUrl;
+  const width = Number((asset as any).width);
+  const height = Number((asset as any).height);
+
+  return {
+    textureUrl,
+    normalMapUrl:
+      typeof normalMapUrlRaw === 'string' && normalMapUrlRaw.trim()
+        ? normalMapUrlRaw.trim()
+        : undefined,
+    contentType: (asset as any).contentType || undefined,
+    width: Number.isFinite(width) && width > 0 ? width : undefined,
+    height: Number.isFinite(height) && height > 0 ? height : undefined,
+  };
+}
+
+function resolveKitAssets(team: RuntimeTeam, preferAwayKit: boolean): TeamKitAssets | undefined {
+  const source = team.kitAssets ?? team.kit ?? undefined;
+
+  const home =
+    normalizeKitAsset(source?.home ?? team.homeKit) ||
+    (preferAwayKit ? undefined : normalizeKitAsset(team.awayKit));
+  const away =
+    normalizeKitAsset(source?.away ?? team.awayKit) ||
+    (preferAwayKit ? normalizeKitAsset(team.homeKit) : undefined);
+  const third = normalizeKitAsset(source?.third);
+
+  if (!home && !away && !third) return undefined;
+
+  return {
+    home: home ?? undefined,
+    away: away ?? undefined,
+    third: third ?? undefined,
+  };
+}
+
+function pickKitColor(kit: KitSpec, keys: string[]): string | undefined {
+  for (const key of keys) {
+    const value = kit[key];
+    if (typeof value === 'string') {
+      const normalized = normalizeKitColor(value);
+      if (normalized) {
+        return normalized;
+      }
+    }
+  }
+  return undefined;
+}
+
+function kitSpecToTeamKitColors(kit?: KitSpec | null): TeamKitColors | undefined {
+  if (!kit) return undefined;
+
+  const primary = pickKitColor(kit, ['primary', 'primaryColor', 'color1', 'main', 'mainColor']);
+  const secondary = pickKitColor(kit, ['secondary', 'secondaryColor', 'color2']);
+  const accent = pickKitColor(kit, ['accent', 'color3']);
+  const textColor = pickKitColor(kit, ['text', 'textColor']);
+  const shorts = pickKitColor(kit, ['shorts', 'shirt', 'shortColor']);
+  const socks = pickKitColor(kit, ['socks', 'sockColor']);
+
+  if (!primary && !secondary && !accent && !textColor && !shorts && !socks) {
+    return undefined;
+  }
+
+  const resolvedPrimary = primary ?? secondary ?? accent ?? textColor ?? shorts ?? socks;
+  if (!resolvedPrimary) {
+    return undefined;
+  }
+  const resolvedSecondary = secondary ?? resolvedPrimary;
+  const resolvedText = textColor ?? accent ?? resolvedSecondary ?? resolvedPrimary;
+  const resolvedAccent = accent ?? resolvedText;
+  const gkPrimary =
+    pickKitColor(kit, ['gkPrimary', 'goalkeeperPrimary', 'keeperPrimary']) ?? resolvedPrimary;
+  const gkSecondary =
+    pickKitColor(kit, ['gkSecondary', 'goalkeeperSecondary', 'keeperSecondary']) ??
+    resolvedSecondary ??
+    resolvedPrimary;
+
+  return {
+    primary: resolvedPrimary,
+    secondary: resolvedSecondary,
+    text: resolvedText,
+    accent: resolvedAccent,
+    shorts,
+    socks,
+    gkPrimary,
+    gkSecondary,
+  };
+}
 
 function fallbackKitFromKey(teamKey: string, preferAwayKit: boolean): TeamKitColors {
-  const hash = Math.abs(hashString(teamKey));
-  const primary = KIT_COLOR_PALETTE[hash % KIT_COLOR_PALETTE.length];
-  const accent = KIT_COLOR_PALETTE[(hash + 3) % KIT_COLOR_PALETTE.length];
-  return {
-    primary: preferAwayKit ? accent : primary,
-    secondary: preferAwayKit ? '#0F172A' : '#FFFFFF',
-    text: preferAwayKit ? '#F8FAFC' : '#0F172A',
-    shorts: preferAwayKit ? '#0F172A' : '#F8FAFC',
-    socks: preferAwayKit ? accent : primary,
-    gkPrimary: preferAwayKit ? '#FFFFFF' : '#111827',
-    gkSecondary: preferAwayKit ? accent : '#FFFFFF',
+  const homeKit: TeamKitColors = {
+    primary: '#FF1E1E',
+    accent: '#FF1E1E',
+    secondary: '#8B0000',
+    text: '#FFFFFF',
+    shorts: '#FF1E1E',
+    socks: '#8B0000',
+    gkPrimary: '#FFFFFF',
+    gkSecondary: '#8B0000',
   };
+  const awayKit: TeamKitColors = {
+    primary: '#FF1E1E',
+    accent: '#FF1E1E',
+    secondary: '#4A0000',
+    text: '#FFFFFF',
+    shorts: '#4A0000',
+    socks: '#FF1E1E',
+    gkPrimary: '#FFFFFF',
+    gkSecondary: '#FF1E1E',
+  };
+  return preferAwayKit ? awayKit : homeKit;
 }
 
 function hashString(value: string): number {
