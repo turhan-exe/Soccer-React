@@ -50,7 +50,6 @@ export function MatchReplayView({ matchId, replayUrl }: Props) {
           src={unitySrc}
           title="Unity Match Viewer"
           className="w-full h-full"
-          allowFullScreen
         />
       </div>
     );
@@ -63,4 +62,3 @@ export function MatchReplayView({ matchId, replayUrl }: Props) {
   // Fallback
   return <ReplayPlayer url={replayUrl} />;
 }
-
