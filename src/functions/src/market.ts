@@ -38,6 +38,7 @@ type PlayerSnapshot = Record<string, unknown> & {
   name?: string;
   position?: string;
   overall?: number;
+  age?: number;
   ownerUid?: string;
   teamId?: string;
   squadRole?: string;
@@ -47,6 +48,15 @@ type PlayerSnapshot = Record<string, unknown> & {
     listingId?: string | null;
     locked?: boolean;
     lockReason?: string | null;
+    autoListedAt?: string | null;
+    autoListReason?: string | null;
+    autoRelistAfter?: string | null;
+  } | null;
+  contract?: {
+    expiresAt?: string;
+    status?: string;
+    salary?: number;
+    extensions?: number;
   } | null;
 };
 
@@ -612,4 +622,333 @@ export const marketPurchaseListing = functions
       }
       throw new functions.https.HttpsError('internal', (error as Error)?.message ?? 'INTERNAL');
     }
+  });
+
+const LISTING_TTL_MS = 3 * 24 * 60 * 60 * 1000;
+const AUTO_RELIST_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;
+const MAX_STALE_CLEANUP = 150;
+const MAX_AUTO_LISTINGS_PER_RUN = 120;
+
+const normalizeRatingTo100Value = (value?: number | null): number => {
+  if (typeof value !== 'number' || Number.isNaN(value)) return 0;
+  if (value <= 1.001) return value * 100;
+  if (value <= 10.001) return value * 10;
+  return value;
+};
+
+const computeAutoListingPrice = (player: PlayerSnapshot): number => {
+  const normalizedOverall = normalizeRatingTo100Value(player.overall);
+  const salary = typeof player.contract?.salary === 'number' && Number.isFinite(player.contract.salary)
+    ? player.contract.salary
+    : 0;
+  const base = Math.max(25_000, Math.round(normalizedOverall * 1_500));
+  const salaryWeight = salary > 0 ? salary * 8 : 0;
+  let price = base + salaryWeight;
+  if (typeof player.age === 'number') {
+    if (player.age < 24) {
+      price *= 1.1;
+    } else if (player.age > 32) {
+      price *= 0.9;
+    }
+  }
+  return Math.max(5_000, Math.round(price));
+};
+
+const parseMillis = (value: unknown): number | null => {
+  if (value instanceof Timestamp) {
+    return value.toMillis();
+  }
+  if (typeof value === 'string') {
+    const parsed = Date.parse(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value;
+  }
+  return null;
+};
+
+const hasExpiredContract = (player: PlayerSnapshot, nowMs: number): boolean => {
+  const expiresAtMs = parseMillis(player.contract?.expiresAt ?? null);
+  if (expiresAtMs === null) return false;
+  return expiresAtMs <= nowMs;
+};
+
+const hasRecentAutoListing = (player: PlayerSnapshot, nowMs: number): boolean => {
+  const relistAfter = parseMillis(player.market?.autoRelistAfter ?? null);
+  if (relistAfter && relistAfter > nowMs) {
+    return true;
+  }
+  const autoListedAt = parseMillis(player.market?.autoListedAt ?? null);
+  return autoListedAt !== null && nowMs - autoListedAt < AUTO_RELIST_COOLDOWN_MS;
+};
+
+const isEligibleForAutoListing = (
+  player: PlayerSnapshot,
+  nowMs: number,
+  activePlayerIds: Set<string>,
+): boolean => {
+  const playerId = String(player.id ?? '');
+  if (!playerId) return false;
+  if (activePlayerIds.has(playerId)) return false;
+  if (player.market?.active) return false;
+  if (player.market?.locked) return false;
+  if (player.contract?.status === 'released') return false;
+  if (isLegendSnapshot(player)) return false;
+  if (!hasExpiredContract(player, nowMs)) return false;
+  if (hasRecentAutoListing(player, nowMs)) return false;
+  return true;
+};
+
+const resetPlayerMarketState = async (
+  tx: FirebaseFirestore.Transaction,
+  listing: ListingDoc,
+): Promise<void> => {
+  const playerId = String(listing.playerId ?? '');
+  const playerPath = typeof listing.playerPath === 'string' ? listing.playerPath : '';
+  let resetViaTeamDoc = false;
+
+  if (playerPath) {
+    try {
+      const playerRef = db.doc(playerPath);
+      const playerSnap = await tx.get(playerRef).catch(() => null);
+      if (playerSnap?.exists) {
+        const snapshotData = playerSnap.data() as PlayerSnapshot;
+        const marketState = {
+          ...(snapshotData.market ?? { active: false, listingId: null }),
+          active: false,
+          listingId: null,
+        } as PlayerSnapshot['market'];
+        tx.update(playerRef, { market: marketState });
+        return;
+      }
+      resetViaTeamDoc = true;
+    } catch (err) {
+      console.warn('[market] resetPlayerMarketState playerPath failed', { playerPath, err });
+      resetViaTeamDoc = true;
+    }
+  } else {
+    resetViaTeamDoc = true;
+  }
+
+  if (resetViaTeamDoc) {
+    const teamId = String(listing.teamId ?? listing.sellerTeamId ?? listing.sellerUid ?? listing.sellerId ?? '');
+    if (!teamId) return;
+    const teamRef = db.collection('teams').doc(teamId);
+    const teamSnap = await tx.get(teamRef).catch(() => null);
+    if (!teamSnap?.exists) return;
+    const teamData = teamSnap.data() as TeamDoc;
+    const players = Array.isArray(teamData.players) ? [...teamData.players] : [];
+    const idx = players.findIndex(p => String(p.id ?? '') === playerId);
+    if (idx > -1) {
+      const updated = {
+        ...players[idx],
+        market: {
+          ...(players[idx].market ?? { active: false, listingId: null }),
+          active: false,
+          listingId: null,
+        },
+      } as PlayerSnapshot;
+      players[idx] = updated;
+      tx.update(teamRef, { players });
+    }
+  }
+};
+
+const createAutoListingForPlayer = async (
+  teamRef: FirebaseFirestore.DocumentReference,
+  playerId: string,
+  activePlayerIds: Set<string>,
+  nowMs: number,
+): Promise<boolean> => {
+  try {
+    const ok = await db.runTransaction(async tx => {
+      const freshTeamSnap = await tx.get(teamRef);
+      if (!freshTeamSnap.exists) return false;
+      const team = freshTeamSnap.data() as TeamDoc;
+      const roster = Array.isArray(team.players) ? [...team.players] : [];
+      const idx = roster.findIndex(p => String(p.id ?? '') === playerId);
+      if (idx === -1) return false;
+      const player = roster[idx];
+
+      if (!isEligibleForAutoListing(player, nowMs, activePlayerIds)) {
+        return false;
+      }
+
+      const listingRef = listingsCollection.doc();
+      const playerPath = `teams/${teamRef.id}/players/${playerId}`;
+      const nowIso = new Date(nowMs).toISOString();
+      const relistAfter = new Date(nowMs + AUTO_RELIST_COOLDOWN_MS).toISOString();
+      const sanitizedPlayer = sanitizePlayerForListing(player, playerId);
+
+      const listingData: ListingDoc & {
+        autoListed: boolean;
+        autoListReason: string;
+        autoListedAt: string;
+        contractExpiredAt?: string | null;
+      } = {
+        sellerUid: team.ownerUid ?? teamRef.id,
+        sellerId: team.ownerUid ?? teamRef.id,
+        teamId: teamRef.id,
+        sellerTeamId: teamRef.id,
+        playerId,
+        playerPath,
+        price: computeAutoListingPrice(player),
+        player: sanitizedPlayer,
+        playerName: sanitizedPlayer.name,
+        position: sanitizedPlayer.position,
+        pos: sanitizedPlayer.position,
+        overall: sanitizedPlayer.overall,
+        sellerTeamName: team.name ?? 'Tak��m��m',
+        status: 'active',
+        autoListed: true,
+        autoListReason: 'contract_expired',
+        autoListedAt: nowIso,
+        contractExpiredAt: typeof player.contract?.expiresAt === 'string' ? player.contract.expiresAt : null,
+      };
+
+      const updatedMarket: PlayerSnapshot['market'] = {
+        ...(player.market ?? { active: false, listingId: null }),
+        active: true,
+        listingId: listingRef.id,
+        autoListedAt: nowIso,
+        autoListReason: 'contract_expired',
+        autoRelistAfter: relistAfter,
+      };
+
+      const updatedContract: NonNullable<PlayerSnapshot['contract']> = {
+        ...(player.contract ?? {}),
+        status: 'expired',
+      };
+
+      const updatedPlayer: PlayerSnapshot = {
+        ...player,
+        id: playerId,
+        market: updatedMarket,
+        contract: updatedContract,
+      };
+
+      roster[idx] = updatedPlayer;
+
+      tx.set(listingRef, {
+        ...listingData,
+        createdAt: FieldValue.serverTimestamp(),
+      });
+      tx.update(teamRef, { players: roster });
+
+      return true;
+    });
+
+    if (ok) {
+      activePlayerIds.add(playerId);
+    }
+
+    return ok;
+  } catch (err) {
+    console.error('[market] autoListExpiredContracts failed', {
+      teamId: teamRef.id,
+      playerId,
+      err,
+    });
+    return false;
+  }
+};
+
+export const expireStaleTransferListings = functions
+  .region(region)
+  .pubsub.schedule('every 6 hours')
+  .timeZone('Europe/Istanbul')
+  .onRun(async () => {
+    const cutoffMs = Date.now() - LISTING_TTL_MS;
+    const cutoff = Timestamp.fromMillis(cutoffMs);
+
+    const snap = await listingsCollection
+      .where('status', '==', 'active')
+      .where('createdAt', '<=', cutoff)
+      .limit(MAX_STALE_CLEANUP)
+      .get();
+
+    let expired = 0;
+    for (const doc of snap.docs) {
+      try {
+        await db.runTransaction(async tx => {
+          const listingSnap = await tx.get(doc.ref);
+          if (!listingSnap.exists) return;
+          const listing = listingSnap.data() as ListingDoc & { createdAt?: Timestamp };
+          if (listing.status !== 'active') return;
+          const createdAtMs = parseMillis(listing.createdAt ?? null);
+          if (createdAtMs === null || createdAtMs > cutoffMs) return;
+
+          await resetPlayerMarketState(tx, listing);
+          tx.update(doc.ref, {
+            status: 'expired',
+            expiredAt: FieldValue.serverTimestamp(),
+            expiryReason: 'stale_3d',
+          });
+          expired++;
+        });
+      } catch (err) {
+        console.error('[market] expireStaleTransferListings failed', {
+          listingId: doc.id,
+          err,
+        });
+      }
+    }
+
+    console.log('[market] expireStaleTransferListings complete', {
+      scanned: snap.size,
+      expired,
+      cutoff: new Date(cutoffMs).toISOString(),
+    });
+
+    return undefined;
+  });
+
+export const autoListExpiredContracts = functions
+  .region(region)
+  .pubsub.schedule('30 4 * * *')
+  .timeZone('Europe/Istanbul')
+  .onRun(async () => {
+    const nowMs = Date.now();
+    const activePlayerIds = new Set<string>();
+
+    const activeListingsSnap = await listingsCollection
+      .where('status', '==', 'active')
+      .select('playerId')
+      .get();
+    activeListingsSnap.docs.forEach(doc => {
+      const pid = doc.get('playerId');
+      if (pid != null) {
+        activePlayerIds.add(String(pid));
+      }
+    });
+
+    const teamsSnap = await db.collection('teams').select('players', 'ownerUid', 'name').get();
+    let created = 0;
+
+    for (const teamDoc of teamsSnap.docs) {
+      if (created >= MAX_AUTO_LISTINGS_PER_RUN) break;
+      const teamData = teamDoc.data() as TeamDoc;
+      const players = Array.isArray(teamData.players) ? teamData.players : [];
+
+      for (const player of players) {
+        if (created >= MAX_AUTO_LISTINGS_PER_RUN) break;
+        const playerId = String(player?.id ?? '');
+        if (!playerId) continue;
+        if (!isEligibleForAutoListing(player as PlayerSnapshot, nowMs, activePlayerIds)) continue;
+
+        const listed = await createAutoListingForPlayer(teamDoc.ref, playerId, activePlayerIds, nowMs);
+        if (listed) {
+          created++;
+        }
+      }
+    }
+
+    console.log('[market] autoListExpiredContracts complete', {
+      created,
+      scannedTeams: teamsSnap.size,
+      activeListingsSeen: activeListingsSnap.size,
+    });
+
+    return { created, scannedTeams: teamsSnap.size };
   });

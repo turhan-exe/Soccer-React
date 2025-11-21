@@ -10,6 +10,8 @@ export {
   marketCreateListing,
   marketCancelListing,
   marketPurchaseListing,
+  expireStaleTransferListings,
+  autoListExpiredContracts,
 } from './market.js';
 
 // Plan 4: Sözleşmeler (React ⇄ Functions ⇄ Unity)

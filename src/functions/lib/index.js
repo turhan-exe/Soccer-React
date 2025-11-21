@@ -5,7 +5,7 @@ export { startMatchHttp } from './orchestrate/startMatch.js';
 export { onResultFinalize } from './results/onResultFinalize.js';
 export { getReplay } from './results/getReplay.js';
 export { getMatchTimeline } from './matchTimeline.js';
-export { marketCreateListing, marketCancelListing, marketPurchaseListing, } from './market.js';
+export { marketCreateListing, marketCancelListing, marketPurchaseListing, expireStaleTransferListings, autoListExpiredContracts, } from './market.js';
 // Plan 4: Sözleşmeler (React ⇄ Functions ⇄ Unity)
 // League onboarding & fixtures management
 export { assignTeamToLeague, assignTeamToLeagueHttp, requestJoinLeague, finalizeIfFull, generateRoundRobinFixturesFn, assignAllTeamsToLeagues, } from './league.js';
