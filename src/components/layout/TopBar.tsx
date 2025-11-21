@@ -15,7 +15,6 @@ import {
   Dumbbell,
   HeartPulse,
   Loader2,
-  Plus,
   Smile,
   UserPlus,
   Moon,
@@ -25,7 +24,6 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 
-import AppLogo from '@/components/AppLogo';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -543,18 +541,12 @@ const TopBar = forwardRef<TopBarHandle, TopBarProps>(
       >
         <div className="nostalgia-topbar__inner">
           <div className="nostalgia-topbar__identity">
-            <button
-              type="button"
-              onClick={() => navigate('/')}
-              data-topbar-focus-target
-              className="nostalgia-topbar__home-button flex shrink-0 items-center rounded-xl border border-white/10 bg-white/5 p-1 transition hover:border-cyan-300/40 hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/40"
-              aria-label="Ana menuye don"
-            >
-              <AppLogo size="sm" showText textClassName="hidden xl:inline" />
-            </button>
-
             {user ? (
-              <div className="nostalgia-topbar__identity-info">
+              <div
+                className="nostalgia-topbar__identity-info"
+                data-topbar-focus-target
+                tabIndex={-1}
+              >
                 <div className="nostalgia-topbar__team">
                   <div className="nostalgia-topbar__team-avatar">
                     {user.teamLogo && /^(data:image|https?:\/\/)/.test(user.teamLogo) ? (
@@ -728,19 +720,16 @@ const TopBar = forwardRef<TopBarHandle, TopBarProps>(
             </div>
 
             {isProcessing && <Loader2 className="h-4 w-4 animate-spin text-slate-300" />}
-            <div className="nostalgia-topbar__balance" data-testid="topbar-diamond-balance">
-              <Diamond className="h-5 w-5 text-sky-300 drop-shadow" />
-              <span className="text-slate-100">{balance}</span>
-            </div>
-            <Button
-              variant="ghost"
-              size="icon"
+            <button
+              type="button"
               onClick={() => navigate('/store/diamonds')}
-              data-testid="topbar-diamond-plus"
-              className="text-slate-200 hover:bg-white/10 hover:text-white"
+              className="nostalgia-topbar__balance group rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-slate-100 transition hover:border-sky-300/60 hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/60"
+              data-testid="topbar-diamond-balance"
             >
-              <Plus className="h-4 w-4" />
-            </Button>
+              <Diamond className="h-5 w-5 text-sky-300 drop-shadow" />
+              <span className="font-semibold text-slate-100">{balance}</span>
+              <span className="text-[11px] text-sky-100/80 transition group-hover:text-sky-50">Elmas</span>
+            </button>
           </div>
         </div>
       </header>
