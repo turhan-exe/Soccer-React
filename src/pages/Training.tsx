@@ -92,7 +92,7 @@ export default function TrainingPage() {
   const [trainingSearch, setTrainingSearch] = useState('');
   const [isTraining, setIsTraining] = useState(false);
   const [timeLeft, setTimeLeft] = useState(0);
-  const [activeSession, setActiveSession] = useState<ActiveBulkSession | null>(null);
+  const [activeSession, setActiveSessionState] = useState<ActiveBulkSession | null>(null);
   const [pendingActiveSession, setPendingActiveSession] = useState<ActiveTrainingSession | null>(null);
   const [history, setHistory] = useState<TrainingHistoryRecord[]>([]);
   const [filterPlayer, setFilterPlayer] = useState('all');
@@ -111,6 +111,7 @@ export default function TrainingPage() {
   const intervalRef = useRef<number | null>(null);
   const completionTriggeredRef = useRef(false);
   const completeSessionRef = useRef<(() => Promise<void>) | null>(null);
+  const activeSessionRef = useRef<ActiveBulkSession | null>(null);
 
   const triggerCompletion = useCallback(() => {
     if (completionTriggeredRef.current) {
@@ -154,6 +155,11 @@ export default function TrainingPage() {
       });
     }, 1000);
   }, [triggerCompletion]);
+
+  const setActiveSessionSafe = useCallback((session: ActiveBulkSession | null) => {
+    activeSessionRef.current = session;
+    setActiveSessionState(session);
+  }, []);
 
   useEffect(() => {
     const fetchPlayers = async () => {
@@ -270,20 +276,19 @@ export default function TrainingPage() {
       intervalRef.current = null;
     }
 
-    if (!isTraining) {
-      return;
-    }
+    const session = activeSessionRef.current;
 
-    if (!user || !activeSession) {
+    if (!user || !session) {
       setIsTraining(false);
       setTimeLeft(0);
-      setActiveSession(null);
+      setActiveSessionSafe(null);
+      setPendingActiveSession(null);
       return;
     }
 
     const { updatedPlayers: sessionUpdatedPlayers, records } = runTrainingSimulation(
-      activeSession.players,
-      activeSession.trainings,
+      session.players,
+      session.trainings,
     );
 
     const mergedPlayers = players.map(player => {
@@ -331,12 +336,12 @@ export default function TrainingPage() {
     }
     setIsTraining(false);
     setTimeLeft(0);
-    setActiveSession(null);
+    setActiveSessionSafe(null);
     setPendingActiveSession(null);
     setSelectedPlayers([]);
     setSelectedTrainings([]);
     toast.success('Antrenman tamamlandı');
-  }, [activeSession, isTraining, players, user]);
+  }, [players, setActiveSessionSafe, user]);
 
   useEffect(() => {
     completeSessionRef.current = completeSession;
@@ -373,7 +378,7 @@ export default function TrainingPage() {
 
     setSelectedPlayers(sessionPlayers);
     setSelectedTrainings(sessionTrainings);
-    setActiveSession({
+    setActiveSessionSafe({
       players: sessionPlayers,
       trainings: sessionTrainings,
       durationSeconds,
@@ -567,7 +572,7 @@ export default function TrainingPage() {
       return;
     }
 
-    setActiveSession({
+    setActiveSessionSafe({
       players: sessionPlayers,
       trainings: sessionTrainings,
       durationSeconds,
@@ -634,9 +639,11 @@ export default function TrainingPage() {
     setIsWatchingAd(true);
     try {
       const session = await reduceTrainingTimeWithAd(user.id);
-      setActiveSession(prev =>
-        prev ? { ...prev, durationSeconds: session.durationSeconds } : prev,
-      );
+      setActiveSessionState(prev => {
+        const next = prev ? { ...prev, durationSeconds: session.durationSeconds } : prev;
+        activeSessionRef.current = next;
+        return next;
+      });
 
       const startAtDate = activeSession.startedAt.toDate();
       const elapsedSeconds = Math.max(
