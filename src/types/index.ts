@@ -79,6 +79,9 @@ export interface Player {
     listingId?: string | null;
     locked?: boolean;
     lockReason?: string | null;
+    autoListedAt?: string | null;
+    autoListReason?: string | null;
+    autoRelistAfter?: string | null;
   } | null;
   contract?: {
     expiresAt: string;

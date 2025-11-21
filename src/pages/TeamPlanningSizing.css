@@ -1,7 +1,8 @@
 :root {
-  --tp-chip-d: 62px;
-  --tp-chip-font: 15px;
-  --tp-chip-sub: 13.5px;
+  /* Player circles enlarged by 25% for readability */
+  --tp-chip-d: 77.5px;
+  --tp-chip-font: 18.75px;
+  --tp-chip-sub: 16.875px;
 }
 
 #tp-left {
@@ -115,9 +116,9 @@
 
 @media (max-width: 1024px) {
   :root {
-    --tp-chip-d: clamp(136px, calc(102px + 7.4vh), 228px);
-    --tp-chip-font: clamp(18px, calc(14.5px + 0.75vh), 24px);
-    --tp-chip-sub: clamp(16px, calc(13px + 0.6vh), 21px);
+    --tp-chip-d: clamp(170px, calc(127.5px + 9.25vh), 285px);
+    --tp-chip-font: clamp(22.5px, calc(18.125px + 0.9375vh), 30px);
+    --tp-chip-sub: clamp(20px, calc(16.25px + 0.75vh), 26.25px);
   }
 
   #tp-left {
@@ -156,9 +157,9 @@
 
 @media (max-width: 900px) and (orientation: portrait) {
   :root {
-    --tp-chip-d: clamp(96px, calc(72px + 5.6vh), 168px);
-    --tp-chip-font: clamp(16px, calc(13px + 0.55vh), 21px);
-    --tp-chip-sub: clamp(14px, calc(11.5px + 0.45vh), 18px);
+    --tp-chip-d: clamp(120px, calc(90px + 7vh), 210px);
+    --tp-chip-font: clamp(20px, calc(16.25px + 0.6875vh), 26.25px);
+    --tp-chip-sub: clamp(17.5px, calc(14.375px + 0.5625vh), 22.5px);
   }
 
   #tp-pitch {
@@ -168,9 +169,9 @@
 
 @media (max-width: 768px) and (orientation: landscape) {
   :root {
-    --tp-chip-d: clamp(150px, calc(118px + 8vh), 250px);
-    --tp-chip-font: clamp(20px, calc(16px + 0.8vh), 26px);
-    --tp-chip-sub: clamp(18px, calc(14px + 0.65vh), 23px);
+    --tp-chip-d: clamp(187.5px, calc(147.5px + 10vh), 312.5px);
+    --tp-chip-font: clamp(25px, calc(20px + 1vh), 32.5px);
+    --tp-chip-sub: clamp(22.5px, calc(17.5px + 0.8125vh), 28.75px);
   }
 
   #tp-pitch {
