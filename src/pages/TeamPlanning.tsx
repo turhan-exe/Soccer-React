@@ -2225,37 +2225,38 @@ function TeamPlanningContent() {
               />
             </div>
 
-            <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex items-start justify-between gap-4 p-6">
-              <div className="tp-formation-card pointer-events-auto flex max-w-xs flex-col gap-2.5 rounded-3xl border border-white/20 bg-black/40 p-[0.9rem] shadow-xl backdrop-blur">
-                <span className="text-[11px] font-semibold uppercase tracking-wide text-emerald-100/80">Formasyon</span>
-                <div className="flex items-baseline gap-2.5">
-                  <span className="text-xl font-bold text-white">{displayFormationName}</span>
-                  {manualShapeDiffers ? (
-                    <span className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-emerald-100">
-                      {selectedFormation}
-                    </span>
-                  ) : null}
+            <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex items-start justify-start p-5 sm:p-6">
+              <div className="pointer-events-auto flex flex-col gap-2.5">
+                <div className="tp-formation-card pointer-events-auto flex max-w-[15rem] flex-col gap-2 rounded-3xl border border-white/20 bg-black/40 p-[0.8rem] shadow-xl backdrop-blur">
+                  <span className="text-[11px] font-semibold uppercase tracking-wide text-emerald-100/80">Formasyon</span>
+                  <div className="flex items-baseline gap-2.5">
+                    <span className="text-xl font-bold text-white">{displayFormationName}</span>
+                    {manualShapeDiffers ? (
+                      <span className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-emerald-100">
+                        {selectedFormation}
+                      </span>
+                    ) : null}
+                  </div>
+                  <Select value={selectedFormation} onValueChange={setSelectedFormation}>
+                    <SelectTrigger className="w-full border-white/20 bg-white/10 text-white focus:ring-white/50">
+                      <SelectValue placeholder="Formasyon sec" />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-64">
+                      {formations.map(formation => (
+                        <SelectItem key={formation.name} value={formation.name}>
+                          {formation.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
-                <Select value={selectedFormation} onValueChange={setSelectedFormation}>
-                  <SelectTrigger className="w-full border-white/20 bg-white/10 text-white focus:ring-white/50">
-                    <SelectValue placeholder="Formasyon seç" />
-                  </SelectTrigger>
-                  <SelectContent className="max-h-64">
-                    {formations.map(formation => (
-                      <SelectItem key={formation.name} value={formation.name}>
-                        {formation.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="tp-squad-count-card pointer-events-auto hidden rounded-3xl border border-white/20 bg-black/40 p-[0.9rem] text-right text-[10px] font-semibold uppercase tracking-wide text-emerald-100 shadow-xl backdrop-blur sm:flex sm:flex-col sm:items-end sm:gap-1">
-                <span>İlk 11 · {startingEleven.length}</span>
-                <span>Yedek · {benchPlayers.length}</span>
-                <span>Rezerv · {reservePlayers.length}</span>
+                <div className="tp-squad-count-card hidden max-w-[10rem] rounded-3xl border border-white/20 bg-black/40 px-3 py-2 text-left text-[9px] font-semibold uppercase tracking-wide text-emerald-100 shadow-xl backdrop-blur sm:flex sm:flex-col sm:items-start sm:gap-1.5">
+                  <span>Ilk 11 - {startingEleven.length}</span>
+                  <span>Yedek - {benchPlayers.length}</span>
+                  <span>Rezerv - {reservePlayers.length}</span>
+                </div>
               </div>
             </div>
-
             <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 flex justify-start p-6">
               <div
                 id="tp-metric-panel"

@@ -65,30 +65,51 @@ const PitchPlayerMarker: React.FC<PitchPlayerMarkerProps> = ({
   const normalizedValue = Math.max(0, Math.min(100, Number.isFinite(value) ? value : 0));
   const dashOffset = PITCH_MARKER_CIRCUMFERENCE * (1 - normalizedValue / 100);
   const [isPressing, setIsPressing] = useState(false);
+  const pressTimeoutRef = useRef<number | null>(null);
+
+  const clearPressTimeout = useCallback(() => {
+    if (pressTimeoutRef.current !== null) {
+      window.clearTimeout(pressTimeoutRef.current);
+      pressTimeoutRef.current = null;
+    }
+  }, []);
 
   const handlePressStart = useCallback(() => {
-    setIsPressing(true);
-  }, []);
+    clearPressTimeout();
+    pressTimeoutRef.current = window.setTimeout(() => {
+      setIsPressing(true);
+      pressTimeoutRef.current = null;
+    }, 140);
+  }, [clearPressTimeout]);
 
   const handlePressEnd = useCallback(() => {
+    clearPressTimeout();
     setIsPressing(false);
-  }, []);
+  }, [clearPressTimeout]);
 
   const handleDragStart = useCallback(
     (event: React.DragEvent<HTMLDivElement>) => {
+      clearPressTimeout();
       setIsPressing(true);
       onDragStart(event);
     },
-    [onDragStart],
+    [clearPressTimeout, onDragStart],
   );
 
   const handleDragEnd = useCallback(
     (event: React.DragEvent<HTMLDivElement>) => {
+      clearPressTimeout();
       setIsPressing(false);
       onDragEnd(event);
     },
-    [onDragEnd],
+    [clearPressTimeout, onDragEnd],
   );
+
+  useEffect(() => {
+    return () => {
+      clearPressTimeout();
+    };
+  }, [clearPressTimeout]);
 
   return (
     <div
