@@ -1,8 +1,8 @@
 :root {
-  /* Player circles enlarged by 25% for readability */
-  --tp-chip-d: 77.5px;
-  --tp-chip-font: 18.75px;
-  --tp-chip-sub: 16.875px;
+  /* Player circles enlarged alongside the expanded pitch */
+  --tp-chip-d: 176px;
+  --tp-chip-font: 34px;
+  --tp-chip-sub: 30px;
 }
 
 #tp-left {
@@ -15,9 +15,10 @@
 #tp-pitch-wrapper {
   width: 100%;
   height: 100%;
-  display: grid;
-  place-items: center;
-  padding: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 12px 10px 12px 18px;
   overflow: hidden;
   box-sizing: border-box;
 }
@@ -25,8 +26,9 @@
 #tp-pitch {
   aspect-ratio: 105 / 68;
   width: auto !important;
-  height: clamp(520px, 78vh, 860px) !important;
-  max-width: calc(100% - 24px);
+  height: clamp(560px, 82vh, 920px) !important;
+  max-width: calc(100% - 16px);
+  margin-left: clamp(18px, 4vw, 36px);
   object-fit: contain;
   transform-origin: center;
   overflow: hidden;
@@ -49,13 +51,18 @@
   justify-content: center;
   padding: 6px !important;
   box-shadow: 0 12px 26px rgba(0, 0, 0, 0.35);
-  transform: scale(1);
+  transform: scale(1.8);
   transition: transform 160ms ease-in-out, box-shadow 160ms ease-in-out;
 }
 
-.tp-player-chip:active,
+.tp-player-chip:active {
+  transform: scale(1.1) !important;
+  box-shadow: 0 18px 32px rgba(0, 0, 0, 0.45);
+}
+
 .tp-player-chip[data-pressed='true'] {
-  transform: scale(1.15);
+  /**Basıncaki boyut*/
+  transform: scale(1.14) !important;
   box-shadow: 0 18px 32px rgba(0, 0, 0, 0.45);
 }
 
@@ -98,27 +105,27 @@
 
 @media (max-width: 1440px) {
   #tp-pitch {
-    height: clamp(500px, 74vh, 820px) !important;
+    height: clamp(540px, 78vh, 880px) !important;
   }
 }
 
 @media (max-width: 1280px) {
   #tp-pitch {
-    height: clamp(480px, 72vh, 780px) !important;
+    height: clamp(520px, 76vh, 840px) !important;
   }
 }
 
 @media (max-width: 1120px) {
   #tp-pitch {
-    height: clamp(460px, 70vh, 740px) !important;
+    height: clamp(500px, 74vh, 800px) !important;
   }
 }
 
 @media (max-width: 1024px) {
   :root {
-    --tp-chip-d: clamp(170px, calc(127.5px + 9.25vh), 285px);
-    --tp-chip-font: clamp(22.5px, calc(18.125px + 0.9375vh), 30px);
-    --tp-chip-sub: clamp(20px, calc(16.25px + 0.75vh), 26.25px);
+    --tp-chip-d: clamp(88px, calc(72px + 3vh), 120px);
+    --tp-chip-font: clamp(12px, calc(14px + 0.5vh), 20px);
+    --tp-chip-sub: clamp(15.5px, calc(13px + 0.45vh), 18px);
   }
 
   #tp-left {
@@ -137,8 +144,8 @@
 
   #tp-pitch {
     width: 100% !important;
-    height: clamp(580px, 92vh, 1260px) !important;
-    max-width: min(100%, calc(96vh * 0.68));
+    height: clamp(620px, 96vh, 1340px) !important;
+    max-width: min(100%, calc(98vh * 0.69));
     border-radius: clamp(32px, 4vw, 56px);
   }
 
@@ -157,24 +164,24 @@
 
 @media (max-width: 900px) and (orientation: portrait) {
   :root {
-    --tp-chip-d: clamp(120px, calc(90px + 7vh), 210px);
-    --tp-chip-font: clamp(20px, calc(16.25px + 0.6875vh), 26.25px);
-    --tp-chip-sub: clamp(17.5px, calc(14.375px + 0.5625vh), 22.5px);
+    --tp-chip-d: clamp(84px, calc(68px + 3vh), 116px);
+    --tp-chip-font: clamp(16.5px, calc(13.5px + 0.48vh), 19.5px);
+    --tp-chip-sub: clamp(18.8px, calc(12.2px + 0.42vh), 17.5px);
   }
 
   #tp-pitch {
-    height: clamp(520px, 88vh, 1080px) !important;
+    height: clamp(560px, 90vh, 1160px) !important;
   }
 }
 
 @media (max-width: 768px) and (orientation: landscape) {
   :root {
-    --tp-chip-d: clamp(187.5px, calc(147.5px + 10vh), 312.5px);
-    --tp-chip-font: clamp(25px, calc(20px + 1vh), 32.5px);
-    --tp-chip-sub: clamp(22.5px, calc(17.5px + 0.8125vh), 28.75px);
+    --tp-chip-d: clamp(92px, calc(74px + 3.5vh), 126px);
+    --tp-chip-font: clamp(17.5px, calc(14.5px + 0.55vh), 21px);
+    --tp-chip-sub: clamp(16px, calc(13.22px + 0.5vh), 19px);
   }
 
   #tp-pitch {
-    height: clamp(600px, 94vh, 1320px) !important;
+    height: clamp(650px, 98vh, 1420px) !important;
   }
 }

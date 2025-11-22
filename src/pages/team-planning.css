@@ -66,33 +66,42 @@
 }
 
 .tp-formation-card {
-  transform: scale(0.88);
+  transform: scale(0.8);
   transform-origin: top left;
 }
 
 .tp-squad-count-card {
-  transform: scale(0.88);
-  transform-origin: top right;
+  transform: scale(0.7);
+  transform-origin: top left;
 }
 
 @media (max-width: 1439px) {
-  .tp-formation-card,
+  .tp-formation-card {
+    transform: scale(0.78);
+  }
+
   .tp-squad-count-card {
-    transform: scale(0.86);
+    transform: scale(0.68);
   }
 }
 
 @media (max-width: 1280px) {
-  .tp-formation-card,
+  .tp-formation-card {
+    transform: scale(0.76);
+  }
+
   .tp-squad-count-card {
-    transform: scale(0.84);
+    transform: scale(0.66);
   }
 }
 
 @media (max-width: 1024px) {
-  .tp-formation-card,
+  .tp-formation-card {
+    transform: scale(0.72);
+  }
+
   .tp-squad-count-card {
-    transform: scale(0.8);
+    transform: scale(0.62);
   }
 }
 
