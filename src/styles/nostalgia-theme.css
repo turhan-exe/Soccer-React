@@ -665,7 +665,7 @@
   z-index: 1;
   color: #e2e8f0;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1.35fr) auto;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1.1fr) auto;
   align-items: center;
   gap: clamp(0.75rem, 2vw, 1.5rem);
   min-height: clamp(60px, 10vh, 72px);
@@ -697,6 +697,8 @@
   display: flex;
   align-items: center;
   gap: clamp(0.75rem, 2vw, 1.5rem);
+  justify-content: flex-start;
+  width: 100%;
   min-width: 0;
 }
 
@@ -711,8 +713,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 42px;
-  height: 42px;
+  width: 156px;
+  height: 56px;
   border-radius: 9999px;
   border: 1px solid rgba(16, 185, 129, 0.35);
   background: rgba(15, 118, 110, 0.12);
@@ -723,7 +725,7 @@
   font-size: clamp(0.95rem, 2vw, 1.1rem);
   font-weight: 600;
   color: #f8fafc;
-  max-width: clamp(120px, 25vw, 220px);
+  max-width: clamp(220px, 40vw, 420px);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -733,7 +735,9 @@
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  flex-shrink: 0;
 }
 
 .nostalgia-topbar__kits {
@@ -780,7 +784,7 @@
   justify-content: flex-end;
   gap: clamp(0.75rem, 2vw, 1.5rem);
   min-width: 0;
-  white-space: nowrap;
+  flex-wrap: wrap;
 }
 
 .nostalgia-topbar__control-buttons {

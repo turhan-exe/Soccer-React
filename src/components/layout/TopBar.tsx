@@ -100,6 +100,7 @@ const TopBar = forwardRef<TopBarHandle, TopBarProps>(
   const [isUsageOpen, setIsUsageOpen] = useState(false);
   const [teamOverall, setTeamOverall] = useState<number | null>(null);
   const [teamForm, setTeamForm] = useState<string | null>(null);
+  const [displayTeamName, setDisplayTeamName] = useState<string>(user?.teamName ?? 'Takimim');
   const [hasUnseenTrainingResults, setHasUnseenTrainingResults] = useState(false);
   const [isTrainingFacilityAvailable, setIsTrainingFacilityAvailable] = useState(false);
   const [hasYouthCandidates, setHasYouthCandidates] = useState(false);
@@ -109,6 +110,7 @@ const TopBar = forwardRef<TopBarHandle, TopBarProps>(
   const [currentKitIndex, setCurrentKitIndex] = useState(0);
   const [isKitMenuOpen, setIsKitMenuOpen] = useState(false);
   const topBarRef = useRef<HTMLDivElement | null>(null);
+  const notificationContentRef = useRef<HTMLDivElement | null>(null);
   const lastVisibilityChangeRef = useRef<number>(0);
   const focusFrameRef = useRef<number | null>(null);
   const vipIconClass = vipActive ? 'text-amber-300 drop-shadow' : 'text-slate-400';
@@ -255,6 +257,11 @@ const TopBar = forwardRef<TopBarHandle, TopBarProps>(
         return;
       }
 
+      const popoverElement = notificationContentRef.current;
+      if (popoverElement && popoverElement.contains(event.target as Node)) {
+        return;
+      }
+
       if (!element.contains(event.target as Node)) {
         forceHideTopBar();
       }
@@ -286,6 +293,7 @@ const TopBar = forwardRef<TopBarHandle, TopBarProps>(
         if (cancelled) return;
 
         if (team) {
+          setDisplayTeamName(team.name || user.teamName || 'Takimim');
           const starters = team.players.filter((player) => player.squadRole === 'starting');
           if (starters.length) {
             const average = starters.reduce((sum, player) => sum + player.overall, 0) / starters.length;
@@ -294,6 +302,7 @@ const TopBar = forwardRef<TopBarHandle, TopBarProps>(
             setTeamOverall(null);
           }
         } else {
+          setDisplayTeamName(user.teamName || 'Takimim');
           setTeamOverall(null);
         }
 
@@ -332,6 +341,10 @@ const TopBar = forwardRef<TopBarHandle, TopBarProps>(
       cancelled = true;
     };
   }, [user]);
+
+  useEffect(() => {
+    setDisplayTeamName(user?.teamName ?? 'Takimim');
+  }, [user?.teamName]);
 
   useEffect(() => {
     if (!user) {
@@ -553,29 +566,15 @@ const TopBar = forwardRef<TopBarHandle, TopBarProps>(
                       <img
                         src={user.teamLogo}
                         alt="Takım logosu"
-                        className="h-full w-full object-cover"
+                        className="h-full w-full object-contain"
                       />
                     ) : (
                       <span className="text-2xl leading-none">{user.teamLogo ?? '⚽'}</span>
                     )}
                   </div>
-                  <span className="nostalgia-topbar__team-name" title={user.teamName}>
-                    {user.teamName}
+                  <span className="nostalgia-topbar__team-name" title={displayTeamName}>
+                    {displayTeamName}
                   </span>
-                </div>
-                <div className="nostalgia-topbar__team-meta">
-                  <Badge
-                    variant="secondary"
-                    className="border border-white/20 bg-white/10 px-2 py-0.5 text-[11px] text-slate-100 shadow-sm backdrop-blur-sm sm:text-xs"
-                  >
-                    Overall: {teamOverall ?? '-'}
-                  </Badge>
-                  <Badge
-                    variant="outline"
-                    className="border border-white/20 bg-white/5 px-2 py-0.5 text-[11px] text-slate-100 sm:text-xs"
-                  >
-                    Form: {teamForm ?? '-'}
-                  </Badge>
                 </div>
               </div>
             ) : null}
@@ -648,6 +647,20 @@ const TopBar = forwardRef<TopBarHandle, TopBarProps>(
           </div>
 
           <div className="nostalgia-topbar__controls">
+            <div className="nostalgia-topbar__team-meta" aria-label="Takim ozeti">
+              <Badge
+                variant="secondary"
+                className="border border-white/20 bg-white/10 px-2 py-0.5 text-[11px] text-slate-100 shadow-sm backdrop-blur-sm sm:text-xs"
+              >
+                Overall: {teamOverall ?? '-'}
+              </Badge>
+              <Badge
+                variant="outline"
+                className="border border-white/20 bg-white/5 px-2 py-0.5 text-[11px] text-slate-100 sm:text-xs"
+              >
+                Form: {teamForm ?? '-'}
+              </Badge>
+            </div>
             <div className="nostalgia-topbar__control-buttons">
               <Button
                 variant="ghost"
@@ -688,7 +701,7 @@ const TopBar = forwardRef<TopBarHandle, TopBarProps>(
                     </div>
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent align="end" className="w-64 p-2">
+                <PopoverContent ref={notificationContentRef} align="end" className="w-64 p-2">
                   {notifications.length > 0 ? (
                     <ul className="space-y-1.5">
                       {notifications.map(({ id, message, icon: Icon, path }) => (
