@@ -54,6 +54,12 @@ interface AuthProviderProps {
   children: ReactNode;
 }
 
+const normalizeTeamName = (raw?: string | null): string => {
+  const value = (raw ?? '').trim();
+  if (!value) return '';
+  return value.includes('@') ? value.split('@')[0]?.trim() ?? '' : value;
+};
+
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -140,7 +146,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       id: firebaseUser.uid,
       username: managerName,
       email: firebaseUser.email || '',
-      teamName: trimmedName ?? existingTeam?.name ?? desiredTeamName,
+      teamName: normalizeTeamName(trimmedName ?? existingTeam?.name ?? desiredTeamName) || 'Takimim',
       teamLogo: existingTeam?.logo ?? null,
       role: profile?.role ?? 'user',
       connectedAccounts,
@@ -213,15 +219,33 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             getTeam(firebaseUser.uid),
             getUserProfile(firebaseUser.uid),
           ]);
+
           const usernameFallback = firebaseUser.email?.split('@')[0] || 'Kullanici';
-          const teamName = team?.name || firebaseUser.displayName || usernameFallback || 'Takimim';
-          const username = team?.manager || usernameFallback;
+          const rawTeamName = normalizeTeamName((team as { name?: string } | null)?.name);
+          const displayName = normalizeTeamName(firebaseUser.displayName);
+          const preferredTeamName =
+            normalizeTeamName(displayName || usernameFallback || 'Takimim') || 'Takimim';
+          const resolvedTeamName = rawTeamName || preferredTeamName;
+          const username =
+            normalizeTeamName((team as { manager?: string } | null)?.manager) || usernameFallback;
+
+          if (team && (!rawTeamName || rawTeamName === usernameFallback) && preferredTeamName) {
+            void updateTeamName(firebaseUser.uid, preferredTeamName).catch((err) => {
+              console.warn('[AuthContext] team name backfill failed', err);
+            });
+            if (!displayName || displayName !== preferredTeamName) {
+              void updateProfile(firebaseUser, { displayName: preferredTeamName }).catch((err) => {
+                console.warn('[AuthContext] display name backfill failed', err);
+              });
+            }
+          }
+
           if (isActive) {
             setUser({
               id: firebaseUser.uid,
               username,
               email: firebaseUser.email || '',
-              teamName,
+              teamName: resolvedTeamName,
               teamLogo: team?.logo ?? null,
               role: profile?.role ?? 'user',
               connectedAccounts: getConnectedAccounts(firebaseUser),
@@ -230,11 +254,32 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             });
           }
           if (!team) {
-            await createInitialTeam(firebaseUser.uid, teamName, username, {
-              authUser: firebaseUser,
-            });
-            // Slot tabanli: siradaki ligde rastgele bir BOT'un yerine gec
-            await requestAssign(firebaseUser.uid);
+            try {
+              await firebaseUser.getIdToken(true).catch((err) => {
+                console.warn('[AuthContext] token refresh before team create failed', err);
+              });
+              await createInitialTeam(firebaseUser.uid, resolvedTeamName, username, {
+                authUser: firebaseUser,
+              });
+              // Takim yeni olusturulduysa kullanici durumunu takim adi ile guncelle
+              if (isActive) {
+                setUser(prev => ({
+                  id: firebaseUser.uid,
+                  username,
+                  email: firebaseUser.email || '',
+                  role: profile?.role ?? prev?.role ?? 'user',
+                  connectedAccounts: prev?.connectedAccounts ?? getConnectedAccounts(firebaseUser),
+                  contactPhone: profile?.contactPhone ?? prev?.contactPhone ?? null,
+                  contactCrypto: profile?.contactCrypto ?? prev?.contactCrypto ?? null,
+                  teamName: resolvedTeamName,
+                  teamLogo: null,
+                }));
+              }
+              // Slot tabanli: siradaki ligde rastgele bir BOT'un yerine gec
+              await requestAssign(firebaseUser.uid);
+            } catch (creationError) {
+              console.error('[AuthContext] createInitialTeam failed after login', creationError);
+            }
           } else if (!(team as any)?.leagueId) {
             try {
               await requestAssign(firebaseUser.uid);
@@ -368,7 +413,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             id: firebaseUser.uid,
             username: managerName,
             email: firebaseUser.email || email,
-            teamName,
+            teamName: normalizeTeamName(teamName) || 'Takimim',
             teamLogo: null,
             connectedAccounts: { google: false, apple: false },
             contactPhone: null,

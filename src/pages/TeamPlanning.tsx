@@ -1,19 +1,23 @@
-import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Slider } from '@/components/ui/slider';
 import { PlayerCard } from '@/components/ui/player-card';
 import { PerformanceGauge, clampPerformanceGauge } from '@/components/ui/performance-gauge';
-import { Player, CustomFormationMap } from '@/types';
+import type { Player } from '@/types';
 import { getTeam, saveTeamPlayers, createInitialTeam } from '@/services/team';
-import { buildSalaryNegotiationProfile, clampNumber, formatSalary } from '@/lib/contractNegotiation';
+import {
+  buildSalaryNegotiationProfile,
+  clampNumber,
+  formatSalary,
+  type SalaryNegotiationProfile,
+} from '@/lib/contractNegotiation';
 import { completeLegendRental, getLegendIdFromPlayer } from '@/services/legends';
 import { auth } from '@/services/firebase';
 import { useAuth } from '@/contexts/AuthContext';
 import { useDiamonds } from '@/contexts/DiamondContext';
-import { Search, Save, Eye, ArrowDown, ArrowUp, X } from 'lucide-react';
+import { Search, Save, Eye, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -24,12 +28,9 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { formations } from '@/lib/formations';
-import { calculatePowerIndex, formatRatingLabel, normalizeRatingTo100 } from '@/lib/player';
-import { formatContractCountdown } from '@/lib/contracts';
+import { formatRatingLabel, normalizeRatingTo100 } from '@/lib/player';
 import { cn } from '@/lib/utils';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { BackButton } from '@/components/ui/back-button';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import Pitch, { type PitchSlot } from '@/features/team-planning/Pitch';
 import {
   TeamPlanningProvider,
@@ -37,569 +38,43 @@ import {
   type PlayerPosition as StorePlayerPosition,
   type MetricKey,
 } from '@/features/team-planning/useTeamPlanningStore';
+import { ContractDecisionDialog } from '@/features/team-planning/dialogs/ContractDecisionDialog';
+import { RenamePlayerDialog } from '@/features/team-planning/dialogs/RenamePlayerDialog';
+import { SalaryNegotiationDialog } from '@/features/team-planning/dialogs/SalaryNegotiationDialog';
+import {
+  addMonths,
+  buildDisplayPlayer,
+  canonicalPosition,
+  clampPercentageValue,
+  CONTRACT_EXTENSION_MONTHS,
+  CustomFormationState,
+  DEFAULT_GAUGE_VALUE,
+  DisplayPlayer,
+  FormationPlayerPosition,
+  PlayerBaseline,
+  getContractExpiration,
+  getPlayerCondition,
+  getPlayerMotivation,
+  getPlayerPower,
+  getRenameAdAvailability,
+  HOURS_IN_MS,
+  isContractExpired,
+  isRenameAdReady,
+  metricOptions,
+  MIN_SALARY_OFFER,
+  normalizePlayers,
+  PLAYER_RENAME_AD_COOLDOWN_HOURS,
+  PLAYER_RENAME_DIAMOND_COST,
+  promotePlayerToStartingRoster,
+  sanitizeCustomFormationState,
+  squadRoleWeight,
+  deriveFormationShape,
+  PromoteToStartingResult,
+  negotiationConfidenceFromOffer,
+} from '@/features/team-planning/teamPlanningUtils';
+import { AlternativePlayerBubble } from '@/features/team-planning/components/AlternativePlayerBubble';
 import './team-planning.css';
 import './TeamPlanningSizing.css';
-
-const DEFAULT_GAUGE_VALUE = 0.75;
-
-const PLAYER_RENAME_DIAMOND_COST = 45;
-const PLAYER_RENAME_AD_COOLDOWN_HOURS = 24;
-const CONTRACT_EXTENSION_MONTHS = 18;
-
-const metricOptions: Array<{ key: MetricKey; label: string }> = [
-  { key: 'power', label: 'GÜÇ' },
-  { key: 'motivation', label: 'MOTİVASYON' },
-  { key: 'condition', label: 'KONDİSYON' },
-];
-
-const KNOWN_POSITIONS: Player['position'][] = ['GK', 'CB', 'LB', 'RB', 'CM', 'LM', 'RM', 'CAM', 'LW', 'RW', 'ST'];
-
-const POSITION_ALIAS_MAP: Record<string, Player['position']> = {
-  CF: 'ST',
-  FW: 'ST',
-  FWD: 'ST',
-  FOR: 'ST',
-  FORWARD: 'ST',
-  STRIKER: 'ST',
-  ATT: 'ST',
-  SS: 'ST',
-  HU: 'ST',
-  FO: 'ST',
-  STP: 'ST',
-  AM: 'CAM',
-  AMF: 'CAM',
-  IM: 'CAM',
-  CMF: 'CM',
-  CMID: 'CM',
-  MID: 'CM',
-  DM: 'CM',
-  DMF: 'CM',
-  CDM: 'CM',
-  RMF: 'RM',
-  RWF: 'RW',
-  RWB: 'RB',
-  LWF: 'LW',
-  LMF: 'LM',
-  LWB: 'LB',
-  RCB: 'CB',
-  LCB: 'CB',
-  CBK: 'CB',
-  BL: 'CB',
-  DR: 'RB',
-  EB: 'RW',
-  IR: 'RM',
-  LY: 'LB',
-};
-
-type FormationPlayerPosition = {
-  x: number;
-  y: number;
-  position: Player['position'];
-};
-
-type CustomFormationState = CustomFormationMap;
-
-const clampPercentageValue = (value: number): number => {
-  if (!Number.isFinite(value)) {
-    return 0;
-  }
-  return Math.min(100, Math.max(0, value));
-};
-
-const squadRoleWeight = (role?: Player['squadRole'] | 'youth'): number => {
-  switch (role) {
-    case 'starting':
-      return 0;
-    case 'bench':
-      return 1;
-    case 'reserve':
-      return 2;
-    case 'youth':
-      return 3;
-    default:
-      return 4;
-  }
-};
-
-type PlayerBaseline = {
-  naturalPosition: Player['position'];
-  naturalOverall: number;
-};
-
-type DisplayPlayer = Player & {
-  originalOverall: number;
-  assignedOverall: number;
-  isOutOfPosition: boolean;
-};
-
-const POSITION_ATTRIBUTE_WEIGHTS: Record<Player['position'], Record<keyof Player['attributes'], number>> = {
-  GK: { strength: 0.15, acceleration: 0.05, topSpeed: 0.05, dribbleSpeed: 0.05, jump: 0.2, tackling: 0.1, ballKeeping: 0.15, passing: 0.1, longBall: 0.05, agility: 0.05, shooting: 0, shootPower: 0.05, positioning: 0.05, reaction: 0.1, ballControl: 0.05 },
-  CB: { strength: 0.25, acceleration: 0.1, topSpeed: 0.05, dribbleSpeed: 0, jump: 0.2, tackling: 0.25, ballKeeping: 0, passing: 0.05, longBall: 0.1, agility: 0.05, shooting: 0, shootPower: 0, positioning: 0.15, reaction: 0.15, ballControl: 0.05 },
-  LB: { strength: 0.15, acceleration: 0.2, topSpeed: 0.15, dribbleSpeed: 0.1, jump: 0.05, tackling: 0.2, ballKeeping: 0, passing: 0.1, longBall: 0.1, agility: 0.1, shooting: 0, shootPower: 0, positioning: 0.05, reaction: 0.1, ballControl: 0.05 },
-  RB: { strength: 0.15, acceleration: 0.2, topSpeed: 0.15, dribbleSpeed: 0.1, jump: 0.05, tackling: 0.2, ballKeeping: 0, passing: 0.1, longBall: 0.1, agility: 0.1, shooting: 0, shootPower: 0, positioning: 0.05, reaction: 0.1, ballControl: 0.05 },
-  CM: { strength: 0.1, acceleration: 0.1, topSpeed: 0.05, dribbleSpeed: 0.15, jump: 0, tackling: 0.15, ballKeeping: 0.05, passing: 0.2, longBall: 0.15, agility: 0.15, shooting: 0.05, shootPower: 0.05, positioning: 0.1, reaction: 0.1, ballControl: 0.2 },
-  LM: { strength: 0.05, acceleration: 0.2, topSpeed: 0.15, dribbleSpeed: 0.2, jump: 0, tackling: 0.05, ballKeeping: 0, passing: 0.2, longBall: 0.1, agility: 0.15, shooting: 0.1, shootPower: 0.05, positioning: 0.05, reaction: 0.05, ballControl: 0.25 },
-  RM: { strength: 0.05, acceleration: 0.2, topSpeed: 0.15, dribbleSpeed: 0.2, jump: 0, tackling: 0.05, ballKeeping: 0, passing: 0.2, longBall: 0.1, agility: 0.15, shooting: 0.1, shootPower: 0.05, positioning: 0.05, reaction: 0.05, ballControl: 0.25 },
-  CAM: { strength: 0.05, acceleration: 0.15, topSpeed: 0.1, dribbleSpeed: 0.2, jump: 0, tackling: 0.05, ballKeeping: 0, passing: 0.25, longBall: 0.1, agility: 0.15, shooting: 0.2, shootPower: 0.15, positioning: 0.1, reaction: 0.1, ballControl: 0.25 },
-  LW: { strength: 0.05, acceleration: 0.25, topSpeed: 0.2, dribbleSpeed: 0.2, jump: 0, tackling: 0, ballKeeping: 0, passing: 0.15, longBall: 0.05, agility: 0.2, shooting: 0.25, shootPower: 0.2, positioning: 0.1, reaction: 0.05, ballControl: 0.25 },
-  RW: { strength: 0.05, acceleration: 0.25, topSpeed: 0.2, dribbleSpeed: 0.2, jump: 0, tackling: 0, ballKeeping: 0, passing: 0.15, longBall: 0.05, agility: 0.2, shooting: 0.25, shootPower: 0.2, positioning: 0.1, reaction: 0.05, ballControl: 0.25 },
-  ST: { strength: 0.15, acceleration: 0.2, topSpeed: 0.25, dribbleSpeed: 0.15, jump: 0.05, tackling: 0, ballKeeping: 0, passing: 0.1, longBall: 0.05, agility: 0.1, shooting: 0.25, shootPower: 0.25, positioning: 0.2, reaction: 0.1, ballControl: 0.15 },
-};
-
-const DEFAULT_WEIGHTS = Object.fromEntries(
-  Object.keys(POSITION_ATTRIBUTE_WEIGHTS.ST).map(key => [key, 1]),
-) as Record<keyof Player['attributes'], number>;
-
-const getPositionAttributeWeights = (position: Player['position']) =>
-  POSITION_ATTRIBUTE_WEIGHTS[position] || DEFAULT_WEIGHTS;
-
-const computePositionOverall = (
-  position: Player['position'],
-  attributes: Player['attributes'],
-): number => {
-  const weights = getPositionAttributeWeights(position);
-  let totalWeight = 0;
-  let score = 0;
-  for (const [key, weight] of Object.entries(weights) as Array<
-    [keyof Player['attributes'], number]
-  >) {
-    const value = attributes[key];
-    if (!Number.isFinite(value)) continue;
-    score += (value * weight);
-    totalWeight += weight;
-  }
-  if (totalWeight === 0) return 0;
-  return parseFloat((score / totalWeight).toFixed(2));
-};
-
-const canonicalPosition = (value?: string | null): Player['position'] => {
-  if (!value) return 'CM';
-  const key = value.toUpperCase().replace(/[^A-Z]/g, '');
-  if ((KNOWN_POSITIONS as readonly string[]).includes(key)) {
-    return key as Player['position'];
-  }
-  if (POSITION_ALIAS_MAP[key]) {
-    return POSITION_ALIAS_MAP[key];
-  }
-  return 'CM';
-};
-
-function buildDisplayPlayer(player: Player, baseline?: PlayerBaseline): DisplayPlayer {
-  const baselinePosition = canonicalPosition(baseline?.naturalPosition ?? player.position);
-  const canonicalAssigned = canonicalPosition(player.position);
-  const allowedPositions = new Set<Player['position']>(
-    (player.roles ?? [player.position]).map(role => canonicalPosition(role)),
-  );
-  if (allowedPositions.size === 0) {
-    allowedPositions.add(baselinePosition);
-  }
-
-  const originalOverall = baseline?.naturalOverall ?? player.overall;
-  const isOutOfPosition = player.squadRole === 'starting' && !allowedPositions.has(canonicalAssigned);
-  const computedOverall = isOutOfPosition
-    ? Math.max(0, Math.min(originalOverall, computePositionOverall(canonicalAssigned, player.attributes)))
-    : originalOverall;
-
-  return {
-    ...player,
-    overall: computedOverall,
-    originalOverall,
-    assignedOverall: computedOverall,
-    isOutOfPosition,
-  };
-}
-
-const parsePercentage = (value: unknown): number => {
-  const numeric = typeof value === 'number' ? value : Number(value);
-  if (!Number.isFinite(numeric)) {
-    return 0;
-  }
-  return clampPercentageValue(numeric);
-};
-
-const sanitizeCustomFormationState = (input: unknown): CustomFormationState => {
-  if (!input || typeof input !== 'object') {
-    return {};
-  }
-
-  const sanitized: CustomFormationState = {};
-
-  Object.entries(input as Record<string, unknown>).forEach(([formationKey, layout]) => {
-    if (!layout || typeof layout !== 'object') {
-      return;
-    }
-
-    const sanitizedLayout: Record<string, FormationPlayerPosition> = {};
-
-    Object.entries(layout as Record<string, unknown>).forEach(([playerId, value]) => {
-      if (!value || typeof value !== 'object') {
-        return;
-      }
-
-      const x = parsePercentage((value as { x?: unknown }).x);
-      const y = parsePercentage((value as { y?: unknown }).y);
-      const rawPosition = (value as { position?: unknown }).position;
-      const normalizedPosition =
-        typeof rawPosition === 'string' ? canonicalPosition(rawPosition) : 'CM';
-
-      sanitizedLayout[String(playerId)] = {
-        x,
-        y,
-        position: normalizedPosition,
-      };
-    });
-
-    if (Object.keys(sanitizedLayout).length > 0) {
-      sanitized[String(formationKey)] = sanitizedLayout;
-    }
-  });
-
-  return sanitized;
-};
-
-const HOURS_IN_MS = 60 * 60 * 1000;
-
-const addMonths = (date: Date, months: number): Date => {
-  const result = new Date(date);
-  const targetMonth = result.getMonth() + months;
-  result.setMonth(targetMonth);
-  return result;
-};
-
-const getContractExpiration = (player: Player): Date | null => {
-  if (!player.contract?.expiresAt) {
-    return null;
-  }
-  const expires = new Date(player.contract.expiresAt);
-  return Number.isNaN(expires.getTime()) ? null : expires;
-};
-
-const isContractExpired = (player: Player): boolean => {
-  if (!player.contract || player.contract.status === 'released') {
-    return false;
-  }
-  const expires = getContractExpiration(player);
-  if (!expires) {
-    return false;
-  }
-  return expires.getTime() <= Date.now();
-};
-
-const getRenameAdAvailability = (player: Player): Date | null => {
-  if (!player.rename?.adAvailableAt) {
-    return null;
-  }
-  const date = new Date(player.rename.adAvailableAt);
-  return Number.isNaN(date.getTime()) ? null : date;
-};
-
-const isRenameAdReady = (player: Player): boolean => {
-  const next = getRenameAdAvailability(player);
-  if (!next) {
-    return true;
-  }
-  return next.getTime() <= Date.now();
-};
-
-function normalizePlayer(player: Player): Player {
-  const fallbackContract = (): NonNullable<Player['contract']> => ({
-    expiresAt: addMonths(new Date(), CONTRACT_EXTENSION_MONTHS).toISOString(),
-    status: 'active',
-    salary: player.contract?.salary ?? 0,
-    extensions: player.contract?.extensions ?? 0,
-  });
-
-  const fallbackRename = (): NonNullable<Player['rename']> => {
-    const details: NonNullable<Player['rename']> = {
-      adAvailableAt: new Date(0).toISOString(),
-    };
-
-    if (player.rename?.lastUpdatedAt) {
-      details.lastUpdatedAt = player.rename.lastUpdatedAt;
-    }
-
-    if (player.rename?.lastMethod === 'ad' || player.rename?.lastMethod === 'purchase') {
-      details.lastMethod = player.rename.lastMethod;
-    }
-
-    return details;
-  };
-
-  return {
-    ...player,
-    condition: clampPerformanceGauge(player.condition, DEFAULT_GAUGE_VALUE),
-    motivation: clampPerformanceGauge(player.motivation, DEFAULT_GAUGE_VALUE),
-    injuryStatus: player.injuryStatus ?? 'healthy',
-    contract: player.contract ?? fallbackContract(),
-    rename: player.rename ?? fallbackRename(),
-  };
-}
-
-
-function normalizePlayers(list: Player[]): Player[] {
-  return list.map(normalizePlayer);
-}
-
-
-type PromoteToStartingResult = {
-  players: Player[];
-  error?: string;
-  updated: boolean;
-  swappedPlayerId?: string | null;
-  targetPosition?: Player['position'];
-};
-
-type PromotePlayerOptions = {
-  targetPlayerId?: string | null;
-};
-
-function promotePlayerToStartingRoster(
-  roster: Player[],
-  playerId: string,
-  targetPosition?: Player['position'],
-  options: PromotePlayerOptions = {},
-): PromoteToStartingResult {
-  const playerIndex = roster.findIndex(player => player.id === playerId);
-  if (playerIndex === -1) {
-    return { players: roster, error: 'Oyuncu bulunamad.', updated: false };
-  }
-
-  const player = roster[playerIndex];
-  const currentRole = player.squadRole;
-  const targetPlayerId = options.targetPlayerId && options.targetPlayerId !== playerId
-    ? options.targetPlayerId
-    : null;
-
-  let occupantIndex = -1;
-  if (targetPlayerId) {
-    occupantIndex = roster.findIndex(
-      candidate =>
-        candidate.id === targetPlayerId && candidate.squadRole === 'starting',
-    );
-  }
-
-  if (occupantIndex === -1) {
-    occupantIndex = roster.findIndex(
-      candidate =>
-        candidate.id !== playerId &&
-        candidate.squadRole === 'starting' &&
-        canonicalPosition(candidate.position) === canonicalPosition(targetPosition ?? player.position),
-    );
-  }
-
-  const occupant = occupantIndex !== -1 ? roster[occupantIndex] : null;
-  const resolvedTargetPosition =
-    targetPosition ?? (occupant ? occupant.position : player.position);
-  const canonicalTarget = canonicalPosition(resolvedTargetPosition);
-  const isAlreadyStartingSameSpot =
-    currentRole === 'starting' &&
-    canonicalPosition(player.position) === canonicalTarget &&
-    (!targetPosition || player.position === resolvedTargetPosition) &&
-    (!occupant || occupant.id === player.id);
-
-  if (isAlreadyStartingSameSpot) {
-    return { players: roster, updated: false, targetPosition: canonicalTarget };
-  }
-
-  const startersCount = roster.filter(p => p.squadRole === 'starting').length;
-
-  if (currentRole !== 'starting' && startersCount >= 11 && occupantIndex === -1) {
-    return {
-      players: roster,
-      error: 'lk 11 dolu. Ayn mevkideki bir oyuncuyu karmadan yeni oyuncu ekleyemezsin.',
-      updated: false,
-    };
-  }
-
-  const updatedRoster = [...roster];
-  let swappedPlayerId: string | null = null;
-  const previousPosition = player.position;
-  updatedRoster[playerIndex] = {
-    ...player,
-    position: resolvedTargetPosition,
-    squadRole: 'starting',
-  };
-
-  if (occupantIndex !== -1 && occupant) {
-    swappedPlayerId = occupant.id;
-    if (currentRole === 'starting') {
-      updatedRoster[occupantIndex] = {
-        ...occupant,
-        position: previousPosition,
-        squadRole: 'starting',
-      };
-    } else {
-      updatedRoster[occupantIndex] = {
-        ...occupant,
-        squadRole: currentRole,
-      };
-    }
-  }
-
-  return {
-    players: normalizePlayers(updatedRoster),
-    updated: true,
-    swappedPlayerId,
-    targetPosition: canonicalTarget,
-  };
-}
-
-type FormationSnapshot = {
-  player: Player | null;
-  x: number;
-  y: number;
-};
-
-const LINE_GROUP_TOLERANCE = 10;
-
-const deriveFormationShape = (positions: FormationSnapshot[]): string | null => {
-  const outfieldY = positions
-    .filter(entry => entry.player && canonicalPosition(entry.player.position) !== 'GK')
-    .map(entry => clampPercentageValue(entry.y))
-    .sort((a, b) => b - a);
-
-  if (outfieldY.length === 0) {
-    return null;
-  }
-
-  const groups: { count: number; average: number }[] = [];
-
-  outfieldY.forEach(value => {
-    const lastGroup = groups[groups.length - 1];
-    if (lastGroup && Math.abs(lastGroup.average - value) <= LINE_GROUP_TOLERANCE) {
-      const nextCount = lastGroup.count + 1;
-      lastGroup.average = (lastGroup.average * lastGroup.count + value) / nextCount;
-      lastGroup.count = nextCount;
-      return;
-    }
-
-    groups.push({ count: 1, average: value });
-  });
-
-  const counts = groups.map(group => group.count).filter(count => count > 0);
-  if (counts.length === 0) {
-    return null;
-  }
-
-  const totalOutfield = counts.reduce((sum, current) => sum + current, 0);
-  if (totalOutfield === 0) {
-    return null;
-  }
-
-  return counts.join('-');
-};
-
-type AlternativePlayerBubbleProps = {
-  player: DisplayPlayer;
-  onSelect: (playerId: string) => void;
-  variant?: 'pitch' | 'panel';
-  compareToPlayer?: Player | null;
-};
-
-const STRENGTH_DIFF_EPSILON = 0.1;
-
-const AlternativePlayerBubble: React.FC<AlternativePlayerBubbleProps> = ({
-  player,
-  onSelect,
-  variant = 'pitch',
-  compareToPlayer,
-}) => {
-  const badgeLabel =
-    player.squadRole === 'bench'
-      ? 'YDK'
-      : player.squadRole === 'reserve'
-        ? 'RZV'
-        : 'KDR';
-  const badgeTitle =
-    player.squadRole === 'bench'
-      ? 'Yedek'
-      : player.squadRole === 'reserve'
-        ? 'Rezerv'
-        : 'Kadrodışı';
-
-  const comparisonPower = compareToPlayer ? getPlayerPower(compareToPlayer) : null;
-  const playerPower = getPlayerPower(player);
-  const powerDiff = comparisonPower === null ? 0 : playerPower - comparisonPower;
-  const showStrengthIndicator =
-    comparisonPower !== null && Math.abs(powerDiff) > STRENGTH_DIFF_EPSILON;
-  const isStronger = showStrengthIndicator && powerDiff > 0;
-  const positionLabel = canonicalPosition(player.position);
-
-  const rootClasses = cn(
-    'tp-alternative-card group relative flex w-full items-start gap-3 rounded-2xl border px-3 py-2 text-left text-[11px] font-medium transition duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/80 sm:px-[0.875rem] sm:py-[0.625rem]',
-    variant === 'panel'
-      ? 'tp-alternative-card--panel border-white/20 bg-white/10 text-white hover:border-white/50 hover:bg-white/15'
-      : 'border-white/25 bg-white/5 text-white/95 hover:border-white/50 hover:bg-white/10 backdrop-blur-sm',
-  );
-
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <button type="button" onClick={() => onSelect(player.id)} className={rootClasses}>
-          <div className="relative flex h-12 w-12 flex-shrink-0 items-center justify-center overflow-hidden rounded-xl bg-gradient-to-br from-emerald-300/90 to-emerald-500 px-2 text-emerald-950 shadow-sm">
-            <span className="line-clamp-2 w-full break-normal text-center text-[9.5px] font-semibold leading-tight">
-              {player.name}
-            </span>
-            <span className="absolute bottom-0 right-0 rounded-tl-lg bg-emerald-900/90 px-1 text-[8.5px] font-semibold uppercase text-emerald-100 shadow-lg">
-              {badgeLabel}
-            </span>
-          </div>
-
-          <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[10.5px] text-white/70">
-              <span className="font-semibold uppercase tracking-wide text-white/80">{positionLabel}</span>
-              <span>{player.age} yaş</span>
-              <span className="font-semibold text-white/80">GEN {formatRatingLabel(player.overall)}</span>
-              {player.originalOverall > player.assignedOverall ? (
-                <span className="text-[10px] uppercase tracking-wide text-emerald-200">
-                  Orj: {formatRatingLabel(player.originalOverall)}
-                </span>
-              ) : null}
-              {showStrengthIndicator ? (
-                <span
-                  className={cn(
-                    'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-tight shadow-sm',
-                    isStronger
-                      ? 'bg-emerald-400/90 text-emerald-950'
-                      : 'bg-rose-400/90 text-rose-950',
-                  )}
-                >
-                  {isStronger ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />}
-                  {Math.abs(powerDiff).toFixed(1)}
-                </span>
-              ) : null}
-            </div>
-          </div>
-
-          <div className="hidden flex-col items-end text-[10px] font-semibold text-white/60 sm:flex">
-            <span className="uppercase tracking-wide">{badgeTitle}</span>
-            <span className="text-white/40">#{player.squadRole === 'bench' ? '02' : player.squadRole === 'reserve' ? '03' : '04'}</span>
-          </div>
-        </button>
-      </TooltipTrigger>
-      <TooltipContent className="z-50 space-y-1">
-        <div className="text-xs font-semibold">{player.name}</div>
-        <div className="text-[11px] text-muted-foreground">{badgeTitle}</div>
-      </TooltipContent>
-    </Tooltip>
-  );
-};
-
-function getPlayerCondition(player: Player): number {
-  return clampPerformanceGauge(player.condition, DEFAULT_GAUGE_VALUE);
-}
-
-function getPlayerMotivation(player: Player): number {
-  return clampPerformanceGauge(player.motivation, DEFAULT_GAUGE_VALUE);
-}
-
-function getPlayerPower(player: Player): number {
-  return calculatePowerIndex({
-    ...player,
-    condition: getPlayerCondition(player),
-    motivation: getPlayerMotivation(player),
-  });
-}
 
 function TeamPlanningContent() {
   const navigate = useNavigate();
@@ -625,6 +100,10 @@ function TeamPlanningContent() {
   const [negotiationPlayerId, setNegotiationPlayerId] = useState<string | null>(null);
   const [negotiationOffer, setNegotiationOffer] = useState(0);
   const [isNegotiatingSalary, setIsNegotiatingSalary] = useState(false);
+  const [negotiationAttempts, setNegotiationAttempts] = useState(0);
+  const [playerCounterOffer, setPlayerCounterOffer] = useState<number | null>(null);
+  const [isFinalCounterStage, setIsFinalCounterStage] = useState(false);
+  const MAX_NEGOTIATION_ATTEMPTS = 3;
 
   const pitchRef = useRef<HTMLDivElement | null>(null);
   const dropHandledRef = useRef(false);
@@ -803,28 +282,54 @@ function TeamPlanningContent() {
       setNegotiationOffer(0);
       return;
     }
+    const floor = salaryNegotiationProfile.floor;
+    const ceiling = salaryNegotiationProfile.ceiling;
     setNegotiationOffer(prev => {
-      if (prev >= salaryNegotiationProfile.floor && prev <= salaryNegotiationProfile.ceiling) {
+      if (prev >= floor && prev <= ceiling) {
         return prev;
       }
-      return salaryNegotiationProfile.managerSuggested;
+      return Math.max(floor, salaryNegotiationProfile.managerSuggested);
     });
   }, [salaryNegotiationProfile]);
 
-  const negotiationConfidence = useMemo(() => {
-    if (!salaryNegotiationProfile) {
-      return 0;
+  const negotiationConfidence = useMemo(
+    () =>
+      negotiationConfidenceFromOffer(
+        negotiationOffer,
+        salaryNegotiationProfile,
+        negotiationPlayer,
+      ),
+    [negotiationOffer, salaryNegotiationProfile, negotiationPlayer],
+  );
+
+  const resetNegotiationState = useCallback(() => {
+    setNegotiationAttempts(0);
+    setPlayerCounterOffer(null);
+    setIsFinalCounterStage(false);
+    setNegotiationOffer(0);
+  }, []);
+
+  const buildPlayerCounterOffer = useCallback(
+    (offer: number, profile: SalaryNegotiationProfile, attemptNumber: number) => {
+      const anchor = Math.max(profile.demand, profile.baseSalary);
+      const comfortFloor = Math.max(profile.floor, Math.round(anchor * 0.55));
+      const weight = clampNumber(0.35 + attemptNumber * 0.15, 0.35, 0.9);
+      const blended = offer * weight + anchor * (1 - weight);
+      const counter = clampNumber(
+        Math.round(blended),
+        Math.max(offer, comfortFloor),
+        profile.ceiling,
+      );
+      return counter;
+    },
+    [],
+  );
+
+  useEffect(() => {
+    if (!negotiationPlayer) {
+      resetNegotiationState();
     }
-    const range = Math.max(1, salaryNegotiationProfile.ceiling - salaryNegotiationProfile.floor);
-    const relative = clampNumber(
-      (negotiationOffer - salaryNegotiationProfile.floor) / range,
-      0,
-      1,
-    );
-    const motivationBonus =
-      (clampPerformanceGauge(negotiationPlayer?.motivation) - DEFAULT_GAUGE_VALUE) * 0.35;
-    return clampNumber(0.35 + relative * 0.6 + motivationBonus, 0, 0.98);
-  }, [negotiationOffer, salaryNegotiationProfile, negotiationPlayer]);
+  }, [negotiationPlayer, resetNegotiationState]);
 
   const isRenameAdAvailable = renamePlayer ? isRenameAdReady(renamePlayer) : true;
   const renameAdAvailableAt = renamePlayer
@@ -873,38 +378,37 @@ function TeamPlanningContent() {
     });
   };
 
-  const updatePlayerManualPosition = (
-    formationName: string,
-    playerId: string,
-    data: FormationPlayerPosition,
-  ) => {
-    setCustomFormations(prev => {
-      const currentFormation = prev[formationName] ?? {};
-      const normalized: FormationPlayerPosition = {
-        x: clampPercentageValue(data.x),
-        y: clampPercentageValue(data.y),
-        position: data.position,
-      };
+  const updatePlayerManualPosition = useCallback(
+    (formationName: string, playerId: string, data: FormationPlayerPosition) => {
+      setCustomFormations(prev => {
+        const currentFormation = prev[formationName] ?? {};
+        const normalized: FormationPlayerPosition = {
+          x: clampPercentageValue(data.x),
+          y: clampPercentageValue(data.y),
+          position: data.position,
+        };
 
-      const existing = currentFormation[playerId];
-      if (
-        existing &&
-        existing.x === normalized.x &&
-        existing.y === normalized.y &&
-        existing.position === normalized.position
-      ) {
-        return prev;
-      }
+        const existing = currentFormation[playerId];
+        if (
+          existing &&
+          existing.x === normalized.x &&
+          existing.y === normalized.y &&
+          existing.position === normalized.position
+        ) {
+          return prev;
+        }
 
-      return {
-        ...prev,
-        [formationName]: {
-          ...currentFormation,
-          [playerId]: normalized,
-        },
-      };
-    });
-  };
+        return {
+          ...prev,
+          [formationName]: {
+            ...currentFormation,
+            [playerId]: normalized,
+          },
+        };
+      });
+    },
+    [],
+  );
 
   const finalizeContractDecision = (playerId: string) => {
     handledContractsRef.current.add(playerId);
@@ -953,14 +457,14 @@ function TeamPlanningContent() {
     });
 
     if (errorMessage) {
-      toast.error('lem tamamlanamad', { description: errorMessage });
+      toast.error('işlem tamamlanamadı', { description: errorMessage });
     } else if (changed) {
       if (newRole !== 'starting') {
         removePlayerFromCustomFormations(playerId);
       } else if (swappedPlayerId) {
         removePlayerFromCustomFormations(swappedPlayerId);
       }
-      toast.success('Oyuncu baaryla tand');
+      toast.success('Oyuncu başarıyla taşındı');
     }
   };
 
@@ -1057,18 +561,24 @@ function TeamPlanningContent() {
       return;
     }
     if (getLegendIdFromPlayer(target) !== null) {
-      toast.error('Nostalji oyuncularıyla maaş pazarlığı yapılmaz.');
+      toast.error('Nostalji oyuncularıyla maaş pazarlığı yapılamaz.');
       return;
     }
+    resetNegotiationState();
     setNegotiationPlayerId(playerId);
   };
 
-  const handleConfirmSalaryNegotiation = async () => {
+
+
+
+
+
+  const completeSalaryNegotiation = async (agreedSalary: number) => {
     if (!user || !negotiationPlayer || !salaryNegotiationProfile) {
       return;
     }
     const clampedOffer = clampNumber(
-      Math.round(negotiationOffer),
+      Math.round(agreedSalary),
       salaryNegotiationProfile.floor,
       salaryNegotiationProfile.ceiling,
     );
@@ -1079,13 +589,19 @@ function TeamPlanningContent() {
     const baseDate = currentExpiry && currentExpiry.getTime() > now.getTime() ? currentExpiry : now;
     const newExpiry = addMonths(baseDate, CONTRACT_EXTENSION_MONTHS);
 
+    const confidence = negotiationConfidenceFromOffer(
+      clampedOffer,
+      salaryNegotiationProfile,
+      negotiationPlayer,
+    );
+
     const updatedPlayers = players.map(player => {
       if (player.id !== negotiationPlayer.id) {
         return player;
       }
       const currentContract = player.contract ?? {
         expiresAt: newExpiry.toISOString(),
-        status: 'active',
+        status: 'active' as const,
         salary: clampedOffer,
         extensions: 0,
       };
@@ -1095,32 +611,94 @@ function TeamPlanningContent() {
           ...currentContract,
           salary: clampedOffer,
           expiresAt: newExpiry.toISOString(),
-          status: 'active',
+          status: 'active' as const,
           extensions: (currentContract.extensions ?? 0) + 1,
         },
         motivation: clampPerformanceGauge(
-          player.motivation + Math.min(0.08, negotiationConfidence * 0.2),
+          player.motivation + Math.min(0.08, confidence * 0.2),
           DEFAULT_GAUGE_VALUE,
         ),
       };
     });
 
-    setPlayers(updatedPlayers);
+    const normalized = normalizePlayers(updatedPlayers);
+    setPlayers(normalized);
     setIsNegotiatingSalary(true);
     try {
-      await saveTeamPlayers(userId, updatedPlayers);
+      await saveTeamPlayers(userId, normalized);
       toast.success(
-        `${negotiationPlayer.name} maaşı ${formatSalary(clampedOffer)} oldu ve sözleşmesi ${CONTRACT_EXTENSION_MONTHS} ay uzatıldı.`,
+        `${negotiationPlayer.name} maa?? ${formatSalary(clampedOffer)} oldu ve s?zle?mesi ${CONTRACT_EXTENSION_MONTHS} ay uzat?ld?.`,
       );
       finalizeContractDecision(negotiationPlayer.id);
       setNegotiationPlayerId(null);
+      resetNegotiationState();
     } catch (error) {
       console.error('[TeamPlanning] salary negotiation failed', error);
       toast.error('Maaş pazarlığı tamamlanamadı.');
-      setPlayers(previousPlayers);
+      toast.error('Maaş pazarlığı tamamlanamadı.');
     } finally {
       setIsNegotiatingSalary(false);
     }
+  };
+
+  const handleConfirmSalaryNegotiation = async () => {
+    if (!user || !negotiationPlayer || !salaryNegotiationProfile) {
+      return;
+    }
+    if (isFinalCounterStage && playerCounterOffer !== null) {
+      return;
+    }
+
+    const clampedOffer = clampNumber(
+      Math.round(negotiationOffer),
+      salaryNegotiationProfile.floor,
+      salaryNegotiationProfile.ceiling,
+    );
+
+    const attemptNumber = negotiationAttempts + 1;
+    const acceptanceChance = negotiationConfidenceFromOffer(
+      clampedOffer,
+      salaryNegotiationProfile,
+      negotiationPlayer,
+    );
+    const autoAccept = clampedOffer >= salaryNegotiationProfile.demand * 0.98;
+    const accepted = autoAccept || Math.random() < acceptanceChance;
+
+    if (accepted) {
+      await completeSalaryNegotiation(clampedOffer);
+      return;
+    }
+
+    const counter = buildPlayerCounterOffer(
+      clampedOffer,
+      salaryNegotiationProfile,
+      attemptNumber,
+    );
+    const remainingAttempts = Math.max(MAX_NEGOTIATION_ATTEMPTS - attemptNumber, 0);
+    const isFinal = attemptNumber >= MAX_NEGOTIATION_ATTEMPTS;
+
+    setNegotiationAttempts(attemptNumber);
+    setPlayerCounterOffer(counter);
+    setIsFinalCounterStage(isFinal);
+    setNegotiationOffer(counter);
+
+    const counterMessage = isFinal
+      ? `Kabul edilmedi. Oyuncunun son teklifi: ${formatSalary(counter)}.`
+      : `Kabul edilmedi. Oyuncunun kar?? teklifi: ${formatSalary(counter)}. Kalan hak: ${remainingAttempts}`;
+    toast.info(counterMessage);
+  };
+
+  const handleAcceptCounterOffer = async () => {
+    if (playerCounterOffer === null) {
+      return;
+    }
+    await completeSalaryNegotiation(playerCounterOffer);
+  };
+
+  const handleRejectCounterOffer = () => {
+    toast.info('Pazarlık sonuçsuz kaldı, sözleşme değişmedi.');
+    setNegotiationPlayerId(null);
+    resetNegotiationState();
   };
 
   const handleExtendContract = (playerId: string) => {
@@ -1226,7 +804,7 @@ function TeamPlanningContent() {
     }
   };
 
-  const getPitchCoordinates = (clientX: number, clientY: number): FormationPlayerPosition | null => {
+  const getPitchCoordinates = useCallback((clientX: number, clientY: number): FormationPlayerPosition | null => {
     const field = pitchRef.current;
     if (!field) {
       return null;
@@ -1252,146 +830,23 @@ function TeamPlanningContent() {
       y: clampPercentageValue(relativeY),
       position: 'CM',
     };
-  };
+  }, []);
 
-  const handlePitchDrop = (e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    const playerId = e.dataTransfer.getData('text/plain') || draggedPlayerId;
-    if (!playerId) {
-      return;
-    }
-
-    const player = players.find(p => p.id === playerId);
-    if (!player) {
-      return;
-    }
-
-    const coordinates = getPitchCoordinates(e.clientX, e.clientY);
-    if (!coordinates) {
-      setDraggedPlayerId(null);
-      return;
-    }
-
-    dropHandledRef.current = true;
-
-    const nearestSlot = findNearestSlot(coordinates);
-    const finalPosition = nearestSlot?.position ?? player.position;
-
-    if (player.squadRole === 'starting') {
-      if (finalPosition !== player.position) {
-        setPlayers(prev =>
-          normalizePlayers(
-            prev.map(current =>
-              current.id === playerId ? { ...current, position: finalPosition } : current,
-            ),
-          ),
-        );
-      }
-      applyManualPosition(playerId, {
-        x: coordinates.x,
-        y: coordinates.y,
-        position: finalPosition,
-      });
-      setFocusedPlayerId(playerId);
-      toast.success('Oyuncu sahada yeniden konumlandırıldı');
-      setDraggedPlayerId(null);
-      return;
-    }
-
-    let errorMessage: string | null = null;
-    let updated = false;
-    let result: PromoteToStartingResult | null = null;
-
-    setPlayers(prev => {
-      const promotion = promotePlayerToStartingRoster(prev, playerId, finalPosition);
-      result = promotion;
-      if (promotion.error) {
-        errorMessage = promotion.error;
-        return prev;
-      }
-      if (!promotion.updated) {
-        return prev;
-      }
-      updated = true;
-      return promotion.players;
-    });
-
-    if (errorMessage) {
-      toast.error('Oyuncu eklenemedi', { description: errorMessage });
-    } else if (updated) {
-      applyManualPosition(playerId, {
-        x: coordinates.x,
-        y: coordinates.y,
-        position: finalPosition,
-      });
-      if (result?.swappedPlayerId) {
-        removePlayerFromCustomFormations(result.swappedPlayerId);
-      }
-      setFocusedPlayerId(playerId);
-      toast.success('Oyuncu sahada konumlandırıldı');
-    }
-
-    setDraggedPlayerId(null);
-  };
-
-  const handlePlayerDragEnd = (
-    event: React.DragEvent<HTMLDivElement>,
-    player: Player,
-  ) => {
-    setDraggedPlayerId(null);
-    if (dropHandledRef.current) {
-      dropHandledRef.current = false;
-      return;
-    }
-
-    if (player.squadRole !== 'starting') {
-      return;
-    }
-
-    if (event.clientX === 0 && event.clientY === 0) {
-      return;
-    }
-
-    const coordinates = getPitchCoordinates(event.clientX, event.clientY);
-    if (!coordinates) {
-      return;
-    }
-
-    const nearestSlot = findNearestSlot(coordinates);
-    const finalPosition = nearestSlot?.position ?? player.position;
-    if (finalPosition !== player.position) {
-      setPlayers(prev =>
-        normalizePlayers(
-          prev.map(current =>
-            current.id === player.id ? { ...current, position: finalPosition } : current,
-          ),
-        ),
-      );
-    }
-
-    applyManualPosition(player.id, {
-      x: coordinates.x,
-      y: coordinates.y,
-      position: finalPosition,
-    });
-  };
-
-  const applyManualPosition = (
-    playerId: string,
-    data: FormationPlayerPosition,
-    formationName = selectedFormation,
-  ) => {
-    const normalized: FormationPlayerPosition = {
-      x: clampPercentageValue(data.x),
-      y: clampPercentageValue(data.y),
-      position: data.position,
-    };
-    updatePlayerManualPosition(formationName, playerId, normalized);
-    setManualSlotPositions(prev => ({
-      ...prev,
-      [playerId]: normalized,
-    }));
-  };
+  const applyManualPosition = useCallback(
+    (playerId: string, data: FormationPlayerPosition, formationName = selectedFormation) => {
+      const normalized: FormationPlayerPosition = {
+        x: clampPercentageValue(data.x),
+        y: clampPercentageValue(data.y),
+        position: data.position,
+      };
+      updatePlayerManualPosition(formationName, playerId, normalized);
+      setManualSlotPositions(prev => ({
+        ...prev,
+        [playerId]: normalized,
+      }));
+    },
+    [selectedFormation, updatePlayerManualPosition],
+  );
 
   const handlePitchMarkerDragStart = useCallback(
     (player: Player, event: React.DragEvent<HTMLDivElement>) => {
@@ -1400,13 +855,6 @@ function TeamPlanningContent() {
       event.dataTransfer.effectAllowed = 'move';
     },
     [],
-  );
-
-  const handlePitchMarkerDragEnd = useCallback(
-    (player: Player, event: React.DragEvent<HTMLDivElement>) => {
-      handlePlayerDragEnd(event, player);
-    },
-    [handlePlayerDragEnd],
   );
 
   const getMetricValueForPlayer = useCallback(
@@ -1428,7 +876,7 @@ function TeamPlanningContent() {
       <div className="space-y-2">
         <div className="text-xs font-semibold">{player.name}</div>
         <PerformanceGauge
-          label="Güç"
+          label="Guç"
           value={normalizeRatingTo100(getPlayerPower(player)) / 100}
           variant="dark"
         />
@@ -1471,7 +919,7 @@ function TeamPlanningContent() {
     if (removedName) {
       setFocusedPlayerId(current => (current === playerId ? null : current));
       toast.success(`${removedName} serbest brakld`, {
-        description: 'Deiiklikleri kaydetmeyi unutmayn.',
+        description: 'Değişlikleri kaydetmeyi unutmayn.',
       });
     }
   };
@@ -1488,8 +936,8 @@ function TeamPlanningContent() {
 
       const starters = unique(collectIds('starting'));
       if (starters.length !== 11) {
-        toast.error('Kadro tamamlanmadÄ±', {
-          description: 'Kaydetmeden Ã¶nce 11 oyuncuyu ilk 11 olarak belirleyin.',
+        toast.error('Kadro tamamlanmadı', {
+          description: 'Kaydetmeden önce 11 oyuncuyu ilk 11 olarak belirleyin.',
         });
         return;
       }
@@ -1553,19 +1001,39 @@ function TeamPlanningContent() {
           ? String((error as { details?: unknown }).details)
           : error && typeof error === 'object' && 'message' in error && typeof (error as { message?: unknown }).message === 'string'
           ? String((error as { message?: unknown }).message)
-          : 'Kadro kaydÄ± baÅŸarÄ±sÄ±z. LÃ¼tfen tekrar deneyin.';
-      toast.error('Sunucu hatasÄ±', { description });
+          : 'Kadro kaydı başarısız. Lütfen tekrar deneyin.';
+      toast.error('Sunucu hatası', { description });
     }
   };
 
   useEffect(() => {
     if (!user) return;
     (async () => {
-      let team = await getTeam(user.id);
+      const preferredTeamName = (user.teamName?.includes('@') ? user.teamName.split('@')[0] : user.teamName) || 'Takimim';
+      const managerName = user.username || preferredTeamName;
+
+      let team: Awaited<ReturnType<typeof getTeam>> | null = null;
+      try {
+        team = await getTeam(user.id);
+      } catch (error) {
+        console.error('[TeamPlanning] getTeam failed', error);
+        toast.error('Takim bilgisi yuklenemedi. Lutfen tekrar deneyin.');
+        return;
+      }
+
       if (!team) {
-        team = await createInitialTeam(user.id, user.teamName, user.teamName, {
-          authUser: auth.currentUser,
-        });
+        try {
+          await auth.currentUser?.getIdToken(true).catch((err) => {
+            console.warn('[TeamPlanning] token refresh before team create failed', err);
+          });
+          team = await createInitialTeam(user.id, preferredTeamName, managerName, {
+            authUser: auth.currentUser,
+          });
+        } catch (error) {
+          console.error('[TeamPlanning] createInitialTeam failed', error);
+          toast.error('Takim olusturulamadi. Lutfen tekrar deneyin.');
+          return;
+        }
       }
 
       teamLeagueIdRef.current =
@@ -1832,11 +1300,9 @@ function TeamPlanningContent() {
         slotIndex: idx,
       };
     });
-  }, [currentFormation, manualFormation, players, manualSlotPositions]);
-
-
+  }, [currentFormation, manualFormation, displayPlayers, manualSlotPositions]);
   const findNearestSlot = useCallback(
-    (coords: {x: number; y: number}): PitchSlot | null => {
+    (coords: { x: number; y: number }): PitchSlot | null => {
       if (!formationPositions.length) return null;
       let best: PitchSlot | null = null;
       let bestDist = Number.POSITIVE_INFINITY;
@@ -1853,6 +1319,129 @@ function TeamPlanningContent() {
     },
     [formationPositions],
   );
+
+  const handlePitchDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    const playerId = e.dataTransfer.getData('text/plain') || draggedPlayerId;
+    if (!playerId) {
+      return;
+    }
+
+    const player = players.find(p => p.id === playerId);
+    if (!player) {
+      return;
+    }
+
+    const coordinates = getPitchCoordinates(e.clientX, e.clientY);
+    if (!coordinates) {
+      setDraggedPlayerId(null);
+      return;
+    }
+
+    dropHandledRef.current = true;
+
+    const nearestSlot = findNearestSlot(coordinates);
+    const finalPosition = nearestSlot?.position ?? player.position;
+
+    if (player.squadRole === 'starting') {
+      if (finalPosition !== player.position) {
+        setPlayers(prev =>
+          normalizePlayers(
+            prev.map(current =>
+              current.id === playerId ? { ...current, position: finalPosition } : current,
+            ),
+          ),
+        );
+      }
+      applyManualPosition(playerId, {
+        x: coordinates.x,
+        y: coordinates.y,
+        position: finalPosition,
+      });
+      setFocusedPlayerId(playerId);
+      toast.success('Oyuncu sahada yeniden konumlandirildi');
+      setDraggedPlayerId(null);
+      return;
+    }
+
+    let errorMessage: string | null = null;
+    let updated = false;
+    let result: PromoteToStartingResult | null = null;
+
+    setPlayers(prev => {
+      const promotion = promotePlayerToStartingRoster(prev, playerId, finalPosition);
+      result = promotion;
+      if (promotion.error) {
+        errorMessage = promotion.error;
+        return prev;
+      }
+      if (!promotion.updated) {
+        return prev;
+      }
+      updated = true;
+      return promotion.players;
+    });
+
+    if (errorMessage) {
+      toast.error('Oyuncu eklenemedi', { description: errorMessage });
+    } else if (updated) {
+      applyManualPosition(playerId, {
+        x: coordinates.x,
+        y: coordinates.y,
+        position: finalPosition,
+      });
+      if (result?.swappedPlayerId) {
+        removePlayerFromCustomFormations(result.swappedPlayerId);
+      }
+      setFocusedPlayerId(playerId);
+      toast.success('Oyuncu sahada konumlandirildi');
+    }
+
+    setDraggedPlayerId(null);
+  };
+
+  const handlePlayerDragEnd = useCallback(
+    (event: React.DragEvent<HTMLDivElement>, player: Player) => {
+      setDraggedPlayerId(null);
+      if (dropHandledRef.current) {
+        dropHandledRef.current = false;
+        return;
+      }
+
+      if (player.squadRole !== 'starting') {
+        return;
+      }
+
+      if (event.clientX === 0 && event.clientY === 0) {
+        return;
+      }
+
+      const coordinates = getPitchCoordinates(event.clientX, event.clientY);
+      if (!coordinates) {
+        return;
+      }
+
+      const nearestSlot = findNearestSlot(coordinates);
+      const finalPosition = nearestSlot?.position ?? player.position;
+      if (finalPosition !== player.position) {
+        setPlayers(prev =>
+          normalizePlayers(
+            prev.map(current =>
+              current.id === player.id ? { ...current, position: finalPosition } : current,
+            ),
+          ),
+        );
+      }
+
+      applyManualPosition(player.id, {
+        x: coordinates.x,
+        y: coordinates.y,
+        position: finalPosition,
+      });
+    },
+    [applyManualPosition, findNearestSlot, getPitchCoordinates, setPlayers],
+  );
+
 
   const buildPositionsMap = useCallback(
     (slots: PitchSlot[]): Record<string, StorePlayerPosition> =>
@@ -1911,9 +1500,9 @@ function TeamPlanningContent() {
     return displayPlayers.find(p => p.id === focusedPlayerId) ?? null;
   }, [displayPlayers, focusedPlayerId]);
 
-  const alternativePlayers = useMemo(() => {
+  const alternativePlayers: DisplayPlayer[] = useMemo(() => {
     if (!selectedPlayer) {
-      return [] as Player[];
+      return [] as DisplayPlayer[];
     }
 
     const target = canonicalPosition(selectedPlayer.position);
@@ -1939,11 +1528,11 @@ function TeamPlanningContent() {
       }
       return b.overall - a.overall;
     });
-  }, [players, selectedPlayer]);
+  }, [displayPlayers, selectedPlayer]);
 
   const handlePositionDrop = (
     e: React.DragEvent<HTMLDivElement>,
-    slot: { position: Player['position']; x: number; y: number; slotIndex: number },
+    slot: PitchSlot,
   ) => {
     e.preventDefault();
     e.stopPropagation();
@@ -1974,7 +1563,7 @@ function TeamPlanningContent() {
       const startingCount = players.filter(player => player.squadRole === 'starting').length;
       if (startingCount >= 11) {
         toast.error('Pozisyon gncellenemedi', {
-          description: 'lk 11 dolu. Ayn mevkideki bir oyuncuyu karmadan yeni oyuncu ekleyemezsin.',
+          description: 'ilk 11 dolu. Ayn mevkideki bir oyuncuyu çıkarmadan yeni oyuncu ekleyemezsin.',
         });
         setDraggedPlayerId(null);
         return;
@@ -1999,14 +1588,14 @@ function TeamPlanningContent() {
         : null;
 
       if (targetPlayer && !targetState) {
-        errorMessage = 'Hedef oyuncu bulunamad.';
+        errorMessage = 'Hedef oyuncu bulunamadı.';
         return prev;
       }
 
       if (!targetState && draggedState.squadRole !== 'starting') {
         const starters = prev.filter(player => player.squadRole === 'starting').length;
         if (starters >= 11) {
-          errorMessage = 'lk 11 dolu. Ayn mevkideki bir oyuncuyu karmadan yeni oyuncu ekleyemezsin.';
+          errorMessage = 'ilk 11 dolu. Aynı mevkideki bir oyuncuyu çıkarmadan yeni oyuncu ekleyemezsin.';
           return prev;
         }
       }
@@ -2056,7 +1645,7 @@ function TeamPlanningContent() {
       });
 
       if (!updated) {
-        errorMessage = 'Pozisyon gncellenemedi.';
+        errorMessage = 'Pozisyon güncellenemedi.';
         return prev;
       }
 
@@ -2064,7 +1653,7 @@ function TeamPlanningContent() {
     });
 
     if (errorMessage) {
-      toast.error('Pozisyon gncellenemedi', { description: errorMessage });
+      toast.error('Pozisyon güncellenemedi', { description: errorMessage });
       setDraggedPlayerId(null);
       return;
     }
@@ -2100,7 +1689,7 @@ function TeamPlanningContent() {
           : 'Oyuncular degisti'
         : previousRole === 'starting'
           ? 'Oyuncu sahada yeniden konumlandırıldı'
-          : 'Oyuncu ilk 11\'e tand';
+          : 'Oyuncu ilk 11\'e taşındı';
       toast.success(successMessage);
     }
 
@@ -2216,7 +1805,7 @@ function TeamPlanningContent() {
                 onPitchDrop={handlePitchDrop}
                 onPositionDrop={handlePositionDrop}
                 onPlayerDragStart={handlePitchMarkerDragStart}
-                onPlayerDragEnd={handlePitchMarkerDragEnd}
+                onPlayerDragEnd={handlePitchMarkerDragStart}
                 onSelectPlayer={playerId => setFocusedPlayerId(playerId)}
                 focusedPlayerId={focusedPlayerId}
                 selectedMetric={selectedMetric}
@@ -2525,204 +2114,57 @@ function TeamPlanningContent() {
         </div>
       </div>
 
-      <Dialog
-        open={Boolean(renamePlayer)}
-        onOpenChange={open => {
-          if (!open) {
-            setRenamePlayerId(null);
-          }
-        }}
-      >
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Oyuncu Adını Özelleştir</DialogTitle>
-            <DialogDescription>
-              {renamePlayer
-                ? `${renamePlayer.name} için yeni bir isim belirleyin.`
-                : 'Oyuncu adını güncelleyin.'}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-3">
-            <Input
-              value={renameInput}
-              onChange={event => setRenameInput(event.target.value)}
-              placeholder="Yeni oyuncu adı"
-              disabled={isRenamingPlayer}
-              autoFocus
-            />
-            <p className="text-xs text-muted-foreground">
-              Reklam seçeneği {PLAYER_RENAME_AD_COOLDOWN_HOURS} saatte bir kullanılabilir. Elmas seçeneği {PLAYER_RENAME_DIAMOND_COST} elmas
-              harcar. Bakiyeniz: {balance}
-            </p>
-            {!isRenameAdAvailable && renameAdAvailableAt && (
-              <p className="text-xs text-amber-600 dark:text-amber-400">
-                Bir sonraki reklam hakkı {renameAdAvailableAt.toLocaleString('tr-TR')} tarihinde yenilenecek.
-              </p>
-            )}
-          </div>
-          <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:justify-end">
-            <Button
-              variant="secondary"
-              disabled={!isRenameAdAvailable || isRenamingPlayer}
-              onClick={() => handleRenamePlayer('ad')}
-            >
-              Reklam İzle ve Aç
-            </Button>
-            <Button disabled={isRenamingPlayer} onClick={() => handleRenamePlayer('purchase')}>
-              {PLAYER_RENAME_DIAMOND_COST} Elmasla Onayla
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+      <RenamePlayerDialog
+        player={renamePlayer}
+        renameInput={renameInput}
+        balance={balance}
+        diamondCost={PLAYER_RENAME_DIAMOND_COST}
+        adCooldownHours={PLAYER_RENAME_AD_COOLDOWN_HOURS}
+        isAdAvailable={isRenameAdAvailable}
+        adAvailableAt={renameAdAvailableAt}
+        isRenaming={isRenamingPlayer}
+        onClose={() => setRenamePlayerId(null)}
+        onChangeInput={setRenameInput}
+        onRenameWithAd={() => handleRenamePlayer('ad')}
+        onRenameWithPurchase={() => handleRenamePlayer('purchase')}
+      />
 
-      <Dialog
-        open={Boolean(negotiationPlayer)}
-        onOpenChange={open => {
-          if (!open) {
-            setNegotiationPlayerId(null);
-          }
-        }}
-      >
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Maaş Pazarlığı</DialogTitle>
-            <DialogDescription>
-              {negotiationPlayer
-                ? `${negotiationPlayer.name} ile yeni maaş teklifi üzerinde çalışılıyor.`
-                : 'Bir oyuncu seçin.'}
-            </DialogDescription>
-          </DialogHeader>
-          {salaryNegotiationProfile && negotiationPlayer ? (
-            <div className="space-y-3">
-              <div className="rounded-md border border-muted bg-muted/40 p-3 text-sm space-y-1">
-                <p>Güncel maaş: {formatSalary(salaryNegotiationProfile.baseSalary)}</p>
-                <p>Oyuncunun beklentisi: {formatSalary(salaryNegotiationProfile.demand)}</p>
-                <p>
-                  Aralık: {formatSalary(salaryNegotiationProfile.floor)} –{' '}
-                  {formatSalary(salaryNegotiationProfile.ceiling)}
-                </p>
-              </div>
-              <div className="space-y-2">
-                <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  <span>Teklifiniz</span>
-                  <span>{formatSalary(negotiationOffer)}</span>
-                </div>
-                <Slider
-                  min={salaryNegotiationProfile.floor}
-                  max={salaryNegotiationProfile.ceiling}
-                  step={25}
-                  value={[negotiationOffer]}
-                  onValueChange={value => {
-                    const next = Number(value?.[0] ?? 0);
-                    if (!Number.isFinite(next)) {
-                      return;
-                    }
-                    setNegotiationOffer(next);
-                  }}
-                />
-                <Input
-                  type="number"
-                  value={negotiationOffer}
-                  min={salaryNegotiationProfile.floor}
-                  max={salaryNegotiationProfile.ceiling}
-                  onChange={event => {
-                    const next = Number(event.target.value);
-                    if (!Number.isFinite(next)) {
-                      return;
-                    }
-                    setNegotiationOffer(
-                      clampNumber(
-                        Math.round(next),
-                        salaryNegotiationProfile.floor,
-                        salaryNegotiationProfile.ceiling,
-                      ),
-                    );
-                  }}
-                />
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Tahmini kabul şansı: %{Math.round(negotiationConfidence * 100)}
-              </p>
-              <p className="text-xs text-muted-foreground">{salaryNegotiationProfile.narrative}</p>
-            </div>
-          ) : (
-            <p className="text-sm text-muted-foreground">Oyuncu bilgisi yükleniyor.</p>
-          )}
-          <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:justify-end">
-            <Button variant="secondary" onClick={() => setNegotiationPlayerId(null)}>
-              Vazgeç
-            </Button>
-            <Button
-              disabled={
-                isNegotiatingSalary ||
-                !salaryNegotiationProfile ||
-                !Number.isFinite(negotiationOffer)
-              }
-              onClick={handleConfirmSalaryNegotiation}
-            >
-              Teklifi Gönder
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+      <SalaryNegotiationDialog
+        player={negotiationPlayer}
+        profile={salaryNegotiationProfile}
+        offer={negotiationOffer}
+        confidence={negotiationConfidence}
+        minOffer={salaryNegotiationProfile?.floor ?? MIN_SALARY_OFFER}
+        isSubmitting={isNegotiatingSalary}
+        attempt={negotiationAttempts}
+        maxAttempts={MAX_NEGOTIATION_ATTEMPTS}
+        counterOffer={playerCounterOffer}
+        isFinalCounter={isFinalCounterStage}
+        isLocked={isFinalCounterStage}
+        onOfferChange={setNegotiationOffer}
+        onClose={() => setNegotiationPlayerId(null)}
+        onSubmit={handleConfirmSalaryNegotiation}
+        onAcceptCounter={handleAcceptCounterOffer}
+        onRejectCounter={handleRejectCounterOffer}
+      />
 
-      <Dialog open={Boolean(activeContractPlayer)} onOpenChange={() => {}}>
-        <DialogContent
-          className="sm:max-w-md"
-          onInteractOutside={event => event.preventDefault()}
-          onEscapeKeyDown={event => event.preventDefault()}
-        >
-          <DialogHeader>
-            <DialogTitle>Sözleşme Yenileme Kararı</DialogTitle>
-            <DialogDescription>
-              {activeContractPlayer
-                ? `${activeContractPlayer.name} için sözleşme süresi doldu.`
-                : 'Sözleşme süresi dolan oyuncu bulunamadı.'}
-            </DialogDescription>
-          </DialogHeader>
-          {activeContractPlayer ? (
-            <div className="space-y-3">
-              <div className="rounded-md border border-muted bg-muted/40 p-3 text-sm">
-                <p>{formatContractCountdown(getContractExpiration(activeContractPlayer), teamLeagueIdRef.current)}</p>
-                <p>Mevcut Rol: {activeContractPlayer.squadRole}</p>
-              </div>
-              <p className="text-sm text-muted-foreground">
-                {getLegendIdFromPlayer(activeContractPlayer) !== null
-                  ? 'Bu nostalji efsanesinin sözleşmesi uzatılamaz. Süre dolduğunda oyuncu otomatik olarak kulüpten ayrılır.'
-                  : 'Sözleşmeyi uzatırsanız oyuncu takımda kalmaya devam eder. Aksi halde serbest bırakılarak transfer listesine düşer.'}
-              </p>
-            </div>
-          ) : null}
-          <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:justify-end">
-            {activeContractPlayer && (
-              <Button
-                variant="secondary"
-                disabled={isProcessingContract}
-                onClick={() => handleReleaseContract(activeContractPlayer.id)}
-              >
-                Serbest Bırak
-              </Button>
-            )}
-            {activeContractPlayer && getLegendIdFromPlayer(activeContractPlayer) === null && (
-              <Button
-                disabled={isProcessingContract}
-                onClick={() => handleExtendContract(activeContractPlayer.id)}
-              >
-                Sözleşmeyi Uzat
-              </Button>
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
+      <ContractDecisionDialog
+        player={activeContractPlayer}
+        teamLeagueId={teamLeagueIdRef.current}
+        isProcessing={isProcessingContract}
+        onRelease={() => activeContractPlayer && handleReleaseContract(activeContractPlayer.id)}
+        onExtend={() => activeContractPlayer && handleExtendContract(activeContractPlayer.id)}
+      />
+
     </>
   );
 }
 
-export default function TeamPlanning() {
+export default function TeamPlanning() 
+{
   return (
     <TeamPlanningProvider>
       <TeamPlanningContent />
     </TeamPlanningProvider>
   );
 }
-

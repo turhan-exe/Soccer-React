@@ -34,7 +34,11 @@ export const buildSalaryNegotiationProfile = (
   options?: NegotiationOptions,
 ): SalaryNegotiationProfile => {
   const fallbackGauge = options?.gaugeFallback ?? 0.75;
-  const baseSalary = Math.max(1200, Math.round(player.contract?.salary ?? 1800));
+  const baseSalary = clampNumber(
+    Math.round(player.contract?.salary ?? 1800),
+    0,
+    Number.MAX_SAFE_INTEGER,
+  );
   const normalizedMotivation = clampPerformanceGauge(player.motivation, fallbackGauge);
   const overallScore = normalizeRatingTo100(player.overall);
   const potentialScore = normalizeRatingTo100(player.potential);
@@ -48,13 +52,14 @@ export const buildSalaryNegotiationProfile = (
   const multiplier = 1 + overallFactor + potentialFactor + motivationFactor + roleFactor + ageFactor;
   const demand = Math.round(baseSalary * Math.max(1, multiplier));
   const flexibility = clampNumber(0.25 - motivationFactor * 0.2, 0.08, 0.3);
-  const floor = Math.max(baseSalary, Math.round(demand * (1 - flexibility)));
-  const ceilingBoost = Math.min(
-    0.4,
-    0.15 + potentialGap * 0.5 + Math.max(0, normalizedMotivation - 0.6) * 0.2,
+  const floor = Math.max(baseSalary === 0 ? 0 : Math.round(baseSalary * 0.4), 0);
+  const ceilingBase = Math.max(demand, baseSalary);
+  const ceiling = Math.round(ceilingBase * 5);
+  const managerSuggested = clampNumber(
+    Math.round(baseSalary * 0.45 + demand * 0.55),
+    floor,
+    ceiling,
   );
-  const ceiling = Math.max(demand, Math.round(demand * (1 + ceilingBoost)));
-  const managerSuggested = Math.max(baseSalary, Math.round((baseSalary + demand + floor) / 3));
   const formatImpact = (value: number) => `${value >= 0 ? '+' : ''}${Math.round(value * 100)}%`;
   const impactPieces = [
     `Genel ${formatImpact(overallFactor)}`,
