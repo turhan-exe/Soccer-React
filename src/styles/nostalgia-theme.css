@@ -665,11 +665,11 @@
   z-index: 1;
   color: #e2e8f0;
   display: grid;
-  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1.1fr) auto;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1.6fr) minmax(320px, 1.1fr);
   align-items: center;
-  gap: clamp(0.75rem, 2vw, 1.5rem);
-  min-height: clamp(60px, 10vh, 72px);
-  width: min(100%, 1160px);
+  gap: clamp(0.9rem, 2vw, 1.6rem);
+  min-height: clamp(68px, 10vh, 86px);
+  width: min(100%, 1240px);
   margin: 0 auto;
   padding-inline: clamp(0.25rem, 2vw, 1rem);
 }
@@ -682,30 +682,33 @@
   color: #f8fafc;
 }
 
-.nostalgia-topbar__identity {
-  display: flex;
-  align-items: center;
-  gap: clamp(0.5rem, 2vw, 1rem);
-  min-width: 0;
-}
-
-.nostalgia-topbar__home-button {
-  flex-shrink: 0;
-}
-
 .nostalgia-topbar__identity-info {
   display: flex;
   align-items: center;
-  gap: clamp(0.75rem, 2vw, 1.5rem);
+  gap: clamp(0.75rem, 2vw, 1rem);
   justify-content: flex-start;
   width: 100%;
   min-width: 0;
 }
 
+.nostalgia-topbar__left,
+.nostalgia-topbar__center,
+.nostalgia-topbar__right {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: clamp(0.5rem, 1.5vw, 1rem);
+}
+
+.nostalgia-topbar__right {
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
 .nostalgia-topbar__team {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: 0.65rem;
   min-width: 0;
 }
 
@@ -713,19 +716,28 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 156px;
+  width: 56px;
   height: 56px;
-  border-radius: 9999px;
-  border: 1px solid rgba(16, 185, 129, 0.35);
-  background: rgba(15, 118, 110, 0.12);
+  border-radius: 14px;
+  border: 1px solid rgba(94, 234, 212, 0.3);
+  background: radial-gradient(circle at 30% 30%, rgba(45, 212, 191, 0.22), rgba(15, 23, 42, 0.6));
   overflow: hidden;
+  box-shadow: 0 8px 18px rgba(13, 148, 136, 0.22);
+}
+
+.nostalgia-topbar__team-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 0;
 }
 
 .nostalgia-topbar__team-name {
-  font-size: clamp(0.95rem, 2vw, 1.1rem);
+  font-size: clamp(1rem, 2.2vw, 1.25rem);
   font-weight: 600;
   color: #f8fafc;
-  max-width: clamp(220px, 40vw, 420px);
+  max-width: clamp(220px, 45vw, 520px);
+  display: inline-block;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -751,34 +763,59 @@
 
 .nostalgia-topbar__kits-viewport {
   position: relative;
-  display: grid;
-  align-items: center;
-  justify-items: center;
-  width: clamp(220px, 45vw, 340px);
-  min-width: clamp(200px, 40vw, 320px);
-  min-height: 2.5rem;
-  overflow: hidden;
-  padding: 0.25rem 0;
-}
-
-.nostalgia-topbar__kit {
-  grid-area: 1 / 1;
   display: flex;
   align-items: center;
-  justify-content: center;
-  opacity: 0;
-  transform: translateY(10px);
-  pointer-events: none;
-  transition: opacity 220ms ease, transform 220ms ease;
+  gap: 0.5rem;
+  width: 100%;
+  max-width: 540px;
+  min-width: clamp(260px, 40vw, 420px);
+  padding: 0.25rem 0;
+  overflow-x: auto;
+  scrollbar-width: thin;
 }
 
-.nostalgia-topbar__kit--active {
-  opacity: 1;
-  transform: translateY(0);
-  pointer-events: auto;
+.nostalgia-topbar__kit-panel {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.35rem 0.65rem;
+  border-radius: 14px;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  background: rgba(15, 23, 42, 0.45);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 12px 28px rgba(15, 23, 42, 0.4);
 }
 
-.nostalgia-topbar__controls {
+.nostalgia-topbar__kit-nav {
+  height: 34px;
+  width: 34px;
+  border-radius: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  color: #e2e8f0;
+  background: rgba(255, 255, 255, 0.04);
+  padding: 0;
+}
+
+.nostalgia-topbar__kit-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  border-radius: 9999px;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  background: rgba(255, 255, 255, 0.04);
+  padding-inline: 0.85rem;
+  color: #e2e8f0;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.35);
+}
+
+.nostalgia-topbar__kit-empty {
+  min-width: 180px;
+  text-align: center;
+  color: #cbd5e1;
+  font-size: 0.9rem;
+}
+
+.nostalgia-topbar__controls,
+.nostalgia-topbar__right {
   display: flex;
   align-items: center;
   justify-content: flex-end;
@@ -803,14 +840,25 @@
   cursor: pointer;
 }
 
+.nostalgia-topbar__balance-wrapper {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
 @media (max-width: 768px) {
   .nostalgia-topbar__inner {
-    grid-template-columns: auto 1fr auto;
-    gap: clamp(0.5rem, 3vw, 1rem);
+    grid-template-columns: 1fr;
+    row-gap: 0.6rem;
+    justify-items: stretch;
   }
 
   .nostalgia-topbar__identity-info {
-    gap: clamp(0.5rem, 3vw, 1rem);
+    gap: clamp(0.5rem, 3vw, 0.75rem);
+  }
+
+  .nostalgia-topbar__right {
+    justify-content: space-between;
   }
 }
 
