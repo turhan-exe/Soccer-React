@@ -2,6 +2,9 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { BackButton } from '@/components/ui/back-button';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 import { UnityMatchLauncher } from '@/components/unity/UnityMatchLauncher';
 import { useAuth } from '@/contexts/AuthContext';
 import { getFixturesForTeam, getMyLeagueId } from '@/services/leagues';
@@ -10,6 +13,7 @@ import type { ClubTeam, Fixture, Player } from '@/types';
 import type {
   BridgeMatchRequest,
   BridgeMatchResult,
+  GoalTimelineEntry,
   PublishTeamsPayload,
   RuntimePlayer,
   RuntimeTeam,
@@ -37,6 +41,9 @@ export default function MatchSimulation() {
   const [autoMatchPayload, setAutoMatchPayload] = useState<BridgeMatchRequest | null>(null);
   const [lastResult, setLastResult] = useState<BridgeMatchResult | null>(null);
   const [lastRequestToken, setLastRequestToken] = useState<string | null>(null);
+  const [useGoalTimeline, setUseGoalTimeline] = useState(true);
+  const [homeGoalMinutes, setHomeGoalMinutes] = useState('15,85');
+  const [awayGoalMinutes, setAwayGoalMinutes] = useState('25');
 
   useEffect(() => {
     if (!user) {
@@ -136,6 +143,7 @@ export default function MatchSimulation() {
     if (!fixture || !homeRuntime || !awayRuntime) return;
     const token = createRequestToken();
     setLastRequestToken(token);
+    const timeline = useGoalTimeline ? buildGoalTimelineEntries(homeGoalMinutes, awayGoalMinutes) : [];
     const homeKey =
       autoPublishPayload?.homeTeam.teamKey ?? deriveTeamKey(fixture.homeTeamId, homeRuntime, 'HOME');
     const awayKey =
@@ -149,9 +157,10 @@ export default function MatchSimulation() {
       dayTime: 'Night',
       autoStart: true,
       requestToken: token,
+      goalTimeline: timeline.length ? timeline : undefined,
     };
     setAutoMatchPayload(payload);
-  }, [fixture, homeRuntime, awayRuntime, userSide, autoPublishPayload]);
+  }, [fixture, homeRuntime, awayRuntime, userSide, autoPublishPayload, useGoalTimeline, homeGoalMinutes, awayGoalMinutes]);
 
   const homeName = homeRuntime?.name || homeTeam?.name || fixture?.homeTeamId || 'Ev Sahibi';
   const awayName = awayRuntime?.name || awayTeam?.name || fixture?.awayTeamId || 'Deplasman';
@@ -207,6 +216,62 @@ export default function MatchSimulation() {
         </Card>
 
         <Card>
+          <CardContent className="space-y-4 p-4">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div className="space-y-1">
+                <div className="font-semibold">Gol zamanlamasi</div>
+                <div className="text-xs text-muted-foreground">
+                  Dakikalari virgul ile ayir (ornegin: 15,85). Aktifken Unity'ye goalTimeline olarak gonderilir.
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-muted-foreground">Aktif</span>
+                <Switch checked={useGoalTimeline} onCheckedChange={setUseGoalTimeline} />
+              </div>
+            </div>
+            <div className="grid gap-3 md:grid-cols-2">
+              <div className="space-y-1">
+                <Label htmlFor="home-goal-minutes">Ev gol dakikalari</Label>
+                <Input
+                  id="home-goal-minutes"
+                  value={homeGoalMinutes}
+                  onChange={(e) => setHomeGoalMinutes(e.target.value)}
+                  placeholder="15,85"
+                  disabled={!useGoalTimeline}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="away-goal-minutes">Deplasman gol dakikalari</Label>
+                <Input
+                  id="away-goal-minutes"
+                  value={awayGoalMinutes}
+                  onChange={(e) => setAwayGoalMinutes(e.target.value)}
+                  placeholder="25"
+                  disabled={!useGoalTimeline}
+                />
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setHomeGoalMinutes('15,85');
+                  setAwayGoalMinutes('25');
+                  setUseGoalTimeline(true);
+                }}
+              >
+                2-1 senaryosunu yukle
+              </Button>
+              <div className="text-xs text-muted-foreground">
+                Ornek: Ev 15' ve 85', deplasman 25'. Negatif dakikalar otomatik filtrelenir.
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
           <CardContent className="space-y-3 p-4">
             <div className="flex flex-col gap-1">
               <div className="font-semibold">Unity Köprü</div>
@@ -256,6 +321,28 @@ export default function MatchSimulation() {
       </div>
     </div>
   );
+}
+
+function parseGoalMinutes(input: string): number[] {
+  return input
+    .split(/[^0-9]+/)
+    .map((token) => Number.parseInt(token, 10))
+    .filter((value) => Number.isFinite(value) && value >= 0);
+}
+
+function buildGoalTimelineEntries(homeInput: string, awayInput: string): GoalTimelineEntry[] {
+  const entries: GoalTimelineEntry[] = [];
+  for (const minute of parseGoalMinutes(homeInput)) {
+    entries.push({ minute, team: 'home', type: 'goal' });
+  }
+  for (const minute of parseGoalMinutes(awayInput)) {
+    entries.push({ minute, team: 'away', type: 'goal' });
+  }
+  return entries.sort((a, b) => {
+    if (a.minute !== b.minute) return a.minute - b.minute;
+    if (a.team === b.team) return 0;
+    return a.team === 'home' ? -1 : 1;
+  });
 }
 
 function TeamSnapshot({ label, runtime }: { label: string; runtime: RuntimeTeam | null }) {

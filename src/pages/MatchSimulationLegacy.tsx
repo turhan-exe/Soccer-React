@@ -1,6 +1,9 @@
 ﻿import React, { useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { getFixturesForTeam, getMyLeagueId, getLeagueTeams } from '@/services/leagues';
@@ -50,6 +53,9 @@ export default function MatchSimulation() {
   const [awayBench, setAwayBench] = useState<string[]>([]);
   const [sendingTeams, setSendingTeams] = useState(false);
   const [sendFeedback, setSendFeedback] = useState<SendFeedback | null>(null);
+  const [useGoalTimeline, setUseGoalTimeline] = useState(true);
+  const [homeGoalMinutes, setHomeGoalMinutes] = useState('15,85');
+  const [awayGoalMinutes, setAwayGoalMinutes] = useState('25');
 
   useEffect(() => {
     (async () => {
@@ -465,6 +471,9 @@ export default function MatchSimulation() {
                     userTeam: nextFixture.home ? 'Home' : 'Away',
                     dayTime: 'Night',
                     requestToken: token,
+                    goalTimeline: useGoalTimeline
+                      ? buildGoalTimelineEntries(homeGoalMinutes, awayGoalMinutes)
+                      : undefined,
                   };
                   setAutoPayload(payload);
                   setShowUnity(true);
@@ -472,6 +481,49 @@ export default function MatchSimulation() {
               >
                 Simülasyonu Başlat
               </Button>
+            </div>
+            <div className="grid gap-3 rounded-md border bg-muted/40 p-3 md:grid-cols-[1fr,1fr,auto] md:items-end">
+              <div className="space-y-1">
+                <Label htmlFor="home-goal-minutes-legacy">Ev gol dakikalari</Label>
+                <Input
+                  id="home-goal-minutes-legacy"
+                  value={homeGoalMinutes}
+                  onChange={(e) => setHomeGoalMinutes(e.target.value)}
+                  placeholder="15,85"
+                  disabled={!useGoalTimeline}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="away-goal-minutes-legacy">Deplasman gol dakikalari</Label>
+                <Input
+                  id="away-goal-minutes-legacy"
+                  value={awayGoalMinutes}
+                  onChange={(e) => setAwayGoalMinutes(e.target.value)}
+                  placeholder="25"
+                  disabled={!useGoalTimeline}
+                />
+              </div>
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center gap-2">
+                  <Switch checked={useGoalTimeline} onCheckedChange={setUseGoalTimeline} />
+                  <span className="text-xs text-muted-foreground">goalTimeline gonder</span>
+                </div>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    setHomeGoalMinutes('15,85');
+                    setAwayGoalMinutes('25');
+                    setUseGoalTimeline(true);
+                  }}
+                >
+                  2-1 preset
+                </Button>
+              </div>
+              <div className="text-xs text-muted-foreground md:col-span-3">
+                Not: Dakikalar virgul ile ayrilir, negatif degerler otomatik filtrelenir. Unity'ye home/away goalTimeline olarak gonderilir.
+              </div>
             </div>
             {sendFeedback && (
               <div className={`text-xs ${sendFeedback.type === 'success' ? 'text-emerald-500' : 'text-destructive'}`}>
@@ -825,6 +877,28 @@ function normalizeHexColor(value: unknown): string | undefined {
 
 function isKitObject(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
+function parseGoalMinutes(input: string): number[] {
+  return input
+    .split(/[^0-9]+/)
+    .map((token) => Number.parseInt(token, 10))
+    .filter((value) => Number.isFinite(value) && value >= 0);
+}
+
+function buildGoalTimelineEntries(homeInput: string, awayInput: string) {
+  const entries: { minute: number; team: string; type: 'goal' }[] = [];
+  for (const minute of parseGoalMinutes(homeInput)) {
+    entries.push({ minute, team: 'home', type: 'goal' });
+  }
+  for (const minute of parseGoalMinutes(awayInput)) {
+    entries.push({ minute, team: 'away', type: 'goal' });
+  }
+  return entries.sort((a, b) => {
+    if (a.minute !== b.minute) return a.minute - b.minute;
+    if (a.team === b.team) return 0;
+    return a.team === 'home' ? -1 : 1;
+  });
 }
 
 function hashString(value: string): number {

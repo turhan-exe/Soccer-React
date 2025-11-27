@@ -25,6 +25,12 @@ export type TeamKitAssets = {
   third?: TeamKitAsset | null;
 };
 
+export type GoalTimelineEntry = {
+  minute: number;
+  team: string;
+  type?: 'goal';
+};
+
 export type BridgeMatchRequest = {
   matchId?: string;
   homeTeamKey: string; // Resources/Database/<key>.asset (e.g., "Istanbul", "London")
@@ -36,6 +42,7 @@ export type BridgeMatchRequest = {
   dayTime?: string; // e.g., "Night"
   homeAltKit?: boolean | null; // false => Home kit
   awayAltKit?: boolean | null; // true  => Away kit
+  goalTimeline?: GoalTimelineEntry[];
 };
 
 export type BridgeMatchResult = {
