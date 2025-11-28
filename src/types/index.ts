@@ -328,4 +328,13 @@ export type {
   TournamentBracket,
   KnockoutResult,
 } from './tournament';
+export type {
+  MatchReplayPayload,
+  MatchReplayMeta,
+  MatchResultSummary,
+  MatchEvent,
+  ReplayFrame,
+  RuntimeTeamState,
+  RuntimePlayerState,
+} from './matchReplay';
 
