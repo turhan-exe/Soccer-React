@@ -26,6 +26,7 @@ import { upcomingMatches } from '@/lib/data';
 import type { Fixture } from '@/types';
 import '@/styles/nostalgia-theme.css';
 import { formatRatingLabel, normalizeRatingTo100, normalizeRatingTo100OrNull } from '@/lib/player';
+import GlobalChatWidget from '@/features/chat/GlobalChatWidget';
 
 const menuItems = [
   { id: 'team-planning', label: 'Takim Plani', icon: Users, accent: 'sky' },
@@ -608,10 +609,11 @@ export default function MainMenu() {
               aria-label="Kisayollari gizle"
             />
           ) : null}
-        </div>
       </div>
     </div>
-  );
+    <GlobalChatWidget />
+  </div>
+);
 }
 
 

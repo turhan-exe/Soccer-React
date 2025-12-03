@@ -42,6 +42,34 @@ service cloud.firestore {
       allow write: if isTeamOwner(teamId);
     }
 
+    match /globalChatMessages/{messageId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn()
+                    && request.resource.data.userId == request.auth.uid
+                    && request.resource.data.text is string
+                    && request.resource.data.text.size() > 0
+                    && request.resource.data.text.size() <= 320
+                    && request.resource.data.username is string
+                    && request.resource.data.teamName is string
+                    && request.resource.data.createdAt is timestamp
+                    && request.resource.data.expiresAt is timestamp
+                    && request.resource.data.isVip is bool
+                    && (
+                      request.resource.data.isVip == true
+                      ? (
+                        request.resource.data.gradientStart is string
+                        && request.resource.data.gradientEnd is string
+                        && request.resource.data.gradientAngle is number
+                      )
+                      : (
+                        !('gradientStart' in request.resource.data)
+                        && !('gradientEnd' in request.resource.data)
+                        && !('gradientAngle' in request.resource.data)
+                      )
+                    );
+      allow update, delete: if false;
+    }
+
     match /sponsorship_catalog/{entryId} {
       allow read: if true;
       allow write: if false;

@@ -20,6 +20,7 @@ import LegendPackPage from '@/features/legends/LegendPackPage';
 import StandingsPage from '@/pages/StandingsPage';
 import MatchesHistoryPage from '@/pages/MatchesHistoryPage';
 import MatchReplayPage from '@/pages/MatchReplayPage';
+import MatchVideoPage from '@/pages/MatchVideoPage';
 
 export default function AppRoutes() {
   return (
@@ -41,6 +42,7 @@ export default function AppRoutes() {
       <Route path="/match-history" element={<MyFixturesPage />} />
       <Route path="/matches-history" element={<MatchesHistoryPage />} />
       <Route path="/match-replay" element={<MatchReplayPage />} />
+      <Route path="/match-video" element={<MatchVideoPage />} />
       <Route path="/finance" element={<Finance />} />
       <Route path="/settings" element={<Settings />} />
       <Route path="/store/diamonds" element={<DiamondsPage />} />

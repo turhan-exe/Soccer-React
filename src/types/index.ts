@@ -314,6 +314,20 @@ export interface User {
   contactCrypto: string | null;
 }
 
+export interface GlobalChatMessage {
+  id: string;
+  userId: string;
+  username: string;
+  teamName: string;
+  text: string;
+  createdAt: Date;
+  expiresAt?: Date | null;
+  isVip?: boolean;
+  gradientStart?: string | null;
+  gradientEnd?: string | null;
+  gradientAngle?: number | null;
+}
+
 // Plan 2.1 schema exports (Firestore documents)
 export type { FirebaseTimestamp } from './common';
 export type { LeagueDoc, LeagueState } from './league';
@@ -331,6 +345,7 @@ export type {
 export type {
   MatchReplayPayload,
   MatchReplayMeta,
+  MatchVideoMeta,
   MatchResultSummary,
   MatchEvent,
   ReplayFrame,

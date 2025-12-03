@@ -1075,3 +1075,330 @@
   opacity: 1;
   pointer-events: auto;
 }
+
+.nostalgia-chat-widget {
+  position: absolute;
+  left: clamp(0.9rem, 4vw, 2.5rem);
+  bottom: clamp(1rem, 4vh, 2.75rem);
+  display: flex;
+  flex-direction: column-reverse;
+  align-items: flex-start;
+  gap: 0.85rem;
+  z-index: 6;
+  pointer-events: none;
+}
+
+.nostalgia-chat-button {
+  pointer-events: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.65rem;
+  border-radius: 999px;
+  padding: 0.55rem 0.85rem 0.55rem 0.65rem;
+  border: 1px solid rgba(94, 234, 212, 0.45);
+  background: rgba(6, 182, 212, 0.18);
+  backdrop-filter: blur(16px);
+  color: #f8fafc;
+  font-weight: 600;
+  font-size: 0.95rem;
+  line-height: 1.1;
+  box-shadow: 0 15px 40px rgba(6, 182, 212, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.nostalgia-chat-button small {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 400;
+  color: rgba(226, 232, 240, 0.85);
+}
+
+.nostalgia-chat-button__icon {
+  width: 28px;
+  height: 28px;
+  padding: 0.4rem;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.7);
+  border: 1px solid rgba(94, 234, 212, 0.35);
+  box-shadow: 0 5px 15px rgba(6, 182, 212, 0.35);
+}
+
+.nostalgia-chat-button--active {
+  border-color: rgba(248, 250, 252, 0.8);
+  box-shadow:
+    0 20px 50px rgba(6, 182, 212, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.45);
+  transform: translateY(-2px);
+}
+
+.nostalgia-chat-panel {
+  pointer-events: auto;
+  position: relative;
+  width: clamp(260px, 75vw, 360px);
+  max-height: clamp(320px, 70vh, 520px);
+  padding: 1rem 1.15rem 1.1rem;
+  border-radius: 22px;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  background: linear-gradient(160deg, rgba(2, 6, 23, 0.95), rgba(15, 23, 42, 0.92));
+  box-shadow: 0 30px 60px rgba(2, 6, 23, 0.65);
+  backdrop-filter: blur(22px);
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.nostalgia-chat-panel__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.nostalgia-chat-panel__header h3 {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #f8fafc;
+}
+
+.nostalgia-chat-panel__header p {
+  margin: 0.2rem 0 0;
+  font-size: 0.8rem;
+  color: rgba(226, 232, 240, 0.7);
+}
+
+.nostalgia-chat-panel__close {
+  border: 1px solid rgba(148, 163, 184, 0.5);
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.6);
+  color: #e2e8f0;
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: border-color 0.2s ease, color 0.2s ease;
+}
+
+.nostalgia-chat-panel__close:hover {
+  border-color: rgba(248, 250, 252, 0.9);
+  color: #fff;
+}
+
+.nostalgia-chat-panel__body {
+  flex: 1;
+  min-height: 0;
+  border-radius: 16px;
+  border: 1px solid rgba(94, 234, 212, 0.2);
+  background: rgba(8, 15, 40, 0.65);
+  padding: 0.75rem;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.nostalgia-chat-panel__body::-webkit-scrollbar {
+  width: 6px;
+}
+
+.nostalgia-chat-panel__body::-webkit-scrollbar-thumb {
+  background: rgba(94, 234, 212, 0.5);
+  border-radius: 999px;
+}
+
+.nostalgia-chat-panel__loading {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  color: rgba(226, 232, 240, 0.75);
+  font-size: 0.9rem;
+}
+
+.nostalgia-chat-panel__spinner {
+  width: 20px;
+  height: 20px;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.nostalgia-chat-panel__composer {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.nostalgia-chat-panel__composer textarea {
+  width: 100%;
+  border-radius: 18px;
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  background: rgba(15, 23, 42, 0.7);
+  color: #f8fafc;
+  padding: 0.65rem 0.85rem;
+  resize: none;
+  font-size: 0.95rem;
+  font-family: inherit;
+}
+
+.nostalgia-chat-panel__composer textarea:focus {
+  outline: none;
+  border-color: rgba(94, 234, 212, 0.7);
+  box-shadow: 0 0 0 1px rgba(94, 234, 212, 0.25);
+}
+
+.nostalgia-chat-panel__composer-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.nostalgia-chat-panel__char-count {
+  font-size: 0.8rem;
+  color: rgba(226, 232, 240, 0.6);
+}
+
+.nostalgia-chat-panel__color-pickers {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.2rem 0.4rem;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  background: rgba(15, 23, 42, 0.6);
+}
+
+.nostalgia-chat-color-input {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.7rem;
+  color: rgba(248, 250, 252, 0.85);
+}
+
+.nostalgia-chat-color-input input[type='color'] {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.nostalgia-chat-panel__vip-hint {
+  font-size: 0.75rem;
+  color: rgba(248, 250, 252, 0.7);
+}
+
+.nostalgia-chat-panel__send {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  border-radius: 999px;
+  border: 1px solid rgba(94, 234, 212, 0.6);
+  background: rgba(8, 145, 178, 0.8);
+  color: #f8fafc;
+  font-weight: 600;
+  padding: 0.4rem 0.9rem;
+  min-width: 96px;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.nostalgia-chat-panel__send:disabled {
+  opacity: 0.5;
+  transform: none;
+}
+
+.nostalgia-chat-panel__empty {
+  margin: 0;
+  text-align: center;
+  font-size: 0.9rem;
+  color: rgba(226, 232, 240, 0.8);
+}
+
+.nostalgia-chat-panel__error {
+  margin: 0;
+  font-size: 0.8rem;
+  color: #fecdd3;
+  text-align: center;
+}
+
+.nostalgia-chat-message {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.6rem;
+  border-radius: 14px;
+  background: rgba(15, 23, 42, 0.75);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+}
+
+.nostalgia-chat-message--vip {
+  border-color: rgba(248, 250, 252, 0.5);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+  color: #0f172a;
+}
+
+.nostalgia-chat-message--vip .nostalgia-chat-message__meta,
+.nostalgia-chat-message--vip .nostalgia-chat-message__text {
+  color: #0f172a;
+  text-shadow: 0 1px 2px rgba(255, 255, 255, 0.35);
+}
+
+.nostalgia-chat-message__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  font-size: 0.78rem;
+  color: rgba(226, 232, 240, 0.7);
+}
+
+.nostalgia-chat-message__team {
+  font-weight: 600;
+  color: #f8fafc;
+}
+
+.nostalgia-chat-message__manager {
+  font-style: italic;
+}
+
+.nostalgia-chat-message__time {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+}
+
+.nostalgia-chat-message__text {
+  margin: 0;
+  font-size: 0.88rem;
+  color: rgba(241, 245, 249, 0.95);
+  white-space: pre-line;
+}
+
+@media (max-width: 640px) {
+  .nostalgia-chat-widget {
+    left: clamp(0.5rem, 4vw, 1rem);
+    bottom: clamp(0.75rem, 4vh, 1.5rem);
+  }
+
+  .nostalgia-chat-button {
+    padding: 0.45rem 0.7rem;
+  }
+
+  .nostalgia-chat-panel {
+    width: min(88vw, 360px);
+  }
+}
