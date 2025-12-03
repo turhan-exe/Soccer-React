@@ -39,6 +39,17 @@ export interface MatchReplayMeta {
   createdAt: FirestoreTimestamp;
 }
 
+export interface MatchVideoMeta {
+  type: 'mp4-v1';
+  storagePath?: string;
+  signedUrl?: string;
+  signedGetUrl?: string;
+  durationMs?: number;
+  createdAt?: FirestoreTimestamp;
+  uploaded?: boolean;
+  error?: string;
+}
+
 export interface MatchDocument {
   seasonId: string;
   leagueId: string;
@@ -52,6 +63,9 @@ export interface MatchDocument {
   awaySquad: RuntimeSquad;
   result?: MatchResultSummary;
   replay?: MatchReplayMeta;
+  video?: MatchVideoMeta;
+  videoMissing?: boolean;
+  videoError?: string;
 }
 
 export interface MatchReplayPayload {

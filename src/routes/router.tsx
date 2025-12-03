@@ -29,6 +29,7 @@ import LegendPackPage from '@/features/legends/LegendPackPage';
 import VipStorePage from '@/pages/VipStore';
 import MatchesHistoryPage from '@/pages/MatchesHistoryPage';
 import MatchReplayPage from '@/pages/MatchReplayPage';
+import MatchVideoPage from '@/pages/MatchVideoPage';
 
 export const router = createBrowserRouter(
   [
@@ -56,6 +57,7 @@ export const router = createBrowserRouter(
         { path: '/match-history', element: <MyFixturesPage /> },
         { path: '/matches-history', element: <MatchesHistoryPage /> },
         { path: '/match-replay', element: <MatchReplayPage /> },
+        { path: '/match-video', element: <MatchVideoPage /> },
         { path: '/finance', element: <Finance /> },
         { path: '/settings', element: <Settings /> },
         { path: '/contact', element: <ContactPage /> },
