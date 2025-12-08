@@ -207,7 +207,7 @@ const GlobalChatWidget: React.FC = () => {
               onChange={event => setInputValue(event.target.value)}
               onKeyDown={handleTextareaKeyDown}
               disabled={isSending}
-              rows={3}
+              rows={2}
             />
             <div className="nostalgia-chat-panel__composer-actions">
               <span className="nostalgia-chat-panel__char-count">{remainingCharacters}</span>

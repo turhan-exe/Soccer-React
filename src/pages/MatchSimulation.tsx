@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Loader2 } from 'lucide-react';
 import { BackButton } from '@/components/ui/back-button';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -44,6 +45,7 @@ export default function MatchSimulation() {
   const [useGoalTimeline, setUseGoalTimeline] = useState(true);
   const [homeGoalMinutes, setHomeGoalMinutes] = useState('15,85');
   const [awayGoalMinutes, setAwayGoalMinutes] = useState('25');
+  const [unityDisplayReady, setUnityDisplayReady] = useState(false);
 
   useEffect(() => {
     if (!user) {
@@ -139,6 +141,18 @@ export default function MatchSimulation() {
     setLastRequestToken(null);
   }, [fixture?.id]);
 
+  const handleUnityDisplayReady = useCallback(() => {
+    setUnityDisplayReady(true);
+  }, []);
+
+  useEffect(() => {
+    if (!fixture || !homeRuntime || !awayRuntime) return;
+    const timer = window.setTimeout(() => {
+      startSimulation();
+    }, 11000);
+    return () => window.clearTimeout(timer);
+  }, [fixture?.id, homeRuntime, awayRuntime, startSimulation]);
+
   const startSimulation = useCallback(() => {
     if (!fixture || !homeRuntime || !awayRuntime) return;
     const token = createRequestToken();
@@ -165,6 +179,12 @@ export default function MatchSimulation() {
   const homeName = homeRuntime?.name || homeTeam?.name || fixture?.homeTeamId || 'Ev Sahibi';
   const awayName = awayRuntime?.name || awayTeam?.name || fixture?.awayTeamId || 'Deplasman';
   const startDisabled = status !== 'ready' || !homeRuntime || !awayRuntime;
+  const loaderMessage =
+    status === 'loading'
+      ? 'Unity yukleniyor ve kadrolar aktariliyor...'
+      : 'Unity hazirlanirken lutfen bekleyin...';
+  const showUnityToast = !unityDisplayReady;
+  const loaderError = status === 'error' ? error : null;
 
   const header = (
     <div className="border-b bg-background/80 backdrop-blur-sm">
@@ -179,145 +199,167 @@ export default function MatchSimulation() {
   );
 
   return (
-    <div className="flex min-h-screen w-full flex-col bg-muted/10">
-      {header}
-      <div className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-4 px-4 py-4">
-        <Card>
-          <CardContent className="flex flex-col gap-3 p-4 md:flex-row md:items-center md:justify-between">
-            <div className="space-y-1 text-sm">
-              <div className="font-semibold text-base">
-                {homeName} vs {awayName}
-              </div>
-              {fixture?.date && (
-                <div className="text-muted-foreground">
-                  {fixture.date instanceof Date ? fixture.date.toLocaleString() : String(fixture.date)}
+    <div className="relative min-h-screen w-full">
+      {showUnityToast ? <UnityLoadingToast message={loaderMessage} error={loaderError} /> : null}
+      <div className="flex min-h-screen w-full flex-col bg-muted/10">
+        {header}
+        <div className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-4 px-4 py-4">
+          <Card>
+            <CardContent className="flex flex-col gap-3 p-4 md:flex-row md:items-center md:justify-between">
+              <div className="space-y-1 text-sm">
+                <div className="font-semibold text-base">
+                  {homeName} vs {awayName}
                 </div>
-              )}
-              <div className="text-xs text-muted-foreground">
-                Durum: {status === 'loading' ? 'Veriler yükleniyor...' : status === 'ready' ? 'Hazır' : error || 'Bilinmiyor'}
-              </div>
-            </div>
-            <div className="flex flex-col gap-2 sm:flex-row">
-              <Button variant="outline" disabled={status === 'loading'} onClick={() => window.location.reload()}>
-                Verileri Yenile
-              </Button>
-              <Button onClick={startSimulation} disabled={startDisabled}>
-                Simülasyonu Başlat
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="grid gap-6 p-4 md:grid-cols-2">
-            <TeamSnapshot label="Ev Sahibi" runtime={homeRuntime} />
-            <TeamSnapshot label="Deplasman" runtime={awayRuntime} />
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="space-y-4 p-4">
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <div className="space-y-1">
-                <div className="font-semibold">Gol zamanlamasi</div>
+                {fixture?.date && (
+                  <div className="text-muted-foreground">
+                    {fixture.date instanceof Date ? fixture.date.toLocaleString() : String(fixture.date)}
+                  </div>
+                )}
                 <div className="text-xs text-muted-foreground">
-                  Dakikalari virgul ile ayir (ornegin: 15,85). Aktifken Unity'ye goalTimeline olarak gonderilir.
+                  Durum: {status === 'loading' ? 'Veriler yukleniyor...' : status === 'ready' ? 'Hazir' : error || 'Bilinmiyor'}
                 </div>
               </div>
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-muted-foreground">Aktif</span>
-                <Switch checked={useGoalTimeline} onCheckedChange={setUseGoalTimeline} />
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <Button variant="outline" disabled={status === 'loading'} onClick={() => window.location.reload()}>
+                  Verileri Yenile
+                </Button>
+                <Button onClick={startSimulation} disabled={startDisabled}>
+                  Simulasyonu Baslat
+                </Button>
               </div>
-            </div>
-            <div className="grid gap-3 md:grid-cols-2">
-              <div className="space-y-1">
-                <Label htmlFor="home-goal-minutes">Ev gol dakikalari</Label>
-                <Input
-                  id="home-goal-minutes"
-                  value={homeGoalMinutes}
-                  onChange={(e) => setHomeGoalMinutes(e.target.value)}
-                  placeholder="15,85"
-                  disabled={!useGoalTimeline}
-                />
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="away-goal-minutes">Deplasman gol dakikalari</Label>
-                <Input
-                  id="away-goal-minutes"
-                  value={awayGoalMinutes}
-                  onChange={(e) => setAwayGoalMinutes(e.target.value)}
-                  placeholder="25"
-                  disabled={!useGoalTimeline}
-                />
-              </div>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  setHomeGoalMinutes('15,85');
-                  setAwayGoalMinutes('25');
-                  setUseGoalTimeline(true);
-                }}
-              >
-                2-1 senaryosunu yukle
-              </Button>
-              <div className="text-xs text-muted-foreground">
-                Ornek: Ev 15' ve 85', deplasman 25'. Negatif dakikalar otomatik filtrelenir.
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
 
-        <Card>
-          <CardContent className="space-y-3 p-4">
-            <div className="flex flex-col gap-1">
-              <div className="font-semibold">Unity Köprü</div>
-              <div className="text-xs text-muted-foreground">
-                Bu iframe `/Unity/match-viewer` içindeki WebGL build'i yükler. React tarafı `MatchBridgeAPI` hazır olunca otomatik olarak kadroları basar.
+          <Card>
+            <CardContent className="grid gap-6 p-4 md:grid-cols-2">
+              <TeamSnapshot label="Ev Sahibi" runtime={homeRuntime} />
+              <TeamSnapshot label="Deplasman" runtime={awayRuntime} />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="space-y-4 p-4">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <div className="space-y-1">
+                  <div className="font-semibold">Gol zamanlamasi</div>
+                  <div className="text-xs text-muted-foreground">
+                    Dakikalari virgul ile ayir (ornegin: 15,85). Aktifken Unity'ye goalTimeline olarak gonderilir.
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground">Aktif</span>
+                  <Switch checked={useGoalTimeline} onCheckedChange={setUseGoalTimeline} />
+                </div>
               </div>
-            </div>
+              <div className="grid gap-3 md:grid-cols-2">
+                <div className="space-y-1">
+                  <Label htmlFor="home-goal-minutes">Ev gol dakikalari</Label>
+                  <Input
+                    id="home-goal-minutes"
+                    value={homeGoalMinutes}
+                    onChange={(e) => setHomeGoalMinutes(e.target.value)}
+                    placeholder="15,85"
+                    disabled={!useGoalTimeline}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="away-goal-minutes">Deplasman gol dakikalari</Label>
+                  <Input
+                    id="away-goal-minutes"
+                    value={awayGoalMinutes}
+                    onChange={(e) => setAwayGoalMinutes(e.target.value)}
+                    placeholder="25"
+                    disabled={!useGoalTimeline}
+                  />
+                </div>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setHomeGoalMinutes('15,85');
+                    setAwayGoalMinutes('25');
+                    setUseGoalTimeline(true);
+                  }}
+                >
+                  2-1 senaryosunu yukle
+                </Button>
+                <div className="text-xs text-muted-foreground">
+                  Ornek: Ev 15' ve 85', deplasman 25'. Negatif dakikalar otomatik filtrelenir.
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="space-y-3 p-4">
+              <div className="flex flex-col gap-1">
+                <div className="font-semibold">Unity Koprusu</div>
+                <div className="text-xs text-muted-foreground">
+                  Bu iframe `/Unity/match-viewer` içindeki WebGL build'i yükler. React tarafı `MatchBridgeAPI` hazır olunca otomatik olarak kadroları basar.
+                </div>
+              </div>
             <UnityMatchLauncher
-              title="Unity Simülatörü"
+              title="Unity Simulatoru"
               autoPublishPayload={autoPublishPayload}
               autoShowTeamsPayload={autoShowPayload}
               autoPayload={autoMatchPayload}
               onResult={(res) => setLastResult(res)}
+              onReadyForDisplay={handleUnityDisplayReady}
             />
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="space-y-2 p-4 text-sm">
-            <div className="font-semibold">Son Simülasyon</div>
-            {lastResult ? (
-              <>
-                <div>
-                  {lastResult.homeTeam ?? homeName} {lastResult.homeGoals ?? '-'} - {lastResult.awayGoals ?? '-'}{' '}
-                  {lastResult.awayTeam ?? awayName}
-                </div>
-                {lastResult.scorers?.length ? (
-                  <div className="text-xs text-muted-foreground">Goller: {lastResult.scorers.join(', ')}</div>
-                ) : null}
-                {lastResult.requestToken || lastRequestToken ? (
-                  <div className="text-xs text-muted-foreground">
-                    İstek: {lastResult.requestToken || lastRequestToken}
-                  </div>
-                ) : null}
-              </>
-            ) : (
-              <div className="text-muted-foreground">Henüz sonuç alınmadı.</div>
-            )}
-          </CardContent>
-        </Card>
-
-        {status === 'error' && error ? (
-          <Card>
-            <CardContent className="p-4 text-sm text-destructive">{error}</CardContent>
+            </CardContent>
           </Card>
-        ) : null}
+
+          <Card>
+            <CardContent className="space-y-2 p-4 text-sm">
+              <div className="font-semibold">Son Simulasyon</div>
+              {lastResult ? (
+                <>
+                  <div>
+                    {lastResult.homeTeam ?? homeName} {lastResult.homeGoals ?? '-'} - {lastResult.awayGoals ?? '-'}{' '}
+                    {lastResult.awayTeam ?? awayName}
+                  </div>
+                  {lastResult.scorers?.length ? (
+                    <div className="text-xs text-muted-foreground">Goller: {lastResult.scorers.join(', ')}</div>
+                  ) : null}
+                  {lastResult.requestToken || lastRequestToken ? (
+                    <div className="text-xs text-muted-foreground">
+                      Istek: {lastResult.requestToken || lastRequestToken}
+                    </div>
+                  ) : null}
+                </>
+              ) : (
+                <div className="text-muted-foreground">Henuz sonuc alinmadi.</div>
+              )}
+            </CardContent>
+          </Card>
+
+          {status === 'error' && error ? (
+            <Card>
+              <CardContent className="p-4 text-sm text-destructive">{error}</CardContent>
+            </Card>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function UnityLoadingToast({ message, error }: { message: string; error: string | null }) {
+  return (
+    <div className="fixed bottom-4 right-4 z-50 w-full max-w-xs rounded-lg border border-border/80 bg-background/95 p-3 text-left shadow-lg backdrop-blur sm:max-w-sm">
+      <div className="flex items-center gap-3">
+        <Loader2 className={`h-5 w-5 text-primary ${error ? '' : 'animate-spin'}`} />
+        <div className="space-y-1">
+          <p className="text-sm font-semibold text-foreground">{message}</p>
+          {error ? (
+            <p className="text-xs text-destructive">{error}</p>
+          ) : (
+            <p className="text-xs text-muted-foreground">Unity kendi yukleme ekranini tamamlayana kadar bekleniyor.</p>
+          )}
+        </div>
       </div>
     </div>
   );

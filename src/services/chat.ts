@@ -59,6 +59,18 @@ const documentToMessage = (docSnapshot: QueryDocumentSnapshot<DocumentData>): Gl
   };
 };
 
+const removeExpiredMessages = (messages: GlobalChatMessage[], now = Date.now()): GlobalChatMessage[] => {
+  const ttlCutoff = now - MESSAGE_TTL_MS;
+  return messages.filter(message => {
+    const createdAtMs = message.createdAt.getTime();
+    const expiresAtMs = message.expiresAt?.getTime();
+    if (typeof expiresAtMs === 'number') {
+      return expiresAtMs > now;
+    }
+    return createdAtMs > ttlCutoff;
+  });
+};
+
 export const subscribeToGlobalChat = (
   onMessages: (messages: GlobalChatMessage[]) => void,
   onError?: (error: Error) => void,
@@ -69,7 +81,8 @@ export const subscribeToGlobalChat = (
     chatQuery,
     snapshot => {
       const items = snapshot.docs.map(documentToMessage).sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
-      onMessages(items);
+      const filteredItems = removeExpiredMessages(items);
+      onMessages(filteredItems);
     },
     error => {
       console.warn('[chat] realtime subscription failed', error);
