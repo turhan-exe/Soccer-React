@@ -342,6 +342,25 @@ export const canonicalPosition = (value?: string | null): Player['position'] => 
   return 'CM';
 };
 
+const POSITION_LABELS_TR: Record<Player['position'], string> = {
+  GK: 'Kaleci',
+  CB: 'Stoper',
+  LB: 'Sol Bek',
+  RB: 'Sağ Bek',
+  CM: 'Merkez Orta Saha',
+  LM: 'Sol Orta Saha',
+  RM: 'Sağ Orta Saha',
+  CAM: 'Ofansif Orta Saha',
+  LW: 'Sol Kanat',
+  RW: 'Sağ Kanat',
+  ST: 'Santrafor',
+};
+
+export const getPositionLabel = (value?: string | null): string => {
+  const canonical = canonicalPosition(value);
+  return POSITION_LABELS_TR[canonical] ?? canonical;
+};
+
 export function buildDisplayPlayer(
   player: Player,
   baseline?: PlayerBaseline,

@@ -27,6 +27,11 @@ export {
   generateRoundRobinFixturesFn,
   assignAllTeamsToLeagues,
 } from './league.js';
+export {
+  rebuildDailyFixtures,
+  rebuildDailyFixturesHttp,
+  rebuildAllDailyFixturesHttp,
+} from './fixFixtures.js';
 // Monthly slot-based leagues system
 export { bootstrapMonthlyLeaguesOneTime, bootstrapMonthlyLeaguesOneTimeHttp } from './bootstrap.js';
 export { assignRealTeamToFirstAvailableBotSlot, assignRealTeamToFirstAvailableBotSlotHttp } from './assign.js';
