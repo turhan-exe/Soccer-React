@@ -56,6 +56,7 @@ import {
   getPlayerCondition,
   getPlayerMotivation,
   getPlayerPower,
+  getPositionLabel,
   getRenameAdAvailability,
   HOURS_IN_MS,
   isContractExpired,
@@ -1500,12 +1501,25 @@ function TeamPlanningContent() {
     return displayPlayers.find(p => p.id === focusedPlayerId) ?? null;
   }, [displayPlayers, focusedPlayerId]);
 
-  const alternativePlayers: DisplayPlayer[] = useMemo(() => {
+  const selectedPlayerTargetPosition = useMemo(() => {
     if (!selectedPlayer) {
+      return null;
+    }
+    const assignedSlot = formationPositions.find(
+      slot => slot.player && slot.player.id === selectedPlayer.id,
+    );
+    if (assignedSlot) {
+      return canonicalPosition(assignedSlot.position);
+    }
+    return canonicalPosition(selectedPlayer.position);
+  }, [formationPositions, selectedPlayer]);
+
+  const alternativePlayers: DisplayPlayer[] = useMemo(() => {
+    if (!selectedPlayer || !selectedPlayerTargetPosition) {
       return [] as DisplayPlayer[];
     }
 
-    const target = canonicalPosition(selectedPlayer.position);
+    const target = selectedPlayerTargetPosition;
 
     const alternatives = displayPlayers.filter(player => {
       if (player.id === selectedPlayer.id) {
@@ -1528,7 +1542,7 @@ function TeamPlanningContent() {
       }
       return b.overall - a.overall;
     });
-  }, [displayPlayers, selectedPlayer]);
+  }, [displayPlayers, selectedPlayer, selectedPlayerTargetPosition]);
 
   const handlePositionDrop = (
     e: React.DragEvent<HTMLDivElement>,
@@ -1700,6 +1714,8 @@ function TeamPlanningContent() {
     if (!selectedPlayer) {
       return;
     }
+    const replacementPosition =
+      selectedPlayerTargetPosition ?? canonicalPosition(selectedPlayer.position);
 
     const manualLayouts = Object.entries(customFormations).reduce<
       Array<{ formation: string; layout: FormationPlayerPosition }>
@@ -1716,7 +1732,7 @@ function TeamPlanningContent() {
     let swappedPlayerId: string | null = null;
 
     setPlayers(prev => {
-      const result = promotePlayerToStartingRoster(prev, alternativeId, selectedPlayer.position, {
+      const result = promotePlayerToStartingRoster(prev, alternativeId, replacementPosition, {
         targetPlayerId: selectedPlayer.id,
       });
       if (result.error) {
@@ -1745,7 +1761,7 @@ function TeamPlanningContent() {
         alternativeId,
         {
           ...layout,
-          position: selectedPlayer.position,
+          position: replacementPosition,
         },
         formation,
       );
@@ -1947,7 +1963,7 @@ function TeamPlanningContent() {
                       <Card className="border-white/10 bg-white/5 text-white shadow-lg backdrop-blur">
                       <CardHeader className="pb-3">
                         <CardTitle className="text-sm font-semibold text-white">
-                          {canonicalPosition(selectedPlayer.position)} için alternatifler
+                          {getPositionLabel(selectedPlayerTargetPosition ?? selectedPlayer.position)} için alternatifler
                         </CardTitle>
                       </CardHeader>
                       <CardContent className="space-y-3">

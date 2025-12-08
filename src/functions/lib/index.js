@@ -12,6 +12,7 @@ export { marketCreateListing, marketCancelListing, marketPurchaseListing, expire
 // Plan 4: Sözleşmeler (React ⇄ Functions ⇄ Unity)
 // League onboarding & fixtures management
 export { assignTeamToLeague, assignTeamToLeagueHttp, requestJoinLeague, finalizeIfFull, generateRoundRobinFixturesFn, assignAllTeamsToLeagues, } from './league.js';
+export { rebuildDailyFixtures, rebuildDailyFixturesHttp, rebuildAllDailyFixturesHttp, } from './fixFixtures.js';
 // Monthly slot-based leagues system
 export { bootstrapMonthlyLeaguesOneTime, bootstrapMonthlyLeaguesOneTimeHttp } from './bootstrap.js';
 export { assignRealTeamToFirstAvailableBotSlot, assignRealTeamToFirstAvailableBotSlotHttp } from './assign.js';

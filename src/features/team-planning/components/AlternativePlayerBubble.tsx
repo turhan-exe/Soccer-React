@@ -3,11 +3,7 @@ import { ArrowDown, ArrowUp } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import { formatRatingLabel } from '@/lib/player';
-import {
-  canonicalPosition,
-  DisplayPlayer,
-  getPlayerPower,
-} from '../teamPlanningUtils';
+import { DisplayPlayer, getPlayerPower, getPositionLabel } from '../teamPlanningUtils';
 
 const STRENGTH_DIFF_EPSILON = 0.1;
 
@@ -43,7 +39,7 @@ export const AlternativePlayerBubble: React.FC<AlternativePlayerBubbleProps> = (
   const showStrengthIndicator =
     comparisonPower !== null && Math.abs(powerDiff) > STRENGTH_DIFF_EPSILON;
   const isStronger = showStrengthIndicator && powerDiff > 0;
-  const positionLabel = canonicalPosition(player.position);
+  const positionLabel = getPositionLabel(player.position);
 
   const rootClasses = cn(
     'tp-alternative-card group relative flex w-full items-start gap-3 rounded-2xl border px-3 py-2 text-left text-[11px] font-medium transition duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/80 sm:px-[0.875rem] sm:py-[0.625rem]',
@@ -67,7 +63,7 @@ export const AlternativePlayerBubble: React.FC<AlternativePlayerBubbleProps> = (
 
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[10.5px] text-white/70">
-              <span className="font-semibold uppercase tracking-wide text-white/80">{positionLabel}</span>
+              <span className="font-semibold tracking-wide text-white/80">{positionLabel}</span>
               <span>{player.age} ya�Y</span>
               <span className="font-semibold text-white/80">GEN {formatRatingLabel(player.overall)}</span>
               {player.originalOverall > player.assignedOverall ? (
