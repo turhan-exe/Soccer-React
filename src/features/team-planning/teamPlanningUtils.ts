@@ -3,6 +3,8 @@ import { calculatePowerIndex } from '@/lib/player';
 import { CustomFormationMap, Player } from '@/types';
 import { clampNumber } from '@/lib/contractNegotiation';
 import type { MetricKey } from './useTeamPlanningStore';
+import type { SkillTagMap } from './skillTags';
+import { buildSkillTags } from './skillTags';
 
 export const DEFAULT_GAUGE_VALUE = 0.75;
 
@@ -87,6 +89,7 @@ export type DisplayPlayer = Player & {
   originalOverall: number;
   assignedOverall: number;
   isOutOfPosition: boolean;
+  skillTags: SkillTagMap;
 };
 
 const POSITION_ATTRIBUTE_WEIGHTS: Record<
@@ -390,6 +393,7 @@ export function buildDisplayPlayer(
     originalOverall,
     assignedOverall: computedOverall,
     isOutOfPosition,
+    skillTags: buildSkillTags(player),
   };
 }
 

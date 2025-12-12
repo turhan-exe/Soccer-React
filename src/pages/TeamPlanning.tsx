@@ -74,8 +74,22 @@ import {
   negotiationConfidenceFromOffer,
 } from '@/features/team-planning/teamPlanningUtils';
 import { AlternativePlayerBubble } from '@/features/team-planning/components/AlternativePlayerBubble';
+import {
+  getZoneDefinition,
+  recommendPlayers,
+  resolveZoneId,
+  type ZoneId,
+} from '@/features/team-planning/slotZones';
 import './team-planning.css';
 import './TeamPlanningSizing.css';
+
+type SelectedSlotMeta = {
+  slotIndex: number;
+  zoneId: ZoneId;
+  x: number;
+  y: number;
+  position: Player['position'];
+};
 
 function TeamPlanningContent() {
   const navigate = useNavigate();
@@ -87,6 +101,7 @@ function TeamPlanningContent() {
   const [activeTab, setActiveTab] = useState('starting');
   const [selectedFormation, setSelectedFormation] = useState(formations[0].name);
   const [customFormations, setCustomFormations] = useState<CustomFormationState>({});
+  const [bootstrappedUserId, setBootstrappedUserId] = useState<string | null>(null);
 
   const [draggedPlayerId, setDraggedPlayerId] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<'role' | 'overall' | 'potential'>('role');
@@ -112,6 +127,7 @@ function TeamPlanningContent() {
   const rightPaneScrollRef = useRef<HTMLDivElement | null>(null);
   const [isRightHeaderCollapsed, setIsRightHeaderCollapsed] = useState(false);
   const teamLeagueIdRef = useRef<string | null>(null);
+  const [selectedSlotMeta, setSelectedSlotMeta] = useState<SelectedSlotMeta | null>(null);
 
   const {
     selectedMetric,
@@ -338,6 +354,48 @@ function TeamPlanningContent() {
     : null;
 
   const [manualSlotPositions, setManualSlotPositions] = useState<Record<string, FormationPlayerPosition>>({});
+  const syncManualSlotsForFormation = useCallback(
+    (formationName: string) => {
+      const layout = customFormations[formationName];
+      if (!layout) {
+        setManualSlotPositions(prev => {
+          if (Object.keys(prev).length === 0) {
+            return prev;
+          }
+          return {};
+        });
+        return;
+      }
+      const normalized = Object.fromEntries(
+        Object.entries(layout).map(([playerId, value]) => [
+          playerId,
+          {
+            x: clampPercentageValue(value.x),
+            y: clampPercentageValue(value.y),
+            position: value.position,
+          },
+        ]),
+      ) as Record<string, FormationPlayerPosition>;
+      setManualSlotPositions(prev => {
+        if (
+          Object.keys(prev).length === Object.keys(normalized).length &&
+          Object.entries(normalized).every(([playerId, nextValue]) => {
+            const current = prev[playerId];
+            return (
+              current &&
+              current.x === nextValue.x &&
+              current.y === nextValue.y &&
+              current.position === nextValue.position
+            );
+          })
+        ) {
+          return prev;
+        }
+        return normalized;
+      });
+    },
+    [customFormations],
+  );
 
   const removePlayerFromCustomFormations = (playerId: string) => {
     setCustomFormations(prev => {
@@ -1007,8 +1065,20 @@ function TeamPlanningContent() {
     }
   };
 
+  const activeUserId = user?.id ?? null;
+
   useEffect(() => {
-    if (!user) return;
+    if (!activeUserId) {
+      setBootstrappedUserId(null);
+    }
+  }, [activeUserId]);
+
+  useEffect(() => {
+    if (!user || !activeUserId) return;
+    if (bootstrappedUserId === activeUserId) {
+      return;
+    }
+    let isMounted = true;
     (async () => {
       const preferredTeamName = (user.teamName?.includes('@') ? user.teamName.split('@')[0] : user.teamName) || 'Takimim';
       const managerName = user.username || preferredTeamName;
@@ -1035,6 +1105,10 @@ function TeamPlanningContent() {
           toast.error('Takim olusturulamadi. Lutfen tekrar deneyin.');
           return;
         }
+      }
+
+      if (!isMounted) {
+        return;
       }
 
       teamLeagueIdRef.current =
@@ -1065,8 +1139,12 @@ function TeamPlanningContent() {
             ? rawLineupShape
             : '';
       setSavedFormationShape(normalizedShape || null);
+      setBootstrappedUserId(activeUserId);
     })();
-  }, [user]);
+    return () => {
+      isMounted = false;
+    };
+  }, [activeUserId, bootstrappedUserId, user]);
 
   useEffect(() => {
     if (players.length === 0) {
@@ -1179,11 +1257,14 @@ function TeamPlanningContent() {
 
   const currentFormation =
     formations.find(f => f.name === selectedFormation) ?? formations[0];
-
   const manualFormation = useMemo(
     () => customFormations[selectedFormation] ?? {},
     [customFormations, selectedFormation],
   );
+
+  useEffect(() => {
+    syncManualSlotsForFormation(selectedFormation);
+  }, [selectedFormation, syncManualSlotsForFormation]);
 
   const formationPositions: PitchSlot[] = useMemo(() => {
     const starters = displayPlayers.filter(p => p.squadRole === 'starting');
@@ -1478,71 +1559,106 @@ function TeamPlanningContent() {
   );
 
   const displayFormationName = useMemo(() => {
-    const manualShape = derivedFormationShape?.trim();
-    if (manualShape) {
-      return manualShape;
-    }
     const savedShape = savedFormationShape?.trim();
     if (savedShape) {
       return savedShape;
     }
     return selectedFormation;
-  }, [derivedFormationShape, savedFormationShape, selectedFormation]);
-
-  const manualShapeDiffers = useMemo(() => {
-    if (!derivedFormationShape) {
-      return false;
-    }
-    return derivedFormationShape.trim() !== selectedFormation.trim();
-  }, [derivedFormationShape, selectedFormation]);
+  }, [savedFormationShape, selectedFormation]);
 
   const selectedPlayer = useMemo(() => {
     if (!focusedPlayerId) return null;
     return displayPlayers.find(p => p.id === focusedPlayerId) ?? null;
   }, [displayPlayers, focusedPlayerId]);
 
-  const selectedPlayerTargetPosition = useMemo(() => {
-    if (!selectedPlayer) {
+  const selectedZoneDefinition = useMemo(() => {
+    if (!selectedSlotMeta) {
       return null;
     }
-    const assignedSlot = formationPositions.find(
-      slot => slot.player && slot.player.id === selectedPlayer.id,
-    );
-    if (assignedSlot) {
-      return canonicalPosition(assignedSlot.position);
+    return getZoneDefinition(selectedSlotMeta.zoneId);
+  }, [selectedSlotMeta]);
+
+  const recommendedPlayers: DisplayPlayer[] = useMemo(() => {
+    if (!selectedSlotMeta) {
+      return [];
     }
-    return canonicalPosition(selectedPlayer.position);
-  }, [formationPositions, selectedPlayer]);
+    return recommendPlayers(selectedSlotMeta.zoneId, displayPlayers, {
+      excludeIds: selectedPlayer ? [selectedPlayer.id] : undefined,
+      limit: 6,
+    });
+  }, [displayPlayers, selectedPlayer, selectedSlotMeta]);
 
-  const alternativePlayers: DisplayPlayer[] = useMemo(() => {
-    if (!selectedPlayer || !selectedPlayerTargetPosition) {
-      return [] as DisplayPlayer[];
+  const handleSlotSelect = useCallback(
+    (slot: PitchSlot) => {
+      setSelectedSlotMeta({
+        slotIndex: slot.slotIndex,
+        zoneId: resolveZoneId(slot),
+        x: slot.x,
+        y: slot.y,
+        position: slot.position,
+      });
+      setFocusedPlayerId(slot.player ? slot.player.id : null);
+    },
+    [setFocusedPlayerId],
+  );
+
+  useEffect(() => {
+    if (!focusedPlayerId) {
+      return;
     }
-
-    const target = selectedPlayerTargetPosition;
-
-    const alternatives = displayPlayers.filter(player => {
-      if (player.id === selectedPlayer.id) {
-        return false;
+    const slot = formationPositions.find(entry => entry.player?.id === focusedPlayerId);
+    if (!slot) {
+      return;
+    }
+    setSelectedSlotMeta(prev => {
+      if (prev && prev.slotIndex === slot.slotIndex) {
+        return prev;
       }
-      if (player.squadRole !== 'bench' && player.squadRole !== 'reserve') {
-        return false;
-      }
-      const primary = canonicalPosition(player.position);
-      if (primary === target) {
-        return true;
-      }
-      return (player.roles ?? []).some(role => canonicalPosition(role) === target);
+      return {
+        slotIndex: slot.slotIndex,
+        zoneId: resolveZoneId(slot),
+        x: slot.x,
+        y: slot.y,
+        position: slot.position,
+      };
     });
+  }, [focusedPlayerId, formationPositions]);
 
-    return alternatives.sort((a, b) => {
-      const roleDiff = squadRoleWeight(a.squadRole) - squadRoleWeight(b.squadRole);
-      if (roleDiff !== 0) {
-        return roleDiff;
+  useEffect(() => {
+    setSelectedSlotMeta(prev => {
+      if (!prev) {
+        return prev;
       }
-      return b.overall - a.overall;
+      const slot = formationPositions.find(entry => entry.slotIndex === prev.slotIndex);
+      if (!slot) {
+        return null;
+      }
+      const nextZone = resolveZoneId(slot);
+      if (
+        slot.x === prev.x &&
+        slot.y === prev.y &&
+        slot.position === prev.position &&
+        prev.zoneId === nextZone
+      ) {
+        return prev;
+      }
+      return {
+        slotIndex: slot.slotIndex,
+        zoneId: nextZone,
+        x: slot.x,
+        y: slot.y,
+        position: slot.position,
+      };
     });
-  }, [displayPlayers, selectedPlayer, selectedPlayerTargetPosition]);
+  }, [formationPositions]);
+
+  const handleFormationSelect = useCallback(
+    (formationName: string) => {
+      setSelectedFormation(formationName);
+      syncManualSlotsForFormation(formationName);
+    },
+    [syncManualSlotsForFormation],
+  );
 
   const handlePositionDrop = (
     e: React.DragEvent<HTMLDivElement>,
@@ -1711,21 +1827,27 @@ function TeamPlanningContent() {
   };
 
   const handleAlternativeSelection = (alternativeId: string) => {
-    if (!selectedPlayer) {
+    if (!selectedSlotMeta) {
+      toast.error('Alan seçilmedi', { description: 'Lütfen önce öneri almak istediğin slotu seç.' });
       return;
     }
-    const replacementPosition =
-      selectedPlayerTargetPosition ?? canonicalPosition(selectedPlayer.position);
 
-    const manualLayouts = Object.entries(customFormations).reduce<
-      Array<{ formation: string; layout: FormationPlayerPosition }>
-    >((acc, [formationKey, layout]) => {
-      const entry = layout?.[selectedPlayer.id];
-      if (entry) {
-        acc.push({ formation: formationKey, layout: entry });
-      }
-      return acc;
-    }, []);
+    const fallbackPosition = selectedPlayer
+      ? canonicalPosition(selectedPlayer.position)
+      : canonicalPosition(selectedSlotMeta.position);
+    const replacementPosition = selectedZoneDefinition?.slotPosition ?? fallbackPosition;
+
+    const manualLayouts = selectedPlayer
+      ? Object.entries(customFormations).reduce<
+          Array<{ formation: string; layout: FormationPlayerPosition }>
+        >((acc, [formationKey, layout]) => {
+          const entry = layout?.[selectedPlayer.id];
+          if (entry) {
+            acc.push({ formation: formationKey, layout: entry });
+          }
+          return acc;
+        }, [])
+      : [];
 
     let errorMessage: string | null = null;
     let updated = false;
@@ -1733,7 +1855,7 @@ function TeamPlanningContent() {
 
     setPlayers(prev => {
       const result = promotePlayerToStartingRoster(prev, alternativeId, replacementPosition, {
-        targetPlayerId: selectedPlayer.id,
+        targetPlayerId: selectedPlayer?.id,
       });
       if (result.error) {
         errorMessage = result.error;
@@ -1766,10 +1888,18 @@ function TeamPlanningContent() {
         formation,
       );
     });
-    removePlayerFromCustomFormations(selectedPlayer.id);
-    if (swappedPlayerId && swappedPlayerId !== selectedPlayer.id) {
+    if (selectedPlayer) {
+      removePlayerFromCustomFormations(selectedPlayer.id);
+    }
+    if (swappedPlayerId && (!selectedPlayer || swappedPlayerId !== selectedPlayer.id)) {
       removePlayerFromCustomFormations(swappedPlayerId);
     }
+
+    applyManualPosition(alternativeId, {
+      x: selectedSlotMeta.x,
+      y: selectedSlotMeta.y,
+      position: replacementPosition,
+    });
 
     setFocusedPlayerId(alternativeId);
     setActiveTab('starting');
@@ -1823,6 +1953,7 @@ function TeamPlanningContent() {
                 onPlayerDragStart={handlePitchMarkerDragStart}
                 onPlayerDragEnd={handlePitchMarkerDragStart}
                 onSelectPlayer={playerId => setFocusedPlayerId(playerId)}
+                onSelectSlot={handleSlotSelect}
                 focusedPlayerId={focusedPlayerId}
                 selectedMetric={selectedMetric}
                 getMetricValue={getMetricValueForPlayer}
@@ -1836,13 +1967,9 @@ function TeamPlanningContent() {
                   <span className="text-[11px] font-semibold uppercase tracking-wide text-emerald-100/80">Formasyon</span>
                   <div className="flex items-baseline gap-2.5">
                     <span className="text-xl font-bold text-white">{displayFormationName}</span>
-                    {manualShapeDiffers ? (
-                      <span className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-emerald-100">
-                        {selectedFormation}
-                      </span>
-                    ) : null}
+                    
                   </div>
-                  <Select value={selectedFormation} onValueChange={setSelectedFormation}>
+                  <Select value={selectedFormation} onValueChange={handleFormationSelect}>
                     <SelectTrigger className="w-full border-white/20 bg-white/10 text-white focus:ring-white/50">
                       <SelectValue placeholder="Formasyon sec" />
                     </SelectTrigger>
@@ -1959,17 +2086,24 @@ function TeamPlanningContent() {
                   onScroll={handleRightPaneScroll}
                 >
                   <div className="mx-auto flex max-w-3xl flex-col gap-6">
-                    {selectedPlayer ? (
+                    {selectedZoneDefinition ? (
                       <Card className="border-white/10 bg-white/5 text-white shadow-lg backdrop-blur">
                       <CardHeader className="pb-3">
                         <CardTitle className="text-sm font-semibold text-white">
-                          {getPositionLabel(selectedPlayerTargetPosition ?? selectedPlayer.position)} için alternatifler
+                          {selectedZoneDefinition.label} alanı için öneriler
                         </CardTitle>
                       </CardHeader>
                       <CardContent className="space-y-3">
-                        {alternativePlayers.length > 0 ? (
+                        {selectedPlayer ? (
+                          <p className="text-[11px] text-emerald-100/75">
+                            Seçili oyuncu: <span className="font-semibold">{selectedPlayer.name}</span>
+                          </p>
+                        ) : (
+                          <p className="text-[11px] text-emerald-100/60">Slot boY, önerilen oyunculardan birini ekleyebilirsin.</p>
+                        )}
+                        {recommendedPlayers.length > 0 ? (
                           <div className="grid gap-[6px] sm:grid-cols-2">
-                            {alternativePlayers.map(alternative => (
+                            {recommendedPlayers.map(alternative => (
                               <AlternativePlayerBubble
                                 key={alternative.id}
                                 player={alternative}
@@ -1981,7 +2115,7 @@ function TeamPlanningContent() {
                           </div>
                         ) : (
                           <p className="text-xs text-emerald-100/70">
-                            Bu pozisyon için yedek veya rezerv oyuncu bulunmadı.
+                            Bu alan için bench/rezerv oyuncu bulunamadı.
                           </p>
                         )}
                       </CardContent>

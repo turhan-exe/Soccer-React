@@ -27,6 +27,7 @@ type PitchProps = {
   onPlayerDragStart: (player: Player, event: React.DragEvent<HTMLDivElement>) => void;
   onPlayerDragEnd: (player: Player, event: React.DragEvent<HTMLDivElement>) => void;
   onSelectPlayer: (playerId: string) => void;
+  onSelectSlot?: (slot: PitchSlot) => void;
   focusedPlayerId: string | null;
   selectedMetric: MetricKey;
   getMetricValue: (player: Player, metric: MetricKey) => number;
@@ -188,6 +189,7 @@ const Pitch = forwardRef<HTMLDivElement, PitchProps>((props, forwardedRef) => {
     onPlayerDragStart,
     onPlayerDragEnd,
     onSelectPlayer,
+    onSelectSlot,
     focusedPlayerId,
     selectedMetric,
     getMetricValue,
@@ -273,6 +275,7 @@ const Pitch = forwardRef<HTMLDivElement, PitchProps>((props, forwardedRef) => {
                 style={{ left: `${slot.x}%`, top: `${slot.y}%` }}
                 onDragOver={handleDragOver}
                 onDrop={event => onPositionDrop(event, slot)}
+                onClick={() => onSelectSlot?.(slot)}
               >
                 {slot.player ? (
                   <Tooltip>
