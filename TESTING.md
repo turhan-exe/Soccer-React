@@ -61,3 +61,10 @@ Security checks (rules)
 - Firestore: writing to fixtures/matchPlans from client is denied
 - RTDB: live/* write is denied for clients, read allowed for auth != null
 - Storage: replays/* readable for auth users (json/json.gz), results/* not readable/writable by clients
+
+## Team Planning Slot Recommendations
+
+1. Pitch üzerinde herhangi bir slotu (dolu veya boş) seçince sağ panelde ilgili alan adının (ör. `santrafor`) göründüğünü doğrula.
+2. Yanlış pozisyona sürüklenmiş bir oyuncuyu (ör. stoperi forvet slotuna koy) seçtiğinde öneri listesinin hâlâ slotun hedef rolüne (santrafor) göre geldiğini kontrol et.
+3. Boş bir slotu seçtikten sonra önerilen bench oyuncularından birini ekle; oyuncunun doğrudan slot koordinatına yerleştiğini ve panelde yeni oyuncunun seçili olduğunu doğrula.
+4. Aynı slot için farklı oyuncuları art arda seç; `recommendPlayers` listesinin slot kimliğine göre sabit kaldığını (oyuncunun kimliğine göre değişmediğini) test et.
