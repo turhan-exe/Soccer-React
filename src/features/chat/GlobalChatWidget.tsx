@@ -81,7 +81,12 @@ const GlobalChatWidget: React.FC = () => {
       setInputValue('');
     } catch (error) {
       console.warn('[GlobalChatWidget] send failed', error);
-      setErrorMessage('Mesaj gonderilemedi. Lutfen tekrar deneyin.');
+      const rawMessage =
+        error instanceof Error ? error.message : 'Mesaj gonderilemedi. Lutfen tekrar deneyin.';
+      const friendlyMessage = rawMessage.includes('Missing or insufficient permissions')
+        ? 'Sohbet yetkiniz yok veya timeout devam ediyor.'
+        : rawMessage;
+      setErrorMessage(friendlyMessage);
     } finally {
       setIsSending(false);
     }

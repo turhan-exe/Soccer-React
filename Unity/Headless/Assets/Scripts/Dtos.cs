@@ -24,6 +24,8 @@ public class BatchMatch {
     public long seed;
     public string replayUploadUrl;
     public string resultUploadUrl;
+    public string videoUploadUrl;
+    public string videoPath;
 }
 
 [Serializable]
@@ -63,4 +65,3 @@ public class ResultJson {
 
 [Serializable]
 public class Score { public int h; public int a; }
-

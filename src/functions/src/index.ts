@@ -8,6 +8,8 @@ export { getReplay } from './results/getReplay.js';
 export { getMatchTimeline } from './matchTimeline.js';
 export { reportMatchResultWithReplay } from './replay/reportMatchResultWithReplay.js';
 export { getMatchReplay } from './replay/getMatchReplay.js';
+export { getMatchVideo } from './replay/getMatchVideo.js';
+export { onMatchVideoFinalize } from './replay/onMatchVideoFinalize.js';
 export { scheduleDailyMatches } from './replay/scheduleDailyMatches.js';
 export {
   marketCreateListing,
@@ -61,3 +63,4 @@ export { finalizeWatchdogHttp } from './orchestrate/retry.js';
 export { playAllForDayFn, playAllForDayHttp } from './orchestrate/playAll.js';
 
 export { renameClub, renameStadium } from './economy/rename.js';
+export { enforceChatModeration, checkChatSanction, applyChatSanction } from './chat/moderation.js';

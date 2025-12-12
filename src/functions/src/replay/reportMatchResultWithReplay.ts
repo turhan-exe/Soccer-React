@@ -7,6 +7,7 @@ import type {
   MatchReplayPayload,
   MatchResultSummary,
   MatchEvent,
+  MatchVideoMeta,
 } from '../types/matches.js';
 
 const REGION = 'europe-west1';
@@ -44,6 +45,14 @@ export const reportMatchResultWithReplay = functions
         durationMs: payload.durationMs || 0,
         createdAt: FieldValue.serverTimestamp() as any,
       };
+      const videoStoragePath = `videos/${seasonId}/${matchId}.mp4`;
+      const videoMeta: MatchVideoMeta = {
+        type: 'mp4-v1',
+        storagePath: videoStoragePath,
+        durationMs: payload.durationMs || 0,
+        createdAt: FieldValue.serverTimestamp() as any,
+        uploaded: false,
+      };
 
       const matchRef = db.doc(`seasons/${seasonId}/matches/${matchId}`);
       await matchRef.set(
@@ -51,6 +60,8 @@ export const reportMatchResultWithReplay = functions
           status: 'finished',
           result,
           replay: replayMeta,
+          video: videoMeta,
+          videoMissing: true,
         },
         { merge: true }
       );
