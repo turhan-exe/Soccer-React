@@ -48,6 +48,7 @@ export interface MatchVideoMeta {
   createdAt?: FirestoreTimestamp;
   uploaded?: boolean;
   error?: string;
+  updatedAt?: FirestoreTimestamp;
 }
 
 export interface MatchDocument {

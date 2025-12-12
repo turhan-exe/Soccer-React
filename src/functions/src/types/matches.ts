@@ -13,6 +13,9 @@ export interface MatchDocument {
   awaySquad: RuntimeSquad;
   result?: MatchResultSummary;
   replay?: MatchReplayMeta;
+  video?: MatchVideoMeta;
+  videoMissing?: boolean;
+  videoError?: string;
 }
 
 export interface RuntimeSquad {
@@ -52,6 +55,16 @@ export interface MatchReplayMeta {
   storagePath: string;
   durationMs: number;
   createdAt: Timestamp;
+}
+
+export interface MatchVideoMeta {
+  type: 'mp4-v1';
+  storagePath: string;
+  durationMs?: number;
+  createdAt?: Timestamp;
+  uploaded?: boolean;
+  error?: string;
+  updatedAt?: Timestamp;
 }
 
 export interface MatchReplayPayload {

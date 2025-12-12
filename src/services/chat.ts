@@ -1,3 +1,4 @@
+import { FirebaseError } from 'firebase/app';
 import {
   addDoc,
   collection,
@@ -10,8 +11,9 @@ import {
   Timestamp,
   type QueryDocumentSnapshot,
 } from 'firebase/firestore';
+import { httpsCallable } from 'firebase/functions';
 import type { GlobalChatMessage } from '@/types';
-import { db } from './firebase';
+import { db, functions } from './firebase';
 
 const GLOBAL_CHAT_COLLECTION = 'globalChatMessages';
 const MESSAGE_HISTORY_LIMIT = 60;
@@ -20,6 +22,83 @@ const MESSAGE_TTL_MS = MESSAGE_TTL_HOURS * 60 * 60 * 1000;
 const MAX_TEXT_LENGTH = 320;
 
 const chatCollectionRef = collection(db, GLOBAL_CHAT_COLLECTION);
+const checkChatSanctionCallable = httpsCallable<{ userId: string }, ChatSanctionStatus>(functions, 'checkChatSanction');
+
+type ChatSanctionStatus =
+  | { allowed: true }
+  | { allowed: false; type: 'timeout' | 'ban'; expiresAt?: number | null; reason?: string };
+
+const toMillis = (value: unknown): number | null => {
+  if (value === null || value === undefined) {
+    return null;
+  }
+  if (typeof value === 'number') {
+    return value;
+  }
+  if (value instanceof Date) {
+    return value.getTime();
+  }
+  if (value instanceof Timestamp) {
+    return value.toMillis();
+  }
+  if (typeof value === 'object' && value !== null) {
+    if ('toMillis' in (value as Timestamp)) {
+      try {
+        return (value as Timestamp).toMillis();
+      } catch {
+        return null;
+      }
+    }
+    if ('toDate' in (value as { toDate: () => Date })) {
+      try {
+        return (value as { toDate: () => Date }).toDate().getTime();
+      } catch {
+        return null;
+      }
+    }
+  }
+  return null;
+};
+
+const ensureChatPermission = async (userId: string): Promise<void> => {
+  if (!userId) {
+    return;
+  }
+
+  try {
+    const response = await checkChatSanctionCallable({ userId });
+    const payload = response.data;
+    if (payload.allowed) {
+      return;
+    }
+
+    const remainingMs =
+      typeof payload.expiresAt === 'number' && payload.expiresAt > Date.now()
+        ? payload.expiresAt - Date.now()
+        : null;
+    const remainingMinutes = remainingMs ? Math.max(1, Math.ceil(remainingMs / 60000)) : null;
+
+    if (payload.type === 'ban') {
+      throw new Error(payload.reason ?? 'Bu hesap kalici olarak banlandi.');
+    }
+
+    const baseMessage = payload.reason ?? 'Bu hesap icin timeout aktif.';
+    const durationInfo = remainingMinutes ? ` Kalan sure: ${remainingMinutes} dk.` : '';
+    throw new Error(`${baseMessage}${durationInfo}`);
+  } catch (error) {
+    const firebaseError = error as FirebaseError | undefined;
+    if (firebaseError?.code === 'functions/permission-denied' || firebaseError?.code === 'functions/unauthenticated') {
+      throw new Error('Sohbet izni icin oturumunuz dogrulanamadi.');
+    }
+
+    if (firebaseError?.code?.startsWith('functions/')) {
+      console.warn('[chat] checkChatSanction callable failed', firebaseError);
+      return;
+    }
+
+    throw error;
+  }
+};
 
 const ensureColor = (value: unknown): string | null => {
   if (typeof value !== 'string') {
@@ -127,6 +206,8 @@ export const sendGlobalChatMessage = async ({
   if (!trimmed) {
     throw new Error('Mesaj bos olamaz');
   }
+
+  await ensureChatPermission(userId);
 
   const clipped = trimmed.length > MAX_TEXT_LENGTH ? trimmed.slice(0, MAX_TEXT_LENGTH) : trimmed;
 

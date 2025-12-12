@@ -10,6 +10,8 @@ export interface BatchMatchItem {
   seed: number;
   replayUploadUrl: string;
   resultUploadUrl: string;
+  videoUploadUrl: string;
+  videoPath: string;
 }
 
 export interface CreateDailyBatchResponse {
@@ -33,4 +35,3 @@ export async function createDailyBatch(day?: string): Promise<CreateDailyBatchRe
   const res = await callFn<typeof payload, CreateDailyBatchResponse>('createDailyBatch', payload);
   return res;
 }
-

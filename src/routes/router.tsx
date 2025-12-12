@@ -30,6 +30,7 @@ import VipStorePage from '@/pages/VipStore';
 import MatchesHistoryPage from '@/pages/MatchesHistoryPage';
 import MatchReplayPage from '@/pages/MatchReplayPage';
 import MatchVideoPage from '@/pages/MatchVideoPage';
+import ChatModerationAdmin from '@/pages/ChatModerationAdmin';
 
 export const router = createBrowserRouter(
   [
@@ -65,6 +66,7 @@ export const router = createBrowserRouter(
         { path: '/store/vip', element: <VipStorePage /> },
         { path: '/academy', element: <AcademyPage /> },
         { path: '/legend-pack', element: <LegendPackPage /> },
+        { path: '/admin/chat-moderation', element: <ChatModerationAdmin /> },
         { path: '*', element: <NotFound /> },
       ],
     },
@@ -76,5 +78,4 @@ export const router = createBrowserRouter(
     },
   },
 );
-
 

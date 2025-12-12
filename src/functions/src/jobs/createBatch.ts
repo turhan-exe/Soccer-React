@@ -75,6 +75,7 @@ export async function createDailyBatchInternal(day?: string) {
     // Output paths
     const replayPath = `replays/${seasonId}/${leagueId}/${matchId}.json`;
     const resultPath = `results/${seasonId}/${leagueId}/${matchId}.json`;
+    const videoPath = `videos/${seasonId}/${matchId}.mp4`;
 
     // Signed URLs (allow a few hours for long jobs)
     const [replayUploadUrl] = await bucket.file(replayPath).getSignedUrl({
@@ -87,6 +88,11 @@ export async function createDailyBatchInternal(day?: string) {
       expires: Date.now() + 3 * 60 * 60 * 1000,
       contentType: 'application/json',
     });
+    const [videoUploadUrl] = await bucket.file(videoPath).getSignedUrl({
+      action: 'write',
+      expires: Date.now() + 3 * 60 * 60 * 1000,
+      contentType: 'video/mp4',
+    });
 
     matches.push({
       matchId,
@@ -97,6 +103,8 @@ export async function createDailyBatchInternal(day?: string) {
       seed: m.seed ?? Math.floor(Math.random() * 1e9),
       replayUploadUrl,
       resultUploadUrl,
+      videoUploadUrl,
+      videoPath,
     });
   }
 

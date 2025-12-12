@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { useAuth } from '@/contexts/AuthContext';
 import {
@@ -13,6 +13,7 @@ import {
   Settings,
   ShoppingCart,
   Star,
+  ShieldCheck,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -28,7 +29,7 @@ import '@/styles/nostalgia-theme.css';
 import { formatRatingLabel, normalizeRatingTo100, normalizeRatingTo100OrNull } from '@/lib/player';
 import GlobalChatWidget from '@/features/chat/GlobalChatWidget';
 
-const menuItems = [
+const baseMenuItems = [
   { id: 'team-planning', label: 'Takim Plani', icon: Users, accent: 'sky' },
   { id: 'youth', label: 'Altyapi', icon: UserPlus, accent: 'emerald' },
   { id: 'transfer-market', label: 'Transfer Pazari', icon: ShoppingCart, accent: 'teal' },
@@ -42,6 +43,8 @@ const menuItems = [
   { id: 'settings', label: 'Ayarlar', icon: Settings, accent: 'teal' },
   { id: 'legend-pack', label: 'Nostalji Paket', icon: Star, accent: 'pink' },
 ];
+const ADMIN_EMAILS = ['ops.lead@mgx.gg', 'safety@mgx.gg'];
+type MenuItem = (typeof baseMenuItems)[number] & { path?: string };
 
 type FormBadge = 'W' | 'D' | 'L';
 
@@ -431,17 +434,38 @@ export default function MainMenu() {
     loadQuickStats();
   }, [user]);
 
-  const handleMenuClick = (itemId: string) => {
-    navigate(`/${itemId}`);
+  const isPanelOperator = useMemo(() => {
+    const email = user?.email?.toLowerCase().trim();
+    if (!email) return false;
+    return ADMIN_EMAILS.includes(email);
+  }, [user]);
+
+  const mainMenuItems: MenuItem[] = useMemo(() => {
+    const entries: MenuItem[] = [...baseMenuItems];
+    if (isPanelOperator) {
+      entries.push({
+        id: 'admin-chat-moderation',
+        label: 'Chat Moderasyon',
+        icon: ShieldCheck,
+        accent: 'rose',
+        path: '/admin/chat-moderation',
+      });
+    }
+    return entries;
+  }, [isPanelOperator]);
+
+  const handleMenuClick = (item: MenuItem) => {
+    const targetPath = item.path ?? `/${item.id}`;
+    navigate(targetPath);
   };
 
   const hideActions = () => setAreActionsVisible(false);
 
-  const renderMenuCard = (item: (typeof menuItems)[number]) => (
+  const renderMenuCard = (item: MenuItem) => (
     <Card
       key={item.id}
       className={`nostalgia-card nostalgia-card--${item.accent} cursor-pointer`}
-      onClick={() => handleMenuClick(item.id)}
+      onClick={() => handleMenuClick(item)}
     >
       <span className="nostalgia-card__halo" aria-hidden />
       <CardContent className="nostalgia-card__content">
@@ -596,7 +620,7 @@ export default function MainMenu() {
           >
             <div className="nostalgia-main-menu__actions-frame">
               <div className="nostalgia-main-menu__actions-grid">
-                {menuItems.map(renderMenuCard)}
+                {mainMenuItems.map(renderMenuCard)}
               </div>
             </div>
           </aside>
@@ -615,5 +639,3 @@ export default function MainMenu() {
   </div>
 );
 }
-
-
