@@ -7,6 +7,7 @@ import {
   useRef,
   useState,
 } from 'react';
+import type { KeyboardEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   BatteryCharging,
@@ -21,6 +22,8 @@ import {
   Sun,
   LogOut,
   Bell,
+  ChevronLeft,
+  ChevronRight,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -496,12 +499,26 @@ const TopBar = forwardRef<TopBarHandle, TopBarProps>(
     return items;
   }, [canGenerateYouthCandidate, hasUnseenTrainingResults, hasYouthCandidates, isTrainingFacilityAvailable]);
 
+  const handleNavigateHome = useCallback(() => {
+    navigate('/');
+  }, [navigate]);
+
   const handleNotificationClick = useCallback(
     (path: string) => {
       setIsNotificationOpen(false);
       navigate(path);
     },
     [navigate],
+  );
+
+  const handleIdentityKeyDown = useCallback(
+    (event: KeyboardEvent<HTMLSpanElement>) => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        handleNavigateHome();
+      }
+    },
+    [handleNavigateHome],
   );
 
   const handlePurchase = async (type: KitType, method: 'ad' | 'diamonds') => {
@@ -533,179 +550,141 @@ const TopBar = forwardRef<TopBarHandle, TopBarProps>(
     <>
       <header
         ref={topBarRef}
-        className={`nostalgia-topbar px-3 py-3 sm:px-4${isVisible ? ' nostalgia-topbar--visible' : ''}`}
+        className={`nostalgia-topbar px-4 py-2${isVisible ? ' nostalgia-topbar--visible' : ''}`}
         aria-hidden={!isVisible}
         data-topbar-state={isVisible ? 'visible' : 'hidden'}
         role="banner"
       >
-        <div className="nostalgia-topbar__inner">
-          <div className="nostalgia-topbar__left">
-            {user ? (
-              <div
-                className="nostalgia-topbar__identity-info"
-                data-topbar-focus-target
-                tabIndex={-1}
-              >
-                <div className="nostalgia-topbar__team">
-                  <div className="nostalgia-topbar__team-avatar">
-                    {user.teamLogo && /^(data:image|https?:\/\/)/.test(user.teamLogo) ? (
-                      <img
-                        src={user.teamLogo}
-                        alt="Takim logosu"
-                        className="h-full w-full object-contain"
-                      />
-                    ) : (
-                      <span className="text-xl leading-none">{user.teamLogo ?? 'TM'}</span>
-                    )}
-                  </div>
-                  <div className="nostalgia-topbar__team-info">
-                    <span className="nostalgia-topbar__team-name" title={displayTeamName}>
-                      {displayTeamName}
-                    </span>
-                    <div className="nostalgia-topbar__team-meta" aria-label="Takim ozeti">
-                      <Badge
-                        variant="secondary"
-                        className="border border-white/20 bg-white/10 px-2 py-0.5 text-[11px] text-slate-100 shadow-sm backdrop-blur-sm sm:text-xs"
-                      >
-                        Overall: {teamOverall ?? '-'}
-                      </Badge>
-                      <Badge
-                        variant="outline"
-                        className="border border-white/20 bg-white/5 px-2 py-0.5 text-[11px] text-slate-100 sm:text-xs"
-                      >
-                        Form: {teamForm ?? '-'}
-                      </Badge>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ) : null}
-          </div>
-
-          <div className="nostalgia-topbar__center" aria-label="Takim kitleri">
-            <div className="nostalgia-topbar__kit-panel" aria-live="polite">
-              <Button
-                variant="ghost"
-                size="sm"
-                className="nostalgia-topbar__kit-nav"
-                onClick={() => {
-                  setIsKitMenuOpen(false);
-                  setCurrentKitIndex((prev) => (prev - 1 + Math.max(kitCount, 1)) % Math.max(kitCount, 1));
-                }}
-                disabled={kitCount === 0}
-                aria-label="Onceki kit"
-              >
-                ‹
-              </Button>
-
-              {currentKitType ? (
-                <DropdownMenu
-                  open={isKitMenuOpen}
-                  onOpenChange={(open) => setIsKitMenuOpen(open)}
-                >
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="sm" className="nostalgia-topbar__kit-chip">
-                      {(() => {
-                        const { icon: Icon, color } = KIT_ICONS[currentKitType];
-                        const count = kits[currentKitType] ?? 0;
-                        const config = KIT_CONFIG[currentKitType];
-                        return (
-                          <>
-                            <Icon className={`h-4 w-4 ${color}`} />
-                            <span className="text-sm font-medium">{config.label}</span>
-                            <Badge
-                              variant={count > 0 ? 'secondary' : 'outline'}
-                              className="border border-white/20 bg-white/10 px-1.5 py-0 text-[11px] text-slate-100"
-                            >
-                              {count}
-                            </Badge>
-                          </>
-                        );
-                      })()}
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="start" className="w-64">
-                    {(() => {
-                      const count = kits[currentKitType] ?? 0;
-                      const config = KIT_CONFIG[currentKitType];
-                      const effectText = formatKitEffect(currentKitType);
-                      return (
-                        <>
-                          <DropdownMenuLabel>{config.label}</DropdownMenuLabel>
-                          <p className="px-2 text-xs text-muted-foreground">{config.description}</p>
-                          {effectText && (
-                            <p className="px-2 pb-2 text-xs font-medium text-emerald-600 dark:text-emerald-400">
-                              {effectText}
-                            </p>
-                          )}
-                          <DropdownMenuItem disabled={isProcessing} onClick={() => handlePurchase(currentKitType, 'ad')}>
-                            Reklam izle (+{config.adReward})
-                          </DropdownMenuItem>
-                          <DropdownMenuItem disabled={isProcessing} onClick={() => handlePurchase(currentKitType, 'diamonds')}>
-                            {config.diamondCost} Elmas ile Satin Al
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem disabled={count === 0 || isProcessing} onClick={() => handleUse(currentKitType)}>
-                            {count === 0 ? 'Stok Yok' : 'Kiti Kullan'}
-                          </DropdownMenuItem>
-                        </>
-                      );
-                    })()}
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              ) : (
-                <div className="nostalgia-topbar__kit-empty">Kit bulunmuyor</div>
-              )}
-
-              <Button
-                variant="ghost"
-                size="sm"
-                className="nostalgia-topbar__kit-nav"
-                onClick={() => {
-                  setIsKitMenuOpen(false);
-                  setCurrentKitIndex((prev) => (prev + 1) % Math.max(kitCount, 1));
-                }}
-                disabled={kitCount === 0}
-                aria-label="Sonraki kit"
-              >
-                ›
-              </Button>
+        <div className="nostalgia-topbar__inner" data-topbar-focus-target tabIndex={-1}>
+          <div className="nostalgia-topbar__identity">
+            <span
+              className="nostalgia-topbar__identity-name"
+              title={displayTeamName}
+              role="button"
+              tabIndex={0}
+              onClick={handleNavigateHome}
+              onKeyDown={handleIdentityKeyDown}
+            >
+              {displayTeamName}
+            </span>
+            <div className="nostalgia-topbar__identity-meta" aria-label="Takim ozeti">
+              <Badge variant="secondary" className="nostalgia-topbar__pill">
+                Overall: {teamOverall ?? '-'}
+              </Badge>
+              <Badge variant="outline" className="nostalgia-topbar__pill nostalgia-topbar__pill--muted">
+                Form: {teamForm ?? '-'}
+              </Badge>
             </div>
           </div>
 
-          <div className="nostalgia-topbar__right">
-            <div className="nostalgia-topbar__control-buttons">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={toggleTheme}
-                className="text-slate-200 hover:bg-white/10 hover:text-white"
-              >
+          <div className="nostalgia-topbar__kit-switcher" aria-label="Takim kitleri" aria-live="polite">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="nostalgia-topbar__kit-arrow"
+              onClick={() => {
+                setIsKitMenuOpen(false);
+                setCurrentKitIndex((prev) => (prev - 1 + Math.max(kitCount, 1)) % Math.max(kitCount, 1));
+              }}
+              disabled={kitCount === 0}
+              aria-label="Onceki kit"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+
+            {currentKitType ? (
+              <DropdownMenu open={isKitMenuOpen} onOpenChange={(open) => setIsKitMenuOpen(open)}>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    type="button"
+                    className="nostalgia-topbar__kit-chip"
+                    aria-haspopup="menu"
+                    aria-expanded={isKitMenuOpen}
+                  >
+                    {(() => {
+                      const { icon: Icon, color } = KIT_ICONS[currentKitType];
+                      const count = kits[currentKitType] ?? 0;
+                      const config = KIT_CONFIG[currentKitType];
+                      return (
+                        <>
+                          <Icon className={`h-4 w-4 ${color}`} />
+                          <span className="text-sm font-semibold">{config.label}</span>
+                          <span className="nostalgia-topbar__kit-count">{count}</span>
+                        </>
+                      );
+                    })()}
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="center" className="w-64">
+                  {(() => {
+                    const count = kits[currentKitType] ?? 0;
+                    const config = KIT_CONFIG[currentKitType];
+                    const effectText = formatKitEffect(currentKitType);
+                    return (
+                      <>
+                        <DropdownMenuLabel>{config.label}</DropdownMenuLabel>
+                        <p className="px-2 text-xs text-muted-foreground">{config.description}</p>
+                        {effectText && (
+                          <p className="px-2 pb-2 text-xs font-medium text-emerald-600 dark:text-emerald-400">
+                            {effectText}
+                          </p>
+                        )}
+                        <DropdownMenuItem disabled={isProcessing} onClick={() => handlePurchase(currentKitType, 'ad')}>
+                          Reklam izle (+{config.adReward})
+                        </DropdownMenuItem>
+                        <DropdownMenuItem disabled={isProcessing} onClick={() => handlePurchase(currentKitType, 'diamonds')}>
+                          {config.diamondCost} Elmas ile Satin Al
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem disabled={count === 0 || isProcessing} onClick={() => handleUse(currentKitType)}>
+                          {count === 0 ? 'Stok Yok' : 'Kiti Kullan'}
+                        </DropdownMenuItem>
+                      </>
+                    );
+                  })()}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : (
+              <div className="nostalgia-topbar__kit-empty">Kit bulunmuyor</div>
+            )}
+
+            <Button
+              variant="ghost"
+              size="sm"
+              className="nostalgia-topbar__kit-arrow"
+              onClick={() => {
+                setIsKitMenuOpen(false);
+                setCurrentKitIndex((prev) => (prev + 1) % Math.max(kitCount, 1));
+              }}
+              disabled={kitCount === 0}
+              aria-label="Sonraki kit"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
+
+          <div className="nostalgia-topbar__actions">
+            <div className="nostalgia-topbar__action-buttons">
+              <Button variant="ghost" size="sm" onClick={toggleTheme} className="nostalgia-topbar__icon-button">
                 {theme === 'light' ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
               </Button>
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={() => navigate('/store/vip')}
-                className={vipButtonClass}
+                className={`nostalgia-topbar__vip-button ${vipButtonClass}`}
                 title={vipTooltip}
               >
                 <div className="relative flex items-center gap-1">
                   <Crown className={`h-4 w-4 ${vipIconClass}`} />
-                  {vipActive ? (
-                    <span className="text-xs font-semibold text-amber-200">VIP</span>
-                  ) : (
-                    <span className="text-xs font-semibold text-slate-300">VIP</span>
-                  )}
-                  {vipActive && (
-                    <span className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-emerald-400 shadow" />
-                  )}
+                  <span className="text-xs font-semibold">VIP</span>
+                  {vipActive && <span className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-emerald-400 shadow" />}
                 </div>
                 <span className="sr-only">VIP magazasi</span>
               </Button>
               <Popover open={isNotificationOpen} onOpenChange={setIsNotificationOpen}>
                 <PopoverTrigger asChild>
-                  <Button variant="ghost" size="sm" className="text-slate-200 hover:bg-white/10 hover:text-white">
+                  <Button variant="ghost" size="sm" className="nostalgia-topbar__icon-button">
                     <div className="relative">
                       <Bell className="h-4 w-4" />
                       {notifications.length > 0 && (
@@ -735,12 +714,7 @@ const TopBar = forwardRef<TopBarHandle, TopBarProps>(
                   )}
                 </PopoverContent>
               </Popover>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={logout}
-                className="text-slate-200 hover:bg-white/10 hover:text-white"
-              >
+              <Button variant="ghost" size="sm" onClick={logout} className="nostalgia-topbar__icon-button">
                 <LogOut className="h-4 w-4" />
               </Button>
             </div>
@@ -750,12 +724,12 @@ const TopBar = forwardRef<TopBarHandle, TopBarProps>(
               <button
                 type="button"
                 onClick={() => navigate('/store/diamonds')}
-                className="nostalgia-topbar__balance group rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-slate-100 transition hover:border-sky-300/60 hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/60"
+                className="nostalgia-topbar__balance"
                 data-testid="topbar-diamond-balance"
               >
                 <Diamond className="h-5 w-5 text-sky-300 drop-shadow" />
                 <span className="font-semibold text-slate-100">{balance}</span>
-                <span className="text-[11px] text-sky-100/80 transition group-hover:text-sky-50">Elmas</span>
+                <span className="text-[11px] text-sky-100/80">Elmas</span>
               </button>
             </div>
           </div>
@@ -769,5 +743,3 @@ const TopBar = forwardRef<TopBarHandle, TopBarProps>(
 TopBar.displayName = 'TopBar';
 
 export default TopBar;
-
-

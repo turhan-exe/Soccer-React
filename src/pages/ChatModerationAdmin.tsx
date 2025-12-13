@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { formatDistanceToNow } from 'date-fns';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -336,6 +337,7 @@ const actionIcons: Record<ModerationActionType, JSX.Element> = {
 };
 
 const ChatModerationAdmin = () => {
+  const navigate = useNavigate();
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
   const [credentials, setCredentials] = useState({ email: '', password: '', otp: '' });
@@ -560,6 +562,11 @@ const ChatModerationAdmin = () => {
     setSelectedMessageId(null);
   };
 
+  const handleBackToHome = () => {
+    logout();
+    navigate('/');
+  };
+
   const pushActionLog = (entry: Omit<ActionLogEntry, 'id' | 'timestamp'>) => {
     setActionLog((prev) => [{ id: generateRandomId(), timestamp: Date.now(), ...entry }, ...prev].slice(0, 20));
     setActionFeedback(`${entry.userName} kullanicisi icin ${actionLabels[entry.action]} uygulandi.`);
@@ -724,8 +731,8 @@ const ChatModerationAdmin = () => {
               <p className="font-semibold text-white">{sessionUser.name}</p>
               <p className="text-xs text-slate-500">{sessionUser.email}</p>
             </div>
-            <Button variant="outline" size="sm" onClick={logout}>
-              Cikis Yap
+            <Button variant="outline" size="sm" onClick={handleBackToHome}>
+              Geri Don
             </Button>
           </div>
         </header>
