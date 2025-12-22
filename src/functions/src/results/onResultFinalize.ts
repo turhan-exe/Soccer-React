@@ -2,12 +2,25 @@ import * as functions from 'firebase-functions/v1';
 import '../_firebase.js';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import { getStorage } from 'firebase-admin/storage';
+import { createHmac, timingSafeEqual } from 'crypto';
 import { log } from '../logger.js';
 import { sendSlack } from '../notify/slack.js';
 
 
 const db = getFirestore();
 const REGION = 'europe-west1';
+const BATCH_SECRET = functions.config().unity?.batch_secret || process.env.BATCH_SECRET || '';
+
+function verifyRequestToken(token: string, matchId: string, seasonId: string): boolean {
+  if (!BATCH_SECRET) return false;
+  const [issuedAtRaw, sig] = token.split('.', 2);
+  const issuedAtMs = Number(issuedAtRaw);
+  if (!issuedAtRaw || !sig || !Number.isFinite(issuedAtMs)) return false;
+  const payload = `${matchId}:${seasonId}:${issuedAtMs}`;
+  const expected = createHmac('sha256', BATCH_SECRET).update(payload).digest('hex');
+  if (sig.length !== expected.length) return false;
+  return timingSafeEqual(Buffer.from(sig), Buffer.from(expected));
+}
 
 async function resolveReplayPath(
   bucketName: string,
@@ -50,6 +63,16 @@ export const onResultFinalize = functions
       const fileRef = getStorage().bucket(obj.bucket).file(path);
       const [buf] = await fileRef.download();
       const result = JSON.parse(buf.toString());
+
+      if (BATCH_SECRET) {
+        const token = result?.requestToken;
+        if (!token || typeof token !== 'string') {
+          throw new Error('requestToken missing in result payload');
+        }
+        if (!verifyRequestToken(token, matchId, seasonId)) {
+          throw new Error('requestToken verification failed');
+        }
+      }
 
       const scoreAny = result?.score || result?.result || null;
       // Normalize score shape to { home, away }

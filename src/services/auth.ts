@@ -53,6 +53,7 @@ const googleProvider = buildGoogleProvider();
 const appleProvider = buildAppleProvider();
 
 const isNativePlatform = Capacitor.isNativePlatform();
+const USE_REDIRECT_ON_WEB = (import.meta.env.VITE_AUTH_USE_REDIRECT ?? '1') === '1';
 
 const isPopupRecoverable = (error: unknown) => {
   const code =
@@ -74,10 +75,11 @@ const signInWithGoogleNative = async (): Promise<UserCredential> => {
       'message' in error &&
       String((error as { message?: string }).message ?? '').toLowerCase().includes('unimplemented')
     ) {
-      throw new Error(
+      const err = new Error(
         'Yerel Google girişi için Firebase Authentication eklentisi yüklenmemiş. Lütfen `npx cap sync` çalıştırın ve yerel projeyi yeniden derleyin.',
-        { cause: error },
       );
+      (err as { cause?: unknown }).cause = error;
+      throw err;
     }
     throw error;
   });
@@ -91,6 +93,10 @@ const signInWithGoogleNative = async (): Promise<UserCredential> => {
 export const signInWithGoogle = async () => {
   if (isNativePlatform) {
     return signInWithGoogleNative();
+  }
+
+  if (USE_REDIRECT_ON_WEB) {
+    return signInWithRedirect(auth, googleProvider);
   }
 
   try {
@@ -115,10 +121,11 @@ const signInWithAppleNative = async (): Promise<UserCredential> => {
       'message' in error &&
       String((error as { message?: string }).message ?? '').toLowerCase().includes('unimplemented')
     ) {
-      throw new Error(
+      const err = new Error(
         'Yerel Apple girişi için Firebase Authentication eklentisi yüklenmemiş. Lütfen `npx cap sync` çalıştırın ve yerel projeyi yeniden derleyin.',
-        { cause: error },
       );
+      (err as { cause?: unknown }).cause = error;
+      throw err;
     }
     throw error;
   });
@@ -135,7 +142,11 @@ const signInWithAppleNative = async (): Promise<UserCredential> => {
 };
 
 export const signInWithApple = () =>
-  isNativePlatform ? signInWithAppleNative() : signInWithPopup(auth, appleProvider);
+  isNativePlatform
+    ? signInWithAppleNative()
+    : (USE_REDIRECT_ON_WEB
+      ? signInWithRedirect(auth, appleProvider)
+      : signInWithPopup(auth, appleProvider));
 
 export const getAuthRedirectResult = (): Promise<UserCredential | null> =>
   isNativePlatform ? Promise.resolve(null) : getRedirectResult(auth);

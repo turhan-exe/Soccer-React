@@ -72,9 +72,9 @@ export default function LeaguesListPage() {
               const dayKey = formatInTimeZone(new Date(), 'Europe/Istanbul', 'yyyy-MM-dd');
               try {
                 const r = await playAllForDay(dayKey, { instant: true });
-                toast({ description: `Buün (${dayKey}) maÃ§lar: ${r?.started ?? 0}/${r?.total ?? 0}` });
+                toast({ description: `Bugün (${dayKey}) maçlar: ${r?.started ?? 0}/${r?.total ?? 0}` });
               } catch (e: any) {
-                toast({ description: e?.message || 'Buün oynatma hata' });
+                toast({ description: e?.message || 'Bugün oynatma hatası' });
               }
             }}
           >
@@ -84,10 +84,10 @@ export default function LeaguesListPage() {
             onClick={async () => {
               try {
                 const r = await playNextScheduledDay();
-                if (!r) { toast({ description: 'Planlı maÃ§ bulunamadı.' }); return; }
-                toast({ description: `ün (${r.dayKey}) maÃ§lar: ${r.started ?? 0}/${r.total ?? 0}` });
+                if (!r) { toast({ description: 'Planlı maç bulunamadı.' }); return; }
+                toast({ description: `Gün (${r.dayKey}) maçlar: ${r.started ?? 0}/${r.total ?? 0}` });
               } catch (e: any) {
-                toast({ description: e?.message || 'Sonraki ünü oynatma hata' });
+                toast({ description: e?.message || 'Sonraki günü oynatma hatası' });
               }
             }}
           >
@@ -138,7 +138,7 @@ export default function LeaguesListPage() {
       )}
       {otherLeagues.length > 0 && (
         <div className="space-y-2">
-          {myLeague && <h2 className="font-semibold mb-2">DiÄŸer Ligler</h2>}
+          {myLeague && <h2 className="font-semibold mb-2">Diğer Ligler</h2>}
           {otherLeagues.map((l) => (
             <Card
               key={l.id}

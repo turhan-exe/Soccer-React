@@ -1,5 +1,5 @@
 // src/services/jobs.ts
-import { callFn } from './api';
+import { callFn, httpPost } from './api';
 
 export interface BatchMatchItem {
   matchId: string;
@@ -8,6 +8,7 @@ export interface BatchMatchItem {
   homeTeamId: string;
   awayTeamId: string;
   seed: number;
+  requestToken: string;
   replayUploadUrl: string;
   resultUploadUrl: string;
   videoUploadUrl: string;
@@ -32,6 +33,39 @@ export interface CreateDailyBatchResponse {
  */
 export async function createDailyBatch(day?: string): Promise<CreateDailyBatchResponse> {
   const payload = day ? { date: day } : undefined;
-  const res = await callFn<typeof payload, CreateDailyBatchResponse>('createDailyBatch', payload);
-  return res;
+  const httpFirst = (import.meta as any).env?.VITE_USE_HTTP_FUNCTIONS === '1' || import.meta.env.DEV;
+  const callCallable = () =>
+    callFn<typeof payload, CreateDailyBatchResponse>('createDailyBatch', payload);
+  const callHttp = () =>
+    httpPost<CreateDailyBatchResponse>('createDailyBatchHttp', payload);
+
+  if (httpFirst) {
+    try {
+      return await callHttp();
+    } catch (err: any) {
+      const message = String(err?.message || '');
+      const permissionLike =
+        message.includes('PERMISSION_DENIED') ||
+        message.includes('Auth required') ||
+        message.includes('unauthorized');
+      if (permissionLike) {
+        throw err;
+      }
+      return await callCallable();
+    }
+  }
+
+  try {
+    return await callCallable();
+  } catch (err: any) {
+    const code = err?.code as string | undefined;
+    const message = String(err?.message || '');
+    const appCheckRelated =
+      code === 'functions/failed-precondition' ||
+      message.toLowerCase().includes('appcheck');
+    if (appCheckRelated) {
+      return await callHttp();
+    }
+    throw err;
+  }
 }

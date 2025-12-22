@@ -38,7 +38,7 @@ export {
 export { bootstrapMonthlyLeaguesOneTime, bootstrapMonthlyLeaguesOneTimeHttp } from './bootstrap.js';
 export { assignRealTeamToFirstAvailableBotSlot, assignRealTeamToFirstAvailableBotSlotHttp } from './assign.js';
 export { resetSeasonMonthly } from './schedule.js';
-export { runDailyMatchesAt19TR } from './runner.js';
+export { runDailyMatchesAt19TR, backfillScheduledMatches, backfillScheduledMatchesHttp } from './runner.js';
 // User lifecycle triggers
 export { assignTeamOnUserCreate, cleanupInactiveUsers } from './user.js';
 // Data sync helpers
@@ -54,6 +54,8 @@ export { demoLive } from './live/demo.js';
 
 // Result reporting (HTTP) in addition to Storage trigger
 export { reportResult } from './results/reportResult.js';
+// Batch generation callable used by React + worker watchdog
+export { createDailyBatch, createDailyBatchHttp } from './jobs/createBatch.js';
 
 // Operations & Observability (Plan 8)
 export { cronCreateBatch, kickUnityJob, cronWatchdog } from './orchestrate/scheduler.js';
