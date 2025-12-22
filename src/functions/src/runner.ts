@@ -1,61 +1,93 @@
 import * as functions from 'firebase-functions/v1';
 import './_firebase.js';
-import { getFirestore, Timestamp } from 'firebase-admin/firestore';
+import { getFirestore, Timestamp, FieldValue } from 'firebase-admin/firestore';
 import * as pubsub from 'firebase-functions/v1/pubsub';
+import { dayKeyTR, dayRangeTR } from './utils/schedule.js';
+import { requireAppCheck, requireAuth } from './mw/auth.js';
 
 const db = getFirestore();
+const REGION = 'europe-west1';
+
+async function acquireRunLock(dayKey: string, runner: string) {
+  const ref = db.collection('ops_locks').doc(`runDaily_${dayKey}`);
+  try {
+    await ref.create({ runner, startedAt: FieldValue.serverTimestamp() });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function runScheduledMatchesForDay(dayKey: string) {
+  const { start, end } = dayRangeTR(dayKey);
+  const startTs = Timestamp.fromDate(start);
+  const endTs = Timestamp.fromDate(end);
+
+  const leaguesSnap = await db
+    .collection('leagues')
+    .where('state', 'in', ['scheduled', 'active'])
+    .get();
+
+  let totalScheduled = 0;
+
+  for (const leagueDoc of leaguesSnap.docs) {
+    const leagueRef = leagueDoc.ref;
+    const fixturesSnap = await leagueRef
+      .collection('fixtures')
+      .where('date', '>=', startTs)
+      .where('date', '<=', endTs)
+      .get();
+
+    const scheduledDocs = fixturesSnap.docs.filter(
+      (d) => (d.data() as any)?.status === 'scheduled'
+    );
+
+    totalScheduled += scheduledDocs.length;
+
+    for (const matchDoc of scheduledDocs) {
+      const data = matchDoc.data() as any;
+      const hasSlots =
+        Number.isFinite(data.homeSlot) || Number.isFinite(data.awaySlot);
+      if (hasSlots) {
+        await processSlotMatch(leagueRef, matchDoc);
+      } else {
+        await processMatch(leagueRef, matchDoc);
+      }
+    }
+
+    if (scheduledDocs.length > 0 && leagueDoc.data().state === 'scheduled') {
+      await leagueRef.update({ state: 'active' });
+    }
+
+    const remaining = await leagueRef
+      .collection('fixtures')
+      .where('status', '==', 'scheduled')
+      .limit(1)
+      .get();
+    if (remaining.empty) {
+      await leagueRef.update({ state: 'completed' });
+    }
+  }
+
+  functions.logger.info('[RUN] daily matches processed', {
+    dayKey,
+    leagues: leaguesSnap.size,
+    totalScheduled,
+  });
+}
 
 export const runDailyMatches = functions
-  .region('europe-west1')
+  .region(REGION)
   .pubsub.schedule('0 19 * * *')
   .timeZone('Europe/Istanbul')
   .onRun(async () => {
-    const tz = 'Europe/Istanbul';
-    const now = new Date();
-    const fmt = new Intl.DateTimeFormat('en-US', {
-      timeZone: tz,
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-    });
-    const parts = fmt.formatToParts(now);
-    const year = Number(parts.find((p) => p.type === 'year')?.value);
-    const month = Number(parts.find((p) => p.type === 'month')?.value);
-    const day = Number(parts.find((p) => p.type === 'day')?.value);
-    const local = new Date(Date.UTC(year, month - 1, day, 19, 0, 0));
-    const offset =
-      new Date(local.toLocaleString('en-US', { timeZone: tz })).getTime() -
-      local.getTime();
-    const target = new Date(local.getTime() - offset);
-    const matchTs = Timestamp.fromDate(target);
-
-    const leaguesSnap = await db
-      .collection('leagues')
-      .where('state', 'in', ['scheduled', 'active'])
-      .get();
-
-    for (const leagueDoc of leaguesSnap.docs) {
-      const leagueRef = leagueDoc.ref;
-      const fixturesSnap = await leagueRef
-        .collection('fixtures')
-        .where('status', '==', 'scheduled')
-        .where('date', '==', matchTs)
-        .get();
-      for (const matchDoc of fixturesSnap.docs) {
-        await processMatch(leagueRef, matchDoc);
-      }
-      if (!fixturesSnap.empty && leagueDoc.data().state === 'scheduled') {
-        await leagueRef.update({ state: 'active' });
-      }
-      const remaining = await leagueRef
-        .collection('fixtures')
-        .where('status', '==', 'scheduled')
-        .limit(1)
-        .get();
-      if (remaining.empty) {
-        await leagueRef.update({ state: 'completed' });
-      }
+    const dayKey = dayKeyTR();
+    const locked = await acquireRunLock(dayKey, 'runDailyMatches');
+    if (!locked) {
+      functions.logger.info('[RUN] runDailyMatches skipped (lock exists)', { dayKey });
+      return;
     }
+    await runScheduledMatchesForDay(dayKey);
   });
 
 async function processMatch(
@@ -138,39 +170,116 @@ async function processMatch(
 
 // Slot-based variant for monthly leagues with 15 teams (double round-robin)
 export const runDailyMatchesAt19TR = functions
-  .region('europe-west1')
+  .region(REGION)
   .pubsub.schedule('0 19 * * *')
   .timeZone('Europe/Istanbul')
   .onRun(async () => {
-    const tz = 'Europe/Istanbul';
-    const now = new Date();
-    const fmt = new Intl.DateTimeFormat('en-US', {
-      timeZone: tz,
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-    });
-    const parts = fmt.formatToParts(now);
-    const year = Number(parts.find((p) => p.type === 'year')?.value);
-    const month = Number(parts.find((p) => p.type === 'month')?.value);
-    const day = Number(parts.find((p) => p.type === 'day')?.value);
-    const local = new Date(Date.UTC(year, month - 1, day, 19, 0, 0));
-    const offset = new Date(local.toLocaleString('en-US', { timeZone: tz })).getTime() - local.getTime();
-    const target = new Date(local.getTime() - offset);
-    const matchTs = Timestamp.fromDate(target);
+    const dayKey = dayKeyTR();
+    const locked = await acquireRunLock(dayKey, 'runDailyMatchesAt19TR');
+    if (!locked) {
+      functions.logger.info('[RUN] runDailyMatchesAt19TR skipped (lock exists)', { dayKey });
+      return;
+    }
+    await runScheduledMatchesForDay(dayKey);
+  });
 
-    const leaguesSnap = await db.collection('leagues').where('state', 'in', ['scheduled', 'active']).get();
-    for (const leagueDoc of leaguesSnap.docs) {
-      const leagueRef = leagueDoc.ref;
-      const fixturesSnap = await leagueRef
-        .collection('fixtures')
-        .where('status', '==', 'scheduled')
-        .where('date', '==', matchTs)
-        .get();
-      for (const matchDoc of fixturesSnap.docs) {
-        await processSlotMatch(leagueRef, matchDoc);
+function resolveBackfillEnd(input: any) {
+  if (input && typeof input.endDayKey === 'string') {
+    const { end } = dayRangeTR(input.endDayKey);
+    return { end, endDayKey: input.endDayKey };
+  }
+  if (input && Number.isFinite(input.endDateMs)) {
+    const end = new Date(input.endDateMs);
+    return { end, endDayKey: dayKeyTR(end) };
+  }
+  if (input && typeof input.endIso === 'string') {
+    const end = new Date(input.endIso);
+    if (!Number.isNaN(end.getTime())) {
+      return { end, endDayKey: dayKeyTR(end) };
+    }
+  }
+  const end = new Date();
+  return { end, endDayKey: dayKeyTR(end) };
+}
+
+async function collectScheduledFixturesUpTo(end: Date, limit: number) {
+  try {
+    const snap = await db
+      .collectionGroup('fixtures')
+      .where('status', '==', 'scheduled')
+      .where('date', '<=', Timestamp.fromDate(end))
+      .orderBy('date', 'asc')
+      .limit(limit)
+      .get();
+    return { docs: snap.docs, usedFallback: false };
+  } catch (e: any) {
+    functions.logger.warn('[backfill] collectionGroup failed, fallback to per-league', {
+      error: e?.message || String(e),
+    });
+  }
+
+  const leagues = await db.collection('leagues').get();
+  const all: { doc: FirebaseFirestore.QueryDocumentSnapshot; at: Date }[] = [];
+  for (const lg of leagues.docs) {
+    const snap = await lg.ref.collection('fixtures').where('status', '==', 'scheduled').get();
+    for (const doc of snap.docs) {
+      const at = (doc.data() as any)?.date?.toDate?.() as Date | undefined;
+      if (at && at <= end) {
+        all.push({ doc, at });
       }
-      if (!fixturesSnap.empty && leagueDoc.data().state === 'scheduled') {
+    }
+  }
+  all.sort((a, b) => a.at.getTime() - b.at.getTime());
+  return { docs: all.slice(0, limit).map((d) => d.doc), usedFallback: true };
+}
+
+async function backfillScheduledMatchesInternal(end: Date, maxMatches: number, dryRun: boolean) {
+  const { docs, usedFallback } = await collectScheduledFixturesUpTo(end, maxMatches);
+  if (dryRun) {
+    return {
+      processed: 0,
+      total: docs.length,
+      usedFallback,
+      hasMore: docs.length >= maxMatches,
+    };
+  }
+
+  let processed = 0;
+  const touched = new Map<string, FirebaseFirestore.DocumentReference>();
+
+  for (const matchDoc of docs) {
+    const data = matchDoc.data() as any;
+    if (!data || data.status !== 'scheduled') {
+      continue;
+    }
+    const leagueRef = matchDoc.ref.parent.parent;
+    if (!leagueRef) {
+      continue;
+    }
+    touched.set(leagueRef.id, leagueRef);
+
+    const hasSlots =
+      Number.isFinite(data.homeSlot) || Number.isFinite(data.awaySlot);
+    try {
+      if (hasSlots) {
+        await processSlotMatch(leagueRef, matchDoc);
+      } else {
+        await processMatch(leagueRef, matchDoc);
+      }
+      processed++;
+    } catch (e: any) {
+      functions.logger.error('[backfill] match failed', {
+        matchId: matchDoc.id,
+        leagueId: leagueRef.id,
+        error: e?.message || String(e),
+      });
+    }
+  }
+
+  for (const leagueRef of touched.values()) {
+    try {
+      const leagueSnap = await leagueRef.get();
+      if (leagueSnap.exists && leagueSnap.data()?.state === 'scheduled') {
         await leagueRef.update({ state: 'active' });
       }
       const remaining = await leagueRef
@@ -181,6 +290,125 @@ export const runDailyMatchesAt19TR = functions
       if (remaining.empty) {
         await leagueRef.update({ state: 'completed' });
       }
+    } catch (e: any) {
+      functions.logger.warn('[backfill] league update failed', {
+        leagueId: leagueRef.id,
+        error: e?.message || String(e),
+      });
+    }
+  }
+
+  functions.logger.info('[backfill] done', {
+    processed,
+    total: docs.length,
+    usedFallback,
+  });
+
+  return {
+    processed,
+    total: docs.length,
+    usedFallback,
+    hasMore: docs.length >= maxMatches,
+  };
+}
+
+export const backfillScheduledMatches = functions
+  .region(REGION)
+  .https.onCall(async (request) => {
+    const cfg = (functions.config() as any) || {};
+    const APP_CHECK_OPTIONAL =
+      (process.env.APP_CHECK_OPTIONAL ?? cfg?.app?.check_optional ?? '1') !== '0';
+    const ALLOW_ANY_OPERATOR =
+      (process.env.ALLOW_ANY_OPERATOR ?? cfg?.auth?.allow_operator_any ?? '0') === '1';
+
+    if (!APP_CHECK_OPTIONAL) {
+      requireAppCheck(request as any);
+    }
+    requireAuth(request as any);
+
+    const claims = (request.auth as any)?.token || {};
+    const isOperator = !!(claims.admin || claims.operator);
+    if (!isOperator && !ALLOW_ANY_OPERATOR) {
+      throw new functions.https.HttpsError(
+        'permission-denied',
+        'Operator permission required'
+      );
+    }
+
+    const data = request.data || {};
+    const { end, endDayKey } = resolveBackfillEnd(data);
+    const maxMatchesRaw = Number(data.maxMatches ?? 200);
+    const maxMatches = Math.max(1, Math.min(500, Number.isFinite(maxMatchesRaw) ? maxMatchesRaw : 200));
+    const dryRun = !!data.dryRun;
+
+    const result = await backfillScheduledMatchesInternal(end, maxMatches, dryRun);
+    return { ok: true, endDayKey, maxMatches, dryRun, ...result };
+  });
+
+export const backfillScheduledMatchesHttp = functions
+  .region(REGION)
+  .https.onRequest(async (req, res) => {
+    res.set('Access-Control-Allow-Origin', '*');
+    res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
+    res.set('Access-Control-Allow-Headers', 'Authorization, Content-Type, x-admin-secret');
+    if (req.method === 'OPTIONS') {
+      res.status(204).send('');
+      return;
+    }
+    if (req.method !== 'POST') {
+      res.status(405).json({ error: 'Method not allowed' });
+      return;
+    }
+
+    const cfg = (functions.config() as any) || {};
+    const ALLOW_ANY_OPERATOR =
+      (process.env.ALLOW_ANY_OPERATOR ?? cfg?.auth?.allow_operator_any ?? '0') === '1';
+    const adminSecret = process.env.ADMIN_SECRET ?? cfg?.admin?.secret;
+    const providedSecret = req.header('x-admin-secret');
+    let claims: Record<string, any> | null = null;
+
+    if (adminSecret && providedSecret && providedSecret === adminSecret) {
+      claims = { admin: true, operator: true };
+    } else {
+      const authz = (req.headers.authorization as string) || '';
+      const token = authz.startsWith('Bearer ') ? authz.slice(7) : '';
+      if (!token) {
+        res.status(401).json({ error: 'Auth required' });
+        return;
+      }
+      try {
+        const { getAuth } = await import('firebase-admin/auth');
+        claims = await getAuth().verifyIdToken(token);
+      } catch {
+        res.status(401).json({ error: 'Invalid token' });
+        return;
+      }
+    }
+
+    const isOperator = !!(claims && (claims.admin || claims.operator));
+    if (!isOperator && !ALLOW_ANY_OPERATOR) {
+      res.status(403).json({ error: 'Operator permission required' });
+      return;
+    }
+
+    let body: any = {};
+    try {
+      body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
+    } catch {
+      body = {};
+    }
+
+    const { end, endDayKey } = resolveBackfillEnd(body);
+    const maxMatchesRaw = Number(body.maxMatches ?? 200);
+    const maxMatches = Math.max(1, Math.min(500, Number.isFinite(maxMatchesRaw) ? maxMatchesRaw : 200));
+    const dryRun = !!body.dryRun;
+
+    try {
+      const result = await backfillScheduledMatchesInternal(end, maxMatches, dryRun);
+      res.json({ ok: true, endDayKey, maxMatches, dryRun, ...result });
+    } catch (e: any) {
+      functions.logger.error('[backfillScheduledMatchesHttp] failed', { error: e?.message || String(e) });
+      res.status(500).json({ error: e?.message || 'error' });
     }
   });
 

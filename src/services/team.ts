@@ -209,7 +209,11 @@ export const getTeam = async (userId: string): Promise<ClubTeam | null> => {
     { leagueId },
   );
 
-  if (changed) {
+  const currentUid = auth.currentUser?.uid;
+  const canPersist =
+    !!currentUid && (currentUid === userId || (team as { ownerUid?: string }).ownerUid === currentUid);
+
+  if (changed && canPersist) {
     try {
       await saveTeamPlayers(userId, agedPlayers);
     } catch (error) {

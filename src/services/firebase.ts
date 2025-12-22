@@ -55,11 +55,22 @@ if (import.meta.env.DEV && import.meta.env.VITE_USE_FUNCTIONS_EMULATOR === '1') 
 
 // App Check (ReCAPTCHA v3) — only if site key is provided
 const APP_CHECK_SITE_KEY = import.meta.env.VITE_APPCHECK_SITE_KEY as string | undefined;
-if (APP_CHECK_SITE_KEY) {
+const DISABLE_APP_CHECK = import.meta.env.VITE_DISABLE_APPCHECK === '1';
+const ENABLE_APP_CHECK_IN_DEV = import.meta.env.VITE_ENABLE_APPCHECK_DEV === '1';
+const SHOULD_INIT_APP_CHECK =
+  !!APP_CHECK_SITE_KEY &&
+  !DISABLE_APP_CHECK &&
+  (!import.meta.env.DEV || ENABLE_APP_CHECK_IN_DEV);
+if (SHOULD_INIT_APP_CHECK) {
   try {
     // Optional debug token for local testing
-    // @ts-ignore
-    self.FIREBASE_APPCHECK_DEBUG_TOKEN = import.meta.env.VITE_APPCHECK_DEBUG_TOKEN || undefined;
+    const rawDebugToken = import.meta.env.VITE_APPCHECK_DEBUG_TOKEN as string | undefined;
+    if (rawDebugToken) {
+      const trimmed = rawDebugToken.trim();
+      const asBool = trimmed.toLowerCase() === 'true' || trimmed === '1';
+      // @ts-ignore
+      self.FIREBASE_APPCHECK_DEBUG_TOKEN = asBool ? true : trimmed;
+    }
     initializeAppCheck(app, {
       provider: new ReCaptchaV3Provider(APP_CHECK_SITE_KEY),
       isTokenAutoRefreshEnabled: true,

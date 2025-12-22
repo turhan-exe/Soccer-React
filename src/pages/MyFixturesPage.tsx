@@ -1,15 +1,17 @@
-import React, { useEffect, useMemo, useState } from 'react';
+﻿import React, { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { toast } from '@/components/ui/sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import {
   getFixturesForTeamSlotAware,
   getMyLeagueId,
   getLeagueTeams,
+  getLeagueSeasonId,
   ensureFixturesForLeague,
   getLeagueForTeam,
   getFixturesForTeam,
@@ -23,6 +25,7 @@ import { functions } from '@/services/firebase';
 import { getReplay } from '@/services/matches';
 import { subscribeLiveMeta, type LiveMeta } from '@/services/live';
 import { BackButton } from '@/components/ui/back-button';
+import { createDailyBatch, type CreateDailyBatchResponse } from '@/services/jobs';
 
 interface DisplayFixture extends Fixture {
   opponent: string;
@@ -49,11 +52,25 @@ export default function MyFixturesPage() {
   const [fixtures, setFixtures] = useState<DisplayFixture[]>([]);
   const [upcomingOnly, setUpcomingOnly] = useState(true);
   const [myLeagueId, setMyLeagueId] = useState<string | null>(null);
+  const [seasonId, setSeasonId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [playing, setPlaying] = useState(false);
   const [myTeamName, setMyTeamName] = useState<string>('Takımım');
   const [liveMap, setLiveMap] = useState<Record<string, boolean>>({});
+  const [videoBatch, setVideoBatch] = useState<CreateDailyBatchResponse | null>(null);
+  const [videoBatchBusy, setVideoBatchBusy] = useState(false);
   const liveUnsubs = React.useRef<Record<string, () => void>>({});
+  const VIDEO_BATCH_TIMEOUT_MS = 25000;
+
+  const withTimeout = <T,>(promise: Promise<T>, ms: number) => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const timeout = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => reject(new Error('Video batch zaman aşımına uğradı.')), ms);
+    });
+    return Promise.race([promise, timeout]).finally(() => {
+      if (timer) clearTimeout(timer);
+    });
+  };
 
   useEffect(() => {
     const load = async () => {
@@ -62,14 +79,16 @@ export default function MyFixturesPage() {
       if (!leagueId) {
         setFixtures([]);
         setMyLeagueId(null);
+        setSeasonId(null);
         return;
       }
       setMyLeagueId(leagueId);
       // Ligde fikstür yoksa oluşturmayı dene (idempotent backend)
       await ensureFixturesForLeague(leagueId);
-      const [list, teams] = await Promise.all([
+      const [list, teams, season] = await Promise.all([
         getFixturesForTeamSlotAware(leagueId, user.id),
         getLeagueTeams(leagueId),
+        getLeagueSeasonId(leagueId),
       ]);
       const teamMap = new Map(teams.map((t) => [t.id, t.name]));
       const selfName = teamMap.get(user.id) || user.teamName || 'Takımım';
@@ -83,6 +102,7 @@ export default function MyFixturesPage() {
         };
       });
       setMyTeamName(selfName);
+      setSeasonId(season);
       // Not: takım adları ileride başlıkta gösterilebilir
       setFixtures(mapped);
     };
@@ -96,13 +116,15 @@ export default function MyFixturesPage() {
     if (!leagueId) {
       setFixtures([]);
       setMyLeagueId(null);
+      setSeasonId(null);
       return;
     }
     setMyLeagueId(leagueId);
     await ensureFixturesForLeague(leagueId);
-    const [list, teams] = await Promise.all([
+    const [list, teams, season] = await Promise.all([
       getFixturesForTeamSlotAware(leagueId, user.id),
       getLeagueTeams(leagueId),
+      getLeagueSeasonId(leagueId),
     ]);
     const teamMap = new Map(teams.map((t) => [t.id, t.name]));
     const mapped: DisplayFixture[] = list.map((m) => {
@@ -111,7 +133,78 @@ export default function MyFixturesPage() {
       return { ...m, opponent: teamMap.get(opponentId) || opponentId, home };
     });
     setFixtures(mapped);
+    setSeasonId(season);
   }, [user]);
+
+  const requestVideoBatch = async (dayKey?: string, opts?: { silent?: boolean }) => {
+    if (!dayKey) {
+      if (!opts?.silent) {
+        toast.message('Video kaydı için gün bulunamadı', {
+          description: 'Planlanmış fikstür seti yok.',
+        });
+      }
+      return null;
+    }
+    let toastId: string | number | undefined;
+    try {
+      setVideoBatchBusy(true);
+      if (!opts?.silent) {
+        toastId = toast.loading('Unity video batch hazırlanıyor...', {
+          description: 'Lütfen bekleyin.',
+        });
+      }
+      const batch = await withTimeout(createDailyBatch(dayKey), VIDEO_BATCH_TIMEOUT_MS);
+      setVideoBatch(batch);
+      if (!opts?.silent) {
+        toast.success('Unity video batch hazır', {
+          description: `${batch.count} maç için upload linkleri üretildi.`,
+          id: toastId,
+        });
+      }
+      return batch;
+    } catch (err: any) {
+      const msg = err?.message || 'Batch hazırlanamadı';
+      if (!opts?.silent) {
+        toast.error('Video batch oluşturulamadı', { description: msg, id: toastId });
+      }
+      return null;
+    } finally {
+      setVideoBatchBusy(false);
+    }
+  };
+
+  const handleOpenBatchJson = React.useCallback(() => {
+    if (!videoBatch?.batchReadUrl) {
+      toast.message('Batch linki yok', {
+        description: 'Önce Unity video batch oluşturmalısın.',
+      });
+      return;
+    }
+    if (typeof window !== 'undefined') {
+      window.open(videoBatch.batchReadUrl, '_blank', 'noopener,noreferrer');
+    }
+  }, [videoBatch]);
+
+  const handleCopyBatchUrl = React.useCallback(async () => {
+    if (!videoBatch?.batchReadUrl) {
+      toast.message('Kopyalanacak link yok', {
+        description: 'Önce Unity video batch oluşturmalısın.',
+      });
+      return;
+    }
+    try {
+      if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(videoBatch.batchReadUrl);
+        toast.success('Batch linki kopyalandı');
+      } else {
+        throw new Error('clipboard yok');
+      }
+    } catch {
+      toast.message('Link kopyalanamadı', {
+        description: videoBatch.batchReadUrl,
+      });
+    }
+  }, [videoBatch]);
 
   // Subscribe to live meta for non-played fixtures and build a live status map
   useEffect(() => {
@@ -214,6 +307,11 @@ export default function MyFixturesPage() {
       const started = res.started ?? 0;
       const day = res.dayKey ? `(${res.dayKey}) ` : '';
       toast.success('Başlatma tamamlandı', { description: `${day}${started}/${total} maç başlatıldı.`, id: toastId });
+      if (res.dayKey) {
+        await requestVideoBatch(res.dayKey, { silent: true }).catch(() => {});
+      } else {
+        setVideoBatch(null);
+      }
       reloadFixtures();
     } catch (e: any) {
       const m: string = e?.message || 'İşlem başarısız';
@@ -225,6 +323,12 @@ export default function MyFixturesPage() {
   };
 
   const dayKeys = Object.keys(grouped).sort();
+  const nextFixtureDayKey = dayKeys[0];
+  const sampleBatchMatches = videoBatch?.matches?.slice(0, 3) ?? [];
+  const extraBatchMatches = Math.max(
+    (videoBatch?.matches?.length ?? 0) - sampleBatchMatches.length,
+    0
+  );
 
   return (
     <div className="p-4">
@@ -246,12 +350,53 @@ export default function MyFixturesPage() {
             Fikstürü Oluştur
           </Button>
           {!isHistoryRoute && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => requestVideoBatch(nextFixtureDayKey)}
+              disabled={videoBatchBusy || !nextFixtureDayKey}
+            >
+              {videoBatchBusy ? 'Unity Video Batch (hazırlanıyor...)' : 'Unity Video Batch'}
+            </Button>
+          )}
+          {!isHistoryRoute && (
             <Button size="sm" variant="secondary" onClick={handlePlayNextMatchDay} disabled={playing}>
               Bir Sonraki Maçları Oynat
             </Button>
           )}
         </div>
       </div>
+
+      {videoBatch && (
+        <Alert className="mb-4">
+        <AlertTitle>Unity video paketi hazır</AlertTitle>
+        <AlertDescription>
+          {videoBatch.day} tarihli {videoBatch.count} maç için batch JSON dosyası oluşturuldu. Linki Unity headless
+            simülasyonuna vererek replay/video yükleme URL'lerini kullanabilirsin.
+        </AlertDescription>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Button size="sm" onClick={handleOpenBatchJson}>
+              JSON'u Aç
+            </Button>
+            <Button size="sm" variant="secondary" onClick={handleCopyBatchUrl}>
+              Linki Kopyala
+            </Button>
+          </div>
+          {sampleBatchMatches.length > 0 && (
+            <div className="mt-3 rounded-md border border-dashed border-muted-foreground/30 p-3 text-xs text-muted-foreground">
+              <div className="font-semibold text-sm mb-2">Örnek maçlar</div>
+              <div className="space-y-1">
+                {sampleBatchMatches.map((match) => (
+                  <div key={match.matchId}>
+                    <span className="font-medium">{match.matchId}</span> - {match.homeTeamId} vs {match.awayTeamId}
+                  </div>
+                ))}
+                {extraBatchMatches > 0 && <div>... ve {extraBatchMatches} maç daha</div>}
+              </div>
+            </div>
+          )}
+        </Alert>
+      )}
 
       {dayKeys.length === 0 ? (
         <div className="text-sm text-muted-foreground">Gösterilecek maç yok.</div>
@@ -318,6 +463,19 @@ export default function MyFixturesPage() {
                                 İzle
                               </Button>
                             )}
+                            {isPlayed && seasonId && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() =>
+                                  navigate(
+                                    `/match-video?seasonId=${encodeURIComponent(seasonId)}&matchId=${encodeURIComponent(m.id)}`
+                                  )
+                                }
+                              >
+                                Video izle
+                              </Button>
+                            )}
                             {myLeagueId && (
                               <Button
                                 size="sm"
@@ -341,3 +499,4 @@ export default function MyFixturesPage() {
     </div>
   );
 }
+

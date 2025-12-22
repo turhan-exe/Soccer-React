@@ -659,6 +659,16 @@ export async function getLeagueForTeam(teamId: string): Promise<{ leagueId: stri
   return { leagueId: leagueId || null };
 }
 
+export async function getLeagueSeasonId(leagueId: string): Promise<string | null> {
+  if (!leagueId) return null;
+  const snap = await getDoc(doc(db, 'leagues', leagueId));
+  if (!snap.exists()) return null;
+  const data = snap.data() as any;
+  const season = data?.seasonId ?? data?.season;
+  if (season === undefined || season === null) return null;
+  return String(season);
+}
+
 // Resolve fixtures using slot map for a given slot index
 export async function getFixturesByLeagueAndSlotMap(
   leagueId: string,
