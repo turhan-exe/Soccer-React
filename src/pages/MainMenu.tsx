@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { useAuth } from '@/contexts/AuthContext';
 import {
@@ -109,78 +109,6 @@ export default function MainMenu() {
   const [leaguePoints, setLeaguePoints] = useState<number | null>(null);
   const [hoursToNextMatch, setHoursToNextMatch] = useState<number | null>(null);
   const [matchHighlight, setMatchHighlight] = useState<MatchHighlight | null>(null);
-  const [areActionsVisible, setAreActionsVisible] = useState(false);
-  const interactionSurfaceRef = useRef<HTMLDivElement | null>(null);
-  const pointerIdRef = useRef<number | null>(null);
-  const startPointRef = useRef<{ x: number; y: number } | null>(null);
-
-  useEffect(() => {
-    const node = interactionSurfaceRef.current;
-    if (!node) {
-      return;
-    }
-
-    const handlePointerDown = (event: PointerEvent) => {
-      pointerIdRef.current = event.pointerId;
-      startPointRef.current = { x: event.clientX, y: event.clientY };
-    };
-
-    const handlePointerMove = (event: PointerEvent) => {
-      if (pointerIdRef.current !== event.pointerId || !startPointRef.current) {
-        return;
-      }
-
-      const deltaX = event.clientX - startPointRef.current.x;
-      const deltaY = event.clientY - startPointRef.current.y;
-
-      if (Math.abs(deltaX) <= 48 || Math.abs(deltaX) <= Math.abs(deltaY) * 1.2) {
-        return;
-      }
-
-      if (deltaX < 0) {
-        setAreActionsVisible(true);
-      } else {
-        setAreActionsVisible(false);
-      }
-
-      pointerIdRef.current = null;
-      startPointRef.current = null;
-    };
-
-    const handlePointerEnd = (event: PointerEvent) => {
-      if (pointerIdRef.current === event.pointerId) {
-        pointerIdRef.current = null;
-        startPointRef.current = null;
-      }
-    };
-
-    node.addEventListener('pointerdown', handlePointerDown);
-    node.addEventListener('pointermove', handlePointerMove);
-    node.addEventListener('pointerup', handlePointerEnd);
-    node.addEventListener('pointercancel', handlePointerEnd);
-
-    return () => {
-      node.removeEventListener('pointerdown', handlePointerDown);
-      node.removeEventListener('pointermove', handlePointerMove);
-      node.removeEventListener('pointerup', handlePointerEnd);
-      node.removeEventListener('pointercancel', handlePointerEnd);
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!areActionsVisible) {
-      return;
-    }
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        setAreActionsVisible(false);
-      }
-    };
-
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [areActionsVisible]);
 
   useEffect(() => {
     const loadQuickStats = async () => {
@@ -459,8 +387,6 @@ export default function MainMenu() {
     navigate(targetPath);
   };
 
-  const hideActions = () => setAreActionsVisible(false);
-
   const renderMenuCard = (item: MenuItem) => (
     <Card
       key={item.id}
@@ -507,7 +433,6 @@ export default function MainMenu() {
         matchHighlight ? '' : ' nostalgia-match-highlight--empty'
       }`}
       aria-label="Sonraki mac paneli"
-      aria-hidden={areActionsVisible}
     >
       <div className="nostalgia-match-highlight__overlay" aria-hidden />
       {matchHighlight ? (
@@ -578,46 +503,15 @@ export default function MainMenu() {
       <div className="nostalgia-screen__orb nostalgia-screen__orb--right" aria-hidden />
       <div className="nostalgia-screen__noise" aria-hidden />
       <div className="nostalgia-screen__content nostalgia-screen__content--main-menu">
-        <div
-          ref={interactionSurfaceRef}
-          className={`nostalgia-main-menu${areActionsVisible ? ' nostalgia-main-menu--actions-visible' : ''}`}
-        >
-          <div className="nostalgia-main-menu__core">
-            <div className="nostalgia-main-menu__match" role="presentation">
-              {highlightElement}
-            </div>
-            <section
-              className="nostalgia-quick-panel nostalgia-main-menu__quick"
-              aria-label="Hizli bakis paneli"
-            >
-              <h2 className="nostalgia-quick-panel__title">Hizli Bakis</h2>
-              <div className="nostalgia-quick-grid">
-                <div className="nostalgia-quick-card">
-                  <span className="nostalgia-quick-card__value text-emerald-300">
-                    {leaguePosition ?? '-'}
-                    {leaguePosition ? '.' : ''}
-                  </span>
-                  <span className="nostalgia-quick-card__label">Lig Sirasi</span>
-                </div>
-                <div className="nostalgia-quick-card">
-                  <span className="nostalgia-quick-card__value text-sky-300">{leaguePoints ?? '-'}</span>
-                  <span className="nostalgia-quick-card__label">Puan</span>
-                </div>
-                <div className="nostalgia-quick-card">
-                  <span className="nostalgia-quick-card__value text-fuchsia-300">{hoursToNextMatch ?? '-'}</span>
-                  <span className="nostalgia-quick-card__label">Saat Sonra</span>
-                </div>
-              </div>
-            </section>
+        <div className="nostalgia-main-menu">
+          <div className="nostalgia-main-menu__match" role="presentation">
+            {highlightElement}
           </div>
 
-          <aside
-            id="nostalgia-main-menu-actions"
-            className={`nostalgia-main-menu__actions${
-              areActionsVisible ? ' nostalgia-main-menu__actions--visible' : ''
-            }`}
-            aria-hidden={!areActionsVisible}
-          >
+          <aside className="nostalgia-main-menu__actions" aria-label="Hizli bakis menusu">
+            <div className="nostalgia-main-menu__actions-header">
+              <span className="nostalgia-main-menu__actions-title">Hizli Bakis</span>
+            </div>
             <div className="nostalgia-main-menu__actions-frame">
               <div className="nostalgia-main-menu__actions-grid">
                 {mainMenuItems.map(renderMenuCard)}
@@ -625,17 +519,26 @@ export default function MainMenu() {
             </div>
           </aside>
 
-          {areActionsVisible ? (
-            <button
-              type="button"
-              className="nostalgia-main-menu__scrim nostalgia-main-menu__scrim--visible"
-              onClick={hideActions}
-              aria-label="Kisayollari gizle"
-            />
-          ) : null}
+          <section className="nostalgia-main-menu__stats" aria-label="Lig ozeti">
+            <div className="nostalgia-quick-card nostalgia-quick-card--compact">
+              <span className="nostalgia-quick-card__value text-emerald-300">
+                {leaguePosition ?? '-'}
+                {leaguePosition ? '.' : ''}
+              </span>
+              <span className="nostalgia-quick-card__label">Lig</span>
+            </div>
+            <div className="nostalgia-quick-card nostalgia-quick-card--compact">
+              <span className="nostalgia-quick-card__value text-sky-300">{leaguePoints ?? '-'}</span>
+              <span className="nostalgia-quick-card__label">Puan</span>
+            </div>
+            <div className="nostalgia-quick-card nostalgia-quick-card--compact">
+              <span className="nostalgia-quick-card__value text-fuchsia-300">{hoursToNextMatch ?? '-'}</span>
+              <span className="nostalgia-quick-card__label">Saat</span>
+            </div>
+          </section>
+        </div>
       </div>
+      <GlobalChatWidget />
     </div>
-    <GlobalChatWidget />
-  </div>
-);
+  );
 }

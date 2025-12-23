@@ -92,6 +92,13 @@
   justify-content: center;
 }
 
+@media (max-width: 640px) {
+  .nostalgia-screen__content--main-menu {
+    padding: 1rem 0.85rem 1.25rem;
+    justify-content: flex-start;
+  }
+}
+
 .nostalgia-main-menu__header {
   display: flex;
   flex-direction: column;
@@ -192,13 +199,61 @@
 }
 
 @media (max-width: 640px) {
+  .nostalgia-match-highlight {
+    padding: clamp(1.2rem, 4.6vw, 1.6rem);
+    gap: clamp(1rem, 2.4vw, 1.4rem);
+  }
+
+  .nostalgia-match-highlight__header {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.45rem;
+  }
+
+  .nostalgia-match-highlight__badge {
+    padding: 0.25rem 0.6rem;
+    font-size: 0.7rem;
+    letter-spacing: 0.1em;
+  }
+
+  .nostalgia-match-highlight__datetime {
+    font-size: 0.8rem;
+  }
+
   .nostalgia-match-highlight__body {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: clamp(0.7rem, 2.4vw, 1rem);
     text-align: center;
   }
 
   .nostalgia-match-highlight__vs {
-    order: -1;
+    font-size: clamp(1.2rem, 3.4vw, 1.6rem);
+    letter-spacing: 0.14em;
+  }
+
+  .nostalgia-match-team__emblem {
+    width: clamp(52px, 14vw, 72px);
+    height: clamp(52px, 14vw, 72px);
+  }
+
+  .nostalgia-match-team__emblem-fallback {
+    font-size: clamp(1.5rem, 3.8vw, 2rem);
+  }
+
+  .nostalgia-match-team__name {
+    font-size: clamp(0.95rem, 3vw, 1.1rem);
+  }
+
+  .nostalgia-match-team__meta {
+    font-size: 0.75rem;
+  }
+
+  .nostalgia-match-highlight__footer {
+    gap: 0.6rem;
+    font-size: 0.75rem;
+    letter-spacing: 0.05em;
   }
 }
 
@@ -852,32 +907,40 @@
   }
 }
 .nostalgia-main-menu {
-  --nostalgia-menu-padding: clamp(0.5rem, 2vh, 1.25rem);
+  --nostalgia-menu-padding: clamp(0.9rem, 2.2vh, 1.6rem);
   position: relative;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  gap: clamp(1.25rem, 4vh, 2.75rem);
-  width: min(100%, 980px);
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.8fr);
+  grid-template-rows: minmax(0, 1fr) auto;
+  column-gap: clamp(1.2rem, 3vw, 2.4rem);
+  row-gap: clamp(0.35rem, 1.2vh, 0.8rem);
+  width: min(100%, 1200px);
   height: 100%;
   padding: var(--nostalgia-menu-padding) clamp(0.9rem, 5vw, 2rem);
-  border-radius: clamp(24px, 5vw, 36px);
-  touch-action: pan-y;
+  border-radius: clamp(26px, 4vw, 42px);
+  background: linear-gradient(145deg, rgba(6, 12, 32, 0.96), rgba(14, 20, 45, 0.92));
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  box-shadow: 0 40px 90px rgba(2, 6, 23, 0.65);
+  backdrop-filter: blur(20px);
   isolation: isolate;
 }
 
-.nostalgia-main-menu__core {
-  position: relative;
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  gap: clamp(1.25rem, 5vh, 2.75rem);
-  min-height: 0;
+.nostalgia-main-menu::before {
+  content: '';
+  position: absolute;
+  inset: 0.6rem;
+  border-radius: calc(clamp(26px, 4vw, 42px) - 0.6rem);
+  border: 1px solid rgba(94, 234, 212, 0.14);
+  background: linear-gradient(135deg, rgba(56, 189, 248, 0.12), rgba(236, 72, 153, 0.12));
+  opacity: 0.6;
+  pointer-events: none;
+  z-index: 0;
 }
 
 .nostalgia-main-menu__match {
-  flex: 1;
+  position: relative;
+  grid-column: 1;
+  grid-row: 1;
   display: flex;
   align-items: stretch;
   min-height: 0;
@@ -888,98 +951,71 @@
   height: 100%;
 }
 
-.nostalgia-main-menu--actions-visible .nostalgia-main-menu__match .nostalgia-match-highlight {
-  transform: translateX(-12%);
-  opacity: 0;
-  pointer-events: none;
-}
-
-@media (orientation: landscape) and (max-height: 720px), (min-width: 960px) {
-  .nostalgia-main-menu--actions-visible .nostalgia-main-menu__match .nostalgia-match-highlight {
-    transform: translateX(-18%);
-  }
-}
-
-.nostalgia-main-menu__quick {
-  margin: 0;
-}
-
-.nostalgia-main-menu__quick .nostalgia-quick-grid {
-  grid-auto-rows: 1fr;
-}
-
-.nostalgia-main-menu__quick .nostalgia-quick-card {
-  justify-content: center;
-}
-
-@media (orientation: landscape) and (max-height: 720px), (min-width: 960px) {
-  .nostalgia-main-menu__core {
-    flex-direction: row;
-    align-items: stretch;
-    gap: clamp(1.5rem, 4vw, 3rem);
-  }
-
-  .nostalgia-main-menu__match {
-    flex: 1 1 60%;
-  }
-
-  .nostalgia-main-menu__quick {
-    flex: 0 0 clamp(260px, 32vw, 340px);
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-  }
-
-  .nostalgia-main-menu__quick .nostalgia-quick-grid {
-    height: 100%;
-    align-content: center;
-  }
-}
-
 .nostalgia-main-menu__actions {
-  position: absolute;
-  top: var(--nostalgia-menu-padding);
-  right: var(--nostalgia-menu-padding);
-  bottom: var(--nostalgia-menu-padding);
-  width: min(92vw, 540px);
-  padding: clamp(1.45rem, 4.6vh, 2.75rem);
-  border-radius: clamp(24px, 4.4vw, 31px);
-  background: linear-gradient(135deg, rgba(15, 23, 42, 0.92), rgba(12, 10, 30, 0.88));
-  border: 1px solid rgba(148, 163, 184, 0.2);
-  box-shadow: -26px 0 60px rgba(2, 6, 23, 0.55);
-  backdrop-filter: blur(22px);
+  position: relative;
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  border-radius: 28px;
+  padding: clamp(0.7rem, 2.1vw, 1.25rem);
+  background: linear-gradient(160deg, rgba(8, 14, 36, 0.95), rgba(13, 18, 44, 0.9));
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  box-shadow:
+    inset 0 0 0 1px rgba(94, 234, 212, 0.08),
+    0 26px 60px rgba(2, 6, 23, 0.55);
   display: flex;
-  align-items: center;
-  justify-content: center;
-  transform: translateX(calc(100% + clamp(0.75rem, 3vw, 2.25rem)));
-  opacity: 0;
+  flex-direction: column;
+  gap: clamp(0.9rem, 2.4vh, 1.4rem);
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  z-index: 1;
+}
+
+.nostalgia-main-menu__actions::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 20% 10%, rgba(56, 189, 248, 0.2), transparent 50%),
+    radial-gradient(circle at 80% 90%, rgba(244, 114, 182, 0.18), transparent 55%);
+  opacity: 0.8;
   pointer-events: none;
-  transition: transform 0.45s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.4s ease;
-  z-index: 3;
 }
 
-.nostalgia-main-menu--actions-visible .nostalgia-main-menu__actions {
-  opacity: 1;
-  pointer-events: auto;
-  transform: translateX(0);
-}
-
-.nostalgia-main-menu__actions-frame {
+.nostalgia-main-menu__actions-header {
   position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
+  z-index: 1;
+}
+
+.nostalgia-main-menu__actions-title {
+  font-size: clamp(0.95rem, 2.2vw, 1.25rem);
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(226, 232, 240, 0.9);
+  text-shadow: 0 6px 18px rgba(8, 11, 27, 0.6);
+}
+
+.nostalgia-main-menu__actions-frame {
+  position: relative;
   width: 100%;
-  max-width: min(88vw, 470px);
-  padding: clamp(1.35rem, 3.4vw, 2.05rem) clamp(1.2rem, 3.1vw, 1.85rem);
-  border-radius: clamp(22px, 3.2vw, 27px);
-  border: 1px solid rgba(148, 163, 184, 0.32);
-  background: linear-gradient(145deg, rgba(15, 23, 42, 0.85), rgba(30, 41, 59, 0.7));
+  flex: 1;
+  padding: clamp(0.5rem, 1.6vw, 0.9rem);
+  border-radius: clamp(22px, 3.5vw, 26px);
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  background: linear-gradient(145deg, rgba(15, 23, 42, 0.82), rgba(2, 6, 23, 0.75));
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.06),
     0 28px 60px rgba(8, 11, 27, 0.55);
   backdrop-filter: blur(18px);
   overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1;
 }
 
 .nostalgia-main-menu__actions-frame::before {
@@ -994,58 +1030,271 @@
 }
 
 .nostalgia-main-menu__actions-grid {
-  --nostalgia-card-track: clamp(2.75rem, 8.4vw, 4rem);
-  display: grid;
-  gap: clamp(0.18rem, 0.9vw, 0.4rem);
-  padding: clamp(0.22rem, 0.85vw, 0.45rem) clamp(0.28rem, 0.95vw, 0.6rem);
-  margin-block: clamp(0.8rem, 2.8vh, 1.75rem);
-  grid-template-columns: repeat(3, minmax(var(--nostalgia-card-track), 1fr));
-  justify-items: center;
+  --nostalgia-action-gap: clamp(0.3rem, 1.1vw, 0.75rem);
+  --nostalgia-action-width-cut: clamp(0.2rem, 0.6vw, 0.45rem);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--nostalgia-action-gap);
+  align-content: space-between;
   width: 100%;
-  max-width: clamp(140px, 63vw, 210px);
+  height: 100%;
   position: relative;
   z-index: 1;
 }
 
 .nostalgia-main-menu__actions-grid .nostalgia-card {
-  width: min(100%, var(--nostalgia-card-track));
-  min-height: calc(var(--nostalgia-card-track) * 1.25);
-  aspect-ratio: 4 / 5;
+  width: auto;
+  flex: 0 0 calc((100% - (2 * var(--nostalgia-action-gap))) / 3 - var(--nostalgia-action-width-cut));
+  height: calc((100% - (3 * var(--nostalgia-action-gap))) / 4);
+  min-height: 0;
+  aspect-ratio: auto;
+  box-sizing: border-box;
   display: flex;
   align-items: stretch;
   justify-content: center;
+  border-radius: 18px;
+  background: linear-gradient(160deg, rgba(12, 20, 42, 0.95), rgba(5, 10, 28, 0.9));
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.02),
+    0 20px 38px rgba(2, 6, 23, 0.55);
+}
+
+.nostalgia-main-menu__actions-grid .nostalgia-card:hover {
+  transform: translateY(-5px) scale(1.02);
+}
+
+.nostalgia-main-menu__actions-grid .nostalgia-card__content {
+  height: 100%;
+  padding: clamp(0.35rem, 1.2vw, 0.6rem);
+  justify-content: center;
+  gap: clamp(0.3rem, 0.9vw, 0.5rem);
+}
+
+.nostalgia-main-menu__actions-grid .nostalgia-menu-icon {
+  width: clamp(0.97rem, 2.6vw, 1.46rem);
+  height: clamp(0.97rem, 2.6vw, 1.46rem);
+  box-shadow: 0 14px 24px rgba(var(--nostalgia-accent-strong), 0.35);
+  transform: none;
+}
+
+.nostalgia-main-menu__actions-grid .nostalgia-menu-icon svg {
+  width: clamp(0.49rem, 1.22vw, 0.73rem);
+  height: clamp(0.49rem, 1.22vw, 0.73rem);
+}
+
+.nostalgia-main-menu__actions-grid .nostalgia-card__label {
+  margin-top: 0;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  font-size: clamp(0.48rem, 1.37vw, 0.7rem);
+  line-height: 1.15;
+  letter-spacing: 0.02em;
+  color: rgba(226, 232, 240, 0.9);
+  transform: none;
+}
+
+.nostalgia-main-menu__actions-grid .nostalgia-card__halo {
+  opacity: 0.28;
+}
+
+.nostalgia-main-menu__actions-grid .nostalgia-card:hover .nostalgia-card__halo {
+  opacity: 0.45;
+  transform: translate3d(0, -4px, 0) scale(1.02);
 }
 
 @media (max-width: 720px) {
   .nostalgia-main-menu__actions-grid {
-    --nostalgia-card-track: clamp(2.4rem, 10.8vw, 3.4rem);
-    max-width: clamp(120px, 63vw, 190px);
-    grid-template-columns: repeat(3, minmax(var(--nostalgia-card-track), 1fr));
+    --nostalgia-action-gap: clamp(0.25rem, 0.9vw, 0.5rem);
+    --nostalgia-action-width-cut: clamp(0.16rem, 0.55vw, 0.4rem);
+  }
+
+  .nostalgia-main-menu__actions-grid .nostalgia-card__content {
+    padding: clamp(0.28rem, 0.8vw, 0.45rem);
+    gap: clamp(0.22rem, 0.7vw, 0.35rem);
+  }
+
+  .nostalgia-main-menu__actions-grid .nostalgia-menu-icon {
+    width: clamp(0.81rem, 2.1vw, 1.1rem);
+    height: clamp(0.81rem, 2.1vw, 1.1rem);
+  }
+
+  .nostalgia-main-menu__actions-grid .nostalgia-menu-icon svg {
+    width: clamp(0.4rem, 1vw, 0.57rem);
+    height: clamp(0.4rem, 1vw, 0.57rem);
+  }
+
+  .nostalgia-main-menu__actions-grid .nostalgia-card__label {
+    font-size: clamp(0.43rem, 1.15vw, 0.58rem);
+    line-height: 1.1;
   }
 }
 
 @media (max-width: 460px) {
   .nostalgia-main-menu__actions-grid {
-    --nostalgia-card-track: clamp(2rem, 15vw, 3rem);
-    max-width: clamp(110px, 84vw, 170px);
-    grid-template-columns: repeat(3, minmax(var(--nostalgia-card-track), 1fr));
+    --nostalgia-action-gap: 0.22rem;
+    --nostalgia-action-width-cut: 0.18rem;
+  }
+
+  .nostalgia-main-menu__actions-grid .nostalgia-card__label {
+    font-size: clamp(0.4rem, 1.2vw, 0.53rem);
   }
 }
 
-.nostalgia-main-menu__scrim {
-  position: absolute;
-  inset: 0;
-  border: 0;
-  background: linear-gradient(270deg, rgba(2, 6, 23, 0.72), rgba(2, 6, 23, 0.18) 60%, transparent 90%);
-  transition: opacity 0.35s ease;
-  opacity: 0;
-  pointer-events: none;
-  z-index: 2;
+@media (max-width: 520px) {
+  .nostalgia-main-menu__actions-grid {
+    --nostalgia-action-gap: clamp(0.28rem, 0.9vw, 0.5rem);
+  }
 }
 
-.nostalgia-main-menu__scrim--visible {
-  opacity: 1;
-  pointer-events: auto;
+.nostalgia-main-menu__stats {
+  position: relative;
+  grid-column: 1;
+  grid-row: 2;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: clamp(0.55rem, 1.6vw, 0.95rem);
+  z-index: 1;
+}
+
+.nostalgia-quick-card--compact {
+  padding: clamp(0.5rem, 1.2vw, 0.75rem);
+  min-height: clamp(44px, 6vh, 58px);
+  border-radius: 20px;
+  background: rgba(7, 13, 30, 0.72);
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 16px 40px rgba(2, 6, 23, 0.45);
+}
+
+.nostalgia-quick-card--compact .nostalgia-quick-card__value {
+  font-size: clamp(1rem, 2.3vw, 1.3rem);
+  line-height: 1.1;
+}
+
+.nostalgia-quick-card--compact .nostalgia-quick-card__label {
+  font-size: 0.58rem;
+  letter-spacing: 0.12em;
+}
+
+@media (max-width: 960px) {
+  .nostalgia-main-menu {
+    grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
+    grid-template-rows: minmax(0, 1fr) auto;
+    column-gap: clamp(0.8rem, 2.6vw, 1.4rem);
+  }
+
+  .nostalgia-main-menu__match {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .nostalgia-main-menu__actions {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+    height: 100%;
+  }
+
+  .nostalgia-main-menu__stats {
+    grid-column: 1;
+    grid-row: 2;
+  }
+
+  .nostalgia-main-menu__actions-frame {
+    flex: 1;
+    padding: clamp(0.35rem, 1.2vw, 0.6rem);
+  }
+
+  .nostalgia-main-menu__actions-grid {
+    align-content: space-between;
+    gap: clamp(0.35rem, 1vw, 0.6rem);
+  }
+}
+
+@media (max-width: 640px) {
+  .nostalgia-main-menu {
+    padding: 0.75rem 0.65rem;
+    row-gap: 0.5rem;
+    border-radius: 22px;
+    column-gap: 0.65rem;
+    grid-template-columns: minmax(0, 1.08fr) minmax(0, 0.92fr);
+  }
+
+  .nostalgia-main-menu::before {
+    inset: 0.45rem;
+    border-radius: calc(22px - 0.45rem);
+  }
+
+  .nostalgia-main-menu__actions {
+    border-radius: 22px;
+    padding: 0.55rem;
+    gap: 0.5rem;
+  }
+
+  .nostalgia-main-menu__actions-frame {
+    border-radius: 18px;
+  }
+
+  .nostalgia-main-menu__actions-title {
+    font-size: 0.78rem;
+    letter-spacing: 0.12em;
+  }
+}
+
+@media (max-width: 380px) and (max-height: 680px) {
+  .nostalgia-main-menu {
+    padding: 0.4rem 0.35rem;
+    row-gap: 0.3rem;
+    column-gap: 0.4rem;
+    border-radius: 18px;
+  }
+
+  .nostalgia-main-menu::before {
+    inset: 0.3rem;
+    border-radius: calc(18px - 0.3rem);
+  }
+
+  .nostalgia-main-menu__actions {
+    padding: 0.35rem;
+    gap: 0.3rem;
+    border-radius: 18px;
+  }
+
+  .nostalgia-main-menu__actions-title {
+    font-size: 0.6rem;
+    letter-spacing: 0.08em;
+    line-height: 1;
+  }
+
+  .nostalgia-main-menu__actions-frame {
+    padding: 0.2rem;
+    border-radius: 14px;
+  }
+
+  .nostalgia-main-menu__actions-grid {
+    --nostalgia-action-gap: 0.18rem;
+    --nostalgia-action-width-cut: 0.16rem;
+  }
+
+  .nostalgia-main-menu__actions-grid .nostalgia-card__content {
+    padding: 0.2rem;
+    gap: 0.2rem;
+  }
+
+  .nostalgia-main-menu__actions-grid .nostalgia-menu-icon {
+    width: clamp(0.65rem, 1.95vw, 0.86rem);
+    height: clamp(0.65rem, 1.95vw, 0.86rem);
+  }
+
+  .nostalgia-main-menu__actions-grid .nostalgia-menu-icon svg {
+    width: clamp(0.32rem, 0.9vw, 0.49rem);
+    height: clamp(0.32rem, 0.9vw, 0.49rem);
+  }
+
+  .nostalgia-main-menu__actions-grid .nostalgia-card__label {
+    font-size: 0.36rem;
+  }
 }
 
 .nostalgia-chat-widget {
