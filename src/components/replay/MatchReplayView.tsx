@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ReplayPlayer } from './ReplayPlayer';
 
 type Props = {
@@ -36,12 +36,10 @@ export function MatchReplayView({ matchId, replayUrl }: Props) {
     };
   }, []);
 
-  const unitySrc = useMemo(() => {
-    const params = new URLSearchParams();
-    params.set('matchId', matchId);
-    params.set('replayUrl', replayUrl);
-    return `/Unity/match-viewer/index.html?${params.toString()}`;
-  }, [matchId, replayUrl]);
+  const unitySrc = `/Unity/match-viewer/index.html?${new URLSearchParams({
+    matchId,
+    replayUrl,
+  }).toString()}`;
 
   if (unityOk) {
     return (
@@ -56,7 +54,7 @@ export function MatchReplayView({ matchId, replayUrl }: Props) {
   }
 
   if (unityOk === null) {
-    return <div>Oynatıcı hazırlanıyor…</div>;
+    return <div>Oynatici hazirlaniyor...</div>;
   }
 
   // Fallback

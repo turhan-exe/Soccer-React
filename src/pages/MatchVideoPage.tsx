@@ -1,9 +1,9 @@
-﻿import React, { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { fetchMatchDocument, fetchMatchVideoUrl } from "@/services/replays";
 import type { MatchDocument } from "@/types/matchReplay";
 
-const MatchVideoPage: React.FC = () => {
+const MatchVideoPage = () => {
   const [params] = useSearchParams();
   const seasonId = params.get("seasonId") || "";
   const matchId = params.get("matchId") || "";
@@ -26,9 +26,6 @@ const MatchVideoPage: React.FC = () => {
         if (!doc) {
           throw new Error("Mac bulunamadi");
         }
-        if (doc.videoMissing && !doc.video) {
-          throw new Error("Video henuz yok");
-        }
         if (!doc.video) {
           throw new Error("Video henuz yok");
         }
@@ -39,19 +36,16 @@ const MatchVideoPage: React.FC = () => {
       .finally(() => setLoading(false));
   }, [seasonId, matchId]);
 
-  const header = useMemo(() => {
-    if (!match) return { title: "Video", score: "", clubs: "" };
-    const score = match.result ? `${match.result.homeGoals} - ${match.result.awayGoals}` : "";
-    const clubs = `${match.homeClubId} vs ${match.awayClubId}`;
-    return { title: "Mac Videosu", score, clubs };
-  }, [match]);
+  const title = match ? "Mac Videosu" : "Video";
+  const score = match?.result ? `${match.result.homeGoals} - ${match.result.awayGoals}` : "";
+  const clubs = match ? `${match.homeClubId} vs ${match.awayClubId}` : "";
 
   return (
     <div className="p-6 space-y-4">
       <div className="flex flex-col gap-1">
-        <div className="text-xs uppercase text-slate-500">{header.title}</div>
-        <div className="text-2xl font-semibold">{header.clubs}</div>
-        <div className="text-lg text-slate-600">{header.score}</div>
+        <div className="text-xs uppercase text-slate-500">{title}</div>
+        <div className="text-2xl font-semibold">{clubs}</div>
+        <div className="text-lg text-slate-600">{score}</div>
         <div className="text-xs text-slate-500">
           MatchId: {matchId} - Season: {seasonId}
         </div>
