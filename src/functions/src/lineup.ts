@@ -105,6 +105,7 @@ export const lockLineup = functions.region('europe-west1').https.onRequest(async
     const homeId: string = fx.homeTeamId;
     const awayId: string = fx.awayTeamId;
     const kickoff: Timestamp | null = fx.date || null;
+    const seasonId = String(fx.seasonId ?? fx.season ?? 'default');
 
     const [homeSnap, awaySnap] = await Promise.all([
       db.doc(`teams/${homeId}`).get(),
@@ -131,7 +132,8 @@ export const lockLineup = functions.region('europe-west1').https.onRequest(async
       schemaVersion: 1,
       matchId,
       leagueId,
-      kickoffUtc: kickoff ? kickoff.toDate().toISOString() : null,
+      seasonId,
+      kickoffUtc: kickoff || FieldValue.serverTimestamp(),
       rngSeed: rngFromIds(leagueId, matchId),
       home: {
         teamId: homeId,

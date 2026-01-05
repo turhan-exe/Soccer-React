@@ -11,9 +11,7 @@ import {
   getFixturesForTeamSlotAware,
   getMyLeagueId,
   getLeagueTeams,
-  getLeagueSeasonId,
   ensureFixturesForLeague,
-  getLeagueForTeam,
   getFixturesForTeam,
   playNextScheduledDay,
 } from '@/services/leagues';
@@ -22,7 +20,6 @@ import { formatInTimeZone } from 'date-fns-tz';
 import { tr } from 'date-fns/locale';
 import { httpsCallable } from 'firebase/functions';
 import { functions } from '@/services/firebase';
-import { getReplay } from '@/services/matches';
 import { subscribeLiveMeta, type LiveMeta } from '@/services/live';
 import { BackButton } from '@/components/ui/back-button';
 import { createDailyBatch, type CreateDailyBatchResponse } from '@/services/jobs';
@@ -52,7 +49,6 @@ export default function MyFixturesPage() {
   const [fixtures, setFixtures] = useState<DisplayFixture[]>([]);
   const [upcomingOnly, setUpcomingOnly] = useState(true);
   const [myLeagueId, setMyLeagueId] = useState<string | null>(null);
-  const [seasonId, setSeasonId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [playing, setPlaying] = useState(false);
   const [myTeamName, setMyTeamName] = useState<string>('Takımım');
@@ -79,16 +75,14 @@ export default function MyFixturesPage() {
       if (!leagueId) {
         setFixtures([]);
         setMyLeagueId(null);
-        setSeasonId(null);
         return;
       }
       setMyLeagueId(leagueId);
       // Ligde fikstür yoksa oluşturmayı dene (idempotent backend)
       await ensureFixturesForLeague(leagueId);
-      const [list, teams, season] = await Promise.all([
+      const [list, teams] = await Promise.all([
         getFixturesForTeamSlotAware(leagueId, user.id),
         getLeagueTeams(leagueId),
-        getLeagueSeasonId(leagueId),
       ]);
       const teamMap = new Map(teams.map((t) => [t.id, t.name]));
       const selfName = teamMap.get(user.id) || user.teamName || 'Takımım';
@@ -102,7 +96,6 @@ export default function MyFixturesPage() {
         };
       });
       setMyTeamName(selfName);
-      setSeasonId(season);
       // Not: takım adları ileride başlıkta gösterilebilir
       setFixtures(mapped);
     };
@@ -116,15 +109,13 @@ export default function MyFixturesPage() {
     if (!leagueId) {
       setFixtures([]);
       setMyLeagueId(null);
-      setSeasonId(null);
       return;
     }
     setMyLeagueId(leagueId);
     await ensureFixturesForLeague(leagueId);
-    const [list, teams, season] = await Promise.all([
+    const [list, teams] = await Promise.all([
       getFixturesForTeamSlotAware(leagueId, user.id),
       getLeagueTeams(leagueId),
-      getLeagueSeasonId(leagueId),
     ]);
     const teamMap = new Map(teams.map((t) => [t.id, t.name]));
     const mapped: DisplayFixture[] = list.map((m) => {
@@ -133,7 +124,6 @@ export default function MyFixturesPage() {
       return { ...m, opponent: teamMap.get(opponentId) || opponentId, home };
     });
     setFixtures(mapped);
-    setSeasonId(season);
   }, [user]);
 
   const requestVideoBatch = async (dayKey?: string, opts?: { silent?: boolean }) => {
@@ -463,13 +453,13 @@ export default function MyFixturesPage() {
                                 İzle
                               </Button>
                             )}
-                            {isPlayed && seasonId && (
+                            {isPlayed && m.video?.uploaded && myLeagueId && (
                               <Button
                                 variant="outline"
                                 size="sm"
                                 onClick={() =>
                                   navigate(
-                                    `/match-video?seasonId=${encodeURIComponent(seasonId)}&matchId=${encodeURIComponent(m.id)}`
+                                    `/match-video?leagueId=${encodeURIComponent(myLeagueId)}&matchId=${encodeURIComponent(m.id)}`
                                   )
                                 }
                               >

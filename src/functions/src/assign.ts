@@ -1,6 +1,7 @@
 import * as functions from 'firebase-functions/v1';
 import './_firebase.js';
 import { getFirestore, FieldValue, Timestamp } from 'firebase-admin/firestore';
+import { ensureBotTeamDoc } from './utils/bots.js';
 
 const db = getFirestore();
 const REGION = 'europe-west1';
@@ -77,6 +78,11 @@ function pickCanonicalSlot(
 async function clearSlotFixtures(leagueId: string, slotIndex: number) {
   const leagueRef = db.collection('leagues').doc(leagueId);
   const fixturesRef = leagueRef.collection('fixtures');
+  const slotSnap = await leagueRef.collection('slots').doc(String(slotIndex)).get();
+  const slotData = slotSnap.exists ? (slotSnap.data() as any) : null;
+  const botTeamId = slotData?.botId
+    ? await ensureBotTeamDoc({ botId: slotData.botId, slotIndex })
+    : null;
   const [homeSnap, awaySnap] = await Promise.all([
     fixturesRef.where('homeSlot', '==', slotIndex).get(),
     fixturesRef.where('awaySlot', '==', slotIndex).get(),
@@ -94,9 +100,9 @@ async function clearSlotFixtures(leagueId: string, slotIndex: number) {
       let home = (data['homeTeamId'] as string | null) ?? null;
       let away = (data['awayTeamId'] as string | null) ?? null;
       if (field === 'homeTeamId') {
-        home = null;
+        home = botTeamId;
       } else {
-        away = null;
+        away = botTeamId;
       }
       batch.update(doc.ref, {
         [field]: null,

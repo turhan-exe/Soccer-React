@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { MatchReplayView } from '@/components/replay/MatchReplayView';
 import { getMatchTimeline, getReplay } from '@/services/matches';
 import { subscribeLive, type LiveEvent as LiveEv, type LiveMeta } from '@/services/live';
-import { getFixtureByIdAcrossLeagues, getLeagueSeasonId } from '@/services/leagues';
+import { getFixtureByIdAcrossLeagues } from '@/services/leagues';
 import type { Fixture, MatchTimeline } from '@/types';
 
 type Mode = 'loading' | 'live' | 'replay' | 'not-found';
@@ -15,7 +15,7 @@ export default function MatchWatcherPage() {
   const navigate = useNavigate();
   const [mode, setMode] = useState<Mode>('loading');
   const [fixture, setFixture] = useState<Fixture | null>(null);
-  const [seasonId, setSeasonId] = useState<string | null>(null);
+  const [leagueId, setLeagueId] = useState<string | null>(null);
   const [replayUrl, setReplayUrl] = useState<string | null>(null);
   const [events, setEvents] = useState<LiveEv[]>([]);
   const [meta, setMeta] = useState<LiveMeta | null>(null);
@@ -28,7 +28,7 @@ export default function MatchWatcherPage() {
     (async () => {
       if (!id) {
         setFixture(null);
-        setSeasonId(null);
+        setLeagueId(null);
         return;
       }
       setMode('loading');
@@ -37,19 +37,14 @@ export default function MatchWatcherPage() {
         if (!found) {
           if (!cancelled) {
             setFixture(null);
-            setSeasonId(null);
+            setLeagueId(null);
           }
           if (!cancelled) setMode('not-found');
           return;
         }
         if (!cancelled) {
           setFixture(found.fixture);
-        }
-        try {
-          const season = await getLeagueSeasonId(found.leagueId);
-          if (!cancelled) setSeasonId(season);
-        } catch {
-          if (!cancelled) setSeasonId(null);
+          setLeagueId(found.leagueId);
         }
         // Prefer replay if available
         if (found.fixture.replayPath) {
@@ -119,11 +114,11 @@ export default function MatchWatcherPage() {
       ? `${scoreboardSource.h} - ${scoreboardSource.a}`
       : `${scoreboardSource.home} - ${scoreboardSource.away}`
     : null;
-  const canViewVideo = Boolean(seasonId && fixture?.status === 'played');
+  const canViewVideo = Boolean(leagueId && fixture?.video?.uploaded);
   const handleOpenVideo = () => {
-    if (!seasonId || !id) return;
+    if (!leagueId || !id) return;
     navigate(
-      `/match-video?seasonId=${encodeURIComponent(seasonId)}&matchId=${encodeURIComponent(id)}`
+      `/match-video?leagueId=${encodeURIComponent(leagueId)}&matchId=${encodeURIComponent(id)}`
     );
   };
   const timelineCard =

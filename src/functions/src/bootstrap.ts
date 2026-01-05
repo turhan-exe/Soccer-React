@@ -8,6 +8,7 @@ import {
   normalizeCapacity,
 } from './utils/roundrobin.js';
 import { nextMonthOrThisMonthFirstAt19, monthKeyTR, dateForRound } from './utils/time.js';
+import { ensureBotTeamDoc } from './utils/bots.js';
 
 const db = getFirestore();
 const REGION = 'europe-west1';
@@ -89,6 +90,7 @@ async function runBootstrap() {
   const botSnap = await db.collection('bots').get();
   const botIds = botSnap.docs.map((d) => d.id);
   const botNames = new Map(botSnap.docs.map((d) => [d.id, (d.data() as any).name || d.id]));
+  const botRatings = new Map(botSnap.docs.map((d) => [d.id, (d.data() as any).rating]));
   const usedBotIds = new Set<string>();
 
   const fixturesTemplate = generateDoubleRoundRobinSlots(capacity);
@@ -110,7 +112,7 @@ async function runBootstrap() {
     await ref.set(leagueData);
 
     // Slots
-  const leagueBots = pickBotsForLeague(botIds, usedBotIds, capacity);
+    const leagueBots = pickBotsForLeague(botIds, usedBotIds, capacity);
     const slotBatch = db.batch();
     leagueBots.forEach((botId, idx) => {
       const slotIndex = idx + 1;
@@ -124,6 +126,19 @@ async function runBootstrap() {
       });
     });
     await slotBatch.commit();
+
+    const botTeamIds = new Map<string, string>();
+    await Promise.all(
+      leagueBots.map(async (botId, idx) => {
+        const teamId = await ensureBotTeamDoc({
+          botId,
+          name: botNames.get(botId),
+          rating: botRatings.get(botId),
+          slotIndex: idx + 1,
+        });
+        botTeamIds.set(botId, teamId);
+      })
+    );
 
     // Standings (initial, by slot)
     const standingsBatch = db.batch();
@@ -152,7 +167,9 @@ async function runBootstrap() {
     slotsSnap.docs.forEach((d) => {
       const s = d.data() as any;
       const name = s.teamId ? s.teamId : (botNames.get(s.botId) || `Bot ${s.botId}`);
-      slotMap.set(s.slotIndex, { teamId: s.teamId, botId: s.botId, name });
+      const botTeamId = s.botId ? botTeamIds.get(s.botId) || null : null;
+      const teamId = s.teamId || botTeamId || null;
+      slotMap.set(s.slotIndex, { teamId, botId: s.botId, name });
     });
 
     let batch = db.batch();

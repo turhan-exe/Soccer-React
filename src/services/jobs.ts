@@ -13,14 +13,24 @@ export interface BatchMatchItem {
   resultUploadUrl: string;
   videoUploadUrl: string;
   videoPath: string;
+  teams?: Record<string, BatchTeamPayload>;
 }
+
+export type BatchTeamPayload = Record<string, any>;
 
 export interface CreateDailyBatchResponse {
   ok: boolean;
   day: string; // yyyy-MM-dd (Europe/Istanbul)
   count: number; // matches length
-  batchPath: string; // jobs/<day>/batch_<day>.json
+  batchPath: string; // jobs/<day>/batch_<day>_s{N}.json
   batchReadUrl?: string; // signed read URL, when available
+  shardCount?: number;
+  shards?: Array<{
+    shard: number;
+    count: number;
+    batchPath: string;
+    batchReadUrl: string;
+  }>;
   meta?: { day: string; tz: string; count: number; generatedAt: string };
   matches?: BatchMatchItem[];
 }

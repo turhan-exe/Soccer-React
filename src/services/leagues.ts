@@ -342,16 +342,23 @@ export async function getFixturesForTeam(
     const list: Fixture[] = snap.docs.map((d) => {
       const raw = d.data() as any;
       const ts = raw.date as { toDate: () => Date };
+      const leagueId = d.ref.parent.parent?.id;
+      const seasonId = raw.seasonId ?? raw.season;
       return {
         id: d.id,
         round: raw.round,
         date: ts.toDate(),
+        leagueId,
+        seasonId: seasonId ? String(seasonId) : undefined,
         homeTeamId: raw.homeTeamId,
         awayTeamId: raw.awayTeamId,
         participants: raw.participants ?? [raw.homeTeamId, raw.awayTeamId],
         status: raw.status,
         score: raw.score ?? null,
         replayPath: raw.replayPath,
+        video: raw.video ?? null,
+        videoMissing: raw.videoMissing,
+        videoError: raw.videoError,
         goalTimeline: raw.goalTimeline ?? [],
       } satisfies Fixture;
     });
@@ -389,16 +396,22 @@ export async function getFixtureByIdAcrossLeagues(
   const d = snap.docs[0];
   const raw: any = d.data();
   const ts = raw.date as { toDate: () => Date };
+  const seasonId = raw.seasonId ?? raw.season;
   const fixture: Fixture = {
     id: d.id,
     round: raw.round,
     date: ts.toDate(),
+    leagueId: d.ref.parent.parent?.id,
+    seasonId: seasonId ? String(seasonId) : undefined,
     homeTeamId: raw.homeTeamId,
     awayTeamId: raw.awayTeamId,
     participants: raw.participants ?? [raw.homeTeamId, raw.awayTeamId],
     status: raw.status,
     score: raw.score ?? null,
     replayPath: raw.replayPath,
+    video: raw.video ?? null,
+    videoMissing: raw.videoMissing,
+    videoError: raw.videoError,
     goalTimeline: raw.goalTimeline ?? [],
   };
   // leagues/{leagueId}/fixtures/{matchId}
@@ -453,18 +466,24 @@ export async function getFixturesForTeamSlotAware(
     .map((d) => {
       const raw = d.data() as any;
       const ts = raw.date as { toDate: () => Date };
+      const seasonId = raw.seasonId ?? raw.season;
       const homeTid = raw.homeTeamId || teamIdBySlot.get(raw.homeSlot) || `slot-${raw.homeSlot}`;
       const awayTid = raw.awayTeamId || teamIdBySlot.get(raw.awaySlot) || `slot-${raw.awaySlot}`;
       return {
         id: d.id,
         round: raw.round,
         date: ts.toDate(),
+        leagueId,
+        seasonId: seasonId ? String(seasonId) : undefined,
         homeTeamId: homeTid,
         awayTeamId: awayTid,
         participants: [homeTid, awayTid],
         status: raw.status,
         score: raw.score ?? null,
         replayPath: raw.replayPath,
+        video: raw.video ?? null,
+        videoMissing: raw.videoMissing,
+        videoError: raw.videoError,
         goalTimeline: raw.goalTimeline ?? [],
       } as Fixture;
     })
@@ -688,6 +707,7 @@ export async function getFixturesByLeagueAndSlotMap(
     .map((d) => {
       const raw = d.data() as any;
       const ts = raw.date as { toDate: () => Date };
+      const seasonId = raw.seasonId ?? raw.season;
       const home = raw.homeSlot === mySlotIndex;
       const oppSlot = home ? raw.awaySlot : raw.homeSlot;
       const homeTeamId = raw.homeTeamId || teamIdBySlot.get(raw.homeSlot) || null;
@@ -696,12 +716,17 @@ export async function getFixturesByLeagueAndSlotMap(
         id: d.id,
         round: raw.round,
         date: ts.toDate(),
+        leagueId,
+        seasonId: seasonId ? String(seasonId) : undefined,
         homeTeamId: homeTeamId || `slot-${raw.homeSlot}`,
         awayTeamId: awayTeamId || `slot-${raw.awaySlot}`,
         participants: [homeTeamId, awayTeamId].filter(Boolean) as string[],
         status: raw.status,
         score: raw.score ?? null,
         replayPath: raw.replayPath,
+        video: raw.video ?? null,
+        videoMissing: raw.videoMissing,
+        videoError: raw.videoError,
         opponentName: nameBySlot.get(oppSlot) || `Slot ${oppSlot}`,
         home,
       };
