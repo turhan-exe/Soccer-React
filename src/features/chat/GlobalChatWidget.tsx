@@ -158,10 +158,6 @@ const GlobalChatWidget: React.FC = () => {
         aria-controls="global-chat-panel"
       >
         <MessageCircle className="nostalgia-chat-button__icon" />
-        <span className="nostalgia-chat-button__label">
-          {buttonLabel}
-          <small>{subtitleText}</small>
-        </span>
       </button>
 
       {isOpen ? (

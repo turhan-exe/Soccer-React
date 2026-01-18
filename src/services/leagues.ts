@@ -37,7 +37,7 @@ export async function ensureDefaultLeague(): Promise<void> {
       const projectId = import.meta.env.VITE_FIREBASE_PROJECT_ID;
       const url = `https://${region}-${projectId}.cloudfunctions.net/bootstrapMonthlyLeaguesOneTimeHttp`;
       await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({}) });
-    } catch {}
+    } catch { }
   }
 }
 
@@ -244,7 +244,7 @@ export async function playNextScheduledDay(): Promise<{ ok: boolean; dayKey?: st
           const d = (s.docs[0].data() as any)?.date?.toDate?.() as Date | undefined;
           if (d && (!earliest || d < earliest.date)) earliest = { date: d };
         }
-      } catch {}
+      } catch { }
     }
     if (!earliest) return null;
     const dayKey = formatInTimeZone(earliest.date, 'Europe/Istanbul', 'yyyy-MM-dd');
@@ -339,29 +339,29 @@ export async function getFixturesForTeam(
   }
 
   // Firestore Timestamp → Date dönüştür ve tarihe göre sırala (artan)
-    const list: Fixture[] = snap.docs.map((d) => {
-      const raw = d.data() as any;
-      const ts = raw.date as { toDate: () => Date };
-      const leagueId = d.ref.parent.parent?.id;
-      const seasonId = raw.seasonId ?? raw.season;
-      return {
-        id: d.id,
-        round: raw.round,
-        date: ts.toDate(),
-        leagueId,
-        seasonId: seasonId ? String(seasonId) : undefined,
-        homeTeamId: raw.homeTeamId,
-        awayTeamId: raw.awayTeamId,
-        participants: raw.participants ?? [raw.homeTeamId, raw.awayTeamId],
-        status: raw.status,
-        score: raw.score ?? null,
-        replayPath: raw.replayPath,
-        video: raw.video ?? null,
-        videoMissing: raw.videoMissing,
-        videoError: raw.videoError,
-        goalTimeline: raw.goalTimeline ?? [],
-      } satisfies Fixture;
-    });
+  const list: Fixture[] = snap.docs.map((d) => {
+    const raw = d.data() as any;
+    const ts = raw.date as { toDate: () => Date };
+    const leagueId = d.ref.parent.parent?.id;
+    const seasonId = raw.seasonId ?? raw.season;
+    return {
+      id: d.id,
+      round: raw.round,
+      date: ts.toDate(),
+      leagueId,
+      seasonId: seasonId ? String(seasonId) : undefined,
+      homeTeamId: raw.homeTeamId,
+      awayTeamId: raw.awayTeamId,
+      participants: raw.participants ?? [raw.homeTeamId, raw.awayTeamId],
+      status: raw.status,
+      score: raw.score ?? null,
+      replayPath: raw.replayPath,
+      video: raw.video ?? null,
+      videoMissing: raw.videoMissing,
+      videoError: raw.videoError,
+      goalTimeline: raw.goalTimeline ?? [],
+    } satisfies Fixture;
+  });
 
   // İstemci tarafı tarih sıralaması: her zaman artan
   (list as { date: Date }[]).sort((a, b) => a.date.getTime() - b.date.getTime());
@@ -451,7 +451,7 @@ export async function getFixturesForTeamSlotAware(
         return base;
       }
     }
-  } catch {}
+  } catch { }
 
   // Fallback: build via slots
   const slotsSnap = await getDocs(collection(db, 'leagues', leagueId, 'slots'));
@@ -625,12 +625,12 @@ export async function listLeagues(): Promise<League[]> {
           return { id: sd.teamId || `slot-${sd.slotIndex}`, name: sd.teamId || `Bot ${sd.botId || sd.slotIndex}` };
         });
       } else {
-      const teamsSnap = await getDocs(collection(d.ref, 'teams'));
-      teamCount = teamsSnap.size;
-      teams = teamsSnap.docs.map((t) => {
-        const td = t.data() as any;
-        return { id: t.id, name: td.name || t.id };
-      });
+        const teamsSnap = await getDocs(collection(d.ref, 'teams'));
+        teamCount = teamsSnap.size;
+        teams = teamsSnap.docs.map((t) => {
+          const td = t.data() as any;
+          return { id: t.id, name: td.name || t.id };
+        });
       }
     }
     leagues.push({
@@ -643,7 +643,7 @@ export async function listLeagues(): Promise<League[]> {
       startDate: data.startDate,
       rounds: data.rounds,
       teamCount,
-      teams,
+      teams: await hydrateTeamNames(teams),
     } as League);
   }
   return leagues;

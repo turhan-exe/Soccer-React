@@ -4,10 +4,13 @@ import { listenStandings, getLeagueTeams } from '@/services/leagues';
 import type { Standing } from '@/types';
 import { Card, CardContent } from '@/components/ui/card';
 import BackButton from '@/components/ui/back-button';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '@/services/firebase';
 
 export default function LeagueDetailPage() {
   const { leagueId } = useParams();
   const [rows, setRows] = useState<Standing[]>([]);
+  const [resolvedNames, setResolvedNames] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (!leagueId) return;
@@ -31,10 +34,50 @@ export default function LeagueDetailPage() {
         );
       } else {
         setRows(sRows);
+        // Identify rows that update/fetch names
+        sRows.forEach(async (r) => {
+          const rawName = r.name || r.teamId;
+          // Check if name is exactly the ID (implies missing name)
+          if (rawName === r.teamId && r.teamId.length > 15 && !r.teamId.startsWith('slot-')) {
+            try {
+              const snap = await getDoc(doc(db, 'teams', r.teamId));
+              if (snap.exists()) {
+                const d = snap.data();
+                if (d?.name) {
+                  setResolvedNames(prev => ({ ...prev, [r.teamId]: d.name }));
+                }
+              }
+            } catch (e) {
+              console.warn('Failed to resolve team name', r.teamId);
+            }
+          }
+        });
       }
     });
     return unsub;
   }, [leagueId]);
+
+  const formatName = (row: Standing) => {
+    // 1. If we have a resolved name, use it
+    if (resolvedNames[row.teamId]) return resolvedNames[row.teamId];
+
+    const raw = row.name || row.teamId;
+
+    // 2. Bot logic: "Bot [LongID]" -> "Bot [ShortID]"
+    if (raw.toLowerCase().startsWith('bot ')) {
+      const parts = raw.split(' ');
+      if (parts.length > 1) {
+        const idPart = parts[1];
+        // Take last 3 digits to mimic "124" style or just first 3 chars
+        // User example "bot 124". Let's try 3 chars of ID.
+        return `Bot ${idPart.slice(0, 3).toUpperCase()}`;
+      }
+    }
+
+    // 3. Fallback: if it looks like an ID, return it (or maybe truncated?)
+    // The resolvedNames effect handles fetching the real name if possible.
+    return raw;
+  };
 
   return (
     <div className="p-4">
@@ -63,7 +106,7 @@ export default function LeagueDetailPage() {
               {rows.map((r, idx) => (
                 <tr key={r.teamId} data-testid={`standings-row-${r.teamId}`} className="border-b">
                   <td className="p-2">{idx + 1}</td>
-                  <td className="p-2">{r.name}</td>
+                  <td className="p-2">{formatName(r)}</td>
                   <td className="p-2">{r.P}</td>
                   <td className="p-2">{r.W}</td>
                   <td className="p-2">{r.D}</td>

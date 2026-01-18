@@ -16,9 +16,9 @@ export const MIN_SALARY_OFFER = 0;
 export const HOURS_IN_MS = 60 * 60 * 1000;
 
 export const metricOptions: Array<{ key: MetricKey; label: string }> = [
-  { key: 'power', label: 'G�o��' },
-  { key: 'motivation', label: 'MOT��VASYON' },
-  { key: 'condition', label: 'KOND��SYON' },
+  { key: 'power', label: 'GÜCÜ' },
+  { key: 'motivation', label: 'MOTİVASYON' },
+  { key: 'condition', label: 'KONDİSYON' },
 ];
 
 export const KNOWN_POSITIONS: Player['position'][] = [
@@ -382,9 +382,9 @@ export function buildDisplayPlayer(
     player.squadRole === 'starting' && !allowedPositions.has(canonicalAssigned);
   const computedOverall = isOutOfPosition
     ? Math.max(
-        0,
-        Math.min(originalOverall, computePositionOverall(canonicalAssigned, player.attributes)),
-      )
+      0,
+      Math.min(originalOverall, computePositionOverall(canonicalAssigned, player.attributes)),
+    )
     : originalOverall;
 
   return {

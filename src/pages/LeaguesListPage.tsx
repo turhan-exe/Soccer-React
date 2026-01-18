@@ -43,58 +43,28 @@ export default function LeaguesListPage() {
   const myLeague = leagues.find((l) => l.id === myLeagueId) || null;
   const otherLeagues = leagues.filter((l) => l.id !== myLeagueId);
 
+  const formatTeamList = (teams: { name: string }[]) => {
+    return teams.map(t => {
+      // Shorten "Bot [LongID]" to "Bot [3chars]"
+      if (t.name.toLowerCase().startsWith('bot ') && t.name.length > 10) {
+        const parts = t.name.split(' ');
+        if (parts.length > 1) {
+          return `Bot ${parts[1].slice(0, 3).toUpperCase()}`;
+        }
+      }
+      return t.name;
+    }).join(', ');
+  };
+
   return (
     <div className="p-4">
       <div className="flex items-center gap-2 mb-4">
         <BackButton />
         <h1 className="text-xl font-bold">Ligler</h1>
       </div>
-      {/* Test/Operator buttons: only in dev builds */}
-      {(import.meta.env.DEV || import.meta.env.VITE_ENABLE_TEST_BUTTONS === '1') && (
-        <div className="flex flex-wrap gap-2 mb-4">
-          <Button
-            variant="secondary"
-            onClick={async () => {
-              try {
-                await requestBootstrap();
-                const ls = await listLeagues();
-                setLeagues(ls);
-                toast({ description: 'Aylık ligler oluşturuldu/yenilendi.' });
-              } catch (e: any) {
-                toast({ description: e?.message || 'Bootstrap hata', });
-              }
-            }}
-          >
-            Test: Ligleri Oluştur (Aylık)
-          </Button>
-          <Button
-            onClick={async () => {
-              const dayKey = formatInTimeZone(new Date(), 'Europe/Istanbul', 'yyyy-MM-dd');
-              try {
-                const r = await playAllForDay(dayKey, { instant: true });
-                toast({ description: `Bugün (${dayKey}) maçlar: ${r?.started ?? 0}/${r?.total ?? 0}` });
-              } catch (e: any) {
-                toast({ description: e?.message || 'Bugün oynatma hatası' });
-              }
-            }}
-          >
-            Test: Bugünü Oynat (TR)
-          </Button>
-          <Button
-            onClick={async () => {
-              try {
-                const r = await playNextScheduledDay();
-                if (!r) { toast({ description: 'Planlı maç bulunamadı.' }); return; }
-                toast({ description: `Gün (${r.dayKey}) maçlar: ${r.started ?? 0}/${r.total ?? 0}` });
-              } catch (e: any) {
-                toast({ description: e?.message || 'Sonraki günü oynatma hatası' });
-              }
-            }}
-          >
-            Test: Sonraki Günü Oynat
-          </Button>
-        </div>
-      )}
+
+      {/* Test/Operator buttons removed by request */}
+
       {loading && (
         <div className="space-y-2" data-testid="leagues-loading">
           <Skeleton className="h-20 w-full" />
@@ -127,7 +97,7 @@ export default function LeaguesListPage() {
                 </div>
                 {myLeague.teams && myLeague.teams.length > 0 && (
                   <div className="text-xs text-muted-foreground mt-1">
-                    Takımlar: {myLeague.teams.map((t) => t.name).join(', ')}
+                    Takımlar: {formatTeamList(myLeague.teams)}
                   </div>
                 )}
               </div>
@@ -154,7 +124,7 @@ export default function LeaguesListPage() {
                   </div>
                   {l.teams && l.teams.length > 0 && (
                     <div className="text-xs text-muted-foreground mt-1">
-                      Takımlar: {l.teams.map((t) => t.name).join(', ')}
+                      Takımlar: {formatTeamList(l.teams)}
                     </div>
                   )}
                 </div>
@@ -167,4 +137,3 @@ export default function LeaguesListPage() {
     </div>
   );
 }
-

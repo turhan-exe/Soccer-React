@@ -17,7 +17,7 @@ import { completeLegendRental, getLegendIdFromPlayer } from '@/services/legends'
 import { auth } from '@/services/firebase';
 import { useAuth } from '@/contexts/AuthContext';
 import { useDiamonds } from '@/contexts/DiamondContext';
-import { Search, Save, Eye, X } from 'lucide-react';
+import { Search, Save, Eye, X, ChevronLeft } from 'lucide-react';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -128,6 +128,8 @@ function TeamPlanningContent() {
   const [isRightHeaderCollapsed, setIsRightHeaderCollapsed] = useState(false);
   const teamLeagueIdRef = useRef<string | null>(null);
   const [selectedSlotMeta, setSelectedSlotMeta] = useState<SelectedSlotMeta | null>(null);
+  const [isListCollapsed, setIsListCollapsed] = useState(false);
+  /* isListCollapsed already declared above */
 
   const {
     selectedMetric,
@@ -483,7 +485,7 @@ function TeamPlanningContent() {
     setPlayers(prev => {
       const playerIndex = prev.findIndex(player => player.id === playerId);
       if (playerIndex === -1) {
-        errorMessage = 'Oyuncu bulunamad.';
+        errorMessage = 'Oyuncu bulunamadı.';
         return prev;
       }
 
@@ -686,7 +688,7 @@ function TeamPlanningContent() {
     try {
       await saveTeamPlayers(userId, normalized);
       toast.success(
-        `${negotiationPlayer.name} maa?? ${formatSalary(clampedOffer)} oldu ve s?zle?mesi ${CONTRACT_EXTENSION_MONTHS} ay uzat?ld?.`,
+        `${negotiationPlayer.name} maaşı ${formatSalary(clampedOffer)} oldu ve sözleşmesi ${CONTRACT_EXTENSION_MONTHS} ay uzatıldı.`,
       );
       finalizeContractDecision(negotiationPlayer.id);
       setNegotiationPlayerId(null);
@@ -743,7 +745,7 @@ function TeamPlanningContent() {
 
     const counterMessage = isFinal
       ? `Kabul edilmedi. Oyuncunun son teklifi: ${formatSalary(counter)}.`
-      : `Kabul edilmedi. Oyuncunun kar?? teklifi: ${formatSalary(counter)}. Kalan hak: ${remainingAttempts}`;
+      : `Kabul edilmedi. Oyuncunun karşı teklifi: ${formatSalary(counter)}. Kalan hak: ${remainingAttempts}`;
     toast.info(counterMessage);
   };
 
@@ -813,7 +815,7 @@ function TeamPlanningContent() {
         squadRole: player.squadRole === 'starting' ? 'reserve' : player.squadRole,
         contract: {
           ...currentContract,
-          status: 'released',
+          status: 'released' as const,
         },
         market: {
           ...(player.market ?? { active: false, listingId: null }),
@@ -912,6 +914,9 @@ function TeamPlanningContent() {
       setDraggedPlayerId(player.id);
       event.dataTransfer.setData('text/plain', player.id);
       event.dataTransfer.effectAllowed = 'move';
+
+      // Auto-collapse list on drag start for focus mode
+      setIsListCollapsed(true);
     },
     [],
   );
@@ -1059,8 +1064,8 @@ function TeamPlanningContent() {
         error && typeof error === 'object' && 'details' in error && typeof (error as { details?: unknown }).details === 'string'
           ? String((error as { details?: unknown }).details)
           : error && typeof error === 'object' && 'message' in error && typeof (error as { message?: unknown }).message === 'string'
-          ? String((error as { message?: unknown }).message)
-          : 'Kadro kaydı başarısız. Lütfen tekrar deneyin.';
+            ? String((error as { message?: unknown }).message)
+            : 'Kadro kaydı başarısız. Lütfen tekrar deneyin.';
       toast.error('Sunucu hatası', { description });
     }
   };
@@ -1692,8 +1697,8 @@ function TeamPlanningContent() {
     if (!targetPlayer && previousRole !== 'starting') {
       const startingCount = players.filter(player => player.squadRole === 'starting').length;
       if (startingCount >= 11) {
-        toast.error('Pozisyon gncellenemedi', {
-          description: 'ilk 11 dolu. Ayn mevkideki bir oyuncuyu çıkarmadan yeni oyuncu ekleyemezsin.',
+        toast.error('Pozisyon güncellenemedi', {
+          description: 'İlk 11 dolu. Aynı mevkideki bir oyuncuyu çıkarmadan yeni oyuncu ekleyemezsin.',
         });
         setDraggedPlayerId(null);
         return;
@@ -1725,7 +1730,7 @@ function TeamPlanningContent() {
       if (!targetState && draggedState.squadRole !== 'starting') {
         const starters = prev.filter(player => player.squadRole === 'starting').length;
         if (starters >= 11) {
-          errorMessage = 'ilk 11 dolu. Aynı mevkideki bir oyuncuyu çıkarmadan yeni oyuncu ekleyemezsin.';
+          errorMessage = 'İlk 11 dolu. Aynı mevkideki bir oyuncuyu çıkarmadan yeni oyuncu ekleyemezsin.';
           return prev;
         }
       }
@@ -1815,8 +1820,8 @@ function TeamPlanningContent() {
       setFocusedPlayerId(playerId);
       const successMessage = targetPlayer
         ? previousRole === 'starting'
-          ? 'Oyuncular yer degistirdi'
-          : 'Oyuncular degisti'
+          ? 'Oyuncular yer değiştirdi'
+          : 'Oyuncular değişti'
         : previousRole === 'starting'
           ? 'Oyuncu sahada yeniden konumlandırıldı'
           : 'Oyuncu ilk 11\'e taşındı';
@@ -1839,14 +1844,14 @@ function TeamPlanningContent() {
 
     const manualLayouts = selectedPlayer
       ? Object.entries(customFormations).reduce<
-          Array<{ formation: string; layout: FormationPlayerPosition }>
-        >((acc, [formationKey, layout]) => {
-          const entry = layout?.[selectedPlayer.id];
-          if (entry) {
-            acc.push({ formation: formationKey, layout: entry });
-          }
-          return acc;
-        }, [])
+        Array<{ formation: string; layout: FormationPlayerPosition }>
+      >((acc, [formationKey, layout]) => {
+        const entry = layout?.[selectedPlayer.id];
+        if (entry) {
+          acc.push({ formation: formationKey, layout: entry });
+        }
+        return acc;
+      }, [])
       : [];
 
     let errorMessage: string | null = null;
@@ -1870,7 +1875,7 @@ function TeamPlanningContent() {
     });
 
     if (errorMessage) {
-      toast.error('Oyuncu yerle�Ytirilemedi', { description: errorMessage });
+      toast.error('Oyuncu yerleştirilemedi', { description: errorMessage });
       return;
     }
     if (!updated) {
@@ -1942,8 +1947,14 @@ function TeamPlanningContent() {
           </div>
         </header>
 
-        <div className="grid flex-1 grid-cols-[minmax(0,1fr)_minmax(0,1fr)] overflow-hidden lg:grid-cols-[1.12fr_0.88fr]">
-          <section id="tp-left" className="relative h-full overflow-hidden">
+        <div className="flex flex-1 overflow-hidden relative">
+          <section
+            id="tp-left"
+            className={cn(
+              "relative h-full transition-all duration-300 ease-in-out",
+              isListCollapsed ? "w-full" : "w-1/2 lg:w-[56%]"
+            )}
+          >
             <div id="tp-pitch-wrapper" className="tp-pitch-shell h-full w-full">
               <Pitch
                 ref={pitchRef}
@@ -1967,7 +1978,7 @@ function TeamPlanningContent() {
                   <span className="text-[11px] font-semibold uppercase tracking-wide text-emerald-100/80">Formasyon</span>
                   <div className="flex items-baseline gap-2.5">
                     <span className="text-xl font-bold text-white">{displayFormationName}</span>
-                    
+
                   </div>
                   <Select value={selectedFormation} onValueChange={handleFormationSelect}>
                     <SelectTrigger className="w-full border-white/20 bg-white/10 text-white focus:ring-white/50">
@@ -2013,7 +2024,23 @@ function TeamPlanningContent() {
             </div>
           </section>
 
-          <aside className="flex h-full flex-col overflow-hidden border-l border-white/10 bg-black/35">
+          <aside
+            className={cn(
+              "flex flex-col h-full overflow-hidden border-l border-white/10 bg-black/35 transition-all duration-300 ease-in-out absolute right-0 top-0 bottom-0 z-20 shadow-2xl backdrop-blur-md",
+              isListCollapsed ? "translate-x-[calc(100%-24px)]" : "translate-x-0 w-1/2 lg:w-[44%]"
+            )}
+            onClick={(e) => {
+              if (isListCollapsed) {
+                e.stopPropagation();
+                setIsListCollapsed(false);
+              }
+            }}
+          >
+            {isListCollapsed && (
+              <div className="absolute left-0 top-0 bottom-0 w-6 flex items-center justify-center bg-emerald-500/20 hover:bg-emerald-500/40 cursor-pointer group">
+                <ChevronLeft className="w-4 h-4 text-emerald-100 group-hover:scale-110 transition-transform" />
+              </div>
+            )}
             <div
               id="tp-right-pane"
               className="flex h-full flex-col"
@@ -2088,177 +2115,177 @@ function TeamPlanningContent() {
                   <div className="mx-auto flex max-w-3xl flex-col gap-6">
                     {selectedZoneDefinition ? (
                       <Card className="border-white/10 bg-white/5 text-white shadow-lg backdrop-blur">
-                      <CardHeader className="pb-3">
-                        <CardTitle className="text-sm font-semibold text-white">
-                          {selectedZoneDefinition.label} alanı için öneriler
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent className="space-y-3">
-                        {selectedPlayer ? (
-                          <p className="text-[11px] text-emerald-100/75">
-                            Seçili oyuncu: <span className="font-semibold">{selectedPlayer.name}</span>
-                          </p>
-                        ) : (
-                          <p className="text-[11px] text-emerald-100/60">Slot boY, önerilen oyunculardan birini ekleyebilirsin.</p>
-                        )}
-                        {recommendedPlayers.length > 0 ? (
-                          <div className="grid gap-[6px] sm:grid-cols-2">
-                            {recommendedPlayers.map(alternative => (
-                              <AlternativePlayerBubble
-                                key={alternative.id}
-                                player={alternative}
-                                onSelect={playerId => handleAlternativeSelection(playerId)}
-                                variant="panel"
-                                compareToPlayer={selectedPlayer}
-                              />
-                            ))}
-                          </div>
-                        ) : (
-                          <p className="text-xs text-emerald-100/70">
-                            Bu alan için bench/rezerv oyuncu bulunamadı.
-                          </p>
-                        )}
-                      </CardContent>
-                    </Card>
-                  ) : null}
-
-                  <TabsContent value="starting" className="mt-0 space-y-4">
-                    {sortedPlayers.length === 0 ? (
-                      <Card className="border-white/10 bg-white/5 text-center text-white shadow-lg backdrop-blur">
-                        <CardContent className="p-8">
-                          <div className="mb-4 text-4xl">⚽</div>
-                          <h3 className="mb-2 text-base font-semibold">İlk 11'inizi oluşturun</h3>
-                          <p className="text-sm text-emerald-100/70">
-                            Yedek kulübesinden oyuncularınızı ilk 11'e taşıyın.
-                          </p>
+                        <CardHeader className="pb-3">
+                          <CardTitle className="text-sm font-semibold text-white">
+                            {selectedZoneDefinition.label} alanı için öneriler
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-3">
+                          {selectedPlayer ? (
+                            <p className="text-[11px] text-emerald-100/75">
+                              Seçili oyuncu: <span className="font-semibold">{selectedPlayer.name}</span>
+                            </p>
+                          ) : (
+                            <p className="text-[11px] text-emerald-100/60">Slot boş, önerilen oyunculardan birini ekleyebilirsin.</p>
+                          )}
+                          {recommendedPlayers.length > 0 ? (
+                            <div className="grid gap-[6px] lg:grid-cols-2">
+                              {recommendedPlayers.map(alternative => (
+                                <AlternativePlayerBubble
+                                  key={alternative.id}
+                                  player={alternative}
+                                  onSelect={playerId => handleAlternativeSelection(playerId)}
+                                  variant="panel"
+                                  compareToPlayer={selectedPlayer}
+                                />
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="text-xs text-emerald-100/70">
+                              Bu alan için bench/rezerv oyuncu bulunamadı.
+                            </p>
+                          )}
                         </CardContent>
                       </Card>
-                    ) : (
-                    sortedPlayers.map(player => {
-                      const canAdjustContract = getLegendIdFromPlayer(player) === null;
-                      return (
-                        <PlayerCard
-                          key={player.id}
-                          player={player}
-                          leagueId={teamLeagueIdRef.current}
-                          ratingAnnotation={getRatingAnnotation(player)}
-                          compact
-                          defaultCollapsed
-                          draggable
-                          onDragStart={event => {
-                            setDraggedPlayerId(player.id);
-                            event.dataTransfer.setData('text/plain', player.id);
-                          }}
-                          onDragEnd={() => setDraggedPlayerId(null)}
-                          onMoveToBench={() => movePlayer(player.id, 'bench')}
-                          onMoveToReserve={() => movePlayer(player.id, 'reserve')}
-                          onListForTransfer={() => handleListForTransfer(player.id)}
-                          onRenamePlayer={() => setRenamePlayerId(player.id)}
-                          onFirePlayer={() => handleFirePlayer(player.id)}
-                          onNegotiateSalary={
-                            canAdjustContract ? () => openSalaryNegotiation(player.id) : undefined
-                          }
-                          onExtendContract={
-                            canAdjustContract ? () => handleExtendContract(player.id) : undefined
-                          }
-                        />
-                      );
-                    })
-                    )}
-                  </TabsContent>
+                    ) : null}
 
-                  <TabsContent value="bench" className="mt-0 space-y-4">
-                    {sortedPlayers.length === 0 ? (
-                      <Card className="border-white/10 bg-white/5 text-center text-white shadow-lg backdrop-blur">
-                        <CardContent className="p-8">
-                          <div className="mb-4 text-4xl">⚽</div>
-                          <h3 className="mb-2 text-base font-semibold">Yedek kulübesi boş</h3>
-                          <p className="text-sm text-emerald-100/70">
-                            Rezerv oyuncularınızı yedek kulübesine taşıyın.
-                          </p>
-                        </CardContent>
-                      </Card>
-                    ) : (
-                    sortedPlayers.map(player => {
-                      const canAdjustContract = getLegendIdFromPlayer(player) === null;
-                      return (
-                        <PlayerCard
-                          key={player.id}
-                          player={player}
-                          leagueId={teamLeagueIdRef.current}
-                          ratingAnnotation={getRatingAnnotation(player)}
-                          compact
-                          defaultCollapsed
-                          draggable
-                          onDragStart={event => {
-                            setDraggedPlayerId(player.id);
-                            event.dataTransfer.setData('text/plain', player.id);
-                          }}
-                          onDragEnd={() => setDraggedPlayerId(null)}
-                          onMoveToStarting={() => movePlayer(player.id, 'starting')}
-                          onMoveToReserve={() => movePlayer(player.id, 'reserve')}
-                          onListForTransfer={() => handleListForTransfer(player.id)}
-                          onRenamePlayer={() => setRenamePlayerId(player.id)}
-                          onFirePlayer={() => handleFirePlayer(player.id)}
-                          onNegotiateSalary={
-                            canAdjustContract ? () => openSalaryNegotiation(player.id) : undefined
-                          }
-                          onExtendContract={
-                            canAdjustContract ? () => handleExtendContract(player.id) : undefined
-                          }
-                        />
-                      );
-                    })
-                    )}
-                  </TabsContent>
+                    <TabsContent value="starting" className="mt-0 space-y-4">
+                      {sortedPlayers.length === 0 ? (
+                        <Card className="border-white/10 bg-white/5 text-center text-white shadow-lg backdrop-blur">
+                          <CardContent className="p-8">
+                            <div className="mb-4 text-4xl">⚽</div>
+                            <h3 className="mb-2 text-base font-semibold">İlk 11'inizi oluşturun</h3>
+                            <p className="text-sm text-emerald-100/70">
+                              Yedek kulübesinden oyuncularınızı ilk 11'e taşıyın.
+                            </p>
+                          </CardContent>
+                        </Card>
+                      ) : (
+                        sortedPlayers.map(player => {
+                          const canAdjustContract = getLegendIdFromPlayer(player) === null;
+                          return (
+                            <PlayerCard
+                              key={player.id}
+                              player={player}
+                              leagueId={teamLeagueIdRef.current}
+                              ratingAnnotation={getRatingAnnotation(player)}
+                              compact
+                              defaultCollapsed
+                              draggable
+                              onDragStart={event => {
+                                setDraggedPlayerId(player.id);
+                                event.dataTransfer.setData('text/plain', player.id);
+                              }}
+                              onDragEnd={() => setDraggedPlayerId(null)}
+                              onMoveToBench={() => movePlayer(player.id, 'bench')}
+                              onMoveToReserve={() => movePlayer(player.id, 'reserve')}
+                              onListForTransfer={() => handleListForTransfer(player.id)}
+                              onRenamePlayer={() => setRenamePlayerId(player.id)}
+                              onFirePlayer={() => handleFirePlayer(player.id)}
+                              onNegotiateSalary={
+                                canAdjustContract ? () => openSalaryNegotiation(player.id) : undefined
+                              }
+                              onExtendContract={
+                                canAdjustContract ? () => handleExtendContract(player.id) : undefined
+                              }
+                            />
+                          );
+                        })
+                      )}
+                    </TabsContent>
 
-                  <TabsContent value="reserve" className="mt-0 space-y-4">
-                    {sortedPlayers.length === 0 ? (
-                      <Card className="border-white/10 bg-white/5 text-center text-white shadow-lg backdrop-blur">
-                        <CardContent className="p-8">
-                          <div className="mb-4 text-4xl">⚽</div>
-                          <h3 className="mb-2 text-base font-semibold">Rezerv oyuncu yok</h3>
-                          <p className="text-sm text-emerald-100/70">
-                            Altyapıdan oyuncu alın veya pazardan oyuncu satın.
-                          </p>
-                        </CardContent>
-                      </Card>
-                    ) : (
-                    sortedPlayers.map(player => {
-                      const canAdjustContract = getLegendIdFromPlayer(player) === null;
-                      return (
-                        <PlayerCard
-                          key={player.id}
-                          player={player}
-                          leagueId={teamLeagueIdRef.current}
-                          ratingAnnotation={getRatingAnnotation(player)}
-                          compact
-                          defaultCollapsed
-                          draggable
-                          onDragStart={event => {
-                            setDraggedPlayerId(player.id);
-                            event.dataTransfer.setData('text/plain', player.id);
-                          }}
-                          onDragEnd={() => setDraggedPlayerId(null)}
-                          onMoveToStarting={() => movePlayer(player.id, 'starting')}
-                          onMoveToBench={() => movePlayer(player.id, 'bench')}
-                          onListForTransfer={() => handleListForTransfer(player.id)}
-                          onRenamePlayer={() => setRenamePlayerId(player.id)}
-                          onFirePlayer={() => handleFirePlayer(player.id)}
-                          onNegotiateSalary={
-                            canAdjustContract ? () => openSalaryNegotiation(player.id) : undefined
-                          }
-                          onExtendContract={
-                            canAdjustContract ? () => handleExtendContract(player.id) : undefined
-                          }
-                        />
-                      );
-                    })
-                    )}
-                  </TabsContent>
+                    <TabsContent value="bench" className="mt-0 space-y-4">
+                      {sortedPlayers.length === 0 ? (
+                        <Card className="border-white/10 bg-white/5 text-center text-white shadow-lg backdrop-blur">
+                          <CardContent className="p-8">
+                            <div className="mb-4 text-4xl">⚽</div>
+                            <h3 className="mb-2 text-base font-semibold">Yedek kulübesi boş</h3>
+                            <p className="text-sm text-emerald-100/70">
+                              Rezerv oyuncularınızı yedek kulübesine taşıyın.
+                            </p>
+                          </CardContent>
+                        </Card>
+                      ) : (
+                        sortedPlayers.map(player => {
+                          const canAdjustContract = getLegendIdFromPlayer(player) === null;
+                          return (
+                            <PlayerCard
+                              key={player.id}
+                              player={player}
+                              leagueId={teamLeagueIdRef.current}
+                              ratingAnnotation={getRatingAnnotation(player)}
+                              compact
+                              defaultCollapsed
+                              draggable
+                              onDragStart={event => {
+                                setDraggedPlayerId(player.id);
+                                event.dataTransfer.setData('text/plain', player.id);
+                              }}
+                              onDragEnd={() => setDraggedPlayerId(null)}
+                              onMoveToStarting={() => movePlayer(player.id, 'starting')}
+                              onMoveToReserve={() => movePlayer(player.id, 'reserve')}
+                              onListForTransfer={() => handleListForTransfer(player.id)}
+                              onRenamePlayer={() => setRenamePlayerId(player.id)}
+                              onFirePlayer={() => handleFirePlayer(player.id)}
+                              onNegotiateSalary={
+                                canAdjustContract ? () => openSalaryNegotiation(player.id) : undefined
+                              }
+                              onExtendContract={
+                                canAdjustContract ? () => handleExtendContract(player.id) : undefined
+                              }
+                            />
+                          );
+                        })
+                      )}
+                    </TabsContent>
+
+                    <TabsContent value="reserve" className="mt-0 space-y-4">
+                      {sortedPlayers.length === 0 ? (
+                        <Card className="border-white/10 bg-white/5 text-center text-white shadow-lg backdrop-blur">
+                          <CardContent className="p-8">
+                            <div className="mb-4 text-4xl">⚽</div>
+                            <h3 className="mb-2 text-base font-semibold">Rezerv oyuncu yok</h3>
+                            <p className="text-sm text-emerald-100/70">
+                              Altyapıdan oyuncu alın veya pazardan oyuncu satın.
+                            </p>
+                          </CardContent>
+                        </Card>
+                      ) : (
+                        sortedPlayers.map(player => {
+                          const canAdjustContract = getLegendIdFromPlayer(player) === null;
+                          return (
+                            <PlayerCard
+                              key={player.id}
+                              player={player}
+                              leagueId={teamLeagueIdRef.current}
+                              ratingAnnotation={getRatingAnnotation(player)}
+                              compact
+                              defaultCollapsed
+                              draggable
+                              onDragStart={event => {
+                                setDraggedPlayerId(player.id);
+                                event.dataTransfer.setData('text/plain', player.id);
+                              }}
+                              onDragEnd={() => setDraggedPlayerId(null)}
+                              onMoveToStarting={() => movePlayer(player.id, 'starting')}
+                              onMoveToBench={() => movePlayer(player.id, 'bench')}
+                              onListForTransfer={() => handleListForTransfer(player.id)}
+                              onRenamePlayer={() => setRenamePlayerId(player.id)}
+                              onFirePlayer={() => handleFirePlayer(player.id)}
+                              onNegotiateSalary={
+                                canAdjustContract ? () => openSalaryNegotiation(player.id) : undefined
+                              }
+                              onExtendContract={
+                                canAdjustContract ? () => handleExtendContract(player.id) : undefined
+                              }
+                            />
+                          );
+                        })
+                      )}
+                    </TabsContent>
+                  </div>
                 </div>
-              </div>
-            </Tabs>
+              </Tabs>
             </div>
           </aside>
         </div>
@@ -2310,8 +2337,7 @@ function TeamPlanningContent() {
   );
 }
 
-export default function TeamPlanning() 
-{
+export default function TeamPlanning() {
   return (
     <TeamPlanningProvider>
       <TeamPlanningContent />

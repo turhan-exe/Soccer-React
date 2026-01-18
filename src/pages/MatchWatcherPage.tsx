@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import BackButton from '@/components/ui/back-button';
 import { MatchReplayView } from '@/components/replay/MatchReplayView';
 import { getMatchTimeline, getReplay } from '@/services/matches';
 import { subscribeLive, type LiveEvent as LiveEv, type LiveMeta } from '@/services/live';
@@ -150,7 +151,10 @@ export default function MatchWatcherPage() {
   if (mode === 'replay' && replayUrl) return (
     <div className="p-4 space-y-3">
       <div className="flex items-center justify-between gap-3">
-        <h1 className="text-xl font-bold">Maç Kaydı</h1>
+        <div className="flex items-center gap-2">
+          <BackButton />
+          <h1 className="text-xl font-bold">Maç Kaydı</h1>
+        </div>
         {canViewVideo && (
           <Button variant="outline" size="sm" onClick={handleOpenVideo}>
             Video izle
@@ -169,7 +173,10 @@ export default function MatchWatcherPage() {
   return (
     <div className="p-4 space-y-3">
       <div className="flex items-center justify-between gap-3">
-        <h1 className="text-xl font-bold">Canlı Maç</h1>
+        <div className="flex items-center gap-2">
+          <BackButton />
+          <h1 className="text-xl font-bold">Canlı Maç</h1>
+        </div>
         {canViewVideo && (
           <Button variant="outline" size="sm" onClick={handleOpenVideo}>
             Video izle

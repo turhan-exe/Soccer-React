@@ -37,7 +37,6 @@ const baseMenuItems = [
   { id: 'leagues', label: 'Ligler', icon: Trophy, accent: 'gold' },
   { id: 'training', label: 'Antrenman', icon: Dumbbell, accent: 'orange' },
   { id: 'match-preview', label: 'Mac Onizleme', icon: Play, accent: 'rose' },
-  { id: 'match-simulation', label: 'Mac Simulasyonu', icon: Play, accent: 'purple' },
   { id: 'match-history', label: 'Gecmis Maclar', icon: History, accent: 'slate' },
   { id: 'finance', label: 'Finans', icon: DollarSign, accent: 'cyan' },
   { id: 'settings', label: 'Ayarlar', icon: Settings, accent: 'teal' },
@@ -429,9 +428,8 @@ export default function MainMenu() {
 
   const highlightElement = (
     <section
-      className={`nostalgia-match-highlight${
-        matchHighlight ? '' : ' nostalgia-match-highlight--empty'
-      }`}
+      className={`nostalgia-match-highlight${matchHighlight ? '' : ' nostalgia-match-highlight--empty'
+        }`}
       aria-label="Sonraki mac paneli"
     >
       <div className="nostalgia-match-highlight__overlay" aria-hidden />
@@ -509,9 +507,7 @@ export default function MainMenu() {
           </div>
 
           <aside className="nostalgia-main-menu__actions" aria-label="Hizli bakis menusu">
-            <div className="nostalgia-main-menu__actions-header">
-              <span className="nostalgia-main-menu__actions-title">Hizli Bakis</span>
-            </div>
+
             <div className="nostalgia-main-menu__actions-frame">
               <div className="nostalgia-main-menu__actions-grid">
                 {mainMenuItems.map(renderMenuCard)}
