@@ -15,6 +15,12 @@ export type SortKey =
   | 'overall_asc'
   | 'price_asc'
   | 'price_desc'
+  | 'pos_asc'
+  | 'pos_desc'
+  | 'name_asc'
+  | 'name_desc'
+  | 'seller_asc'
+  | 'seller_desc'
   | 'newest';
 
 const isFiniteNumber = (value: unknown): value is number =>
@@ -62,7 +68,29 @@ export function buildTransferListingsQuery(
     } else if (sort === 'overall_desc') {
       constraints.push(orderBy('overall', 'desc'));
     } else {
-      constraints.push(orderBy('createdAt', 'desc'));
+      switch (sort) {
+        case 'pos_asc':
+          constraints.push(orderBy('pos', 'asc'));
+          break;
+        case 'pos_desc':
+          constraints.push(orderBy('pos', 'desc'));
+          break;
+        case 'seller_asc':
+          constraints.push(orderBy('sellerTeamName', 'asc'));
+          break;
+        case 'seller_desc':
+          constraints.push(orderBy('sellerTeamName', 'desc'));
+          break;
+        case 'name_asc':
+          constraints.push(orderBy('playerName', 'asc'));
+          break;
+        case 'name_desc':
+          constraints.push(orderBy('playerName', 'desc'));
+          break;
+        default:
+          constraints.push(orderBy('createdAt', 'desc'));
+          break;
+      }
     }
   }
 

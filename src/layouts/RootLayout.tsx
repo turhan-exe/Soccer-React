@@ -1,4 +1,4 @@
-import { Outlet } from 'react-router-dom';
+import { Outlet, useLocation } from 'react-router-dom';
 import TopBar from '@/components/layout/TopBar';
 import { useAuth } from '@/contexts/AuthContext';
 import Auth from '@/pages/Auth';
@@ -6,6 +6,7 @@ import HardwareBackHandler from '@/components/system/HardwareBackHandler';
 
 const RootLayout = () => {
   const { user, isAuthReady } = useAuth();
+  const location = useLocation();
 
   if (!isAuthReady) {
     return (
@@ -24,11 +25,14 @@ const RootLayout = () => {
     );
   }
 
+  // Hide TopBar on the main menu (dashboard) as it has its own custom header
+  const isDashboard = location.pathname === '/';
+
   return (
     <div className="app-safe-area bg-background text-foreground">
       <HardwareBackHandler />
       <div className="flex min-h-full flex-col bg-background">
-        <TopBar />
+        {/* {!isDashboard && <TopBar />} TopBar removed as per user request */}
         <main className="flex-1 min-h-0 overflow-y-auto" data-app-scroll-container>
           <Outlet />
         </main>

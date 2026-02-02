@@ -1358,9 +1358,9 @@
 .nostalgia-chat-panel {
   pointer-events: auto;
   position: relative;
-  width: clamp(320px, 42vw, 560px);
-  min-height: clamp(320px, 55vh, 520px);
-  max-height: clamp(420px, 82vh, 680px);
+  width: clamp(300px, 35vw, 480px);
+  min-height: clamp(280px, 45vh, 400px);
+  max-height: clamp(320px, 60vh, 550px);
   padding: 1.1rem 1.3rem 1.2rem;
   border-radius: 22px;
   border: 1px solid rgba(148, 163, 184, 0.35);

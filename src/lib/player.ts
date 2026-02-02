@@ -99,8 +99,8 @@ export function calculatePowerIndex(player: Player): number {
   return parseFloat(adjusted.toFixed(3));
 }
 
-const RATING_THRESHOLD_LOW = 1.001;
-const RATING_THRESHOLD_MEDIUM = 10.001;
+const RATING_THRESHOLD_LOW = 2.0;
+const RATING_THRESHOLD_MEDIUM = 10.0;
 
 const normalizeRawRating = (value: number): number => {
   if (!Number.isFinite(value)) {
@@ -120,7 +120,7 @@ export const normalizeRatingTo100 = (value?: number | null): number => {
     return 0;
   }
   const normalized = Math.round(normalizeRawRating(value));
-  return Math.max(0, Math.min(100, normalized));
+  return Math.max(0, Math.min(99, normalized));
 };
 
 export const formatRatingLabel = (value?: number | null): string => {

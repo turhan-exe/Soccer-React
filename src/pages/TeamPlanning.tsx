@@ -28,7 +28,11 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { formations } from '@/lib/formations';
-import { formatRatingLabel, normalizeRatingTo100 } from '@/lib/player';
+import {
+  normalizeRatingTo100,
+  calculatePowerIndex,
+  formatRatingLabel,
+} from '@/lib/player';
 import { cn } from '@/lib/utils';
 import { BackButton } from '@/components/ui/back-button';
 import Pitch, { type PitchSlot } from '@/features/team-planning/Pitch';
@@ -41,6 +45,7 @@ import {
 import { ContractDecisionDialog } from '@/features/team-planning/dialogs/ContractDecisionDialog';
 import { RenamePlayerDialog } from '@/features/team-planning/dialogs/RenamePlayerDialog';
 import { SalaryNegotiationDialog } from '@/features/team-planning/dialogs/SalaryNegotiationDialog';
+import { PlayerDetailOverlay } from '@/features/team-planning/components/PlayerDetailOverlay';
 import {
   addMonths,
   buildDisplayPlayer,
@@ -78,8 +83,10 @@ import {
   getZoneDefinition,
   recommendPlayers,
   resolveZoneId,
+  positionAffinity,
   type ZoneId,
 } from '@/features/team-planning/slotZones';
+
 import './team-planning.css';
 import './TeamPlanningSizing.css';
 
@@ -129,6 +136,7 @@ function TeamPlanningContent() {
   const teamLeagueIdRef = useRef<string | null>(null);
   const [selectedSlotMeta, setSelectedSlotMeta] = useState<SelectedSlotMeta | null>(null);
   const [isListCollapsed, setIsListCollapsed] = useState(false);
+  const [isDetailOverlayOpen, setIsDetailOverlayOpen] = useState(false);
   /* isListCollapsed already declared above */
 
   const {
@@ -875,20 +883,22 @@ function TeamPlanningContent() {
       return null;
     }
 
-    const relativeX = ((clientX - rect.left) / rect.width) * 100;
-    const relativeY = ((clientY - rect.top) / rect.height) * 100;
-
-    if (Number.isNaN(relativeX) || Number.isNaN(relativeY)) {
-      return null;
-    }
-
     if (clientX < rect.left || clientX > rect.right || clientY < rect.top || clientY > rect.bottom) {
       return null;
     }
 
+    const relativeX = ((clientX - rect.left) / rect.width) * 100;
+    const relativeY = ((clientY - rect.top) / rect.height) * 100;
+
+    // Pure 0-100 Mapping (No Padding)
+    // Game coordinates directly match visual percentages now.
+
+    let gameY = 100 - relativeX;
+    let gameX = relativeY;
+
     return {
-      x: clampPercentageValue(relativeX),
-      y: clampPercentageValue(relativeY),
+      x: clampPercentageValue(gameX),
+      y: clampPercentageValue(gameY),
       position: 'CM',
     };
   }, []);
@@ -921,37 +931,25 @@ function TeamPlanningContent() {
     [],
   );
 
-  const getMetricValueForPlayer = useCallback(
-    (player: DisplayPlayer, metric: MetricKey): number => {
-      switch (metric) {
-        case 'motivation':
-          return clampPercentageValue(getPlayerMotivation(player) * 100);
-        case 'condition':
-          return clampPercentageValue(getPlayerCondition(player) * 100);
-        default:
-          return normalizeRatingTo100(getPlayerPower(player));
-      }
-    },
-    [],
-  );
+  // Removed duplicate getPitchMetricValue
 
   const renderPitchTooltip = useCallback(
     (player: DisplayPlayer) => (
       <div className="space-y-2">
         <div className="text-xs font-semibold">{player.name}</div>
         <PerformanceGauge
-          label="Guç"
-          value={normalizeRatingTo100(getPlayerPower(player)) / 100}
+          label="Güç"
+          value={normalizeRatingTo100(calculatePowerIndex(player))}
           variant="dark"
         />
         <PerformanceGauge
           label="Kondisyon"
-          value={getPlayerCondition(player)}
+          value={clampPercentageValue((player.condition ?? 0) * 100)}
           variant="dark"
         />
         <PerformanceGauge
           label="Motivasyon"
-          value={getPlayerMotivation(player)}
+          value={clampPercentageValue((player.motivation ?? 0) * 100)}
           variant="dark"
         />
         {player.originalOverall > player.overall ? (
@@ -1425,13 +1423,60 @@ function TeamPlanningContent() {
       return;
     }
 
-    dropHandledRef.current = true;
-
     const nearestSlot = findNearestSlot(coordinates);
     const finalPosition = nearestSlot?.position ?? player.position;
 
+    // GK LOGIC (Overlap Protection):
+    const isTargetSlotGK = nearestSlot && canonicalPosition(nearestSlot.position) === 'GK';
+    const isGK = canonicalPosition(player.position) === 'GK';
+
+    // SNAP LOGIC:
+    // If we are interacting with the GK slot, we MUST snap to its coordinates.
+    // We do NOT use the mouse coordinates (which might be 'next to' the slot).
+    // This prevents 2 players in the box (one in slot, one free-floating).
+    const effectiveCoordinates = isTargetSlotGK ? { x: nearestSlot!.x, y: nearestSlot!.y } : coordinates;
+
+    // Remove strict blocks. Swaps are allowed.
+    // Ensure we process the SWAP if occupied using valid logic below.
+
+    dropHandledRef.current = true;
+
     if (player.squadRole === 'starting') {
       if (finalPosition !== player.position) {
+        const targetPlayer = nearestSlot?.player;
+        if (targetPlayer && targetPlayer.id !== player.id) {
+          // SWAP LOGIC
+          const originSlot = formationPositions.find(entry => entry.player?.id === player.id);
+          setPlayers(prev =>
+            normalizePlayers(
+              prev.map(current => {
+                if (current.id === player.id) return { ...current, position: finalPosition };
+                if (current.id === targetPlayer.id) return { ...current, position: originSlot?.position ?? player.position };
+                return current;
+              }),
+            ),
+          );
+
+          // Update UI for both players
+          applyManualPosition(playerId, {
+            x: effectiveCoordinates.x,
+            y: effectiveCoordinates.y,
+            position: finalPosition,
+          });
+          if (originSlot) {
+            applyManualPosition(targetPlayer.id, {
+              x: originSlot.x,
+              y: originSlot.y,
+              position: originSlot.position,
+            });
+          }
+
+          setFocusedPlayerId(playerId);
+          toast.success('Oyuncular yer değiştirdi');
+          setDraggedPlayerId(null);
+          return;
+        }
+
         setPlayers(prev =>
           normalizePlayers(
             prev.map(current =>
@@ -1488,7 +1533,7 @@ function TeamPlanningContent() {
   };
 
   const handlePlayerDragEnd = useCallback(
-    (event: React.DragEvent<HTMLDivElement>, player: Player) => {
+    (player: Player, event: React.DragEvent<HTMLDivElement>) => {
       setDraggedPlayerId(null);
       if (dropHandledRef.current) {
         dropHandledRef.current = false;
@@ -1510,6 +1555,18 @@ function TeamPlanningContent() {
 
       const nearestSlot = findNearestSlot(coordinates);
       const finalPosition = nearestSlot?.position ?? player.position;
+
+      // Rule 1: If Target is GK Slot AND Occupied (by someone else) -> Swapping is allowed, so NO BLOCK.
+      // But we must ensure correct swap logic flows.
+      // Actually, standard logic handles swaps. The only thing to prevent is OVERLAP (dropping without swapping).
+      // Since findNearestSlot snapped to the slot, finalPosition IS the slot position.
+      // So logical flow will enter "finalPosition !== player.position" block below.
+
+      // Strict blocks removed.
+
+
+
+
       if (finalPosition !== player.position) {
         setPlayers(prev =>
           normalizePlayers(
@@ -1603,8 +1660,44 @@ function TeamPlanningContent() {
         position: slot.position,
       });
       setFocusedPlayerId(slot.player ? slot.player.id : null);
+      setActiveTab('suggestions');
     },
     [setFocusedPlayerId],
+  );
+
+  const getPitchMetricValue = useCallback(
+    (player: Player, metric: MetricKey) => {
+      let value = 0;
+      if (metric === 'power') {
+        const index = calculatePowerIndex(player);
+        value = normalizeRatingTo100(index);
+
+        // Apply position affinity penalty
+        const slot = formationPositions.find(s => s.player?.id === player.id);
+        if (slot) {
+          const zoneId = resolveZoneId(slot);
+          const zone = getZoneDefinition(zoneId);
+          // Cast to DisplayPlayer is safe here as positionAffinity only checks position/roles
+          // which exist on Player.
+          // Note: affinity returns 0.5 for mismatch, 1.2 for exact match.
+          // The user requested "80 becomes 40", so direct multiplier is good.
+          // So 0.5 is key.
+          const affinity = positionAffinity(player as any, zone);
+          value = value * affinity;
+        }
+      } else {
+        switch (metric) {
+          case 'condition':
+            value = (player.condition ?? 0) * 100;
+            break;
+          case 'motivation':
+            value = (player.motivation ?? 0) * 100;
+            break;
+        }
+      }
+      return value;
+    },
+    [formationPositions],
   );
 
   useEffect(() => {
@@ -1681,6 +1774,7 @@ function TeamPlanningContent() {
     }
 
     const targetPlayer = slot.player ?? null;
+
     if (targetPlayer && targetPlayer.id === draggedPlayer.id) {
       dropHandledRef.current = true;
       applyManualPosition(playerId, {
@@ -1913,7 +2007,7 @@ function TeamPlanningContent() {
 
   return (
     <>
-      <div className="flex h-screen flex-col overflow-hidden bg-gradient-to-br from-emerald-900 via-emerald-950 to-slate-950 text-white">
+      <div className="flex h-screen flex-col overflow-hidden bg-gradient-to-br from-slate-900 via-slate-950 to-black text-white">
         <header
           id="tp-topbar"
           className="flex flex-shrink-0 items-center justify-between border-b border-white/10 bg-black/30 px-5 py-0 backdrop-blur"
@@ -1922,20 +2016,29 @@ function TeamPlanningContent() {
             <BackButton />
             <div>
               <h1 className="text-base font-semibold sm:text-lg">Takım Planı</h1>
-              <p className="text-[11px] text-emerald-100/70 sm:text-xs">
+              <p className="text-[11px] text-orange-100/70 sm:text-xs">
                 Formasyonunuzu yönetin ve kadronuzu düzenleyin
               </p>
             </div>
           </div>
           <div className="flex items-center gap-1.5">
-            <Button
-              variant="outline"
-              size="sm"
-              className="tp-topbar-button border-white/30 bg-white/10 text-white shadow-sm transition hover:bg-white/20 hover:text-white h-9 px-3 text-xs sm:text-sm"
-            >
-              <Eye className="mr-1.5 h-3.5 w-3.5" />
-              Formasyon
-            </Button>
+            <div className="flex items-center">
+              <Select value={selectedFormation} onValueChange={handleFormationSelect}>
+                <SelectTrigger className="h-9 border-white/30 bg-white/10 px-3 text-xs text-white shadow-sm transition hover:bg-white/20 hover:text-white sm:text-sm w-[140px]">
+                  <div className="flex items-center">
+                    <Eye className="mr-1.5 h-3.5 w-3.5" />
+                    <span>{displayFormationName || 'Formasyon'}</span>
+                  </div>
+                </SelectTrigger>
+                <SelectContent className="max-h-64">
+                  {formations.map(formation => (
+                    <SelectItem key={formation.name} value={formation.name}>
+                      {formation.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
             <Button
               size="sm"
               onClick={handleSave}
@@ -1947,87 +2050,54 @@ function TeamPlanningContent() {
           </div>
         </header>
 
-        <div className="flex flex-1 overflow-hidden relative">
+        <div className="flex flex-1 overflow-hidden relative justify-start items-stretch">
           <section
             id="tp-left"
-            className={cn(
-              "relative h-full transition-all duration-300 ease-in-out",
-              isListCollapsed ? "w-full" : "w-1/2 lg:w-[56%]"
-            )}
+            style={{
+              width: isListCollapsed ? '100%' : '60%',
+              flex: isListCollapsed ? '0 0 100%' : '0 0 60%',
+              maxWidth: isListCollapsed ? '100%' : '60%'
+            }}
+            className="relative h-full transition-all duration-300 ease-in-out min-w-0 bg-transparent m-0 p-0 flex flex-col shrink-0"
           >
-            <div id="tp-pitch-wrapper" className="tp-pitch-shell h-full w-full">
+            <div id="tp-pitch-wrapper" className="flex-1 w-full h-full bg-transparent m-0 p-0 block relative min-h-0">
               <Pitch
                 ref={pitchRef}
                 slots={formationPositions}
                 onPitchDrop={handlePitchDrop}
                 onPositionDrop={handlePositionDrop}
-                onPlayerDragStart={handlePitchMarkerDragStart}
-                onPlayerDragEnd={handlePitchMarkerDragStart}
-                onSelectPlayer={playerId => setFocusedPlayerId(playerId)}
+                onPlayerDragStart={player => {
+                  setDraggedPlayerId(player.id);
+                  // Zoom removed
+                }}
+                onPlayerDragEnd={handlePlayerDragEnd}
+                onSelectPlayer={playerId => {
+                  const items = formationPositions;
+                  const slot = items.find(s => s.player?.id === playerId);
+                  if (slot) {
+                    handleSlotSelect(slot);
+                    setFocusedPlayerId(playerId);
+                  }
+                }}
                 onSelectSlot={handleSlotSelect}
                 focusedPlayerId={focusedPlayerId}
                 selectedMetric={selectedMetric}
-                getMetricValue={getMetricValueForPlayer}
+                getMetricValue={getPitchMetricValue}
                 renderTooltip={renderPitchTooltip}
+                isExpanded={isListCollapsed}
+                onBackgroundClick={() => {
+                  setSelectedSlotMeta(null);
+                  setFocusedPlayerId(null);
+                  setActiveTab('starting');
+                }}
               />
-            </div>
-
-            <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex items-start justify-start p-5 sm:p-6">
-              <div className="pointer-events-auto flex flex-col gap-2.5">
-                <div className="tp-formation-card pointer-events-auto flex max-w-[15rem] flex-col gap-2 rounded-3xl border border-white/20 bg-black/40 p-[0.8rem] shadow-xl backdrop-blur">
-                  <span className="text-[11px] font-semibold uppercase tracking-wide text-emerald-100/80">Formasyon</span>
-                  <div className="flex items-baseline gap-2.5">
-                    <span className="text-xl font-bold text-white">{displayFormationName}</span>
-
-                  </div>
-                  <Select value={selectedFormation} onValueChange={handleFormationSelect}>
-                    <SelectTrigger className="w-full border-white/20 bg-white/10 text-white focus:ring-white/50">
-                      <SelectValue placeholder="Formasyon sec" />
-                    </SelectTrigger>
-                    <SelectContent className="max-h-64">
-                      {formations.map(formation => (
-                        <SelectItem key={formation.name} value={formation.name}>
-                          {formation.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="tp-squad-count-card hidden max-w-[10rem] rounded-3xl border border-white/20 bg-black/40 px-3 py-2 text-left text-[9px] font-semibold uppercase tracking-wide text-emerald-100 shadow-xl backdrop-blur sm:flex sm:flex-col sm:items-start sm:gap-1.5">
-                  <span>Ilk 11 - {startingEleven.length}</span>
-                  <span>Yedek - {benchPlayers.length}</span>
-                  <span>Rezerv - {reservePlayers.length}</span>
-                </div>
-              </div>
-            </div>
-            <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 flex justify-start p-6">
-              <div
-                id="tp-metric-panel"
-                className="pointer-events-auto inline-flex items-center gap-1 rounded-full border border-white/20 bg-black/40 p-1 shadow-xl backdrop-blur"
-              >
-                {metricOptions.map(option => (
-                  <button
-                    key={option.key}
-                    type="button"
-                    onClick={() => setSelectedMetric(option.key)}
-                    className={cn(
-                      'rounded-full px-4 py-2 text-[11px] font-semibold uppercase tracking-wider transition duration-150',
-                      selectedMetric === option.key
-                        ? 'bg-emerald-400 text-emerald-950 shadow'
-                        : 'text-emerald-100 hover:bg-white/10',
-                    )}
-                  >
-                    {option.label}
-                  </button>
-                ))}
-              </div>
             </div>
           </section>
 
           <aside
             className={cn(
               "flex flex-col h-full overflow-hidden border-l border-white/10 bg-black/35 transition-all duration-300 ease-in-out absolute right-0 top-0 bottom-0 z-20 shadow-2xl backdrop-blur-md",
-              isListCollapsed ? "translate-x-[calc(100%-24px)]" : "translate-x-0 w-1/2 lg:w-[44%]"
+              isListCollapsed ? "translate-x-[calc(100%-24px)]" : "translate-x-0 w-[40%]"
             )}
             onClick={(e) => {
               if (isListCollapsed) {
@@ -2037,8 +2107,8 @@ function TeamPlanningContent() {
             }}
           >
             {isListCollapsed && (
-              <div className="absolute left-0 top-0 bottom-0 w-6 flex items-center justify-center bg-emerald-500/20 hover:bg-emerald-500/40 cursor-pointer group">
-                <ChevronLeft className="w-4 h-4 text-emerald-100 group-hover:scale-110 transition-transform" />
+              <div className="absolute left-0 top-0 bottom-0 w-6 flex items-center justify-center bg-orange-500/20 hover:bg-orange-500/40 cursor-pointer group">
+                <ChevronLeft className="w-4 h-4 text-orange-100 group-hover:scale-110 transition-transform" />
               </div>
             )}
             <div
@@ -2057,22 +2127,22 @@ function TeamPlanningContent() {
                   data-collapsed={isRightHeaderCollapsed}
                   className="sticky top-0 z-20 border-b border-white/10 bg-black/50 backdrop-blur"
                 >
-                  <div className="px-6 py-5">
-                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                  <div className="px-2 py-1.5">
+                    <div className="flex flex-col gap-1 sm:flex-row sm:items-center">
                       <div className="relative flex-1">
-                        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-emerald-100/60" />
+                        <Search className="pointer-events-none absolute left-2 top-1/2 h-2.5 w-2.5 -translate-y-1/2 text-orange-100/60" />
                         <Input
                           placeholder="Oyuncu ara..."
                           value={searchTerm}
                           onChange={event => setSearchTerm(event.target.value)}
-                          className="border-white/20 bg-white/10 pl-9 text-white placeholder:text-emerald-100/50 focus-visible:ring-white/50"
+                          className="h-6 border-white/20 bg-white/10 pl-6 text-[9px] text-white placeholder:text-orange-100/50 focus-visible:ring-orange-500/50"
                         />
                       </div>
                       <Select
                         value={sortBy}
                         onValueChange={value => setSortBy(value as 'role' | 'overall' | 'potential')}
                       >
-                        <SelectTrigger className="border-white/20 bg-white/10 text-white focus:ring-white/50 sm:w-40">
+                        <SelectTrigger className="h-6 border-white/20 bg-white/10 text-[9px] text-white focus:ring-orange-500/50 sm:w-24">
                           <SelectValue placeholder="Sırala" />
                         </SelectTrigger>
                         <SelectContent>
@@ -2083,22 +2153,32 @@ function TeamPlanningContent() {
                       </Select>
                     </div>
 
-                    <TabsList className="mt-4 grid grid-cols-3 gap-2 rounded-full bg-white/10 p-1">
+                    <TabsList className="mt-1 grid grid-cols-4 gap-0.5 rounded-full bg-slate-900/60 p-0.5">
+                      <TabsTrigger
+                        value="suggestions"
+                        className={cn(
+                          "rounded-full px-1 py-0.5 text-[8px] font-bold uppercase tracking-wide text-orange-100 data-[state=active]:bg-orange-500 data-[state=active]:text-white",
+                          !selectedSlotMeta && "opacity-50 pointer-events-none"
+                        )}
+                        disabled={!selectedSlotMeta}
+                      >
+                        Öneriler
+                      </TabsTrigger>
                       <TabsTrigger
                         value="starting"
-                        className="rounded-full px-3 py-2 text-xs font-semibold uppercase tracking-wide text-emerald-100 data-[state=active]:bg-emerald-400 data-[state=active]:text-emerald-950"
+                        className="rounded-full px-1 py-0.5 text-[8px] font-bold uppercase tracking-wide text-orange-100 data-[state=active]:bg-orange-500 data-[state=active]:text-white"
                       >
                         İlk 11 ({startingEleven.length})
                       </TabsTrigger>
                       <TabsTrigger
                         value="bench"
-                        className="rounded-full px-3 py-2 text-xs font-semibold uppercase tracking-wide text-emerald-100 data-[state=active]:bg-emerald-400 data-[state=active]:text-emerald-950"
+                        className="rounded-full px-1 py-0.5 text-[8px] font-bold uppercase tracking-wide text-orange-100 data-[state=active]:bg-orange-500 data-[state=active]:text-white"
                       >
                         Yedek ({benchPlayers.length})
                       </TabsTrigger>
                       <TabsTrigger
                         value="reserve"
-                        className="rounded-full px-3 py-2 text-xs font-semibold uppercase tracking-wide text-emerald-100 data-[state=active]:bg-emerald-400 data-[state=active]:text-emerald-950"
+                        className="rounded-full px-1 py-0.5 text-[8px] font-bold uppercase tracking-wide text-orange-100 data-[state=active]:bg-orange-500 data-[state=active]:text-white"
                       >
                         Rezerv ({reservePlayers.length})
                       </TabsTrigger>
@@ -2113,41 +2193,53 @@ function TeamPlanningContent() {
                   onScroll={handleRightPaneScroll}
                 >
                   <div className="mx-auto flex max-w-3xl flex-col gap-6">
-                    {selectedZoneDefinition ? (
-                      <Card className="border-white/10 bg-white/5 text-white shadow-lg backdrop-blur">
-                        <CardHeader className="pb-3">
-                          <CardTitle className="text-sm font-semibold text-white">
-                            {selectedZoneDefinition.label} alanı için öneriler
-                          </CardTitle>
-                        </CardHeader>
-                        <CardContent className="space-y-3">
-                          {selectedPlayer ? (
-                            <p className="text-[11px] text-emerald-100/75">
-                              Seçili oyuncu: <span className="font-semibold">{selectedPlayer.name}</span>
+                    <TabsContent value="suggestions" className="mt-0 space-y-4">
+                      {!selectedSlotMeta ? (
+                        <div className="flex h-full flex-col items-center justify-center space-y-2 text-center text-orange-100/50">
+                          <p className="text-sm">Bir oyuncu slotu seçin.</p>
+                        </div>
+                      ) : recommendedPlayers.length === 0 ? (
+                        <Card className="border-white/10 bg-white/5 text-center text-white shadow-lg backdrop-blur">
+                          <CardContent className="p-8">
+                            <div className="mb-4 text-4xl">⚽</div>
+                            <h3 className="mb-2 text-base font-semibold">Öneri Bulunamadı</h3>
+                            <p className="text-sm text-emerald-100/70">
+                              Bu pozisyon için uygun oyuncu yok.
                             </p>
-                          ) : (
-                            <p className="text-[11px] text-emerald-100/60">Slot boş, önerilen oyunculardan birini ekleyebilirsin.</p>
-                          )}
-                          {recommendedPlayers.length > 0 ? (
-                            <div className="grid gap-[6px] lg:grid-cols-2">
-                              {recommendedPlayers.map(alternative => (
-                                <AlternativePlayerBubble
-                                  key={alternative.id}
-                                  player={alternative}
-                                  onSelect={playerId => handleAlternativeSelection(playerId)}
-                                  variant="panel"
-                                  compareToPlayer={selectedPlayer}
-                                />
-                              ))}
-                            </div>
-                          ) : (
-                            <p className="text-xs text-emerald-100/70">
-                              Bu alan için bench/rezerv oyuncu bulunamadı.
-                            </p>
-                          )}
-                        </CardContent>
-                      </Card>
-                    ) : null}
+                          </CardContent>
+                        </Card>
+                      ) : (
+                        <>
+                          <div className="flex items-center justify-between border-b border-white/10 pb-2">
+                            <h3 className="font-semibold text-orange-100">
+                              {selectedZoneDefinition?.label} Önerileri
+                            </h3>
+                            <span className="text-xs text-orange-100/60">
+                              {recommendedPlayers.length} Oyuncu
+                            </span>
+                          </div>
+                          {recommendedPlayers.map(player => {
+                            const canAdjustContract = getLegendIdFromPlayer(player) === null;
+                            const metricValue = getPitchMetricValue(player, selectedMetric);
+                            return (
+                              <PlayerCard
+                                key={player.id}
+                                player={player}
+                                leagueId={teamLeagueIdRef.current}
+                                ratingAnnotation={String(Math.round(metricValue))}
+                                compact
+                                defaultCollapsed
+                                onSelect={() => handleAlternativeSelection(player.id)}
+                                onShowDetails={() => {
+                                  setFocusedPlayerId(player.id);
+                                  setIsDetailOverlayOpen(true);
+                                }}
+                              />
+                            );
+                          })}
+                        </>
+                      )}
+                    </TabsContent>
 
                     <TabsContent value="starting" className="mt-0 space-y-4">
                       {sortedPlayers.length === 0 ? (
@@ -2188,6 +2280,10 @@ function TeamPlanningContent() {
                               onExtendContract={
                                 canAdjustContract ? () => handleExtendContract(player.id) : undefined
                               }
+                              onShowDetails={() => {
+                                setFocusedPlayerId(player.id);
+                                setIsDetailOverlayOpen(true);
+                              }}
                             />
                           );
                         })
@@ -2233,6 +2329,10 @@ function TeamPlanningContent() {
                               onExtendContract={
                                 canAdjustContract ? () => handleExtendContract(player.id) : undefined
                               }
+                              onShowDetails={() => {
+                                setFocusedPlayerId(player.id);
+                                setIsDetailOverlayOpen(true);
+                              }}
                             />
                           );
                         })
@@ -2278,6 +2378,10 @@ function TeamPlanningContent() {
                               onExtendContract={
                                 canAdjustContract ? () => handleExtendContract(player.id) : undefined
                               }
+                              onShowDetails={() => {
+                                setFocusedPlayerId(player.id);
+                                setIsDetailOverlayOpen(true);
+                              }}
                             />
                           );
                         })
@@ -2288,8 +2392,8 @@ function TeamPlanningContent() {
               </Tabs>
             </div>
           </aside>
-        </div>
-      </div>
+        </div >
+      </div >
 
       <RenamePlayerDialog
         player={renamePlayer}
@@ -2333,6 +2437,20 @@ function TeamPlanningContent() {
         onExtend={() => activeContractPlayer && handleExtendContract(activeContractPlayer.id)}
       />
 
+      <PlayerDetailOverlay
+        isOpen={isDetailOverlayOpen}
+        onClose={() => setIsDetailOverlayOpen(false)}
+        player={selectedPlayer}
+        onMoveToStarting={(id) => { movePlayer(id, 'starting'); setIsDetailOverlayOpen(false); }}
+        onMoveToBench={(id) => { movePlayer(id, 'bench'); setIsDetailOverlayOpen(false); }}
+        onMoveToReserve={(id) => { movePlayer(id, 'reserve'); setIsDetailOverlayOpen(false); }}
+        onRename={(id) => { setRenamePlayerId(id); setIsDetailOverlayOpen(false); }}
+        onNegotiateSalary={(id) => { openSalaryNegotiation(id); setIsDetailOverlayOpen(false); }}
+        onSellPlayer={(id) => { handleListForTransfer(id); setIsDetailOverlayOpen(false); }}
+        onExtendContract={(id) => { handleExtendContract(id); setIsDetailOverlayOpen(false); }}
+        onFirePlayer={(id) => { handleFirePlayer(id); setIsDetailOverlayOpen(false); }}
+        onReleasePlayer={(id) => { handleReleaseContract(id); setIsDetailOverlayOpen(false); }}
+      />
     </>
   );
 }

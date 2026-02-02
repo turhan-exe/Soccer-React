@@ -4,9 +4,10 @@ import { Button } from './button';
 
 interface BackButtonProps {
   fallbackPath?: string;
+  className?: string;
 }
 
-export function BackButton({ fallbackPath = '/' }: BackButtonProps) {
+export function BackButton({ fallbackPath = '/', className }: BackButtonProps) {
   const navigate = useNavigate();
   const handleClick = () => {
     if (window.history.length > 1) {
@@ -16,7 +17,7 @@ export function BackButton({ fallbackPath = '/' }: BackButtonProps) {
     }
   };
   return (
-    <Button variant="ghost" onClick={handleClick}>
+    <Button variant="ghost" onClick={handleClick} className={className}>
       <ArrowLeft className="h-4 w-4" />
     </Button>
   );

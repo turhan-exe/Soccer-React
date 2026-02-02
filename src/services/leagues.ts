@@ -503,8 +503,8 @@ function needsHumanNameLookup(id: string, name?: string | null): boolean {
 }
 
 async function hydrateTeamNames(
-  teams: { id: string; name: string }[]
-): Promise<{ id: string; name: string }[]> {
+  teams: { id: string; name: string; logo?: string | null }[]
+): Promise<{ id: string; name: string; logo?: string | null }[]> {
   const lookupIds = Array.from(
     new Set(
       teams.filter((team) => needsHumanNameLookup(team.id, team.name)).map((team) => team.id)
@@ -512,16 +512,17 @@ async function hydrateTeamNames(
   );
   if (lookupIds.length === 0) return teams;
 
-  const resolved = new Map<string, string>();
+  const resolved = new Map<string, { name: string; logo: string | null }>();
   await Promise.all(
     lookupIds.map(async (teamId) => {
       try {
         const snap = await getDoc(doc(db, 'teams', teamId));
         if (!snap.exists()) return;
-        const data = snap.data() as { name?: string };
+        const data = snap.data() as { name?: string; logo?: string | null };
         const friendly = (data?.name ?? '').trim();
-        if (friendly) {
-          resolved.set(teamId, friendly);
+        const logo = data?.logo || null;
+        if (friendly || logo) {
+          resolved.set(teamId, { name: friendly, logo });
         }
       } catch {
         // Silent: network/cache errors should not break fixtures view.
@@ -530,12 +531,22 @@ async function hydrateTeamNames(
   );
 
   if (resolved.size === 0) return teams;
-  return teams.map((team) => (resolved.has(team.id) ? { ...team, name: resolved.get(team.id)! } : team));
+  return teams.map((team) => {
+    if (resolved.has(team.id)) {
+      const info = resolved.get(team.id)!;
+      return {
+        ...team,
+        name: info.name || team.name,
+        logo: info.logo || team.logo
+      };
+    }
+    return team;
+  });
 }
 
 export async function getLeagueTeams(
   leagueId: string
-): Promise<{ id: string; name: string }[]> {
+): Promise<{ id: string; name: string; logo?: string | null }[]> {
   // Prefer standings for human-friendly names (works for slot-based)
   const standingsSnap = await getDocs(collection(db, 'leagues', leagueId, 'standings'));
   if (!standingsSnap.empty) {
