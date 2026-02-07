@@ -57,6 +57,7 @@ import matchCardBg from '@/assets/menu/match_card.png';
 import iconTeam from '@/assets/menu/team.png';
 import iconYouth from '@/assets/menu/youth.png';
 import iconTransfer from '@/assets/menu/transfer.png';
+import iconNostalgia from '@/assets/menu/nostalgia.png';
 import iconLeagues from '@/assets/menu/leagues.png';
 import iconTraining from '@/assets/menu/training.png';
 import iconFinance from '@/assets/menu/finance.png';
@@ -621,10 +622,18 @@ export default function MainMenu() {
 
           {/* Transfer (Starts Col 4 [Index 4], Row 0) */}
           <MenuButton
-            label="TRANSFER MARKETI" icon={iconTransfer} onClick={() => navigate('/transfer-market')}
-            className={`col-span-2 ${isDark ? 'border-white/10' : 'border-white/60 shadow-blue-900/10'}`}
+            label="TRANSFER" icon={iconTransfer} onClick={() => navigate('/transfer-market')}
+            className={`col-span-1 ${isDark ? 'border-white/10' : 'border-white/60 shadow-blue-900/10'}`}
             bgClass={isDark ? "bg-slate-900" : "bg-gradient-to-b from-[#0f4c81] via-[#1e60a3] to-[#3b82f6]"}
-            layout="horizontal"
+            layout="vertical"
+          />
+
+          {/* Nostalgia Pack (Col 5, Row 0) */}
+          <MenuButton
+            label="NOSTALJİ" icon={iconNostalgia} onClick={() => navigate('/legend-pack')}
+            className={`col-span-1 ${isDark ? 'border-white/10' : 'border-white/60 shadow-purple-900/10'}`}
+            bgClass={isDark ? "bg-slate-900" : "bg-gradient-to-br from-[#5b21b6] to-[#7c3aed]"}
+            layout="vertical"
           />
 
           {/* Ligler (Col 3 [Index 3], Row 1) */}

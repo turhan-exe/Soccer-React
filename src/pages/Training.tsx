@@ -64,6 +64,7 @@ import {
   ClipboardList,
   X,
   Clapperboard,
+  History,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useInventory } from '@/contexts/InventoryContext';
@@ -345,7 +346,7 @@ export default function TrainingPage() {
     setPendingActiveSession(null);
     setSelectedPlayers([]);
     setSelectedTrainings([]);
-    toast.success('Antrenman tamamlandı');
+    toast.success(`Antrenman tamamlandı (${records.length} işlem)`);
   }, [players, setActiveSessionSafe, user]);
 
   useEffect(() => {
@@ -659,11 +660,11 @@ export default function TrainingPage() {
 
       if (newRemaining <= 0) {
         setTimeLeft(0);
-        toast.success('Antrenman süresi %25 azaltıldı');
+        toast.success('Antrenman tamamlandı');
         await completeSession();
       } else {
         startCountdown(newRemaining);
-        toast.success('Antrenman süresi %25 azaltıldı');
+        toast.success('Antrenman tamamlandı');
       }
     } catch (err) {
       console.warn('Antrenman reklamla hızlandırılamadı', err);
@@ -787,6 +788,88 @@ export default function TrainingPage() {
               </Button>
             </div>
 
+            <Sheet>
+              <SheetTrigger asChild>
+                <Button variant="outline" size="sm" className="gap-2">
+                  <History className="h-4 w-4" />
+                  Geçmiş
+                </Button>
+              </SheetTrigger>
+              <SheetContent className="flex flex-col gap-4 sm:max-w-md">
+                <SheetHeader>
+                  <SheetTitle>Antrenman Geçmişi</SheetTitle>
+                </SheetHeader>
+                <div className="flex-1 overflow-y-auto pr-2">
+                  {filteredHistory.length === 0 ? (
+                    <p className="py-8 text-center text-muted-foreground">
+                      Henüz antrenman kaydı bulunmuyor.
+                    </p>
+                  ) : (
+                    <div className="space-y-3">
+                      {filteredHistory.map((record) => {
+                        const player = players.find(p => p.id === record.playerId);
+                        const training = trainings.find(t => t.id === record.trainingId);
+                        const isSuccess = record.result === 'success';
+
+                        return (
+                          <div
+                            key={record.id}
+                            className={cn(
+                              "rounded-lg border p-3 text-sm shadow-sm transition-colors",
+                              record.result === 'success'
+                                ? "bg-emerald-50/50 border-emerald-100 dark:bg-emerald-900/20 dark:border-emerald-800"
+                                : record.result === 'fail'
+                                  ? "bg-red-50/50 border-red-100 dark:bg-red-900/20 dark:border-red-800"
+                                  : "bg-amber-50/50 border-amber-100 dark:bg-amber-900/20 dark:border-amber-800"
+                            )}
+                          >
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="font-semibold">{player?.name || 'Bilinmeyen Oyuncu'}</span>
+                              <span className="text-xs text-muted-foreground">
+                                {record.completedAt?.toDate().toLocaleDateString('tr-TR', {
+                                  day: 'numeric',
+                                  month: 'short',
+                                  hour: '2-digit',
+                                  minute: '2-digit'
+                                })}
+                              </span>
+                            </div>
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="flex flex-col">
+                                <span className="text-muted-foreground truncate">
+                                  {training?.name || 'Bilinmeyen Antrenman'}
+                                </span>
+                                {record.gain > 0 && (
+                                  <span className="text-xs font-medium text-emerald-600 dark:text-emerald-400">
+                                    {training?.type ? (
+                                      <>
+                                        {training.type.charAt(0).toUpperCase() + training.type.slice(1)}: +{(record.gain * 100).toFixed(1)}
+                                      </>
+                                    ) : (
+                                      `Gelişim: +${(record.gain * 100).toFixed(1)}`
+                                    )}
+                                  </span>
+                                )}
+                              </div>
+                              <span className={cn(
+                                "text-xs px-2 py-0.5 rounded-full font-medium min-w-[60px] text-center",
+                                record.result === 'success'
+                                  ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300"
+                                  : record.result === 'fail'
+                                    ? "bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300"
+                                    : "bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300"
+                              )}>
+                                {record.result === 'success' ? 'Başarılı' : record.result === 'fail' ? 'Başarısız' : 'Normal'}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </SheetContent>
+            </Sheet>
           </div>
         </div>
       </div>
@@ -1055,7 +1138,7 @@ export default function TrainingPage() {
                           className="w-full"
                           disabled={isWatchingAd}
                         >
-                          <Clapperboard className="mr-2 h-4 w-4" /> Reklam İzle (%25 Daha Hızlı)
+                          <Clapperboard className="mr-2 h-4 w-4" /> {isWatchingAd ? 'Video Yükleniyor...' : 'Reklam İzle (Hemen Bitir)'}
                         </Button>
                       </>
                     )}
@@ -1144,6 +1227,6 @@ export default function TrainingPage() {
           {playerDetail ? <PlayerStatusCard player={playerDetail} /> : null}
         </DialogContent>
       </Dialog>
-    </div>
+    </div >
   );
 }

@@ -1423,21 +1423,30 @@ function TeamPlanningContent() {
       return;
     }
 
+    // GK LOCK LOGIC (Strict No-Swap):
+    const isGK = canonicalPosition(player.position) === 'GK';
     const nearestSlot = findNearestSlot(coordinates);
     const finalPosition = nearestSlot?.position ?? player.position;
-
-    // GK LOGIC (Overlap Protection):
     const isTargetSlotGK = nearestSlot && canonicalPosition(nearestSlot.position) === 'GK';
-    const isGK = canonicalPosition(player.position) === 'GK';
+    const isTargetOccupied = nearestSlot?.player;
 
-    // SNAP LOGIC:
-    // If we are interacting with the GK slot, we MUST snap to its coordinates.
-    // We do NOT use the mouse coordinates (which might be 'next to' the slot).
-    // This prevents 2 players in the box (one in slot, one free-floating).
-    const effectiveCoordinates = isTargetSlotGK ? { x: nearestSlot!.x, y: nearestSlot!.y } : coordinates;
+    // Rule 1: If Target is GK Slot AND Occupied -> BLOCK (No Swap allowed)
+    if (isTargetSlotGK && isTargetOccupied && nearestSlot.player?.id !== player.id) {
+      toast.warning("Kaleci pozisyonu doluyken başka oyuncu eklenemez.");
+      setDraggedPlayerId(null);
+      return;
+    }
 
-    // Remove strict blocks. Swaps are allowed.
-    // Ensure we process the SWAP if occupied using valid logic below.
+    // Rule 2: Strict Type Matching
+    if (isGK !== !!isTargetSlotGK) {
+      if (isGK) {
+        toast.warning("Kaleciler sadece (boş) kaleci pozisyonunda oynayabilir.");
+      } else {
+        toast.warning("Kaleci pozisyonuna sadece kaleci girebilir.");
+      }
+      setDraggedPlayerId(null);
+      return;
+    }
 
     dropHandledRef.current = true;
 
@@ -1459,8 +1468,8 @@ function TeamPlanningContent() {
 
           // Update UI for both players
           applyManualPosition(playerId, {
-            x: effectiveCoordinates.x,
-            y: effectiveCoordinates.y,
+            x: coordinates.x,
+            y: coordinates.y,
             position: finalPosition,
           });
           if (originSlot) {
@@ -1556,13 +1565,28 @@ function TeamPlanningContent() {
       const nearestSlot = findNearestSlot(coordinates);
       const finalPosition = nearestSlot?.position ?? player.position;
 
-      // Rule 1: If Target is GK Slot AND Occupied (by someone else) -> Swapping is allowed, so NO BLOCK.
-      // But we must ensure correct swap logic flows.
-      // Actually, standard logic handles swaps. The only thing to prevent is OVERLAP (dropping without swapping).
-      // Since findNearestSlot snapped to the slot, finalPosition IS the slot position.
-      // So logical flow will enter "finalPosition !== player.position" block below.
+      // GK LOCK LOGIC (Strict No-Swap via DragEnd Fallback)
+      const isGK = canonicalPosition(player.position) === 'GK';
+      const isTargetSlotGK = nearestSlot && canonicalPosition(nearestSlot.position) === 'GK';
+      const isTargetOccupied = nearestSlot?.player;
 
-      // Strict blocks removed.
+      // Rule 1: If Target is GK Slot AND Occupied (by someone else) -> BLOCK
+      if (isTargetSlotGK && isTargetOccupied && nearestSlot.player?.id !== player.id) {
+        toast.warning("Kaleci pozisyonu doluyken başka oyuncu eklenemez.");
+        setDraggedPlayerId(null);
+        return;
+      }
+
+      // Rule 2: Strict Type Matching
+      if (isGK !== !!isTargetSlotGK) {
+        if (isGK) {
+          toast.warning("Kaleciler sadece (boş) kaleci pozisyonunda oynayabilir.");
+        } else {
+          toast.warning("Kaleci pozisyonuna sadece kaleci girebilir.");
+        }
+        setDraggedPlayerId(null);
+        return;
+      }
 
 
 
@@ -1774,6 +1798,29 @@ function TeamPlanningContent() {
     }
 
     const targetPlayer = slot.player ?? null;
+
+    // GK LOCK LOGIC (Strict No-Swap)
+    const isGK = canonicalPosition(draggedPlayer.position) === 'GK';
+    const isTargetSlotGK = canonicalPosition(slot.position) === 'GK';
+    const isTargetOccupied = !!targetPlayer;
+
+    // Rule 1: If Target is GK Slot AND Occupied -> BLOCK (No Swap allowed)
+    if (isTargetSlotGK && isTargetOccupied && targetPlayer?.id !== draggedPlayer.id) {
+      toast.warning("Kaleci pozisyonu doluyken başka oyuncu eklenemez.");
+      setDraggedPlayerId(null);
+      return;
+    }
+
+    // Rule 2: Strict Type Matching
+    if (isGK !== isTargetSlotGK) {
+      if (isGK) {
+        toast.warning("Kaleciler sadece kaleci pozisyonunda oynayabilir.");
+      } else {
+        toast.warning("Kaleci pozisyonuna sadece kaleci girebilir.");
+      }
+      setDraggedPlayerId(null);
+      return;
+    }
 
     if (targetPlayer && targetPlayer.id === draggedPlayer.id) {
       dropHandledRef.current = true;
