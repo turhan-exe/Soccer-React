@@ -430,7 +430,7 @@ export default function MainMenu() {
               <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.username || 'User'}`} alt="Avatar" className="w-full h-full object-cover bg-slate-900" />
             </div>
             <div className="flex flex-col justify-center">
-              <span className="text-xl font-black leading-none tracking-wide uppercase text-white drop-shadow-md">{user?.username || 'OYUNCU ISMI'}</span>
+              <span className="text-xl font-black leading-none tracking-wide uppercase text-white drop-shadow-md">{matchHighlight?.team.name || user?.teamName || 'TAKIM İSMİ'}</span>
               {/* Rank Display */}
               <div className="flex items-center gap-2 mt-1">
                 {currentRank ? (

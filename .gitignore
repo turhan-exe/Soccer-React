@@ -23,3 +23,8 @@ dist-ssr
 *.sln
 *.sw?
 *.json text eol=lf working-tree-encoding=UTF-8
+
+# Keystore files
+android/keystore.properties
+android/*.keystore
+*.keystore

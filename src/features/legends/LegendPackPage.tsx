@@ -316,12 +316,12 @@ const LegendPackPage = () => {
         </header>
 
         {/* Content Grid - Scroll Free */}
-        <main className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-6 min-h-0">
+        <main className="flex-1 grid grid-cols-12 gap-2 sm:gap-4 md:gap-6 min-h-0">
 
           {/* LEFT: Collection Stats (3 cols) */}
-          <aside className="hidden lg:flex lg:col-span-3 flex-col gap-4">
+          <aside className="col-span-3 flex flex-col gap-2 sm:gap-4 min-h-0 overflow-y-auto custom-scrollbar">
             {/* Info Card */}
-            <div className="flex-1 rounded-3xl bg-slate-900/60 border border-white/10 p-6 backdrop-blur-sm flex flex-col gap-6 relative overflow-hidden group">
+            <div className="shrink-0 rounded-2xl sm:rounded-3xl bg-slate-900/60 border border-white/10 p-3 sm:p-4 md:p-6 backdrop-blur-sm flex flex-col gap-3 sm:gap-4 md:gap-6 relative overflow-hidden group">
               <div className="absolute top-0 right-0 w-32 h-32 bg-purple-500/10 rounded-bl-full -mr-8 -mt-8 blur-2xl group-hover:bg-purple-500/20 transition-colors" />
 
               <div>
@@ -364,7 +364,7 @@ const LegendPackPage = () => {
           </aside>
 
           {/* CENTER: Pack Opening (6 cols) */}
-          <section className="lg:col-span-6 flex flex-col relative">
+          <section className="col-span-6 flex flex-col relative">
             <div className="flex-1 rounded-3xl bg-gradient-to-b from-slate-900/80 to-slate-950/90 border border-white/10 p-1 backdrop-blur-md shadow-2xl relative overflow-hidden flex flex-col items-center justify-center max-h-[70vh] lg:max-h-[calc(100vh-12rem)]">
 
               {/* Center Glow */}
@@ -483,7 +483,7 @@ const LegendPackPage = () => {
           </section>
 
           {/* RIGHT: Active Rentals (3 cols) */}
-          <aside className="hidden lg:flex lg:col-span-3 flex-col gap-4 min-h-0">
+          <aside className="col-span-3 flex flex-col gap-2 sm:gap-4 min-h-0 overflow-hidden">
             <div className="flex items-center justify-between px-2">
               <h3 className="text-sm font-bold text-slate-300 uppercase tracking-wider">Kiralananlar</h3>
               <span className="bg-slate-800 text-slate-400 text-[10px] px-2 py-0.5 rounded-full font-bold">{rented.length}</span>
