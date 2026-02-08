@@ -292,7 +292,7 @@ export default function MainMenu() {
       items.push({ id: 'youth-generate', message: 'Altyapi raporu isteyebilirsin.', icon: UserPlus, path: '/youth', accent: 'text-emerald-400' });
     }
     if (vipNostalgiaFreeAvailable) {
-      items.push({ id: 'nostalgia', message: 'Ucretsiz Nostalji Paketin hazir!', icon: Star, path: '/store/legends', accent: 'text-pink-400' });
+      items.push({ id: 'nostalgia', message: 'Ucretsiz Nostalji Paketin hazir!', icon: Star, path: '/legend-pack', accent: 'text-pink-400' });
     }
 
     return items.filter(i => !dismissedIds.includes(i.id));
@@ -697,6 +697,9 @@ export default function MainMenu() {
 
         </div>
       </div>
+
+
+
       <GlobalChatWidget />
     </div>
   );

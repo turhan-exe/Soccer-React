@@ -129,6 +129,34 @@ export async function requestBootstrap(): Promise<void> {
   }
 }
 
+export async function requestLeagueReset(): Promise<void> {
+  try {
+    const fn = httpsCallable(functions, 'bootstrapMonthlyLeaguesOneTime');
+    await fn({ forceReset: true });
+  } catch (err: any) {
+    console.warn('[leagues.requestLeagueReset] Callable failed, trying HTTP fallback', err);
+    // If it's an auth error or any other error, try HTTP with ID token explicitly
+    const user = auth.currentUser;
+    if (!user) throw err;
+    const token = await user.getIdToken();
+    const region = import.meta.env.VITE_FUNCTIONS_REGION || 'europe-west1';
+    const projectId = import.meta.env.VITE_FIREBASE_PROJECT_ID;
+    const url = `https://${region}-${projectId}.cloudfunctions.net/bootstrapMonthlyLeaguesOneTimeHttp`;
+    const resp = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ forceReset: true }),
+    });
+    if (!resp.ok) {
+      const text = await resp.text().catch(() => '');
+      throw new Error(`HTTP ${resp.status}: ${text || '<no body>'}`);
+    }
+  }
+}
+
 // Assign current user's team to first available bot slot
 export async function requestAssign(teamId: string): Promise<void> {
   if (!teamId) throw new Error('teamId required');

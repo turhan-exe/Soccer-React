@@ -211,11 +211,11 @@ export const resolveZoneId = (slot: PitchSlot): ZoneId => {
   if (visualX < 70) {
     return 'ofansif orta saha';
   }
-  // 70 <= visualX < 82
-  if (visualX < 82) {
+  // 70 <= visualX < 75
+  if (visualX < 75) {
     return 'gizli forvet';
   }
-  // visualX >= 82
+  // visualX >= 75
   return 'santrafor';
 };
 
@@ -235,17 +235,17 @@ const getZonePositions = (zone: ZoneDefinition): Player['position'][] => {
 export const positionAffinity = (player: DisplayPlayer, zone: ZoneDefinition): number => {
   const canonicalAssigned = canonicalPosition(player.position);
   if (canonicalAssigned === zone.slotPosition) {
-    return 1.2;
+    return 1.0;
   }
   if ((player.roles ?? []).some(role => canonicalPosition(role) === zone.slotPosition)) {
-    return 1.1;
+    return 0.8;
   }
   const fallbackMatch = getZonePositions(zone).some(
     pos =>
       canonicalAssigned === canonicalPosition(pos) ||
       (player.roles ?? []).some(role => canonicalPosition(role) === canonicalPosition(pos)),
   );
-  return fallbackMatch ? 0.95 : 0.5; // Significant penalty for mismatch (was 0.8)
+  return fallbackMatch ? 0.6 : 0.3; // Significant penalty for mismatch
 };
 
 const skillScoreForZone = (player: DisplayPlayer, zone: ZoneDefinition): number => {
