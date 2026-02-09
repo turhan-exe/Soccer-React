@@ -5,7 +5,7 @@
   "scripts": {
     "predev": "node scripts/copy-unity.mjs",
     "dev": "vite",
-    "prebuild": "node scripts/copy-unity.mjs",
+    "prebuild:disabled": "node scripts/copy-unity.mjs",
     "build": "vite build",
     "lint": "eslint --quiet ./src",
     "preview": "vite preview",

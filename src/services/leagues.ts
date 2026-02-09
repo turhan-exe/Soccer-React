@@ -37,7 +37,7 @@ export async function ensureDefaultLeague(): Promise<void> {
       const projectId = import.meta.env.VITE_FIREBASE_PROJECT_ID;
       const url = `https://${region}-${projectId}.cloudfunctions.net/bootstrapMonthlyLeaguesOneTimeHttp`;
       await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({}) });
-    } catch {}
+    } catch { }
   }
 }
 
@@ -121,6 +121,34 @@ export async function requestBootstrap(): Promise<void> {
         Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify({ data: {} }),
+    });
+    if (!resp.ok) {
+      const text = await resp.text().catch(() => '');
+      throw new Error(`HTTP ${resp.status}: ${text || '<no body>'}`);
+    }
+  }
+}
+
+export async function requestLeagueReset(): Promise<void> {
+  try {
+    const fn = httpsCallable(functions, 'bootstrapMonthlyLeaguesOneTime');
+    await fn({ forceReset: true });
+  } catch (err: any) {
+    console.warn('[leagues.requestLeagueReset] Callable failed, trying HTTP fallback', err);
+    // If it's an auth error or any other error, try HTTP with ID token explicitly
+    const user = auth.currentUser;
+    if (!user) throw err;
+    const token = await user.getIdToken();
+    const region = import.meta.env.VITE_FUNCTIONS_REGION || 'europe-west1';
+    const projectId = import.meta.env.VITE_FIREBASE_PROJECT_ID;
+    const url = `https://${region}-${projectId}.cloudfunctions.net/bootstrapMonthlyLeaguesOneTimeHttp`;
+    const resp = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ forceReset: true }),
     });
     if (!resp.ok) {
       const text = await resp.text().catch(() => '');
@@ -244,7 +272,7 @@ export async function playNextScheduledDay(): Promise<{ ok: boolean; dayKey?: st
           const d = (s.docs[0].data() as any)?.date?.toDate?.() as Date | undefined;
           if (d && (!earliest || d < earliest.date)) earliest = { date: d };
         }
-      } catch {}
+      } catch { }
     }
     if (!earliest) return null;
     const dayKey = formatInTimeZone(earliest.date, 'Europe/Istanbul', 'yyyy-MM-dd');
@@ -339,22 +367,29 @@ export async function getFixturesForTeam(
   }
 
   // Firestore Timestamp → Date dönüştür ve tarihe göre sırala (artan)
-    const list: Fixture[] = snap.docs.map((d) => {
-      const raw = d.data() as any;
-      const ts = raw.date as { toDate: () => Date };
-      return {
-        id: d.id,
-        round: raw.round,
-        date: ts.toDate(),
-        homeTeamId: raw.homeTeamId,
-        awayTeamId: raw.awayTeamId,
-        participants: raw.participants ?? [raw.homeTeamId, raw.awayTeamId],
-        status: raw.status,
-        score: raw.score ?? null,
-        replayPath: raw.replayPath,
-        goalTimeline: raw.goalTimeline ?? [],
-      } satisfies Fixture;
-    });
+  const list: Fixture[] = snap.docs.map((d) => {
+    const raw = d.data() as any;
+    const ts = raw.date as { toDate: () => Date };
+    const leagueId = d.ref.parent.parent?.id;
+    const seasonId = raw.seasonId ?? raw.season;
+    return {
+      id: d.id,
+      round: raw.round,
+      date: ts.toDate(),
+      leagueId,
+      seasonId: seasonId ? String(seasonId) : undefined,
+      homeTeamId: raw.homeTeamId,
+      awayTeamId: raw.awayTeamId,
+      participants: raw.participants ?? [raw.homeTeamId, raw.awayTeamId],
+      status: raw.status,
+      score: raw.score ?? null,
+      replayPath: raw.replayPath,
+      video: raw.video ?? null,
+      videoMissing: raw.videoMissing,
+      videoError: raw.videoError,
+      goalTimeline: raw.goalTimeline ?? [],
+    } satisfies Fixture;
+  });
 
   // İstemci tarafı tarih sıralaması: her zaman artan
   (list as { date: Date }[]).sort((a, b) => a.date.getTime() - b.date.getTime());
@@ -389,16 +424,22 @@ export async function getFixtureByIdAcrossLeagues(
   const d = snap.docs[0];
   const raw: any = d.data();
   const ts = raw.date as { toDate: () => Date };
+  const seasonId = raw.seasonId ?? raw.season;
   const fixture: Fixture = {
     id: d.id,
     round: raw.round,
     date: ts.toDate(),
+    leagueId: d.ref.parent.parent?.id,
+    seasonId: seasonId ? String(seasonId) : undefined,
     homeTeamId: raw.homeTeamId,
     awayTeamId: raw.awayTeamId,
     participants: raw.participants ?? [raw.homeTeamId, raw.awayTeamId],
     status: raw.status,
     score: raw.score ?? null,
     replayPath: raw.replayPath,
+    video: raw.video ?? null,
+    videoMissing: raw.videoMissing,
+    videoError: raw.videoError,
     goalTimeline: raw.goalTimeline ?? [],
   };
   // leagues/{leagueId}/fixtures/{matchId}
@@ -438,7 +479,7 @@ export async function getFixturesForTeamSlotAware(
         return base;
       }
     }
-  } catch {}
+  } catch { }
 
   // Fallback: build via slots
   const slotsSnap = await getDocs(collection(db, 'leagues', leagueId, 'slots'));
@@ -453,18 +494,24 @@ export async function getFixturesForTeamSlotAware(
     .map((d) => {
       const raw = d.data() as any;
       const ts = raw.date as { toDate: () => Date };
+      const seasonId = raw.seasonId ?? raw.season;
       const homeTid = raw.homeTeamId || teamIdBySlot.get(raw.homeSlot) || `slot-${raw.homeSlot}`;
       const awayTid = raw.awayTeamId || teamIdBySlot.get(raw.awaySlot) || `slot-${raw.awaySlot}`;
       return {
         id: d.id,
         round: raw.round,
         date: ts.toDate(),
+        leagueId,
+        seasonId: seasonId ? String(seasonId) : undefined,
         homeTeamId: homeTid,
         awayTeamId: awayTid,
         participants: [homeTid, awayTid],
         status: raw.status,
         score: raw.score ?? null,
         replayPath: raw.replayPath,
+        video: raw.video ?? null,
+        videoMissing: raw.videoMissing,
+        videoError: raw.videoError,
         goalTimeline: raw.goalTimeline ?? [],
       } as Fixture;
     })
@@ -484,8 +531,8 @@ function needsHumanNameLookup(id: string, name?: string | null): boolean {
 }
 
 async function hydrateTeamNames(
-  teams: { id: string; name: string }[]
-): Promise<{ id: string; name: string }[]> {
+  teams: { id: string; name: string; logo?: string | null }[]
+): Promise<{ id: string; name: string; logo?: string | null }[]> {
   const lookupIds = Array.from(
     new Set(
       teams.filter((team) => needsHumanNameLookup(team.id, team.name)).map((team) => team.id)
@@ -493,16 +540,17 @@ async function hydrateTeamNames(
   );
   if (lookupIds.length === 0) return teams;
 
-  const resolved = new Map<string, string>();
+  const resolved = new Map<string, { name: string; logo: string | null }>();
   await Promise.all(
     lookupIds.map(async (teamId) => {
       try {
         const snap = await getDoc(doc(db, 'teams', teamId));
         if (!snap.exists()) return;
-        const data = snap.data() as { name?: string };
+        const data = snap.data() as { name?: string; logo?: string | null };
         const friendly = (data?.name ?? '').trim();
-        if (friendly) {
-          resolved.set(teamId, friendly);
+        const logo = data?.logo || null;
+        if (friendly || logo) {
+          resolved.set(teamId, { name: friendly, logo });
         }
       } catch {
         // Silent: network/cache errors should not break fixtures view.
@@ -511,12 +559,22 @@ async function hydrateTeamNames(
   );
 
   if (resolved.size === 0) return teams;
-  return teams.map((team) => (resolved.has(team.id) ? { ...team, name: resolved.get(team.id)! } : team));
+  return teams.map((team) => {
+    if (resolved.has(team.id)) {
+      const info = resolved.get(team.id)!;
+      return {
+        ...team,
+        name: info.name || team.name,
+        logo: info.logo || team.logo
+      };
+    }
+    return team;
+  });
 }
 
 export async function getLeagueTeams(
   leagueId: string
-): Promise<{ id: string; name: string }[]> {
+): Promise<{ id: string; name: string; logo?: string | null }[]> {
   // Prefer standings for human-friendly names (works for slot-based)
   const standingsSnap = await getDocs(collection(db, 'leagues', leagueId, 'standings'));
   if (!standingsSnap.empty) {
@@ -606,12 +664,12 @@ export async function listLeagues(): Promise<League[]> {
           return { id: sd.teamId || `slot-${sd.slotIndex}`, name: sd.teamId || `Bot ${sd.botId || sd.slotIndex}` };
         });
       } else {
-      const teamsSnap = await getDocs(collection(d.ref, 'teams'));
-      teamCount = teamsSnap.size;
-      teams = teamsSnap.docs.map((t) => {
-        const td = t.data() as any;
-        return { id: t.id, name: td.name || t.id };
-      });
+        const teamsSnap = await getDocs(collection(d.ref, 'teams'));
+        teamCount = teamsSnap.size;
+        teams = teamsSnap.docs.map((t) => {
+          const td = t.data() as any;
+          return { id: t.id, name: td.name || t.id };
+        });
       }
     }
     leagues.push({
@@ -624,7 +682,7 @@ export async function listLeagues(): Promise<League[]> {
       startDate: data.startDate,
       rounds: data.rounds,
       teamCount,
-      teams,
+      teams: await hydrateTeamNames(teams),
     } as League);
   }
   return leagues;
@@ -688,6 +746,7 @@ export async function getFixturesByLeagueAndSlotMap(
     .map((d) => {
       const raw = d.data() as any;
       const ts = raw.date as { toDate: () => Date };
+      const seasonId = raw.seasonId ?? raw.season;
       const home = raw.homeSlot === mySlotIndex;
       const oppSlot = home ? raw.awaySlot : raw.homeSlot;
       const homeTeamId = raw.homeTeamId || teamIdBySlot.get(raw.homeSlot) || null;
@@ -696,12 +755,17 @@ export async function getFixturesByLeagueAndSlotMap(
         id: d.id,
         round: raw.round,
         date: ts.toDate(),
+        leagueId,
+        seasonId: seasonId ? String(seasonId) : undefined,
         homeTeamId: homeTeamId || `slot-${raw.homeSlot}`,
         awayTeamId: awayTeamId || `slot-${raw.awaySlot}`,
         participants: [homeTeamId, awayTeamId].filter(Boolean) as string[],
         status: raw.status,
         score: raw.score ?? null,
         replayPath: raw.replayPath,
+        video: raw.video ?? null,
+        videoMissing: raw.videoMissing,
+        videoError: raw.videoError,
         opponentName: nameBySlot.get(oppSlot) || `Slot ${oppSlot}`,
         home,
       };

@@ -1,6 +1,6 @@
 import * as functions from 'firebase-functions/v1';
 import '../_firebase.js';
-import { getFirestore, FieldValue } from 'firebase-admin/firestore';
+import { getFirestore, FieldPath, FieldValue } from 'firebase-admin/firestore';
 
 const REGION = 'europe-west1';
 const db = getFirestore();
@@ -14,16 +14,19 @@ export const onMatchVideoFinalize = functions
       if (!name || !name.startsWith('videos/')) return;
 
       const parts = name.split('/').filter(Boolean);
-      if (parts.length < 3) return;
+      if (parts.length < 2) return;
 
-      const seasonId = parts[1];
       const fileName = parts[parts.length - 1];
       const matchId = fileName.replace(/\.mp4$/i, '');
-      if (!seasonId || !matchId) return;
+      if (!matchId) return;
 
-      const matchRef = db.doc(`seasons/${seasonId}/matches/${matchId}`);
-      const snap = await matchRef.get();
-      if (!snap.exists) return;
+      const snap = await db
+        .collectionGroup('fixtures')
+        .where(FieldPath.documentId(), '==', matchId)
+        .limit(1)
+        .get();
+      if (snap.empty) return;
+      const matchRef = snap.docs[0].ref;
 
       const durationMeta = Number(obj.metadata?.durationMs);
       const update: Record<string, any> = {

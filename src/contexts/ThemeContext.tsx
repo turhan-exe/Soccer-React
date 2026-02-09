@@ -31,23 +31,43 @@ interface ThemeProviderProps {
 export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
   const [theme, setTheme] = useState<Theme>('dark');
 
-  const applyDarkTheme = useCallback(() => {
-    setTheme('dark');
-    document.documentElement.classList.add('dark');
+  useEffect(() => {
     try {
-      localStorage.setItem('theme', 'dark');
-    } catch (error) {
-      // storage might be unavailable; ignore
+      const saved = localStorage.getItem('theme') as Theme | null;
+      if (saved) {
+        setTheme(saved);
+        if (saved === 'dark') {
+          document.documentElement.classList.add('dark');
+        } else {
+          document.documentElement.classList.remove('dark');
+        }
+      } else {
+        // Default to dark? Or user preference?
+        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        setTheme(prefersDark ? 'dark' : 'light');
+        if (prefersDark) document.documentElement.classList.add('dark');
+        else document.documentElement.classList.remove('dark');
+      }
+    } catch {
+      setTheme('dark');
+      document.documentElement.classList.add('dark');
     }
   }, []);
 
-  useEffect(() => {
-    applyDarkTheme();
-  }, [applyDarkTheme]);
-
   const toggleTheme = useCallback(() => {
-    applyDarkTheme();
-  }, [applyDarkTheme]);
+    setTheme((prev) => {
+      const next = prev === 'dark' ? 'light' : 'dark';
+      if (next === 'dark') {
+        document.documentElement.classList.add('dark');
+      } else {
+        document.documentElement.classList.remove('dark');
+      }
+      try {
+        localStorage.setItem('theme', next);
+      } catch { }
+      return next;
+    });
+  }, []);
 
   return (
     <ThemeContext.Provider value={{ theme, toggleTheme }}>

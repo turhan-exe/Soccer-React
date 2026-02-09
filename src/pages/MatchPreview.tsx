@@ -11,6 +11,8 @@ import { getTeam } from '@/services/team';
 import { getMyLeagueId, getFixturesForTeamSlotAware, getLeagueTeams } from '@/services/leagues';
 import type { ClubTeam, Fixture, Match, Player } from '@/types';
 import { formatRatingLabel, normalizeRatingTo100, normalizeRatingTo100OrNull } from '@/lib/player';
+import { useTeamBudget } from '@/hooks/useTeamBudget';
+import { Shield } from 'lucide-react';
 
 type KeyPlayer = NonNullable<Match['opponentStats']>['keyPlayers'][number];
 
@@ -133,6 +135,7 @@ const calculateOutcomeProbabilities = ({
 export default function MatchPreview() {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { budget } = useTeamBudget();
   const fallbackMatch = upcomingMatches[0];
   const [matchInfo, setMatchInfo] = useState<Match>(fallbackMatch);
   const [teamOverall, setTeamOverall] = useState<number | null>(null);
@@ -168,7 +171,7 @@ export default function MatchPreview() {
       setOpponentForm([]);
       setShowAllMyPlayers(false);
       setShowAllOpponentPlayers(false);
-      return () => {};
+      return () => { };
     }
     (async () => {
       const [team, leagueId] = await Promise.all([
@@ -382,10 +385,10 @@ export default function MatchPreview() {
         opponentStats:
           overallValue != null || formValue.length || keyPlayerValue.length
             ? {
-                overall: overallValue ?? 0,
-                form: formValue,
-                keyPlayers: keyPlayerValue,
-              }
+              overall: overallValue ?? 0,
+              form: formValue,
+              keyPlayers: keyPlayerValue,
+            }
             : undefined,
       });
     })();
@@ -479,424 +482,204 @@ export default function MatchPreview() {
   const formatPlayerOverall = (value: number) => formatRatingLabel(value);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-green-50 via-emerald-50 to-teal-50 dark:from-green-950 dark:via-emerald-950 dark:to-teal-950">
+    <div className="min-h-screen bg-[#14151f] p-4 text-slate-100 pb-24 font-sans">
       {/* Header */}
-      <div className="bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm border-b p-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
+      <div className="mx-auto max-w-5xl mb-6">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-[#1e202b] p-4 rounded-2xl border border-white/5 shadow-lg">
+          <div className="flex items-center gap-4">
             <BackButton />
-            <h1 className="text-xl font-bold">Maç Önizleme</h1>
+            <div>
+              <h1 className="text-2xl font-bold text-white">Maç Önizleme</h1>
+              <p className="text-sm text-slate-400">Yaklaşan müsabaka detayları ve rakip analizi</p>
+            </div>
+          </div>
+
+          {/* Team Info Card (Top Right) */}
+          <div className="flex items-center gap-4 bg-[#14151f] px-4 py-3 rounded-xl border border-white/5">
+            <div className="w-10 h-10 rounded-full bg-[#2a2c3a] flex items-center justify-center border border-white/10">
+              {renderLogo(teamLogoSrc, <Shield className="w-5 h-5 text-slate-400" />, 'Takım Logo', 'w-10 h-10')}
+            </div>
+            <div>
+              <div className="text-sm font-bold text-white">{teamName}</div>
+              <div className="flex items-center gap-2 text-xs text-slate-400">
+                <span>Bütçe</span>
+                <div className="h-3 w-[1px] bg-white/10"></div>
+                <span className="text-emerald-400 font-mono">{(budget ?? 0).toLocaleString()} $</span>
+              </div>
+            </div>
           </div>
         </div>
       </div>
 
-      <div className="p-4 space-y-6">
-        {/* Match Info */}
-        <Card>
-          <CardContent className="p-6">
-            <div className="text-center mb-6">
-              <Badge variant="outline" className="mb-2">{matchInfo.competition}</Badge>
-              <div className="text-sm text-muted-foreground mb-4">
-                {matchDate.toLocaleDateString('tr-TR')} • {matchInfo.time}
+      <div className="mx-auto max-w-5xl space-y-6">
+        {/* Match Info Card */}
+        <div className="relative overflow-hidden rounded-[2rem] bg-[#1e202b] border border-white/5 shadow-2xl p-6 md:p-10">
+          {/* Background Effects */}
+          <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none">
+            <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[100%] bg-blue-600/5 blur-[100px] rounded-full"></div>
+            <div className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[100%] bg-purple-600/5 blur-[100px] rounded-full"></div>
+          </div>
+
+          <div className="relative z-10 flex flex-col items-center">
+            {/* Competition Badge */}
+            <div className="mb-6">
+              <span className="px-4 py-1.5 rounded-full bg-[#2a2c3a] border border-white/10 text-xs font-bold text-slate-300 uppercase tracking-wider shadow-sm">
+                {matchInfo.competition || 'Lig Maçı'}
+              </span>
+            </div>
+
+            {/* Date & Venue */}
+            <div className="flex items-center gap-3 text-sm text-slate-400 mb-8 font-medium">
+              <span>{matchDate.toLocaleDateString('tr-TR')}</span>
+              <span className="w-1 h-1 rounded-full bg-slate-600"></span>
+              <span>{matchInfo.venue === 'home' ? 'Ev Sahibi' : 'Deplasman'}</span>
+            </div>
+
+            {/* Teams Layout */}
+            <div className="flex items-center justify-center w-full gap-8 md:gap-20 mb-10">
+              {/* Home Team */}
+              <div className="flex flex-col items-center gap-4 w-40">
+                <div className="w-24 h-24 md:w-32 md:h-32 p-4 rounded-full bg-white/5 border border-white/5 shadow-[0_0_30px_rgba(0,0,0,0.3)] backdrop-blur-sm flex items-center justify-center">
+                  {renderLogo(teamLogoSrc, 'H', 'Takım', 'w-full h-full object-contain', { ringClass: 'ring-0' })}
+                </div>
+                <div className="text-center">
+                  <div className="text-xl font-bold text-white leading-tight mb-1">{teamName}</div>
+                  <Badge variant="secondary" className="bg-[#2a2c3a] text-slate-300 border-white/5 hover:bg-[#343746]">
+                    OVR: {formatOverall(teamOverall)}
+                  </Badge>
+                </div>
+              </div>
+
+              {/* VS */}
+              <div className="flex flex-col items-center">
+                <span className="text-6xl md:text-8xl font-black italic text-white/90 drop-shadow-[0_4px_10px_rgba(0,0,0,0.5)] tracking-tighter" style={{ fontFamily: 'system-ui' }}>VS</span>
+                <div className="mt-2 text-2xl font-bold text-white tracking-widest">{matchInfo.time}</div>
+              </div>
+
+              {/* Away Team */}
+              <div className="flex flex-col items-center gap-4 w-40">
+                <div className="w-24 h-24 md:w-32 md:h-32 p-4 rounded-full bg-white/5 border border-white/5 shadow-[0_0_30px_rgba(0,0,0,0.3)] backdrop-blur-sm flex items-center justify-center">
+                  {renderLogo(opponentLogoSrc, 'A', 'Rakip', 'w-full h-full object-contain', { ringClass: 'ring-0', fallbackClass: 'bg-white/5 text-slate-400' })}
+                </div>
+                <div className="text-center">
+                  <div className="text-xl font-bold text-white leading-tight mb-1">{matchInfo.opponent}</div>
+                  <Badge variant="secondary" className="bg-[#2a2c3a] text-slate-300 border-white/5 hover:bg-[#343746]">
+                    OVR: {formatOverall(opponentOverallDisplay)}
+                  </Badge>
+                </div>
               </div>
             </div>
 
-            <div className="flex items-center justify-between mb-6">
-              <div className="text-center flex-1">
-                <div className="flex justify-center mb-2">
-                  {renderLogo(teamLogoSrc, '⚽', `${teamName} logosu`)}
-                </div>
-                <div className="font-bold text-lg">{teamName}</div>
-                <div className="text-sm text-muted-foreground">
-                  Overall: {formatOverall(teamOverall)}
-                </div>
-                {teamForm.length > 0 && (
-                  <div className="flex items-center justify-center gap-1 mt-1 text-sm text-muted-foreground">
-                    {teamForm.map((result, index) => (
-                      <Badge
-                        key={`${result}-${index}`}
-                        variant={
-                          result === 'W'
-                            ? 'default'
-                            : result === 'D'
-                              ? 'secondary'
-                              : 'destructive'
-                        }
-                        className="px-2"
-                      >
-                        {result}
-                      </Badge>
-                    ))}
-                  </div>
-                )}
-              </div>
+            {/* Stadium */}
+            <div className="flex items-center gap-2 text-slate-400 bg-white/5 px-5 py-2 rounded-full border border-white/5">
+              <MapPin className="w-4 h-4" />
+              <span className="text-sm font-medium">{matchInfo.venueName ?? 'Stadyum: Belirlenecek'}</span>
+            </div>
+          </div>
+        </div>
 
-              <div className="text-center px-6">
-                <div className="text-3xl font-bold text-muted-foreground">VS</div>
-              </div>
-
-              <div className="text-center flex-1">
-                <div className="flex justify-center mb-2">
-                  {renderLogo(
-                    opponentLogoSrc,
-                    matchInfo.opponentLogo ?? '⚽',
-                    `${matchInfo.opponent} logosu`,
-                    'h-14 w-14',
-                    {
-                      fallbackClass: 'bg-amber-100 text-amber-900',
-                      ringClass: 'ring-amber-500',
-                    },
+        {/* Analysis Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Opponent Analysis */}
+          <Card className="bg-[#1e202b] border-white/5 shadow-lg">
+            <CardHeader className="border-b border-white/5 pb-4">
+              <CardTitle className="flex items-center gap-2 text-lg text-white">
+                <TrendingUp className="h-5 w-5 text-amber-500" />
+                Rakip Analizi
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="pt-6">
+              <div className="space-y-6">
+                <div>
+                  <h4 className="text-sm font-semibold text-slate-400 mb-3 uppercase tracking-wider">Son Form</h4>
+                  {opponentFormBadges.length > 0 ? (
+                    <div className="flex gap-2">
+                      {opponentFormBadges.map((result, index) => (
+                        <div
+                          key={`opp-form-${index}`}
+                          className={`
+                                                w-8 h-8 rounded-lg flex items-center justify-center font-bold text-xs shadow-md border border-white/5
+                                                ${result === 'W' ? 'bg-emerald-500/20 text-emerald-400' :
+                              result === 'D' ? 'bg-slate-500/20 text-slate-400' :
+                                'bg-red-500/20 text-red-400'}
+                                            `}
+                        >
+                          {result}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-slate-500">Veri yok</p>
                   )}
                 </div>
-                <div className="font-bold text-lg">{matchInfo.opponent}</div>
-                <div className="text-sm text-muted-foreground">
-                  Overall: {formatOverall(opponentOverallDisplay)}
-                </div>
-                {opponentFormBadges.length > 0 && (
-                  <div className="flex items-center justify-center gap-1 mt-1 text-sm text-muted-foreground">
-                    {opponentFormBadges.map((result, index) => (
-                      <Badge
-                        key={`${matchInfo.id}-opponent-${result}-${index}`}
-                        variant={
-                          result === 'W'
-                            ? 'default'
-                            : result === 'D'
-                              ? 'secondary'
-                              : 'destructive'
-                        }
-                        className="px-2"
-                      >
-                        {result}
-                      </Badge>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
 
-            <div className="flex items-center justify-center gap-4 text-sm text-muted-foreground">
-              <div className="flex items-center gap-1">
-                <MapPin className="h-4 w-4" />
-                <span>{matchInfo.venue === 'home' ? 'Ev Sahipliği' : 'Deplasman'}</span>
-              </div>
-              <div className="flex items-center gap-1">
-                <Calendar className="h-4 w-4" />
-                <span>Stadyum: {matchInfo.venueName ?? 'Belirlenecek'}</span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Opponent Analysis */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <TrendingUp className="h-5 w-5" />
-              Rakip Analizi
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div>
-                <h4 className="font-semibold mb-2">Son Form</h4>
-                {opponentFormBadges.length > 0 ? (
-                  <div className="flex gap-1">
-                    {opponentFormBadges.map((result, index) => (
-                      <Badge
-                        key={`${matchInfo.id}-analysis-${result}-${index}`}
-                        variant={
-                          result === 'W'
-                            ? 'default'
-                            : result === 'D'
-                              ? 'secondary'
-                              : 'destructive'
-                        }
-                        className="w-8 h-8 rounded-full flex items-center justify-center text-xs"
-                      >
-                        {result}
-                      </Badge>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-sm text-muted-foreground">Rakip form verisi henüz mevcut değil.</p>
-                )}
-              </div>
-
-              <div>
-                <h4 className="font-semibold mb-2">Kritik Oyuncular</h4>
-                {keyPlayers.length ? (
-                  <div className="space-y-3">
+                <div>
+                  <h4 className="text-sm font-semibold text-slate-400 mb-3 uppercase tracking-wider">Kritik Oyuncular</h4>
+                  {keyPlayers.length ? (
                     <div className="space-y-2">
-                      {visibleKeyPlayers.map(player => {
-                        const positionColors: Record<string, string> = {
-                          GK: 'bg-slate-500',
-                          CB: 'bg-blue-500',
-                          LB: 'bg-emerald-500',
-                          RB: 'bg-emerald-500',
-                          CM: 'bg-green-500',
-                          DM: 'bg-teal-500',
-                          CAM: 'bg-orange-500',
-                          LW: 'bg-yellow-500',
-                          RW: 'bg-yellow-500',
-                          ST: 'bg-red-500',
-                        };
-                        const colorClass = positionColors[player.position] ?? 'bg-gray-500';
-                        const isSelected = selectedKeyPlayer?.name === player.name;
-                        return (
-                          <button
-                            key={`${player.name}-${player.position}`}
-                            type="button"
-                            onClick={() => setSelectedKeyPlayer(player)}
-                            className={`flex w-full items-center justify-between rounded border p-2 text-left transition ${
-                              isSelected
-                                ? 'border-emerald-500 bg-emerald-500/10'
-                                : 'border-transparent bg-muted hover:border-emerald-200 hover:bg-muted/80'
-                            }`}
-                          >
-                            <div className="flex items-center gap-3">
-                              <div
-                                className={`flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold text-white ${colorClass}`}
-                              >
-                                {player.position}
-                              </div>
-                              <div>
-                                <div className="font-medium leading-tight">{player.name}</div>
-                                <div className="text-xs text-muted-foreground">{player.highlight}</div>
-                              </div>
+                      {visibleKeyPlayers.map(player => (
+                        <div key={player.name} className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/5 hover:bg-white/10 transition-colors cursor-pointer" onClick={() => setSelectedKeyPlayer(player)}>
+                          <div className="flex items-center gap-3">
+                            <Badge className="bg-[#2a2c3a] text-slate-300 border-white/5 w-8 h-8 flex items-center justify-center p-0">{player.position}</Badge>
+                            <div>
+                              <div className="font-semibold text-white text-sm">{player.name}</div>
+                              <div className="text-[11px] text-slate-400">{player.highlight}</div>
                             </div>
-                          </button>
-                        );
-                      })}
-                    </div>
-                    {remainingPlayerCount > 0 && !showAllKeyPlayers && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="w-full border-dashed"
-                        onClick={() => setShowAllKeyPlayers(true)}
-                      >
-                        +{remainingPlayerCount} oyuncu daha göster
-                      </Button>
-                    )}
-                    {selectedKeyPlayer && (
-                      <div className="rounded-lg border bg-muted/60 p-4">
-                        <div className="flex items-start justify-between gap-4">
-                          <div>
-                            <div className="text-sm font-semibold">{selectedKeyPlayer.name}</div>
-                            <div className="text-xs text-muted-foreground">{selectedKeyPlayer.highlight}</div>
                           </div>
-                          <Badge variant="secondary" className="font-semibold">
-                            {selectedKeyPlayer.position}
-                          </Badge>
+                          {/* Mini Rating Bar or Value if available */}
+                          {player.stats?.rating && (
+                            <div className="text-sm font-bold text-amber-500">{player.stats.rating}</div>
+                          )}
                         </div>
-                        {selectedKeyPlayer.stats ? (
-                          <dl className="mt-4 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
-                            {selectedKeyPlayer.stats.matches !== undefined && (
-                              <div className="rounded bg-background/70 p-2 text-center">
-                                <dt className="text-xs text-muted-foreground">Maç</dt>
-                                <dd className="font-semibold">{selectedKeyPlayer.stats.matches}</dd>
-                              </div>
-                            )}
-                            {selectedKeyPlayer.stats.goals !== undefined && (
-                              <div className="rounded bg-background/70 p-2 text-center">
-                                <dt className="text-xs text-muted-foreground">Gol</dt>
-                                <dd className="font-semibold">{selectedKeyPlayer.stats.goals}</dd>
-                              </div>
-                            )}
-                            {selectedKeyPlayer.stats.assists !== undefined && (
-                              <div className="rounded bg-background/70 p-2 text-center">
-                                <dt className="text-xs text-muted-foreground">Asist</dt>
-                                <dd className="font-semibold">{selectedKeyPlayer.stats.assists}</dd>
-                              </div>
-                            )}
-                            {selectedKeyPlayer.stats.rating !== undefined && (
-                              <div className="rounded bg-background/70 p-2 text-center">
-                                <dt className="text-xs text-muted-foreground">Maç Reytingi</dt>
-                                <dd className="font-semibold">{selectedKeyPlayer.stats.rating.toFixed(1)}</dd>
-                              </div>
-                            )}
-                            {selectedKeyPlayer.stats.cleanSheets !== undefined && (
-                              <div className="rounded bg-background/70 p-2 text-center">
-                                <dt className="text-xs text-muted-foreground">Gol Yemedi</dt>
-                                <dd className="font-semibold">{selectedKeyPlayer.stats.cleanSheets}</dd>
-                              </div>
-                            )}
-                            {selectedKeyPlayer.stats.minutes !== undefined && (
-                              <div className="rounded bg-background/70 p-2 text-center">
-                                <dt className="text-xs text-muted-foreground">Dakika</dt>
-                                <dd className="font-semibold">{selectedKeyPlayer.stats.minutes}</dd>
-                              </div>
-                            )}
-                          </dl>
-                        ) : (
-                          <p className="mt-3 text-sm text-muted-foreground">
-                            Ayrıntılı istatistik bilgisi bulunamadı.
-                          </p>
-                        )}
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-slate-500">Veri yok</p>
+                  )}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Lineup Analysis (Opponent) */}
+          <Card className="bg-[#1e202b] border-white/5 shadow-lg">
+            <CardHeader className="border-b border-white/5 pb-4">
+              <CardTitle className="flex items-center gap-2 text-lg text-white">
+                <Users className="h-5 w-5 text-blue-500" />
+                Rakip İlk 11 Tahmini
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="pt-6">
+              {opponentStartingEleven.length ? (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 gap-2">
+                    {visibleOpponentPlayers.map(player => (
+                      <div key={player.id} className="flex items-center gap-3 p-2.5 rounded-xl bg-white/5 border border-transparent hover:border-white/10 transition-colors">
+                        <div className="w-8 h-8 rounded-full bg-[#2a2c3a] flex items-center justify-center text-[10px] font-bold text-slate-300 border border-white/5">
+                          {player.position}
+                        </div>
+                        <div className="flex-1">
+                          <div className="text-sm font-semibold text-white">{player.name}</div>
+                          <div className="text-xs text-slate-500">Reyting: {formatPlayerOverall(player.overall)}</div>
+                        </div>
                       </div>
-                    )}
+                    ))}
                   </div>
-                ) : (
-                  <p className="text-sm text-muted-foreground">Rakip oyuncu verisi henüz mevcut değil.</p>
-                )}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Opponent Starting XI */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Users className="h-5 w-5" />
-              Rakip İlk 11
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {opponentStartingEleven.length ? (
-              <div className="space-y-3">
-                <div className="text-sm text-muted-foreground">
-                  Toplam oyuncu: {opponentStartingEleven.length}
+                  {opponentStartingEleven.length > 4 && (
+                    <Button variant="ghost" className="w-full text-slate-400 hover:text-white hover:bg-white/5 text-xs h-8" onClick={() => setShowAllOpponentPlayers(!showAllOpponentPlayers)}>
+                      {showAllOpponentPlayers ? 'Daha Az Göster' : 'Tüm Kadroyu Göster'}
+                    </Button>
+                  )}
                 </div>
-                <div className="space-y-2">
-                  {visibleOpponentPlayers.map(player => (
-                    <div
-                      key={player.id}
-                      className="flex items-center gap-3 rounded border bg-background/60 p-3 text-sm"
-                    >
-                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-amber-500 text-xs font-bold uppercase text-white">
-                        {player.position}
-                      </div>
-                      <div className="flex flex-1 flex-col gap-1">
-                        <span className="font-semibold">{player.name}</span>
-                        <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                          <span>Genel: {formatPlayerOverall(player.overall)}</span>
-                          {player.condition !== undefined && (
-                            <span>Form: {formatPercentage(player.condition)}</span>
-                          )}
-                          {player.motivation !== undefined && (
-                            <span>Motivasyon: {formatPercentage(player.motivation)}</span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
+              ) : (
+                <div className="flex flex-col items-center justify-center py-10 text-center">
+                  <Users className="w-10 h-10 text-slate-700 mb-3" />
+                  <p className="text-slate-500 text-sm">Muhtemel 11 henüz belli değil.</p>
                 </div>
-                {opponentStartingEleven.length > visibleOpponentPlayers.length && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="w-full border-dashed"
-                    onClick={() => setShowAllOpponentPlayers(prev => !prev)}
-                  >
-                    {showAllOpponentPlayers
-                      ? 'Daha az oyuncu göster'
-                      : `İlk 11'i göster (+${opponentStartingEleven.length - visibleOpponentPlayers.length})`}
-                  </Button>
-                )}
-              </div>
-            ) : (
-              <p className="text-sm text-muted-foreground">Rakip ilk 11 bilgisi bulunamadı.</p>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Your Team Lineup */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Users className="h-5 w-5" />
-              Takımımın İlk 11'i
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {startingEleven.length ? (
-              <div className="space-y-3">
-                <div className="text-sm text-muted-foreground">
-                  Toplam oyuncu: {startingEleven.length}
-                </div>
-                <div className="space-y-2">
-                  {visibleMyPlayers.map(player => (
-                    <div
-                      key={player.id}
-                      className="flex items-center gap-3 rounded border bg-background/60 p-3 text-sm"
-                    >
-                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-500 text-xs font-bold uppercase text-white">
-                        {player.position}
-                      </div>
-                      <div className="flex flex-1 flex-col gap-1">
-                        <span className="font-semibold">{player.name}</span>
-                        <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                          <span>Genel: {formatPlayerOverall(player.overall)}</span>
-                          {player.condition !== undefined && (
-                            <span>Form: {formatPercentage(player.condition)}</span>
-                          )}
-                          {player.motivation !== undefined && (
-                            <span>Motivasyon: {formatPercentage(player.motivation)}</span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                {startingEleven.length > visibleMyPlayers.length && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="w-full border-dashed"
-                    onClick={() => setShowAllMyPlayers(prev => !prev)}
-                  >
-                    {showAllMyPlayers
-                      ? 'Daha az oyuncu göster'
-                      : `İlk 11'i göster (+${startingEleven.length - visibleMyPlayers.length})`}
-                  </Button>
-                )}
-              </div>
-            ) : (
-              <p className="text-sm text-muted-foreground">İlk 11 henüz belirlenmedi.</p>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Match Prediction */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Maç Tahmini</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <span>Galibiyet Şansı</span>
-                <Badge variant="outline">{formatPercentage(outcomeProbabilities.win)}</Badge>
-              </div>
-              <div className="flex items-center justify-between">
-                <span>Beraberlik Şansı</span>
-                <Badge variant="outline">{formatPercentage(outcomeProbabilities.draw)}</Badge>
-              </div>
-              <div className="flex items-center justify-between">
-                <span>Mağlubiyet Şansı</span>
-                <Badge variant="outline">{formatPercentage(outcomeProbabilities.loss)}</Badge>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Start Match Button */}
-        <Card>
-          <CardContent className="p-6">
-            <Button
-              onClick={handleStartMatch}
-              className="w-full h-12"
-              size="lg"
-            >
-              <Play className="h-5 w-5 mr-2" />
-              Maça Başla
-            </Button>
-            <p className="text-center text-sm text-muted-foreground mt-2">
-              Hazır olduğunuzda maç simülasyonunu başlatın
-            </p>
-          </CardContent>
-        </Card>
+              )}
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </div>
   );

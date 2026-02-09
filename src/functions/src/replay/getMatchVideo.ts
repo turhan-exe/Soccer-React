@@ -1,6 +1,6 @@
 import * as functions from 'firebase-functions/v1';
 import '../_firebase.js';
-import { getFirestore, FieldValue } from 'firebase-admin/firestore';
+import { getFirestore, FieldPath, FieldValue } from 'firebase-admin/firestore';
 import { getStorage } from 'firebase-admin/storage';
 
 const REGION = 'europe-west1';
@@ -23,11 +23,12 @@ export const getMatchVideo = functions
     if (withCors(req, res)) return;
     try {
       const seasonId = (req.query.seasonId as string) || (req.body?.seasonId as string) || '';
+      const leagueId = (req.query.leagueId as string) || (req.body?.leagueId as string) || '';
       const matchId = (req.query.matchId as string) || (req.body?.matchId as string) || '';
       let storagePath = (req.query.storagePath as string) || (req.body?.storagePath as string) || '';
 
-      if (!seasonId || !matchId) {
-        res.status(400).json({ error: 'seasonId and matchId required' });
+      if (!matchId || (!leagueId && !seasonId)) {
+        res.status(400).json({ error: 'leagueId or seasonId and matchId required' });
         return;
       }
 
@@ -36,14 +37,39 @@ export const getMatchVideo = functions
         return;
       }
 
-      const matchRef = db.doc(`seasons/${seasonId}/matches/${matchId}`);
-      if (!storagePath) {
-        const snap = await matchRef.get();
-        if (!snap.exists) {
+      let matchRef: FirebaseFirestore.DocumentReference;
+      let matchSnap: FirebaseFirestore.DocumentSnapshot;
+      if (leagueId) {
+        matchRef = db.doc(`leagues/${leagueId}/fixtures/${matchId}`);
+        matchSnap = await matchRef.get();
+        if (!matchSnap.exists) {
           res.status(404).json({ error: 'match not found' });
           return;
         }
-        const data = snap.data() as any;
+      } else {
+        const cg = await db
+          .collectionGroup('fixtures')
+          .where(FieldPath.documentId(), '==', matchId)
+          .limit(1)
+          .get();
+        if (cg.empty && seasonId) {
+          matchRef = db.doc(`seasons/${seasonId}/matches/${matchId}`);
+          matchSnap = await matchRef.get();
+        } else if (!cg.empty) {
+          matchRef = cg.docs[0].ref;
+          matchSnap = cg.docs[0];
+        } else {
+          res.status(404).json({ error: 'match not found' });
+          return;
+        }
+        if (!matchSnap.exists) {
+          res.status(404).json({ error: 'match not found' });
+          return;
+        }
+      }
+
+      if (!storagePath) {
+        const data = matchSnap.data() as any;
         storagePath = data?.video?.storagePath;
         if (!storagePath) {
           res.status(404).json({ error: 'missing', reason: 'missing-video' });

@@ -5,6 +5,7 @@ import { dayKeyTR, dayRangeTR } from './utils/schedule.js';
 import { requireAppCheck, requireAuth } from './mw/auth.js';
 const db = getFirestore();
 const REGION = 'europe-west1';
+const LEGACY_RUNNER_DISABLED = (process.env.LEGACY_RUNNER_DISABLED ?? functions.config()?.runner?.disabled ?? '1') !== '0';
 async function acquireRunLock(dayKey, runner) {
     const ref = db.collection('ops_locks').doc(`runDaily_${dayKey}`);
     try {
@@ -66,6 +67,10 @@ export const runDailyMatches = functions
     .pubsub.schedule('0 19 * * *')
     .timeZone('Europe/Istanbul')
     .onRun(async () => {
+    if (LEGACY_RUNNER_DISABLED) {
+        functions.logger.info('[RUN] runDailyMatches disabled (Unity batch mode)');
+        return;
+    }
     const dayKey = dayKeyTR();
     const locked = await acquireRunLock(dayKey, 'runDailyMatches');
     if (!locked) {
@@ -152,6 +157,10 @@ export const runDailyMatchesAt19TR = functions
     .pubsub.schedule('0 19 * * *')
     .timeZone('Europe/Istanbul')
     .onRun(async () => {
+    if (LEGACY_RUNNER_DISABLED) {
+        functions.logger.info('[RUN] runDailyMatchesAt19TR disabled (Unity batch mode)');
+        return;
+    }
     const dayKey = dayKeyTR();
     const locked = await acquireRunLock(dayKey, 'runDailyMatchesAt19TR');
     if (!locked) {

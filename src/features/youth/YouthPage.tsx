@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { useAuth } from '@/contexts/AuthContext';
 import { useDiamonds } from '@/contexts/DiamondContext';
@@ -10,27 +10,22 @@ import {
   createYouthCandidate,
   acceptYouthCandidate,
   releaseYouthCandidate,
-  resetCooldownWithDiamonds,
-  reduceCooldownWithAd,
   YouthCandidate,
   YOUTH_COOLDOWN_MS,
-  YOUTH_AD_REDUCTION_MS,
   YOUTH_RESET_DIAMOND_COST,
+  resetCooldownWithDiamonds,
 } from '@/services/youth';
 import { db } from '@/services/firebase';
 import { generateRandomName } from '@/lib/names';
 import { calculateOverall, getRoles, normalizeRatingTo100 } from '@/lib/player';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import InfoPopupButton from '@/components/ui/info-popup-button';
-import YouthList from './YouthList';
-import CooldownPanel from './CooldownPanel';
 import type { Player } from '@/types';
-import { BackButton } from '@/components/ui/back-button';
-import { Sparkles, Clock, Users, Gauge, ArrowRight } from 'lucide-react';
-import type { LucideIcon } from 'lucide-react';
 
-const positions: Player['position'][] = ['GK','CB','LB','RB','CM','LM','RM','CAM','LW','RW','ST'];
+import { YouthHeader } from './components/YouthHeader';
+import { YouthDashboard } from './components/YouthDashboard';
+import { YouthPlayerCard } from './components/YouthPlayerCard';
+import { YouthPlayerDetails } from './components/YouthPlayerDetails';
+
+const positions: Player['position'][] = ['GK', 'CB', 'LB', 'RB', 'CM', 'LM', 'RM', 'CAM', 'LW', 'RW', 'ST'];
 const randomAttr = () => parseFloat(Math.random().toFixed(3));
 const generatePlayer = (): Player => {
   const position = positions[Math.floor(Math.random() * positions.length)];
@@ -65,40 +60,10 @@ const generatePlayer = (): Player => {
     height: 180,
     weight: 75,
     squadRole: 'youth',
+    condition: 100,
+    motivation: 100,
   };
 };
-
-interface StatCardProps {
-  icon: LucideIcon;
-  label: string;
-  value: string;
-  helper: string;
-}
-
-const StatCard: React.FC<StatCardProps> = ({ icon: Icon, label, value, helper }) => (
-  <div className="group relative overflow-hidden rounded-2xl border border-white/10 bg-white/5 p-5 shadow-lg backdrop-blur transition-transform duration-300 hover:-translate-y-1 hover:border-cyan-400/40">
-    <div className="absolute inset-0 opacity-0 transition-opacity duration-300 group-hover:opacity-100">
-      <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/10 via-transparent to-emerald-500/20" />
-    </div>
-    <div className="relative flex items-start gap-4">
-      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-900/70 text-cyan-200 shadow-inner shadow-cyan-500/20">
-        <Icon className="h-5 w-5" />
-      </div>
-      <div className="flex-1">
-        <div className="flex items-center gap-2">
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-cyan-200/70">{label}</p>
-          <InfoPopupButton
-            message={helper}
-            title={label}
-            triggerLabel={`${label} için bilgi mesajını aç`}
-            triggerClassName="h-7 w-7 rounded-lg border-white/15 bg-transparent text-cyan-200 hover:border-cyan-300"
-          />
-        </div>
-        <p className="mt-2 text-2xl font-semibold text-white">{value}</p>
-      </div>
-    </div>
-  </div>
-);
 
 const YouthPage = () => {
   const { user } = useAuth();
@@ -107,6 +72,8 @@ const YouthPage = () => {
   const [candidates, setCandidates] = useState<YouthCandidate[]>([]);
   const [nextGenerateAt, setNextGenerateAt] = useState<Date | null>(null);
   const [canGenerate, setCanGenerate] = useState(false);
+  const [countdown, setCountdown] = useState<string>('—');
+  const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null);
   const youthCooldownMs = Math.round(YOUTH_COOLDOWN_MS * vipDurationMultiplier);
 
   useEffect(() => {
@@ -130,15 +97,37 @@ const YouthPage = () => {
   }, [user?.id]);
 
   useEffect(() => {
-    const check = () => {
+    const updateState = () => {
       if (!nextGenerateAt) {
         setCanGenerate(true);
+        setCountdown('Hazır');
         return;
       }
-      setCanGenerate(nextGenerateAt.getTime() <= Date.now());
+
+      const now = Date.now();
+      const target = nextGenerateAt.getTime();
+      const diff = target - now;
+
+      if (diff <= 0) {
+        setCanGenerate(true);
+        setCountdown('Hazır');
+      } else {
+        setCanGenerate(false);
+        const totalSeconds = Math.floor(diff / 1000);
+        const hours = Math.floor(totalSeconds / 3600);
+        const minutes = Math.floor((totalSeconds % 3600) / 60);
+        const seconds = totalSeconds % 60;
+
+        if (hours > 0) {
+          setCountdown(`${hours}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`);
+        } else {
+          setCountdown(`${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`);
+        }
+      }
     };
-    check();
-    const id = setInterval(check, 1000);
+
+    updateState();
+    const id = setInterval(updateState, 1000);
     return () => clearInterval(id);
   }, [nextGenerateAt]);
 
@@ -160,32 +149,18 @@ const YouthPage = () => {
 
   const handleReset = async () => {
     if (!user?.id) return;
+    if (balance < YOUTH_RESET_DIAMOND_COST) {
+      toast.error('Yetersiz elmas');
+      return;
+    }
     try {
       await resetCooldownWithDiamonds(user.id);
       setNextGenerateAt(new Date());
-      toast.success('Bekleme süresi kaldırıldı');
+      toast.success('Süre sıfırlandı');
+      // Optionally trigger generation automatically or let user click again
     } catch (err) {
       console.warn(err);
       toast.error('Elmas ile hızlandırma başarısız');
-    }
-  };
-
-  const handleWatchAd = async () => {
-    if (!user?.id) return;
-    try {
-      await reduceCooldownWithAd(user.id);
-      setNextGenerateAt((prev) => {
-        if (!prev) {
-          return new Date();
-        }
-        const reduced = new Date(prev.getTime() - YOUTH_AD_REDUCTION_MS);
-        const now = new Date();
-        return reduced > now ? reduced : now;
-      });
-      toast.success('Reklam izlendi, süre 12 saat kısaldı');
-    } catch (err) {
-      console.warn(err);
-      toast.error('Reklam izleme başarısız');
     }
   };
 
@@ -222,163 +197,60 @@ const YouthPage = () => {
     candidateCount === 0
       ? 0
       : normalizeRatingTo100(
-          candidates.reduce((acc, curr) => acc + curr.player.overall, 0) / candidateCount,
-        );
+        candidates.reduce((acc, curr) => acc + curr.player.overall, 0) / candidateCount,
+      );
   const topPotential =
     candidateCount === 0
       ? 0
       : normalizeRatingTo100(Math.max(...candidates.map((c) => c.player.potential)));
-  const heroMessage =
-    candidateCount > 0
-      ? `Kadron için ${candidateCount} umut vadeden oyuncu seni bekliyor. En yüksek potansiyel ${topPotential}.`
-      : 'İlk altyapı yeteneklerini keşfetmek için hemen üretim yap.';
-  const nextGenerateTime = canGenerate
-    ? 'Hazır'
-    : nextGenerateAt
-      ? nextGenerateAt.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })
-      : '—';
-  const nextGenerateHelper = canGenerate
-    ? 'Yeni aday hemen üretilebilir'
-    : 'Planlanan üretim saati';
-
-  const stats: StatCardProps[] = [
-    {
-      icon: Users,
-      label: 'Aday Havuzu',
-      value: candidateCount.toString(),
-      helper: candidateCount > 0 ? 'Seçime hazır genç yetenek' : 'Henüz aday bulunmuyor',
-    },
-    {
-      icon: Gauge,
-      label: 'Ortalama Genel',
-      value: candidateCount > 0 ? averageOverall.toString() : '—',
-      helper: 'Performans puanı (100 üzerinden)',
-    },
-    {
-      icon: Sparkles,
-      label: 'En Yüksek Potansiyel',
-      value: candidateCount > 0 ? topPotential.toString() : '—',
-      helper:
-        candidateCount > 0 ? 'Scout ekibinin gördüğü tavan' : 'Aday üretildiğinde görüntülenir',
-    },
-    {
-      icon: Clock,
-      label: 'Yeni Üretim',
-      value: nextGenerateTime,
-      helper: nextGenerateHelper,
-    },
-  ];
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-slate-950 text-slate-100">
-      <div
-        className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(56,189,248,0.18),_transparent_65%)]"
-        aria-hidden
-      />
-      <div
-        className="pointer-events-none absolute -left-32 top-24 h-96 w-96 rounded-full bg-emerald-500/15 blur-3xl"
-        aria-hidden
-      />
-      <div
-        className="pointer-events-none absolute right-[-18%] bottom-[-10%] h-[28rem] w-[28rem] rounded-full bg-cyan-500/15 blur-[140px]"
-        aria-hidden
-      />
-      <div className="relative z-10 px-4 py-10 sm:px-6 lg:px-8">
-        <div className="relative mx-auto max-w-7xl rounded-3xl border border-white/10 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 px-6 py-8 shadow-2xl">
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(56,189,248,0.25),_transparent_60%)]" />
-          <div className="pointer-events-none absolute -left-24 bottom-0 h-72 w-72 rounded-full bg-emerald-500/20 blur-3xl" />
-          <div className="pointer-events-none absolute right-[-10%] top-[-20%] h-72 w-72 rounded-full bg-cyan-500/25 blur-3xl" />
-          <div className="relative space-y-10">
-          <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex flex-col gap-4">
-              <div className="flex items-center gap-3">
-                <BackButton />
-                <div>
-                  <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.3em] text-cyan-200">
-                    <Sparkles className="h-3.5 w-3.5" />
-                    altyapı yönetimi
-                  </span>
-                  <h1 className="mt-4 text-3xl font-bold tracking-tight sm:text-4xl">Altyapı Merkezi</h1>
-                  <p className="mt-3 max-w-2xl text-sm text-slate-300 sm:text-base">{heroMessage}</p>
-                </div>
-              </div>
-            </div>
-            <Button
-              onClick={handleGenerate}
-              disabled={!canGenerate}
-              data-testid="youth-generate"
-              className="group relative overflow-hidden rounded-full border-0 bg-gradient-to-r from-cyan-500 via-emerald-500 to-teal-500 px-6 py-3 text-base font-semibold text-slate-950 shadow-lg shadow-cyan-500/30 transition hover:shadow-xl disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              <span className="relative flex items-center gap-2">
-                <Sparkles className="h-5 w-5 transition-transform group-hover:rotate-6" />
-                Oyuncu Üret
-              </span>
-            </Button>
+    <div className="relative min-h-screen bg-[#14151f] p-4 font-sans text-slate-100">
+      <YouthHeader />
+
+      <div className="max-w-7xl mx-auto">
+        <YouthDashboard
+          candidateCount={candidateCount}
+          averageOverall={averageOverall}
+          topPotential={topPotential}
+          canGenerate={canGenerate}
+          onGenerate={handleGenerate}
+          onReset={handleReset}
+          nextGenerateTime={countdown}
+          diamondCost={YOUTH_RESET_DIAMOND_COST}
+        />
+
+        <section className="mb-8">
+          <div className="mb-4 px-1">
+            <h2 className="text-xl font-bold text-white">Oyuncu Havuzu</h2>
+            <p className="text-sm text-slate-400">Gelişime hazır genç yetenekleri filtrele ve doğru zamanda A takıma yükselt.</p>
           </div>
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            {stats.map((stat) => (
-              <StatCard key={stat.label} {...stat} />
-            ))}
-          </div>
-          <div className="grid gap-6 lg:grid-cols-[2fr,1fr]">
-            <section className="rounded-3xl border border-white/10 bg-white/5 p-6 shadow-xl backdrop-blur">
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <h2 className="text-xl font-semibold text-white">Oyuncu Havuzu</h2>
-                  <p className="mt-1 text-sm text-slate-300">
-                    Gelişime hazır genç yetenekleri filtrele ve doğru zamanda A takıma yükselt.
-                  </p>
-                </div>
-                {candidateCount > 0 && (
-                  <Badge
-                    variant="outline"
-                    className="w-fit border-white/20 bg-white/10 px-3 py-1 text-xs font-semibold uppercase tracking-widest text-cyan-200"
-                  >
-                    {candidateCount} Aday
-                  </Badge>
-                )}
-              </div>
-              <div className="mt-6">
-                <YouthList
-                  candidates={candidates}
-                  onAccept={handleAccept}
-                  onRelease={handleRelease}
-                  className="2xl:grid-cols-4"
-                  emptyStateClassName="text-slate-300"
-                />
-              </div>
-            </section>
-            <aside className="space-y-6">
-              <CooldownPanel
-                nextGenerateAt={nextGenerateAt}
-                onReset={handleReset}
-                canReset={balance >= YOUTH_RESET_DIAMOND_COST && !canGenerate}
-                onWatchAd={handleWatchAd}
-                canWatchAd={!canGenerate}
-                cooldownDurationMs={youthCooldownMs}
+
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {candidates.map((candidate) => (
+              <YouthPlayerCard
+                key={candidate.id}
+                candidate={candidate}
+                onAccept={handleAccept}
+                onRelease={handleRelease}
+                onViewDetails={(c) => setSelectedPlayer(c.player)}
               />
-              <div className="rounded-3xl border border-white/10 bg-white/5 p-6 shadow-xl backdrop-blur">
-                <h3 className="text-lg font-semibold text-white">Scout Notları</h3>
-                <ul className="mt-4 space-y-3 text-sm text-slate-300">
-                  <li className="flex items-start gap-2">
-                    <ArrowRight className="mt-0.5 h-4 w-4 text-cyan-300" />
-                    <span>Yüksek potansiyelli oyuncuları hazırlık kampına erken dahil ederek gelişim patlaması yakala.</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <ArrowRight className="mt-0.5 h-4 w-4 text-cyan-300" />
-                    <span>Reklam izleyerek bekleme süresini kısalt ve transfer dönemlerinde altyapını sıcak tut.</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <ArrowRight className="mt-0.5 h-4 w-4 text-cyan-300" />
-                    <span>Elmasla beklemeyi sıfırlamak, kritik maçlardan önce kadroyu tazelemek için güçlü bir hamle.</span>
-                  </li>
-                </ul>
+            ))}
+            {candidates.length === 0 && (
+              <div className="col-span-full py-12 text-center text-slate-500 bg-white/5 rounded-[32px] border border-dashed border-white/10">
+                <p>Henüz aday bulunmuyor.</p>
+                <p className="text-xs mt-1 opacity-60">"Yetenek Ara" butonunu kullanarak yeni yetenekler keşfedin.</p>
               </div>
-            </aside>
+            )}
           </div>
-          </div>
-        </div>
+        </section>
       </div>
+
+      <YouthPlayerDetails
+        player={selectedPlayer}
+        isOpen={!!selectedPlayer}
+        onClose={() => setSelectedPlayer(null)}
+      />
     </div>
   );
 };

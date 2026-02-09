@@ -9,16 +9,16 @@ public static class ReplaySerializer
         return JsonUtility.ToJson(r, prettyPrint: false);
     }
 
-    public static string ResultToJson(string matchId, string leagueId, string seasonId, int h, int a)
+    public static string ResultToJson(string matchId, string leagueId, string seasonId, string requestToken, int h, int a)
     {
         var r = new ResultJson
         {
             matchId = matchId,
             leagueId = leagueId,
             seasonId = seasonId,
+            requestToken = requestToken,
             score = new Score { h = h, a = a }
         };
         return JsonUtility.ToJson(r, prettyPrint: false);
     }
 }
-

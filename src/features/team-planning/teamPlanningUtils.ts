@@ -1,6 +1,14 @@
 import { clampPerformanceGauge } from '@/components/ui/performance-gauge';
 import { calculatePowerIndex } from '@/lib/player';
-import { CustomFormationMap, Player } from '@/types';
+import { CustomFormationMap, Player, Position } from '@/types';
+// Moved from Pitch.tsx to avoid circular dependency with slotZones.ts
+export type PitchSlot = {
+  slotIndex: number;
+  position: Player['position'];
+  x: number;
+  y: number;
+  player: Player | null;
+};
 import { clampNumber } from '@/lib/contractNegotiation';
 import type { MetricKey } from './useTeamPlanningStore';
 import type { SkillTagMap } from './skillTags';
@@ -16,9 +24,9 @@ export const MIN_SALARY_OFFER = 0;
 export const HOURS_IN_MS = 60 * 60 * 1000;
 
 export const metricOptions: Array<{ key: MetricKey; label: string }> = [
-  { key: 'power', label: 'G�o��' },
-  { key: 'motivation', label: 'MOT��VASYON' },
-  { key: 'condition', label: 'KOND��SYON' },
+  { key: 'power', label: 'GÜCÜ' },
+  { key: 'motivation', label: 'MOTİVASYON' },
+  { key: 'condition', label: 'KONDİSYON' },
 ];
 
 export const KNOWN_POSITIONS: Player['position'][] = [
@@ -70,6 +78,10 @@ export const POSITION_ALIAS_MAP: Record<string, Player['position']> = {
   EB: 'RW',
   IR: 'RM',
   LY: 'LB',
+  KALECI: 'GK',
+  KALEC: 'GK',
+  GOALKEEPER: 'GK',
+  KL: 'GK',
 };
 
 export type FormationPlayerPosition = {
@@ -359,9 +371,28 @@ const POSITION_LABELS_TR: Record<Player['position'], string> = {
   ST: 'Santrafor',
 };
 
+const POSITION_SHORT_CODES_TR: Record<Player['position'], string> = {
+  GK: 'KL',
+  CB: 'STP',
+  LB: 'SLB',
+  RB: 'SĞB',
+  CM: 'MO',
+  LM: 'SLO',
+  RM: 'SĞO',
+  CAM: 'OOS',
+  LW: 'SLK',
+  RW: 'SĞK',
+  ST: 'SF',
+};
+
 export const getPositionLabel = (value?: string | null): string => {
   const canonical = canonicalPosition(value);
   return POSITION_LABELS_TR[canonical] ?? canonical;
+};
+
+export const getPositionShortLabel = (value?: string | null): string => {
+  const canonical = canonicalPosition(value);
+  return POSITION_SHORT_CODES_TR[canonical] ?? canonical;
 };
 
 export function buildDisplayPlayer(
@@ -382,9 +413,9 @@ export function buildDisplayPlayer(
     player.squadRole === 'starting' && !allowedPositions.has(canonicalAssigned);
   const computedOverall = isOutOfPosition
     ? Math.max(
-        0,
-        Math.min(originalOverall, computePositionOverall(canonicalAssigned, player.attributes)),
-      )
+      0,
+      Math.min(originalOverall, computePositionOverall(canonicalAssigned, player.attributes)),
+    )
     : originalOverall;
 
   return {
@@ -593,9 +624,27 @@ export function promotePlayerToStartingRoster(
   if (currentRole !== 'starting' && startersCount >= 11 && occupantIndex === -1) {
     return {
       players: roster,
-      error: 'lk 11 dolu. Ayn mevkideki bir oyuncuyu karmadan yeni oyuncu ekleyemezsin.',
+      error: 'İlk 11 dolu. Aynı mevkideki bir oyuncuyu çıkarmadan yeni oyuncu ekleyemezsin.',
       updated: false,
     };
+  }
+
+  // Duplicate Check: Prevent multiple players with same uniqueId in starting lineup
+  if (player.uniqueId) {
+    const existingSamePlayer = roster.find(
+      p =>
+        p.squadRole === 'starting' &&
+        p.id !== player.id &&
+        p.uniqueId === player.uniqueId
+    );
+
+    if (existingSamePlayer) {
+      return {
+        players: roster,
+        error: 'Bu oyuncu zaten ilk 11\'de!',
+        updated: false,
+      };
+    }
   }
 
   const updatedRoster = [...roster];

@@ -3,6 +3,7 @@ import { assignIntoRandomBotSlot } from './assign.js';
 import './_firebase.js';
 import { getFirestore, FieldValue, type DocumentReference, type QuerySnapshot } from 'firebase-admin/firestore';
 import { getAuth, UserRecord } from 'firebase-admin/auth';
+import { ensureBotTeamDoc } from './utils/bots.js';
 
 const db = getFirestore();
 
@@ -141,6 +142,22 @@ const cleanupTransferListings = async (uid: string): Promise<number> => {
 const clearFixturesForTeam = async (leagueId: string, teamId: string): Promise<number> => {
   const leagueRef = db.collection('leagues').doc(leagueId);
   const fixturesRef = leagueRef.collection('fixtures');
+  const slotsSnap = await leagueRef.collection('slots').get();
+  const botTeamBySlot = new Map<number, string | null>();
+  for (const slot of slotsSnap.docs) {
+    const data = slot.data() as Record<string, unknown>;
+    const rawIndex = data['slotIndex'];
+    const slotIndex = typeof rawIndex === 'number' ? rawIndex : Number(slot.id) || 0;
+    if (!slotIndex) continue;
+    const slotTeamId = typeof data['teamId'] === 'string' ? (data['teamId'] as string) : null;
+    const slotBotId = typeof data['botId'] === 'string' ? (data['botId'] as string) : null;
+    if (!slotTeamId && slotBotId) {
+      const botTeamId = await ensureBotTeamDoc({ botId: slotBotId, slotIndex });
+      botTeamBySlot.set(slotIndex, botTeamId || null);
+    } else {
+      botTeamBySlot.set(slotIndex, null);
+    }
+  }
   const [homeSnap, awaySnap] = await Promise.all([
     fixturesRef.where('homeTeamId', '==', teamId).get(),
     fixturesRef.where('awayTeamId', '==', teamId).get(),
@@ -158,9 +175,11 @@ const clearFixturesForTeam = async (leagueId: string, teamId: string): Promise<n
       let home = (data['homeTeamId'] as string | null) ?? null;
       let away = (data['awayTeamId'] as string | null) ?? null;
       if (field === 'homeTeamId') {
-        home = null;
+        const slotIndex = Number(data['homeSlot'] ?? 0);
+        home = botTeamBySlot.get(slotIndex) ?? null;
       } else {
-        away = null;
+        const slotIndex = Number(data['awaySlot'] ?? 0);
+        away = botTeamBySlot.get(slotIndex) ?? null;
       }
       batch.update(doc.ref, {
         [field]: null,

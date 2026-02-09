@@ -34,7 +34,12 @@ export const cronCreateBatch = functions
     try {
       const day = todayTR();
       const r = await createDailyBatchInternal(day);
-      await setHeartbeat(day, { batchOk: true, batchCount: r.count, info: r.batchPath });
+      await setHeartbeat(day, {
+        batchOk: true,
+        batchCount: r.count,
+        batchShards: r.shardCount || r.shards?.length || 1,
+        info: r.batchPath,
+      });
       res.json(r);
     } catch (e: any) {
       await sendSlack(`❌ cronCreateBatch hata: ${e?.message || e}`);
@@ -42,12 +47,55 @@ export const cronCreateBatch = functions
     }
   });
 
-async function runUnityJob(jobName = 'unity-sim') {
+async function runUnityJob(
+  batchUrl: string,
+  shard: number,
+  shards: number,
+  jobName = process.env.UNITY_JOB_NAME || 'unity-sim'
+) {
   if (!PROJECT) throw new Error('PROJECT env missing');
-  const url = `https://run.googleapis.com/apis/run.googleapis.com/v1/namespaces/${PROJECT}/locations/${REGION}/jobs/${jobName}:run`;
+  const url = `https://run.googleapis.com/v2/projects/${PROJECT}/locations/${REGION}/jobs/${jobName}:run`;
   const auth = new GoogleAuth({ scopes: ['https://www.googleapis.com/auth/cloud-platform'] });
   const client = await auth.getClient();
-  await client.request({ url, method: 'POST', data: {} });
+  await client.request({
+    url,
+    method: 'POST',
+    data: {
+      overrides: {
+        containerOverrides: [{
+          env: [
+            { name: 'BATCH_URL', value: batchUrl },
+            { name: 'UNITY_BATCH_URL', value: batchUrl },
+            { name: 'BATCH_SHARD', value: String(shard) },
+            { name: 'BATCH_SHARDS', value: String(shards) },
+          ],
+        }],
+      },
+    },
+  });
+}
+
+async function kickUnityJobsForDay(day: string) {
+  const r = await createDailyBatchInternal(day);
+  const shards = r.shards || [];
+  const shardCount = r.shardCount || shards.length || 1;
+  const unityJobs = r.count ? shardCount : 0;
+  if (!r.count) {
+    functions.logger.info('[kickUnityJob] empty batch, skipping Unity jobs', {
+      day,
+      shardCount,
+      shards: shards.length,
+    });
+    return { ...r, shardCount, unityJobs };
+  }
+  if (shards.length === 0 && r.batchReadUrl) {
+    await runUnityJob(r.batchReadUrl, 0, shardCount);
+    return { ...r, shardCount, unityJobs };
+  }
+  await Promise.all(
+    shards.map((s) => runUnityJob(s.batchReadUrl, s.shard, shardCount))
+  );
+  return { ...r, shardCount, unityJobs };
 }
 
 export const kickUnityJob = functions
@@ -60,9 +108,13 @@ export const kickUnityJob = functions
       return;
     }
     try {
-      await runUnityJob();
       const day = todayTR();
-      await setHeartbeat(day, { unityJobOk: true });
+      const r = await kickUnityJobsForDay(day);
+      await setHeartbeat(day, {
+        unityJobOk: true,
+        unityJobs: r.unityJobs ?? r.shardCount,
+        batchCount: r.count,
+      });
       res.json({ ok: true });
     } catch (e: any) {
       await sendSlack(`❌ kickUnityJob hata: ${e?.message || e}`);
@@ -114,6 +166,3 @@ export const cronWatchdog = functions
     res.json({ ok: true });
       return;
   });
-
-
-

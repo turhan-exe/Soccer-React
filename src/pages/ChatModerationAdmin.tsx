@@ -783,7 +783,7 @@ const ChatModerationAdmin = () => {
           </div>
         ) : null}
 
-        <div className="grid gap-6 lg:grid-cols-[2fr,1fr]">
+        <div className="grid gap-6 lg:grid-cols-[1.3fr_1fr]">
           <Card className="border-slate-800 bg-slate-900/70">
             <CardHeader>
               <div className="flex flex-wrap items-center justify-between gap-3">
@@ -845,30 +845,52 @@ const ChatModerationAdmin = () => {
                         type="button"
                         onClick={() => setSelectedMessageId(message.id)}
                         className={cn(
-                          'w-full rounded-2xl border px-4 py-3 text-left transition hover:border-slate-500/70',
-                          message.id === selectedMessageId ? 'border-slate-300 bg-slate-800/60' : 'border-slate-800 bg-slate-900/40',
+                          'group flex w-full items-start gap-3 rounded-2xl border px-4 py-3 text-left transition-all hover:border-slate-500/50 hover:bg-slate-800/40',
+                          message.id === selectedMessageId
+                            ? 'border-emerald-500/30 bg-emerald-500/5 shadow-[0_0_15px_-3px_rgba(16,185,129,0.1)]'
+                            : 'border-slate-800 bg-slate-900/40',
                         )}
                       >
-                        <div className="flex flex-wrap items-center justify-between gap-3">
-                          <div>
-                            <p className="font-semibold text-white">
-                              {message.playerName}
-                              <span className="ml-2 text-xs text-slate-400">#{message.playerTag}</span>
-                            </p>
-                            <p className="text-xs text-slate-500">{message.channel} kanalinda</p>
-                          </div>
-                          <Badge variant="outline" className={cn('border text-xs', severityConfig[message.severity].badgeClass)}>
-                            {severityConfig[message.severity].label}
-                          </Badge>
-                        </div>
-                        <p className="mt-2 text-sm text-slate-200">{message.text}</p>
-                        <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-slate-500">
-                          <span>{formatTimeDistance(message.timestamp)}</span>
-                          {message.flags.map((flag) => (
-                            <Badge key={flag} variant="outline" className="border-rose-500/50 text-rose-200">
-                              {flag}
+                        <Avatar className="mt-0.5 h-8 w-8 border border-white/10 transition-colors group-hover:border-white/20">
+                          <AvatarFallback className="bg-slate-800/80 text-[10px] font-medium text-slate-300">
+                            {getInitials(message.playerName)}
+                          </AvatarFallback>
+                        </Avatar>
+
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <div className="flex items-center gap-1.5 overflow-hidden">
+                              <span className="truncate text-sm font-semibold text-white group-hover:text-emerald-300 transition-colors">
+                                {message.playerName}
+                              </span>
+                              <span className="text-[10px] text-slate-500">#{message.playerTag}</span>
+                              <span className="text-[10px] text-slate-600">
+                                • {formatTimeDistance(message.timestamp)}
+                              </span>
+                            </div>
+                            <Badge
+                              variant="outline"
+                              className={cn('border text-[10px] px-1.5 py-0', severityConfig[message.severity].badgeClass)}
+                            >
+                              {severityConfig[message.severity].label}
                             </Badge>
-                          ))}
+                          </div>
+                          <p className="mt-1 text-sm text-slate-300 leading-relaxed break-words group-hover:text-white transition-colors">
+                            {message.text}
+                          </p>
+                          {message.flags.length > 0 && (
+                            <div className="mt-2 flex flex-wrap gap-1.5">
+                              {message.flags.map((flag) => (
+                                <Badge
+                                  key={flag}
+                                  variant="outline"
+                                  className="border-rose-500/20 bg-rose-500/5 text-[10px] text-rose-300"
+                                >
+                                  {flag}
+                                </Badge>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       </button>
                     ))

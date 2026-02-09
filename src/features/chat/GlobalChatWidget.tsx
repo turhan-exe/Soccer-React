@@ -127,8 +127,8 @@ const GlobalChatWidget: React.FC = () => {
         Boolean(message.isVip) && message.gradientStart && message.gradientEnd;
       const gradientStyle = hasVipGradient
         ? {
-            backgroundImage: `linear-gradient(${message.gradientAngle ?? 120}deg, ${message.gradientStart}, ${message.gradientEnd})`,
-          }
+          backgroundImage: `linear-gradient(${message.gradientAngle ?? 120}deg, ${message.gradientStart}, ${message.gradientEnd})`,
+        }
         : undefined;
 
       return (
@@ -149,7 +149,7 @@ const GlobalChatWidget: React.FC = () => {
   }, [messages]);
 
   return (
-    <div className="nostalgia-chat-widget" aria-live="polite">
+    <div className="nostalgia-chat-widget !z-[100]" aria-live="polite">
       <button
         type="button"
         className={`nostalgia-chat-button${isOpen ? ' nostalgia-chat-button--active' : ''}`}
@@ -158,10 +158,6 @@ const GlobalChatWidget: React.FC = () => {
         aria-controls="global-chat-panel"
       >
         <MessageCircle className="nostalgia-chat-button__icon" />
-        <span className="nostalgia-chat-button__label">
-          {buttonLabel}
-          <small>{subtitleText}</small>
-        </span>
       </button>
 
       {isOpen ? (

@@ -52,16 +52,20 @@ export const lockWindowSnapshot = functions.region(REGION).https.onRequest(async
     if (!home.exists || !away.exists) continue;
     const h = home.data() as any, a = away.data() as any;
 
+    const seasonId = String(fx.seasonId ?? fx.season ?? 'default');
+    const homeClubName = h?.clubName || h?.name || h?.id || fx.homeTeamId;
+    const awayClubName = a?.clubName || a?.name || a?.id || fx.awayTeamId;
+
     const snapshot = {
       matchId,
       leagueId,
-      seasonId: fx.seasonId || 'S-2025a',
+      seasonId,
       createdAt: FieldValue.serverTimestamp(),
       rngSeed: fx.seed || Math.floor(Math.random() * 1e9),
       kickoffUtc: fx.date, // Firestore Timestamp
       home: {
         teamId: fx.homeTeamId,
-        clubName: h?.clubName,
+        clubName: homeClubName,
         formation: h?.lineup?.formation,
         tactics: h?.lineup?.tactics || {},
         starters: h?.lineup?.starters || [],
@@ -69,7 +73,7 @@ export const lockWindowSnapshot = functions.region(REGION).https.onRequest(async
       },
       away: {
         teamId: fx.awayTeamId,
-        clubName: a?.clubName,
+        clubName: awayClubName,
         formation: a?.lineup?.formation,
         tactics: a?.lineup?.tactics || {},
         starters: a?.lineup?.starters || [],

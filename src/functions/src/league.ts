@@ -286,33 +286,6 @@ export const assignTeamToLeague = functions.region('europe-west1').https.onCall(
   return { leagueId: leagueRef.id, state };
 });
 
-export const assignAllTeamsToLeagues = functions.region('europe-west1').https.onRequest(async (req, res) => {
-  // Admin-only via bearer secret
-  const authz = (req.headers.authorization as string) || '';
-  const token = authz.startsWith('Bearer ') ? authz.slice(7) : '';
-  if (!ADMIN_SECRET || token !== ADMIN_SECRET) {
-    res.status(401).send('unauthorized');
-    return;
-  }
-  functions.logger.info('[HTTP] assignAllTeamsToLeagues: Çağrıldı');
-  const snap = await db.collection('teams').get();
-  functions.logger.info('[HTTP] assignAllTeamsToLeagues: Takımlar çekildi', { count: snap.size });
-  const results: { teamId: string; leagueId: string; state: string }[] = [];
-  for (const doc of snap.docs) {
-    const data = doc.data() as any;
-    functions.logger.info('[HTTP] Tekil atama başlıyor', { teamId: doc.id });
-    const { leagueRef, state } = await assignTeam(
-      doc.id,
-      data.name || `Team ${doc.id}`,
-      (data as any).ownerUid
-    );
-    functions.logger.info('[HTTP] Tekil atama bitti', { teamId: doc.id, leagueId: leagueRef.id, state });
-    results.push({ teamId: doc.id, leagueId: leagueRef.id, state });
-  }
-  functions.logger.info('[HTTP] assignAllTeamsToLeagues: Tamamlandı', { assigned: results.length });
-  res.json({ assigned: results.length, details: results });
-});
-
 // Optional HTTP version with CORS for direct fetch() callers in dev
 export const assignTeamToLeagueHttp = functions.region('europe-west1').https.onRequest(async (req, res) => {
   functions.logger.info('[HTTP] assignTeamToLeagueHttp: Çağrıldı', {

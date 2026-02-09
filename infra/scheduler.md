@@ -21,6 +21,7 @@ firebase functions:config:set \
   results.secret="$SECRET" \
   unity.result_secret="$SECRET" \
   unity.secret="$SECRET" \
+  render.secret="$SECRET" \
   alert.slack_webhook="https://hooks.slack.com/services/XXX/YYY/ZZZ"
 
 # Doğrula
@@ -102,6 +103,10 @@ gcloud tasks queues update start-match --location=europe-west1 \
 for i in 0 1 2 3; do \
   gcloud tasks queues create start-match-$i --location=europe-west1 --max-attempts=3 --max-dispatches-per-second=50 || true; \
 done
+
+# Render video queue (target 16 concurrent)
+gcloud tasks queues create render-video --location=europe-west1 \
+  --max-attempts=3 --max-dispatches-per-second=16 --max-concurrent-dispatches=16
 ```
 
 4) Deploy ve doğrulama
@@ -120,3 +125,7 @@ Notlar
 - Scheduler sırf Authorization header ile yetkilendiriliyor; secret rotasyonu için yukarıdaki config’i tekrar set edebilirsin.
 - İstersen OIDC ile servis hesabı tabanlı doğrulamaya geçebilirsin; mevcut kod Bearer secret beklediği için header yöntemi kullanılmaktadır.
 - (Opsiyonel) RTDB event sharding: yüksek izleyici için Functions ortamına `LIVE_SHARDS=N` set edebilirsin. Sunucu yazımı `live/{matchId}/events` yanında `events_s{0..N-1}` altında da çoğaltır; istemci parçalı okumaya geçtiğinde bu şube kullanılabilir.
+
+Ek Notlar
+- Unity batch sharding icin UNITY_SHARDS veya BATCH_SHARDS env ayarini Cloud Run Job tarafinda belirle.
+- Legacy cron runner kapatmak icin LEGACY_RUNNER_DISABLED=1 (varsayilan: 1).
