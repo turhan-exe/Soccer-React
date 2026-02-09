@@ -4,9 +4,10 @@ workflows:
     max_build_duration: 60
     environment:
       ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.nerbuss.fhsmanager
         provisioning_profiles:
           - fhs_app_store_profile
-        signing_identity: fhs_distribution
       vars:
         XCODE_WORKSPACE: "ios/App/App.xcworkspace"
         XCODE_SCHEME: "App"
