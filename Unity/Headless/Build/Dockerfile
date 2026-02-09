@@ -1,22 +1,23 @@
 FROM ubuntu:22.04
 
-RUN apt-get update && apt-get install -y \
-    libglib2.0-0 libsm6 libxext6 libxrandr2 libxcursor1 libxi6 libxinerama1 ca-certificates curl \
-    && rm -rf /var/lib/apt/lists/*
+# Unity runtime için tipik bağımlılıklar (eksik lib hatası alırsan burası işe yarar)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    libglib2.0-0 \
+    libstdc++6 \
+    libgcc-s1 \
+    libz1 \
+ && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-# Copy built headless server (place your build outputs next to this Dockerfile before building the image)
-COPY OSMHeadless.x86_64 .
-COPY OSMHeadless_Data ./OSMHeadless_Data
-COPY UnityPlayer.so ./
+# Unity build çıktısı
+COPY OSMHeadless.x86_64 /app/OSMHeadless.x86_64
+COPY OSMHeadless_Data   /app/OSMHeadless_Data
+COPY UnityPlayer.so     /app/UnityPlayer.so
+COPY GameAssembly.so    /app/GameAssembly.so
 
-ENV BATCH_URL=""
-ENV EMIT_LIVE_URL=""
-ENV END_LIVE_URL=""
-ENV LIVE_SECRET=""
-ENV RESULTS_CALLBACK_URL=""
-ENV RESULTS_SECRET=""
+RUN chmod +x /app/OSMHeadless.x86_64
 
-CMD ["/app/OSMHeadless.x86_64", "-batchmode", "-nographics", "-quit"]
-
+# Headless çalıştırma
+ENTRYPOINT ["/app/OSMHeadless.x86_64","-batchmode","-nographics"]

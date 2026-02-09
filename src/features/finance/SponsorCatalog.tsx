@@ -41,10 +41,10 @@ export function SponsorCatalog({ activeSponsorId, onActivate, loadingId }: Spons
             ? { amount: Number(rawReward), cycle: resolveCycle() }
             : typeof rawReward === 'object' && rawReward !== null
               ? {
-                  amount: Number((rawReward as Record<string, unknown>).amount ?? 0),
-                  cycle:
-                    ((rawReward as Record<string, unknown>).cycle as SponsorReward['cycle']) ?? resolveCycle(),
-                }
+                amount: Number((rawReward as Record<string, unknown>).amount ?? 0),
+                cycle:
+                  ((rawReward as Record<string, unknown>).cycle as SponsorReward['cycle']) ?? resolveCycle(),
+              }
               : { amount: Number(rawReward ?? 0), cycle: resolveCycle() };
         const normalizedType =
           raw.type === 'premium' || raw.type === 'free'
@@ -66,7 +66,7 @@ export function SponsorCatalog({ activeSponsorId, onActivate, loadingId }: Spons
   const { data: entries, loading, error } = useCollection<SponsorCatalogEntry>('sponsorship_catalog', mapSnapshot);
 
   return (
-    <Card className="border-white/10">
+    <Card className="border-white/5 bg-slate-900/60 backdrop-blur-sm shadow-xl">
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-white/90">
           <Shield className="h-4 w-4 text-cyan-300" />

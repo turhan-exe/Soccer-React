@@ -5,6 +5,7 @@ using UnityEngine;
 public class HeadlessEntry : MonoBehaviour
 {
     private string BATCH_URL;
+    private string LEAGUE_ID;
     private string EMIT_LIVE_URL;
     private string END_LIVE_URL;
     private string LIVE_SECRET;
@@ -14,6 +15,7 @@ public class HeadlessEntry : MonoBehaviour
     void Start()
     {
         BATCH_URL      = Environment.GetEnvironmentVariable("BATCH_URL");
+        LEAGUE_ID      = Environment.GetEnvironmentVariable("LEAGUE_ID");
         EMIT_LIVE_URL  = Environment.GetEnvironmentVariable("EMIT_LIVE_URL");
         END_LIVE_URL   = Environment.GetEnvironmentVariable("END_LIVE_URL");
         LIVE_SECRET    = Environment.GetEnvironmentVariable("LIVE_SECRET");
@@ -23,9 +25,7 @@ public class HeadlessEntry : MonoBehaviour
         if (string.IsNullOrEmpty(BATCH_URL))
         {
             Debug.LogError("BATCH_URL missing");
-#if UNITY_SERVER || UNITY_EDITOR
             Application.Quit(1);
-#endif
             return;
         }
 
@@ -41,15 +41,20 @@ public class HeadlessEntry : MonoBehaviour
         var batch = JsonUtility.FromJson<BatchFile>(batchJson);
         Debug.Log($"Batch {batch.meta.day} count={batch.meta.count}");
 
+        int ran = 0;
         foreach (var m in batch.matches)
         {
+            if (!string.IsNullOrEmpty(LEAGUE_ID) && !string.Equals(m.leagueId, LEAGUE_ID, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
             yield return RunOneMatch(m);
+            ran++;
         }
 
-        Debug.Log("All matches done.");
-#if UNITY_SERVER || UNITY_EDITOR
+        Debug.Log($"All matches done. Ran {ran} of {batch.matches.Count}.");
         Application.Quit(0);
-#endif
     }
 
     IEnumerator RunOneMatch(BatchMatch bm)
@@ -78,7 +83,7 @@ public class HeadlessEntry : MonoBehaviour
         }
 
         var replayJson = ReplaySerializer.ToJson(bm.matchId, sim.Timeline);
-        var resultJson = ReplaySerializer.ResultToJson(bm.matchId, bm.leagueId, bm.seasonId, sim.HomeGoals, sim.AwayGoals);
+        var resultJson = ReplaySerializer.ResultToJson(bm.matchId, bm.leagueId, bm.seasonId, bm.requestToken, sim.HomeGoals, sim.AwayGoals);
 
         bool upOk = true;
         yield return HttpUtil.PutJsonSignedUrl(bm.replayUploadUrl, replayJson, () => { }, err => { Debug.LogError(err); upOk = false; });
@@ -98,4 +103,3 @@ public class HeadlessEntry : MonoBehaviour
         Debug.Log($"Sim end {bm.matchId} score {sim.HomeGoals}-{sim.AwayGoals}");
     }
 }
-

@@ -76,6 +76,14 @@ pnpm run build
 - C# scripts: `Unity/Headless/Assets/Scripts` implement batch download, deterministic sim, replay/result upload, and optional live event posting.
 - Containerization: `Unity/Headless/Build/Dockerfile` runs the Linux server build on Cloud Run Jobs.
 - See `infra/headless/README.md` for environment variables and run instructions.
+- Batch sharding: `createDailyBatch` writes shard files (default 16). Each Unity job should receive its shard `BATCH_URL`.
+
+## Unity Render Worker (Video)
+
+- Render worker should live under `Unity/Render` with a Linux build in `Unity/Render/Build`.
+- Containerization: `Unity/Render/Build/Dockerfile` runs the render player with Xvfb + FFmpeg.
+- Expected env: `REPLAY_URL` or `REPLAY_PATH`, `VIDEO_UPLOAD_URL` or `VIDEO_PATH`, and `MATCH_ID`/`LEAGUE_ID`/`SEASON_ID`.
+- Render jobs are triggered from `onResultFinalize` via Cloud Tasks + Cloud Run Jobs.
 
 
 ## Mobile Assets

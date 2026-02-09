@@ -1,5 +1,5 @@
 .legend-card-wrapper {
-  width: min(312px, 82vw);
+  width: min(280px, 75vw);
   aspect-ratio: 2 / 3;
   margin: 0 auto;
   perspective: 1200px;
@@ -106,8 +106,9 @@
   width: 100%;
   display: flex;
   flex-direction: column;
-  align-items: flex-end;
-  gap: 0.9rem;
+  align-items: center;
+  gap: 1.25rem;
+  padding-bottom: 0.5rem;
 }
 
 .legend-card-role {
@@ -184,6 +185,6 @@
 
 @media (min-width: 1024px) {
   .legend-card-wrapper {
-    width: 360px;
+    width: 320px;
   }
 }

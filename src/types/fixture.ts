@@ -1,4 +1,5 @@
 import type { FirebaseTimestamp } from './common';
+import type { MatchVideoMeta } from './matchReplay';
 
 export type FixtureStatus = 'scheduled' | 'running' | 'played' | 'failed';
 
@@ -14,4 +15,7 @@ export interface FixtureDoc {
   status: FixtureStatus;
   score?: { h: number; a: number };
   replayPath?: string;        // replays/{season}/{league}/{match}.json
+  video?: MatchVideoMeta;
+  videoMissing?: boolean;
+  videoError?: string;
 }

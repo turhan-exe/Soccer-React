@@ -92,18 +92,21 @@ export async function startMatchInternal(matchId: string, leagueId: string, opts
     const awayRef = db.doc(`teams/${fx.awayTeamId}`);
     const [home, away] = await db.getAll(homeRef, awayRef);
     const h = home.data() as any, a = away.data() as any;
+    const seasonId = String(fx.seasonId ?? fx.season ?? 'default');
+    const homeClubName = h?.clubName || h?.name || h?.id || fx.homeTeamId;
+    const awayClubName = a?.clubName || a?.name || a?.id || fx.awayTeamId;
     await planRef.set({
-      matchId, leagueId, seasonId: fx.seasonId || 'S-2025a',
+      matchId, leagueId, seasonId,
       createdAt: FieldValue.serverTimestamp(),
       rngSeed: fx.seed || Math.floor(Math.random() * 1e9),
       kickoffUtc: fx.date,
       home: {
-        teamId: fx.homeTeamId, clubName: h?.clubName,
+        teamId: fx.homeTeamId, clubName: homeClubName,
         formation: h?.lineup?.formation, tactics: h?.lineup?.tactics || {},
         starters: h?.lineup?.starters || [], subs: h?.lineup?.subs || []
       },
       away: {
-        teamId: fx.awayTeamId, clubName: a?.clubName,
+        teamId: fx.awayTeamId, clubName: awayClubName,
         formation: a?.lineup?.formation, tactics: a?.lineup?.tactics || {},
         starters: a?.lineup?.starters || [], subs: a?.lineup?.subs || []
       }

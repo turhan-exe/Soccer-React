@@ -64,6 +64,7 @@ import {
   ClipboardList,
   X,
   Clapperboard,
+  History,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useInventory } from '@/contexts/InventoryContext';
@@ -167,7 +168,12 @@ export default function TrainingPage() {
       const team = await getTeam(user.id);
       setPlayers(team?.players || []);
       if (team) {
-        const plan = team.plan ?? team.lineup;
+        const plan = (team.plan ?? team.lineup) as {
+          starters?: string[];
+          bench?: string[];
+          subs?: string[];
+          reserves?: string[];
+        } | undefined;
         setSquadAssignments({
           starters:
             (plan?.starters && plan.starters.filter(Boolean)) ||
@@ -340,7 +346,7 @@ export default function TrainingPage() {
     setPendingActiveSession(null);
     setSelectedPlayers([]);
     setSelectedTrainings([]);
-    toast.success('Antrenman tamamlandı');
+    toast.success(`Antrenman tamamlandı (${records.length} işlem)`);
   }, [players, setActiveSessionSafe, user]);
 
   useEffect(() => {
@@ -654,11 +660,11 @@ export default function TrainingPage() {
 
       if (newRemaining <= 0) {
         setTimeLeft(0);
-        toast.success('Antrenman süresi %25 azaltıldı');
+        toast.success('Antrenman tamamlandı');
         await completeSession();
       } else {
         startCountdown(newRemaining);
-        toast.success('Antrenman süresi %25 azaltıldı');
+        toast.success('Antrenman tamamlandı');
       }
     } catch (err) {
       console.warn('Antrenman reklamla hızlandırılamadı', err);
@@ -747,9 +753,9 @@ export default function TrainingPage() {
   );
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-green-50 via-emerald-50 to-teal-50 dark:from-green-950 dark:via-emerald-950 dark:to-teal-950">
-      <div className="bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm border-b p-4">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+    <div className="h-screen flex flex-col bg-gradient-to-br from-green-50 via-emerald-50 to-teal-50 dark:from-green-950 dark:via-emerald-950 dark:to-teal-950 overflow-hidden">
+      <div className="bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm border-b p-2 shrink-0">
+        <div className="flex flex-wrap items-center justify-between gap-y-2">
           <div className="flex items-center gap-3">
             <BackButton />
             <h1 className="text-xl font-bold">Antrenman Merkezi</h1>
@@ -781,177 +787,178 @@ export default function TrainingPage() {
                 Kadro Dışı
               </Button>
             </div>
-            <div className="flex items-center gap-2">
-              <Sheet>
-                <SheetTrigger asChild>
-                  <Button variant="outline">Geçmiş</Button>
-                </SheetTrigger>
-                <SheetContent side="left" className="w-[350px] sm:w-[400px] overflow-y-auto">
-                  <SheetHeader>
-                    <SheetTitle>Geçmiş Antrenmanlar</SheetTitle>
-                  </SheetHeader>
-                  <div className="p-4 space-y-4">
-                    <div className="space-y-2">
-                      <Select value={filterPlayer} onValueChange={setFilterPlayer}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Oyuncu" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">Tümü</SelectItem>
-                          {players.map(p => (
-                            <SelectItem key={p.id} value={p.id}>
-                              {p.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <Select value={filterTrainingType} onValueChange={setFilterTrainingType}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Antrenman" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">Tümü</SelectItem>
-                          {trainings.map(t => (
-                            <SelectItem key={t.id} value={t.id}>
-                              {t.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <Select value={filterResult} onValueChange={setFilterResult}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Durum" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">Tümü</SelectItem>
-                          <SelectItem value="success">Başarılı</SelectItem>
-                          <SelectItem value="average">Ortalama</SelectItem>
-                          <SelectItem value="fail">Başarısız</SelectItem>
-                        </SelectContent>
-                      </Select>
+
+            <Sheet>
+              <SheetTrigger asChild>
+                <Button variant="outline" size="sm" className="gap-2">
+                  <History className="h-4 w-4" />
+                  Geçmiş
+                </Button>
+              </SheetTrigger>
+              <SheetContent className="flex flex-col gap-4 sm:max-w-md">
+                <SheetHeader>
+                  <SheetTitle>Antrenman Geçmişi</SheetTitle>
+                </SheetHeader>
+                <div className="flex-1 overflow-y-auto pr-2">
+                  {filteredHistory.length === 0 ? (
+                    <p className="py-8 text-center text-muted-foreground">
+                      Henüz antrenman kaydı bulunmuyor.
+                    </p>
+                  ) : (
+                    <div className="space-y-3">
+                      {filteredHistory.map((record) => {
+                        const player = players.find(p => p.id === record.playerId);
+                        const training = trainings.find(t => t.id === record.trainingId);
+                        const isSuccess = record.result === 'success';
+
+                        return (
+                          <div
+                            key={record.id}
+                            className={cn(
+                              "rounded-lg border p-3 text-sm shadow-sm transition-colors",
+                              record.result === 'success'
+                                ? "bg-emerald-50/50 border-emerald-100 dark:bg-emerald-900/20 dark:border-emerald-800"
+                                : record.result === 'fail'
+                                  ? "bg-red-50/50 border-red-100 dark:bg-red-900/20 dark:border-red-800"
+                                  : "bg-amber-50/50 border-amber-100 dark:bg-amber-900/20 dark:border-amber-800"
+                            )}
+                          >
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="font-semibold">{player?.name || 'Bilinmeyen Oyuncu'}</span>
+                              <span className="text-xs text-muted-foreground">
+                                {record.completedAt?.toDate().toLocaleDateString('tr-TR', {
+                                  day: 'numeric',
+                                  month: 'short',
+                                  hour: '2-digit',
+                                  minute: '2-digit'
+                                })}
+                              </span>
+                            </div>
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="flex flex-col">
+                                <span className="text-muted-foreground truncate">
+                                  {training?.name || 'Bilinmeyen Antrenman'}
+                                </span>
+                                {record.gain > 0 && (
+                                  <span className="text-xs font-medium text-emerald-600 dark:text-emerald-400">
+                                    {training?.type ? (
+                                      <>
+                                        {training.type.charAt(0).toUpperCase() + training.type.slice(1)}: +{(record.gain * 100).toFixed(1)}
+                                      </>
+                                    ) : (
+                                      `Gelişim: +${(record.gain * 100).toFixed(1)}`
+                                    )}
+                                  </span>
+                                )}
+                              </div>
+                              <span className={cn(
+                                "text-xs px-2 py-0.5 rounded-full font-medium min-w-[60px] text-center",
+                                record.result === 'success'
+                                  ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300"
+                                  : record.result === 'fail'
+                                    ? "bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300"
+                                    : "bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300"
+                              )}>
+                                {record.result === 'success' ? 'Başarılı' : record.result === 'fail' ? 'Başarısız' : 'Normal'}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
-                    <div className="space-y-2 max-h-[calc(100vh-200px)] overflow-y-auto pr-2">
-                      {filteredHistory.length === 0 && (
-                        <div className="flex justify-center py-4">
-                          <InfoPopupButton
-                            title="Geçmiş Antrenmanlar"
-                            triggerLabel="Geçmiş antrenman kaydı bulunmadığında bilgi mesajını aç"
-                            message="Kayıt yok"
-                          />
-                        </div>
-                      )}
-                      {filteredHistory.map((rec, idx) => (
-                        <div key={idx} className="border p-2 rounded">
-                          <p className="font-semibold">{rec.playerName}</p>
-                          <p className="text-sm">
-                            {rec.trainingName} •
-                            {rec.result === 'success'
-                              ? ' Başarılı'
-                              : rec.result === 'average'
-                                ? ' Ortalama'
-                                : ' Başarısız'}
-                            {rec.gain > 0 && ` • +${(rec.gain * 100).toFixed(1)}%`}
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            {rec.completedAt.toDate().toLocaleString()}
-                          </p>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </SheetContent>
-              </Sheet>
-              <Button onClick={continueToMatch} variant="outline">
-                Maç Önizleme →
-              </Button>
-            </div>
+                  )}
+                </div>
+              </SheetContent>
+            </Sheet>
           </div>
         </div>
       </div>
 
-      <div className="p-4">
-        <div className="grid gap-4 xl:grid-cols-[1fr_minmax(320px,1.1fr)_1fr]">
+      <div className="flex-1 p-2 min-h-0 overflow-y-auto">
+        <div className="grid gap-2 grid-cols-[25%_50%_25%] relative">
           {/* Players list */}
-          <Card className="border-emerald-200/70 bg-white/70 dark:border-emerald-900/60 dark:bg-emerald-950/50">
-            <CardHeader className="space-y-3">
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <Users className="h-5 w-5" /> Oyuncular
-              </CardTitle>
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  value={playerSearch}
-                  onChange={event => setPlayerSearch(event.target.value)}
-                  placeholder="Oyuncu ara"
-                  className="pl-9"
-                />
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-3 max-h-[calc(100vh-260px)] overflow-y-auto pr-2">
-              {filteredPlayers.length === 0 && (
-                <p className="text-sm text-muted-foreground">
-                  Eşleşen oyuncu bulunamadı.
-                </p>
-              )}
-              {filteredPlayers.map(player => {
-                const isExpanded = expandedPlayerId === player.id;
+          <div className="relative h-full">
+            <Card className="absolute inset-0 border-emerald-200/70 bg-white/70 dark:border-emerald-900/60 dark:bg-emerald-950/50 flex flex-col overflow-hidden">
+              <CardHeader className="space-y-3">
+                <CardTitle className="flex items-center gap-2 text-lg">
+                  <Users className="h-5 w-5" /> Oyuncular
+                </CardTitle>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    value={playerSearch}
+                    onChange={event => setPlayerSearch(event.target.value)}
+                    placeholder="Oyuncu ara"
+                    className="pl-9"
+                  />
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-3 flex-1 overflow-y-auto pr-2">
+                {filteredPlayers.length === 0 && (
+                  <p className="text-sm text-muted-foreground">
+                    Eşleşen oyuncu bulunamadı.
+                  </p>
+                )}
+                {filteredPlayers.map(player => {
+                  const isExpanded = expandedPlayerId === player.id;
 
-                return (
-                  <Card
-                    key={player.id}
-                    draggable={!isTraining}
-                    onDragStart={event => {
-                      setExpandedPlayerId(null);
-                      setPlayerDetail(null);
-                      handleDragStart(event, 'player', player.id);
-                    }}
-                    onDragEnd={handleDragEnd}
-                    onClick={() => {
-                      if (isTraining) {
-                        return;
-                      }
-                      setExpandedPlayerId(prev => {
-                        const next = prev === player.id ? null : player.id;
-                        setPlayerDetail(next ? player : null);
-                        return next;
-                      });
-                    }}
-                    onDoubleClick={() => {
-                      if (!isTraining) {
-                        setSelectedPlayers(prev =>
-                          prev.some(item => item.id === player.id) ? prev : [...prev, player],
-                        );
-                      }
-                      setExpandedPlayerId(null);
-                      setPlayerDetail(null);
-                    }}
-                    className={cn(
-                      'cursor-pointer select-none border-emerald-100 transition hover:border-emerald-300 dark:border-emerald-900/50 dark:hover:border-emerald-700',
-                      isTraining && 'pointer-events-none opacity-60',
-                      isExpanded && 'border-emerald-300 ring-2 ring-emerald-200/70 dark:border-emerald-700',
-                    )}
-                  >
-                    <CardContent className="flex items-center justify-between gap-3 p-4">
-                      <div>
-                        <p className="font-semibold">{player.name}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {player.position} • Genel {formatRatingLabel(player.overall)}
-                        </p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-xs text-muted-foreground">Motivasyon</p>
-                        <p className="font-semibold">{Math.round(player.motivation * 100)}%</p>
-                      </div>
-                    </CardContent>
-                  </Card>
-                );
-              })}
-            </CardContent>
-          </Card>
+                  return (
+                    <Card
+                      key={player.id}
+                      draggable={!isTraining}
+                      onDragStart={event => {
+                        setExpandedPlayerId(null);
+                        setPlayerDetail(null);
+                        handleDragStart(event, 'player', player.id);
+                      }}
+                      onDragEnd={handleDragEnd}
+                      onClick={() => {
+                        if (isTraining) {
+                          return;
+                        }
+                        setExpandedPlayerId(prev => {
+                          const next = prev === player.id ? null : player.id;
+                          setPlayerDetail(next ? player : null);
+                          return next;
+                        });
+                      }}
+                      onDoubleClick={() => {
+                        if (!isTraining) {
+                          setSelectedPlayers(prev =>
+                            prev.some(item => item.id === player.id) ? prev : [...prev, player],
+                          );
+                        }
+                        setExpandedPlayerId(null);
+                        setPlayerDetail(null);
+                      }}
+                      className={cn(
+                        'cursor-pointer select-none border-emerald-100 transition hover:border-emerald-300 dark:border-emerald-900/50 dark:hover:border-emerald-700',
+                        isTraining && 'pointer-events-none opacity-60',
+                        isExpanded && 'border-emerald-300 ring-2 ring-emerald-200/70 dark:border-emerald-700',
+                      )}
+                    >
+                      <CardContent className="flex items-center justify-between gap-3 p-4">
+                        <div>
+                          <p className="font-semibold">{player.name}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {player.position} • Genel {formatRatingLabel(player.overall)}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-xs text-muted-foreground">Motivasyon</p>
+                          <p className="font-semibold">{Math.round(player.motivation * 100)}%</p>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </CardContent>
+            </Card>
+          </div>
 
           {/* Central control area */}
           <div className="flex flex-col gap-4">
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className="grid gap-2 grid-cols-2">
               <Card
                 onDragOver={event => handleDragOver(event, 'player')}
                 onDrop={event => handleDrop(event, 'player')}
@@ -1131,7 +1138,7 @@ export default function TrainingPage() {
                           className="w-full"
                           disabled={isWatchingAd}
                         >
-                          <Clapperboard className="mr-2 h-4 w-4" /> Reklam İzle (%25 Daha Hızlı)
+                          <Clapperboard className="mr-2 h-4 w-4" /> {isWatchingAd ? 'Video Yükleniyor...' : 'Reklam İzle (Hemen Bitir)'}
                         </Button>
                       </>
                     )}
@@ -1145,64 +1152,66 @@ export default function TrainingPage() {
           </div>
 
           {/* Trainings list */}
-          <Card className="border-teal-200/70 bg-white/70 dark:border-emerald-900/60 dark:bg-emerald-950/50">
-            <CardHeader className="space-y-3">
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <Dumbbell className="h-5 w-5" /> Antrenmanlar
-              </CardTitle>
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  value={trainingSearch}
-                  onChange={event => setTrainingSearch(event.target.value)}
-                  placeholder="Antrenman ara"
-                  className="pl-9"
-                />
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-3 max-h-[calc(100vh-260px)] overflow-y-auto pr-2">
-              {filteredTrainings.length === 0 && (
-                <p className="text-sm text-muted-foreground">
-                  Uygun antrenman bulunamadı.
-                </p>
-              )}
-              {filteredTrainings.map(training => (
-                <Card
-                  key={training.id}
-                  draggable={!isTraining}
-                  onDragStart={event => handleDragStart(event, 'training', training.id)}
-                  onDragEnd={handleDragEnd}
-                  onDoubleClick={() => {
-                    if (!isTraining) {
-                      setSelectedTrainings(prev =>
-                        prev.some(item => item.id === training.id)
-                          ? prev
-                          : [...prev, training],
-                      );
-                    }
-                  }}
-                  className={cn(
-                    'cursor-grab select-none border-teal-100 transition hover:border-teal-300 dark:border-emerald-900/50 dark:hover:border-emerald-700',
-                    isTraining && 'pointer-events-none opacity-60',
-                  )}
-                >
-                  <CardContent className="flex items-center justify-between gap-3 p-4">
-                    <div>
-                      <p className="font-semibold">{training.name}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {training.description}
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-xs text-muted-foreground">Hedef</p>
-                      <p className="font-semibold">{training.type}</p>
-                      <p className="text-xs text-muted-foreground mt-1">{training.duration} dk</p>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </CardContent>
-          </Card>
+          <div className="relative h-full">
+            <Card className="absolute inset-0 border-teal-200/70 bg-white/70 dark:border-emerald-900/60 dark:bg-emerald-950/50 flex flex-col overflow-hidden">
+              <CardHeader className="space-y-3">
+                <CardTitle className="flex items-center gap-2 text-lg">
+                  <Dumbbell className="h-5 w-5" /> Antrenmanlar
+                </CardTitle>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    value={trainingSearch}
+                    onChange={event => setTrainingSearch(event.target.value)}
+                    placeholder="Antrenman ara"
+                    className="pl-9"
+                  />
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-3 flex-1 overflow-y-auto pr-2">
+                {filteredTrainings.length === 0 && (
+                  <p className="text-sm text-muted-foreground">
+                    Uygun antrenman bulunamadı.
+                  </p>
+                )}
+                {filteredTrainings.map(training => (
+                  <Card
+                    key={training.id}
+                    draggable={!isTraining}
+                    onDragStart={event => handleDragStart(event, 'training', training.id)}
+                    onDragEnd={handleDragEnd}
+                    onDoubleClick={() => {
+                      if (!isTraining) {
+                        setSelectedTrainings(prev =>
+                          prev.some(item => item.id === training.id)
+                            ? prev
+                            : [...prev, training],
+                        );
+                      }
+                    }}
+                    className={cn(
+                      'cursor-grab select-none border-teal-100 transition hover:border-teal-300 dark:border-emerald-900/50 dark:hover:border-emerald-700',
+                      isTraining && 'pointer-events-none opacity-60',
+                    )}
+                  >
+                    <CardContent className="flex items-center justify-between gap-3 p-4">
+                      <div>
+                        <p className="font-semibold">{training.name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {training.description}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-xs text-muted-foreground">Hedef</p>
+                        <p className="font-semibold truncate max-w-[80px]" title={training.type}>{training.type}</p>
+                        <p className="text-xs text-muted-foreground mt-1">{training.duration} dk</p>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </CardContent>
+            </Card>
+          </div>
         </div>
       </div>
 
@@ -1218,6 +1227,6 @@ export default function TrainingPage() {
           {playerDetail ? <PlayerStatusCard player={playerDetail} /> : null}
         </DialogContent>
       </Dialog>
-    </div>
+    </div >
   );
 }

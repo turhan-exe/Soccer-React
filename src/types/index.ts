@@ -1,3 +1,5 @@
+import type { MatchVideoMeta } from './matchReplay';
+
 export type SquadRole = 'starting' | 'bench' | 'reserve';
 
 export type Position =
@@ -241,6 +243,8 @@ export interface Fixture {
   round: number;
   // Client uses concrete Date for display; services map Timestamp -> Date
   date: Date;
+  leagueId?: string;
+  seasonId?: string;
   homeTeamId: string;
   awayTeamId: string;
   // Always [homeTeamId, awayTeamId]
@@ -249,6 +253,9 @@ export interface Fixture {
   score: { home: number; away: number } | null;
   // Optional replay storage path (when Unity integration lands)
   replayPath?: string;
+  video?: MatchVideoMeta | null;
+  videoMissing?: boolean;
+  videoError?: string;
   goalTimeline?: MatchGoalEvent[];
 }
 

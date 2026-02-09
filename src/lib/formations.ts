@@ -15,7 +15,7 @@ export const formations: Formation[] = [
   {
     name: '4-4-2',
     positions: [
-      { position: 'GK', x: 50, y: 90 },
+      { position: 'GK', x: 45, y: 95 },
       { position: 'LB', x: 15, y: 70 },
       { position: 'CB', x: 35, y: 65 },
       { position: 'CB', x: 65, y: 65 },
@@ -31,7 +31,7 @@ export const formations: Formation[] = [
   {
     name: '4-3-3',
     positions: [
-      { position: 'GK', x: 50, y: 90 },
+      { position: 'GK', x: 45, y: 95 },
       { position: 'LB', x: 15, y: 70 },
       { position: 'CB', x: 35, y: 65 },
       { position: 'CB', x: 65, y: 65 },
@@ -47,7 +47,7 @@ export const formations: Formation[] = [
   {
     name: '3-5-2',
     positions: [
-      { position: 'GK', x: 50, y: 90 },
+      { position: 'GK', x: 45, y: 95 },
       { position: 'CB', x: 30, y: 70 },
       { position: 'CB', x: 50, y: 65 },
       { position: 'CB', x: 70, y: 70 },
@@ -63,7 +63,7 @@ export const formations: Formation[] = [
   {
     name: '4-5-1',
     positions: [
-      { position: 'GK', x: 50, y: 90 },
+      { position: 'GK', x: 45, y: 95 },
       { position: 'LB', x: 15, y: 70 },
       { position: 'CB', x: 35, y: 65 },
       { position: 'CB', x: 65, y: 65 },
@@ -79,7 +79,7 @@ export const formations: Formation[] = [
   {
     name: '4-2-3-1',
     positions: [
-      { position: 'GK', x: 50, y: 90 },
+      { position: 'GK', x: 45, y: 95 },
       { position: 'LB', x: 15, y: 70 },
       { position: 'CB', x: 35, y: 65 },
       { position: 'CB', x: 65, y: 65 },
@@ -95,7 +95,7 @@ export const formations: Formation[] = [
   {
     name: '5-3-2',
     positions: [
-      { position: 'GK', x: 50, y: 90 },
+      { position: 'GK', x: 45, y: 95 },
       { position: 'LB', x: 10, y: 70 },
       { position: 'CB', x: 30, y: 65 },
       { position: 'CB', x: 50, y: 60 },
@@ -111,7 +111,7 @@ export const formations: Formation[] = [
   {
     name: '5-4-1',
     positions: [
-      { position: 'GK', x: 50, y: 90 },
+      { position: 'GK', x: 45, y: 95 },
       { position: 'LB', x: 10, y: 70 },
       { position: 'CB', x: 30, y: 65 },
       { position: 'CB', x: 50, y: 60 },
@@ -127,7 +127,7 @@ export const formations: Formation[] = [
   {
     name: '3-4-3',
     positions: [
-      { position: 'GK', x: 50, y: 90 },
+      { position: 'GK', x: 45, y: 95 },
       { position: 'CB', x: 30, y: 70 },
       { position: 'CB', x: 50, y: 65 },
       { position: 'CB', x: 70, y: 70 },
@@ -143,7 +143,7 @@ export const formations: Formation[] = [
   {
     name: '4-1-4-1',
     positions: [
-      { position: 'GK', x: 50, y: 90 },
+      { position: 'GK', x: 45, y: 95 },
       { position: 'LB', x: 15, y: 70 },
       { position: 'CB', x: 35, y: 65 },
       { position: 'CB', x: 65, y: 65 },
@@ -159,7 +159,7 @@ export const formations: Formation[] = [
   {
     name: '4-4-1-1',
     positions: [
-      { position: 'GK', x: 50, y: 90 },
+      { position: 'GK', x: 45, y: 95 },
       { position: 'LB', x: 15, y: 70 },
       { position: 'CB', x: 35, y: 65 },
       { position: 'CB', x: 65, y: 65 },
@@ -175,7 +175,7 @@ export const formations: Formation[] = [
   {
     name: '3-4-1-2',
     positions: [
-      { position: 'GK', x: 50, y: 90 },
+      { position: 'GK', x: 45, y: 95 },
       { position: 'CB', x: 30, y: 70 },
       { position: 'CB', x: 50, y: 65 },
       { position: 'CB', x: 70, y: 70 },
@@ -191,7 +191,7 @@ export const formations: Formation[] = [
   {
     name: '4-3-2-1',
     positions: [
-      { position: 'GK', x: 50, y: 90 },
+      { position: 'GK', x: 45, y: 95 },
       { position: 'LB', x: 15, y: 70 },
       { position: 'CB', x: 35, y: 65 },
       { position: 'CB', x: 65, y: 65 },

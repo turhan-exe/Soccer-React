@@ -15,6 +15,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { calculatePowerIndex, formatRatingLabel } from '@/lib/player';
+import { getPositionShortLabel } from '@/features/team-planning/teamPlanningUtils';
 import { cn } from '@/lib/utils';
 import { formatContractCountdown } from '@/lib/contracts';
 
@@ -30,6 +31,8 @@ interface PlayerCardProps {
   onNegotiateSalary?: () => void;
   onExtendContract?: () => void;
   onFirePlayer?: () => void;
+  onShowDetails?: () => void;
+  onSelect?: () => void;
   showActions?: boolean;
   compact?: boolean;
   defaultCollapsed?: boolean;
@@ -67,6 +70,8 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({
   onNegotiateSalary,
   onExtendContract,
   onFirePlayer,
+  onShowDetails,
+  onSelect,
   showActions = true,
   compact = false,
   defaultCollapsed = false,
@@ -81,6 +86,16 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({
   const cardRef = useRef<HTMLDivElement | null>(null);
 
   const handleCardClick = (event: MouseEvent<HTMLDivElement>) => {
+    if (onSelect) {
+      onSelect();
+      return;
+    }
+
+    if (onShowDetails) {
+      onShowDetails();
+      return;
+    }
+
     if (!collapsed) {
       return;
     }
@@ -100,7 +115,7 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({
       return;
     }
 
-    const handlePointerDown = (event: MouseEvent) => {
+    const handlePointerDown = (event: globalThis.PointerEvent) => {
       const target = event.target as HTMLElement | null;
 
       if (!target) {
@@ -195,7 +210,7 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
       onClick={handleCardClick}
-      onDoubleClick={() => setCollapsed((prev) => !prev)}
+      onDoubleClick={() => !onShowDetails && setCollapsed((prev) => !prev)}
     >
       <div className="flex items-start gap-3">
         <div className="relative">
@@ -216,7 +231,7 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({
               compact && 'h-4 w-4 text-[10px]'
             )}
           >
-            {player.position}
+            {getPositionShortLabel(player.position)}
           </div>
         </div>
 
@@ -258,7 +273,7 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({
                 <div className="flex flex-wrap gap-1">
                   {(player.roles ?? []).map((role) => (
                     <Badge key={role} variant="outline" className={cn('text-xs', compact && 'text-[10px]')}>
-                      {role}
+                      {getPositionShortLabel(role)}
                     </Badge>
                   ))}
                 </div>
@@ -266,58 +281,73 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({
             </div>
 
             {showActions && (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className={cn('h-8 w-8 p-0', compact && 'h-6 w-6')}
-                    data-player-card-ignore-click
-                  >
-                    <MoreVertical className={cn('h-4 w-4', compact && 'h-3 w-3')} />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={() => setCollapsed((prev) => !prev)}>
-                    {collapsed ? 'Kartı Genişlet' : 'Kartı Küçült'}
-                  </DropdownMenuItem>
-                  {player.squadRole !== 'starting' && onMoveToStarting && (
-                    <DropdownMenuItem onClick={onMoveToStarting}>İlk 11'e Al</DropdownMenuItem>
-                  )}
-                  {player.squadRole !== 'bench' && onMoveToBench && (
-                    <DropdownMenuItem onClick={onMoveToBench}>Yedek Kulübesine Al</DropdownMenuItem>
-                  )}
-                  {player.squadRole !== 'reserve' && onMoveToReserve && (
-                    <DropdownMenuItem onClick={onMoveToReserve}>Rezerve Al</DropdownMenuItem>
-                  )}
-                  {(onRenamePlayer || onNegotiateSalary || onListForTransfer || onExtendContract || onReleasePlayer || onFirePlayer) && (
-                    <DropdownMenuSeparator />
-                  )}
-                  {onRenamePlayer && (
-                    <DropdownMenuItem onClick={onRenamePlayer}>İsim Özelleştir</DropdownMenuItem>
-                  )}
-                  {onNegotiateSalary && (
-                    <DropdownMenuItem onClick={onNegotiateSalary}>Maaş Pazarlığı</DropdownMenuItem>
-                  )}
-                  {onListForTransfer && (
-                    <DropdownMenuItem onClick={onListForTransfer}>Oyuncuyu Sat</DropdownMenuItem>
-                  )}
-                  {onExtendContract && (
-                    <DropdownMenuItem onClick={onExtendContract}>Sözleşmeyi Uzat</DropdownMenuItem>
-                  )}
-                  {onReleasePlayer && (
-                    <DropdownMenuItem onClick={onReleasePlayer}>Serbest Bırak</DropdownMenuItem>
-                  )}
-                  {onFirePlayer && (
-                    <DropdownMenuItem className="text-destructive" onClick={onFirePlayer}>
-                      Oyuncuyu Kov
+              onShowDetails ? (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className={cn('h-8 w-8 p-0', compact && 'h-6 w-6')}
+                  data-player-card-ignore-click
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onShowDetails();
+                  }}
+                >
+                  <MoreVertical className={cn('h-4 w-4', compact && 'h-3 w-3')} />
+                </Button>
+              ) : (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className={cn('h-8 w-8 p-0', compact && 'h-6 w-6')}
+                      data-player-card-ignore-click
+                    >
+                      <MoreVertical className={cn('h-4 w-4', compact && 'h-3 w-3')} />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={() => setCollapsed((prev) => !prev)}>
+                      {collapsed ? 'Kartı Genişlet' : 'Kartı Küçült'}
                     </DropdownMenuItem>
-                  )}
-                  {player.squadRole === 'youth' && onPromoteToTeam && (
-                    <DropdownMenuItem onClick={onPromoteToTeam}>Takıma Al</DropdownMenuItem>
-                  )}
-                </DropdownMenuContent>
-              </DropdownMenu>
+                    {player.squadRole !== 'starting' && onMoveToStarting && (
+                      <DropdownMenuItem onClick={onMoveToStarting}>İlk 11'e Al</DropdownMenuItem>
+                    )}
+                    {player.squadRole !== 'bench' && onMoveToBench && (
+                      <DropdownMenuItem onClick={onMoveToBench}>Yedek Kulübesine Al</DropdownMenuItem>
+                    )}
+                    {player.squadRole !== 'reserve' && onMoveToReserve && (
+                      <DropdownMenuItem onClick={onMoveToReserve}>Rezerve Al</DropdownMenuItem>
+                    )}
+                    {(onRenamePlayer || onNegotiateSalary || onListForTransfer || onExtendContract || onReleasePlayer || onFirePlayer) && (
+                      <DropdownMenuSeparator />
+                    )}
+                    {onRenamePlayer && (
+                      <DropdownMenuItem onClick={onRenamePlayer}>İsim Özelleştir</DropdownMenuItem>
+                    )}
+                    {onNegotiateSalary && (
+                      <DropdownMenuItem onClick={onNegotiateSalary}>Maaş Pazarlığı</DropdownMenuItem>
+                    )}
+                    {onListForTransfer && (
+                      <DropdownMenuItem onClick={onListForTransfer}>Oyuncuyu Sat</DropdownMenuItem>
+                    )}
+                    {onExtendContract && (
+                      <DropdownMenuItem onClick={onExtendContract}>Sözleşmeyi Uzat</DropdownMenuItem>
+                    )}
+                    {onReleasePlayer && (
+                      <DropdownMenuItem onClick={onReleasePlayer}>Serbest Bırak</DropdownMenuItem>
+                    )}
+                    {onFirePlayer && (
+                      <DropdownMenuItem className="text-destructive" onClick={onFirePlayer}>
+                        Oyuncuyu Kov
+                      </DropdownMenuItem>
+                    )}
+                    {player.squadRole === 'youth' && onPromoteToTeam && (
+                      <DropdownMenuItem onClick={onPromoteToTeam}>Takıma Al</DropdownMenuItem>
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )
             )}
           </div>
 
@@ -327,4 +357,3 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({
     </Card>
   );
 };
-

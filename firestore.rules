@@ -113,7 +113,7 @@ service cloud.firestore {
     // Match plans are immutable snapshots created by server during lock/start
     match /matchPlans/{matchId} {
       // Allow only authenticated clients to read; writes are server-only
-      allow read: if request.auth != null;
+      allow read: if true;
       allow write: if false;
     }
 

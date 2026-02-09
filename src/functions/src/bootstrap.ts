@@ -8,6 +8,7 @@ import {
   normalizeCapacity,
 } from './utils/roundrobin.js';
 import { nextMonthOrThisMonthFirstAt19, monthKeyTR, dateForRound } from './utils/time.js';
+import { ensureBotTeamDoc } from './utils/bots.js';
 
 const db = getFirestore();
 const REGION = 'europe-west1';
@@ -62,26 +63,84 @@ function pickBotsForLeague(allBotIds: string[], used: Set<string>, count: number
   return ids;
 }
 
-async function runBootstrap() {
+
+// Helper for recursive delete
+async function deleteQueryBatch(db: FirebaseFirestore.Firestore, query: FirebaseFirestore.Query, resolve: (val?: any) => void) {
+  const snapshot = await query.get();
+
+  const batchSize = snapshot.size;
+  if (batchSize === 0) {
+    // When there are no documents left, we are done
+    resolve();
+    return;
+  }
+
+  // Delete documents in a batch
+  const batch = db.batch();
+  snapshot.docs.forEach((doc) => {
+    batch.delete(doc.ref);
+  });
+  await batch.commit();
+
+  // Recurse on the next process tick, to avoid escaping the stack
+  process.nextTick(() => {
+    deleteQueryBatch(db, query, resolve);
+  });
+}
+
+// Function to delete a collection and its subcollections
+async function deleteCollection(db: FirebaseFirestore.Firestore, collectionPath: string, batchSize: number) {
+  const collectionRef = db.collection(collectionPath);
+  const query = collectionRef.orderBy('__name__').limit(batchSize);
+
+  return new Promise((resolve, reject) => {
+    deleteQueryBatch(db, query, resolve);
+  });
+}
+
+// Custom specialized delete for leagues that also cleans subcollections
+async function wipeLeagues(db: FirebaseFirestore.Firestore) {
+  console.log('[wipeLeagues] Starting full wipe...');
+  const leaguesSnap = await db.collection('leagues').get();
+  for (const lg of leaguesSnap.docs) {
+    // manually wipe known subcollections
+    await deleteCollection(db, `leagues/${lg.id}/slots`, 500);
+    await deleteCollection(db, `leagues/${lg.id}/fixtures`, 500);
+    await deleteCollection(db, `leagues/${lg.id}/standings`, 500);
+    await deleteCollection(db, `leagues/${lg.id}/teams`, 500);
+    await lg.ref.delete();
+  }
+  console.log('[wipeLeagues] Wipe complete.');
+}
+
+
+async function runBootstrap(forceReset?: boolean) {
   const LEAGUE_COUNT = Number(process.env.LEAGUE_COUNT || DEFAULTS.LEAGUE_COUNT);
   const requestedCapacity = Number(
-    process.env.LEAGUE_CAPACITY || DEFAULTS.CAPACITY,
+    process.env.LEAGUE_CAPACITY || 15 // Force 15 capacity
   );
-  const capacity = normalizeCapacity(requestedCapacity);
+  const capacity = 15; // Hardcode strict 15
   const ROUNDS = Number(process.env.ROUNDS_PER_SEASON || DEFAULTS.ROUNDS);
   const TIMEZONE = DEFAULTS.TIMEZONE;
 
-  const startDate = nextMonthOrThisMonthFirstAt19();
-  const mKey = monthKeyTR(startDate);
+  // Force Start Date: Feb 1, 2026, 19:00:00 TRT
+  // 2026-02-01T16:00:00.000Z (UTC) for 19:00 TRT
+  // Or just create a Date object
+  const startDate = new Date('2026-02-01T19:00:00+03:00');
+  const mKey = '2026-02'; // Hardcode month key for Feb 2026
 
-  // Check if already bootstrapped for this month
-  const exists = await db
-    .collection('leagues')
-    .where('monthKey', '==', mKey)
-    .limit(1)
-    .get();
-  if (!exists.empty) {
-    return { ok: true, skipped: true, monthKey: mKey } as const;
+  if (forceReset) {
+    await wipeLeagues(db);
+  } else {
+    // Check if already bootstrapped for this month (only if not forcing reset)
+    const exists = await db
+      .collection('leagues')
+      .where('monthKey', '==', mKey)
+      .limit(1)
+      .get();
+    if (!exists.empty) {
+      return { ok: true, skipped: true, monthKey: mKey } as const;
+    }
   }
 
   // Ensure bot pool
@@ -89,6 +148,7 @@ async function runBootstrap() {
   const botSnap = await db.collection('bots').get();
   const botIds = botSnap.docs.map((d) => d.id);
   const botNames = new Map(botSnap.docs.map((d) => [d.id, (d.data() as any).name || d.id]));
+  const botRatings = new Map(botSnap.docs.map((d) => [d.id, (d.data() as any).rating]));
   const usedBotIds = new Set<string>();
 
   const fixturesTemplate = generateDoubleRoundRobinSlots(capacity);
@@ -99,7 +159,7 @@ async function runBootstrap() {
     const leagueData = {
       name: `Lig ${i}`,
       season: 1,
-      capacity,
+      capacity, // 15
       timezone: TIMEZONE,
       state: 'scheduled' as const,
       createdAt: FieldValue.serverTimestamp(),
@@ -110,7 +170,7 @@ async function runBootstrap() {
     await ref.set(leagueData);
 
     // Slots
-  const leagueBots = pickBotsForLeague(botIds, usedBotIds, capacity);
+    const leagueBots = pickBotsForLeague(botIds, usedBotIds, capacity);
     const slotBatch = db.batch();
     leagueBots.forEach((botId, idx) => {
       const slotIndex = idx + 1;
@@ -124,6 +184,19 @@ async function runBootstrap() {
       });
     });
     await slotBatch.commit();
+
+    const botTeamIds = new Map<string, string>();
+    await Promise.all(
+      leagueBots.map(async (botId, idx) => {
+        const teamId = await ensureBotTeamDoc({
+          botId,
+          name: botNames.get(botId),
+          rating: botRatings.get(botId),
+          slotIndex: idx + 1,
+        });
+        botTeamIds.set(botId, teamId);
+      })
+    );
 
     // Standings (initial, by slot)
     const standingsBatch = db.batch();
@@ -152,12 +225,14 @@ async function runBootstrap() {
     slotsSnap.docs.forEach((d) => {
       const s = d.data() as any;
       const name = s.teamId ? s.teamId : (botNames.get(s.botId) || `Bot ${s.botId}`);
-      slotMap.set(s.slotIndex, { teamId: s.teamId, botId: s.botId, name });
+      const botTeamId = s.botId ? botTeamIds.get(s.botId) || null : null;
+      const teamId = s.teamId || botTeamId || null;
+      slotMap.set(s.slotIndex, { teamId, botId: s.botId, name });
     });
 
     let batch = db.batch();
     let ops = 0;
-  for (const f of fixturesTemplate) {
+    for (const f of fixturesTemplate) {
       const date = dateForRound(startDate, f.round);
       const docRef = ref.collection('fixtures').doc();
       const homeTeamId = slotMap.get(f.homeSlot)?.teamId || null;
@@ -188,14 +263,17 @@ async function runBootstrap() {
 }
 
 export const bootstrapMonthlyLeaguesOneTime = functions
+  .runWith({ timeoutSeconds: 540, memory: '1GB' })
   .region(REGION)
-  .https.onCall(async (request) => {
-    const uid = request.auth?.uid;
+  .https.onCall(async (data, context) => {
+    const uid = context.auth?.uid;
     if (!uid) throw new functions.https.HttpsError('unauthenticated', 'Auth required');
-    return await runBootstrap();
+    const forceReset = (data as any)?.forceReset === true;
+    return await runBootstrap(forceReset);
   });
 
 export const bootstrapMonthlyLeaguesOneTimeHttp = functions
+  .runWith({ timeoutSeconds: 540, memory: '1GB' })
   .region(REGION)
   .https.onRequest(async (req, res) => {
     // Allow CORS for manual calls
@@ -218,7 +296,8 @@ export const bootstrapMonthlyLeaguesOneTimeHttp = functions
       return;
     }
     try {
-      const result = await runBootstrap();
+      const forceReset = req.body?.data?.forceReset === true || req.body?.forceReset === true;
+      const result = await runBootstrap(forceReset);
       res.json(result);
     } catch (e: any) {
       res.status(500).json({ error: e?.message || 'error' });

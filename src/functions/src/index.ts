@@ -10,6 +10,7 @@ export { reportMatchResultWithReplay } from './replay/reportMatchResultWithRepla
 export { getMatchReplay } from './replay/getMatchReplay.js';
 export { getMatchVideo } from './replay/getMatchVideo.js';
 export { onMatchVideoFinalize } from './replay/onMatchVideoFinalize.js';
+export { renderMatchHttp } from './replay/renderJob.js';
 export { scheduleDailyMatches } from './replay/scheduleDailyMatches.js';
 export {
   marketCreateListing,
@@ -27,7 +28,6 @@ export {
   requestJoinLeague,
   finalizeIfFull,
   generateRoundRobinFixturesFn,
-  assignAllTeamsToLeagues,
 } from './league.js';
 export {
   rebuildDailyFixtures,
@@ -36,8 +36,12 @@ export {
 } from './fixFixtures.js';
 // Monthly slot-based leagues system
 export { bootstrapMonthlyLeaguesOneTime, bootstrapMonthlyLeaguesOneTimeHttp } from './bootstrap.js';
-export { assignRealTeamToFirstAvailableBotSlot, assignRealTeamToFirstAvailableBotSlotHttp } from './assign.js';
-export { resetSeasonMonthly } from './schedule.js';
+export {
+  assignRealTeamToFirstAvailableBotSlot,
+  assignRealTeamToFirstAvailableBotSlotHttp,
+  assignAllTeamsToLeagues
+} from './assign.js';
+export { resetSeasonMonthly, resetSeasonMonthlyHttp } from './schedule.js';
 export { runDailyMatchesAt19TR, backfillScheduledMatches, backfillScheduledMatchesHttp } from './runner.js';
 // User lifecycle triggers
 export { assignTeamOnUserCreate, cleanupInactiveUsers } from './user.js';

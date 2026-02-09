@@ -5,34 +5,15 @@
   --tp-chip-sub: 30px;
 }
 
-#tp-left {
-  display: grid;
-  place-items: center;
-  padding: 0;
-  overflow: hidden;
-}
-
-#tp-pitch-wrapper {
-  width: 100%;
-  height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  padding: 12px 10px 12px 18px;
-  overflow: hidden;
-  box-sizing: border-box;
-}
+/* #tp-left and #tp-pitch-wrapper styles removed to allow Tailwind Flexbox control */
 
 #tp-pitch {
-  aspect-ratio: 105 / 68;
-  width: auto !important;
-  height: clamp(560px, 82vh, 920px) !important;
-  max-width: calc(100% - 16px);
-  margin-left: clamp(18px, 4vw, 36px);
-  object-fit: contain;
-  transform-origin: center;
-  overflow: hidden;
-  border-radius: 2.75rem;
+  width: 100% !important;
+  height: 100% !important;
+  max-width: none !important;
+  margin: 0 !important;
+  transform: none !important;
+  border-radius: 0 !important;
 }
 
 #tp-pitch,
@@ -51,7 +32,7 @@
   justify-content: center;
   padding: 6px !important;
   box-shadow: 0 12px 26px rgba(0, 0, 0, 0.35);
-  transform: scale(1.8);
+  transform: scale(1.15);
   transition: transform 160ms ease-in-out, box-shadow 160ms ease-in-out;
 }
 
@@ -103,24 +84,6 @@
   border-radius: 9999px;
 }
 
-@media (max-width: 1440px) {
-  #tp-pitch {
-    height: clamp(540px, 78vh, 880px) !important;
-  }
-}
-
-@media (max-width: 1280px) {
-  #tp-pitch {
-    height: clamp(520px, 76vh, 840px) !important;
-  }
-}
-
-@media (max-width: 1120px) {
-  #tp-pitch {
-    height: clamp(500px, 74vh, 800px) !important;
-  }
-}
-
 @media (max-width: 1024px) {
   :root {
     --tp-chip-d: clamp(88px, calc(72px + 3vh), 120px);
@@ -128,26 +91,7 @@
     --tp-chip-sub: clamp(15.5px, calc(13px + 0.45vh), 18px);
   }
 
-  #tp-left {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: clamp(6px, 1.4vh, 14px);
-  }
-
-  #tp-pitch-wrapper {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: clamp(6px, 1.4vh, 14px);
-  }
-
-  #tp-pitch {
-    width: 100% !important;
-    height: clamp(620px, 96vh, 1340px) !important;
-    max-width: min(100%, calc(98vh * 0.69));
-    border-radius: clamp(32px, 4vw, 56px);
-  }
+  /* Layout fix overrides removed */
 
   #tp-metric-panel {
     height: clamp(22px, 4.5vh, 30px);
@@ -168,10 +112,6 @@
     --tp-chip-font: clamp(16.5px, calc(13.5px + 0.48vh), 19.5px);
     --tp-chip-sub: clamp(18.8px, calc(12.2px + 0.42vh), 17.5px);
   }
-
-  #tp-pitch {
-    height: clamp(560px, 90vh, 1160px) !important;
-  }
 }
 
 @media (max-width: 768px) and (orientation: landscape) {
@@ -179,9 +119,5 @@
     --tp-chip-d: clamp(92px, calc(74px + 3.5vh), 126px);
     --tp-chip-font: clamp(17.5px, calc(14.5px + 0.55vh), 21px);
     --tp-chip-sub: clamp(16px, calc(13.22px + 0.5vh), 19px);
-  }
-
-  #tp-pitch {
-    height: clamp(650px, 98vh, 1420px) !important;
   }
 }

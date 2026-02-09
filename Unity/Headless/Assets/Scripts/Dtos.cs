@@ -12,6 +12,8 @@ public class BatchMeta {
     public string day;
     public string tz;
     public int count;
+    public int shard;
+    public int shards;
 }
 
 [Serializable]
@@ -22,6 +24,7 @@ public class BatchMatch {
     public string homeTeamId;
     public string awayTeamId;
     public long seed;
+    public string requestToken;
     public string replayUploadUrl;
     public string resultUploadUrl;
     public string videoUploadUrl;
@@ -60,6 +63,7 @@ public class ResultJson {
     public string matchId;
     public string leagueId;
     public string seasonId;
+    public string requestToken;
     public Score score;
 }
 

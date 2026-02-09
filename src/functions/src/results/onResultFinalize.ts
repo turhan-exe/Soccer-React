@@ -5,6 +5,7 @@ import { getStorage } from 'firebase-admin/storage';
 import { createHmac, timingSafeEqual } from 'crypto';
 import { log } from '../logger.js';
 import { sendSlack } from '../notify/slack.js';
+import { enqueueRenderJob } from '../replay/renderJob.js';
 
 
 const db = getFirestore();
@@ -83,6 +84,7 @@ export const onResultFinalize = functions
             : null);
 
       const replayPath = await resolveReplayPath(obj.bucket!, seasonId, leagueId, matchId, result);
+      const videoPath = `videos/${seasonId}/${matchId}.mp4`;
 
       const fxRef = db.doc(`leagues/${leagueId}/fixtures/${matchId}`);
       // Update fixture and standings atomically
@@ -95,21 +97,34 @@ export const onResultFinalize = functions
           status: 'played',
           score,
           replayPath,
+          videoMissing: true,
+          'video.storagePath': videoPath,
+          'video.type': 'mp4-v1',
+          'video.uploaded': false,
+          'video.updatedAt': FieldValue.serverTimestamp(),
           endedAt: FieldValue.serverTimestamp(),
         });
         if (!score) return;
-        const homeId = cur.homeTeamId;
-        const awayId = cur.awayTeamId;
+        const homeSlot = Number(cur.homeSlot);
+        const awaySlot = Number(cur.awaySlot);
+        const useSlots = Number.isFinite(homeSlot) || Number.isFinite(awaySlot);
+        const homeId = useSlots ? (Number.isFinite(homeSlot) ? String(homeSlot) : null) : cur.homeTeamId;
+        const awayId = useSlots ? (Number.isFinite(awaySlot) ? String(awaySlot) : null) : cur.awayTeamId;
+        if (!homeId || !awayId) return;
         const leagueRef = fxRef.parent.parent!;
         const homeRef = leagueRef.collection('standings').doc(homeId);
         const awayRef = leagueRef.collection('standings').doc(awayId);
         const [homeSnap, awaySnap] = await Promise.all([tx.get(homeRef), tx.get(awayRef)]);
         const hs = homeSnap.exists
           ? (homeSnap.data() as any)
-          : { teamId: homeId, name: '', P: 0, W: 0, D: 0, L: 0, GF: 0, GA: 0, GD: 0, Pts: 0 };
+          : useSlots
+            ? { slotIndex: homeSlot, teamId: cur.homeTeamId ?? null, name: '', P: 0, W: 0, D: 0, L: 0, GF: 0, GA: 0, GD: 0, Pts: 0 }
+            : { teamId: homeId, name: '', P: 0, W: 0, D: 0, L: 0, GF: 0, GA: 0, GD: 0, Pts: 0 };
         const as = awaySnap.exists
           ? (awaySnap.data() as any)
-          : { teamId: awayId, name: '', P: 0, W: 0, D: 0, L: 0, GF: 0, GA: 0, GD: 0, Pts: 0 };
+          : useSlots
+            ? { slotIndex: awaySlot, teamId: cur.awayTeamId ?? null, name: '', P: 0, W: 0, D: 0, L: 0, GF: 0, GA: 0, GD: 0, Pts: 0 }
+            : { teamId: awayId, name: '', P: 0, W: 0, D: 0, L: 0, GF: 0, GA: 0, GD: 0, Pts: 0 };
         const h = score.home;
         const a = score.away;
         hs.P++;
@@ -131,8 +146,32 @@ export const onResultFinalize = functions
         const endedAt = fxd?.endedAt?.toDate?.() as Date | undefined;
         const simDurationMs = startedAt && endedAt ? (endedAt.getTime() - startedAt.getTime()) : undefined;
         log.info('result finalized', { leagueId, matchId, replayPath, simDurationMs });
-      } catch {
-        log.info('result finalized', { leagueId, matchId, replayPath });
+
+        const video = fxd?.video || {};
+        const alreadyQueued = !!video?.renderQueuedAt;
+        const alreadyUploaded = !!video?.uploaded;
+        if (!alreadyQueued && !alreadyUploaded) {
+          await enqueueRenderJob({ matchId, leagueId, seasonId, replayPath, videoPath });
+          await fxRef.set(
+            {
+              videoMissing: true,
+              'video.storagePath': videoPath,
+              'video.type': 'mp4-v1',
+              'video.uploaded': false,
+              'video.updatedAt': FieldValue.serverTimestamp(),
+              'video.renderQueuedAt': FieldValue.serverTimestamp(),
+            },
+            { merge: true }
+          );
+          log.info('render job queued', { leagueId, matchId, videoPath });
+        }
+      } catch (err: any) {
+        log.warn('result finalized (render queue skipped)', {
+          leagueId,
+          matchId,
+          replayPath,
+          error: err?.message || String(err),
+        });
       }
 
       // If no more scheduled/running fixtures remain, mark league completed

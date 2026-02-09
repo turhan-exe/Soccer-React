@@ -1,24 +1,20 @@
 import React, { forwardRef, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowUp } from 'lucide-react';
+import { Shirt } from 'lucide-react';
 import type { Player } from '@/types';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
+import { getPositionShortLabel } from './teamPlanningUtils';
+import { getZoneShortCode } from './slotZones';
+import type { PitchSlot } from './teamPlanningUtils';
+export type { PitchSlot };
 import type { MetricKey } from './useTeamPlanningStore';
 
-const BASE_PITCH_WIDTH = 840;
-const BASE_PITCH_HEIGHT = 1310;
-const PITCH_MARKER_SIZE = 90;
-const PITCH_MARKER_CENTER = PITCH_MARKER_SIZE / 2;
-const PITCH_MARKER_RADIUS = 40;
-const PITCH_MARKER_CIRCUMFERENCE = 2 * Math.PI * PITCH_MARKER_RADIUS;
+// Base reference width for marker scaling only.
+// The pitch itself will now stretch to 100% of container.
+const REF_WIDTH = 2400;
+const PITCH_MARKER_SIZE = 75;
 
-export type PitchSlot = {
-  slotIndex: number;
-  position: Player['position'];
-  x: number;
-  y: number;
-  player: Player | null;
-};
+
 
 type PitchProps = {
   slots: PitchSlot[];
@@ -32,6 +28,8 @@ type PitchProps = {
   selectedMetric: MetricKey;
   getMetricValue: (player: Player, metric: MetricKey) => number;
   renderTooltip: (player: Player) => React.ReactNode;
+  isExpanded?: boolean;
+  onBackgroundClick?: () => void;
 };
 
 type PitchPlayerMarkerProps = {
@@ -48,9 +46,6 @@ const formatMetricValue = (metric: MetricKey, value: number): string => {
   if (!Number.isFinite(value)) {
     return '0';
   }
-  if (metric === 'power') {
-    return Math.round(value).toString();
-  }
   return Math.round(value).toString();
 };
 
@@ -64,7 +59,6 @@ const PitchPlayerMarker: React.FC<PitchPlayerMarkerProps> = ({
   onDragEnd,
 }) => {
   const normalizedValue = Math.max(0, Math.min(100, Number.isFinite(value) ? value : 0));
-  const dashOffset = PITCH_MARKER_CIRCUMFERENCE * (1 - normalizedValue / 100);
   const [isPressing, setIsPressing] = useState(false);
   const pressTimeoutRef = useRef<number | null>(null);
 
@@ -112,11 +106,84 @@ const PitchPlayerMarker: React.FC<PitchPlayerMarkerProps> = ({
     };
   }, [clearPressTimeout]);
 
+  const isSelected = isFocused || isPressing;
+
+  // Touch handling for mobile drag
+  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
+  const elementRef = useRef<HTMLDivElement>(null);
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    const touch = e.touches[0];
+    touchStartRef.current = { x: touch.clientX, y: touch.clientY };
+
+    // Simulate Drag Start
+    // Create a fake drag event to pass the player ID
+    const fakeEvent = {
+      dataTransfer: {
+        setData: () => { },
+        effectAllowed: 'move'
+      },
+      currentTarget: e.currentTarget
+    } as unknown as React.DragEvent<HTMLDivElement>;
+
+    // Trigger the parent's drag start logic (sets draggedPlayerId)
+    handleDragStart(fakeEvent);
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    // Prevent scrolling while dragging a player
+    if (touchStartRef.current) {
+      e.preventDefault();
+
+      // Optional: Move a visual ghost here if we want advanced feedback
+      const touch = e.touches[0];
+      if (elementRef.current) {
+        const dx = touch.clientX - touchStartRef.current.x;
+        const dy = touch.clientY - touchStartRef.current.y;
+        elementRef.current.style.transform = `translate(${dx}px, ${dy}px) scale(1.2)`;
+        elementRef.current.style.zIndex = '100';
+      }
+    }
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    const startPos = touchStartRef.current;
+    touchStartRef.current = null;
+
+    if (elementRef.current) {
+      // Reset styles
+      elementRef.current.style.transform = '';
+      elementRef.current.style.zIndex = '';
+    }
+
+    if (!startPos) return;
+
+    // Calculate final position
+    const touch = e.changedTouches[0];
+
+    // Create a fake event with the final coordinates
+    // We pass these coordinates to the parent's handlePlayerDragEnd
+    // Note: clientX/Y here are used by the parent to find the nearest slot
+    const fakeEvent = {
+      clientX: touch.clientX,
+      clientY: touch.clientY,
+      preventDefault: () => { },
+      stopPropagation: () => { }
+    } as unknown as React.DragEvent<HTMLDivElement>;
+
+    // Trigger Drop Logic
+    handleDragEnd(fakeEvent);
+  };
+
   return (
     <div
+      ref={elementRef}
       draggable
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
       onClick={onSelect}
       onPointerDown={handlePressStart}
       onPointerUp={handlePressEnd}
@@ -124,47 +191,29 @@ const PitchPlayerMarker: React.FC<PitchPlayerMarkerProps> = ({
       onPointerCancel={handlePressEnd}
       data-pressed={isPressing ? 'true' : undefined}
       className={cn(
-        'tp-player-chip relative flex cursor-grab flex-col items-center justify-center rounded-full border border-white/20 bg-emerald-900/75 text-center text-white shadow-lg transition-[transform,box-shadow,border-color,background-color] duration-150 ease-out',
-        isFocused ? 'border-white/60 ring-2 ring-white/80' : 'hover:border-white/40 hover:bg-emerald-800/85',
+        'relative flex cursor-grab flex-col items-center justify-center transition-transform duration-150 ease-out',
+        isSelected ? 'scale-110' : 'hover:scale-105'
       )}
+      style={{ width: PITCH_MARKER_SIZE, height: PITCH_MARKER_SIZE }}
     >
-      <svg
-        viewBox={`0 0 ${PITCH_MARKER_SIZE} ${PITCH_MARKER_SIZE}`}
-        className="pointer-events-none absolute inset-0 h-full w-full text-emerald-300/70"
-      >
-        <circle
-          cx={PITCH_MARKER_CENTER}
-          cy={PITCH_MARKER_CENTER}
-          r={PITCH_MARKER_RADIUS}
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeOpacity="0.15"
-          fill="none"
+      <div className="relative flex items-center justify-center">
+        <Shirt
+          className={cn(
+            "w-16 h-16 drop-shadow-xl",
+            isSelected ? "text-orange-400 fill-orange-900" : "text-white fill-[#1a1725]"
+          )}
+          strokeWidth={1}
         />
-        <circle
-          cx={PITCH_MARKER_CENTER}
-          cy={PITCH_MARKER_CENTER}
-          r={PITCH_MARKER_RADIUS}
-          stroke="currentColor"
-          strokeWidth="2.75"
-          strokeDasharray={`${PITCH_MARKER_CIRCUMFERENCE} ${PITCH_MARKER_CIRCUMFERENCE}`}
-          strokeDashoffset={dashOffset}
-          strokeLinecap="round"
-          fill="none"
-          className="transition-[stroke-dashoffset] duration-200 ease-out"
-        />
-      </svg>
-      <span className="tp-player-chip__name name relative z-10 block max-h-[2.9rem] w-full overflow-hidden text-ellipsis font-semibold leading-tight">
-        {player.name}
-      </span>
-      <div className="tp-player-chip__value value relative z-10 mt-1 flex items-center justify-center">
-        <span className="tp-player-chip__value-badge value rounded-full px-2 py-0.5 font-bold tracking-wide text-emerald-50 shadow-sm">
+        <span className="absolute inset-0 flex items-center justify-center font-black text-xl text-white pt-1">
           {formatMetricValue(metric, normalizedValue)}
         </span>
       </div>
-    </div>
+      <span className="mt-1 w-auto max-w-[120px] rounded-md bg-black/60 px-2 py-1.5 text-xs font-bold text-white backdrop-blur-sm shadow-md text-center leading-3 min-h-[28px] flex items-center justify-center break-words whitespace-normal transform-gpu">
+        {player.name}
+      </span>
+    </div >
   );
-};
+}; // End PitchPlayerMarker
 
 const mergeRefs = <T extends HTMLElement>(
   ...refs: Array<React.Ref<T> | undefined>
@@ -194,11 +243,13 @@ const Pitch = forwardRef<HTMLDivElement, PitchProps>((props, forwardedRef) => {
     selectedMetric,
     getMetricValue,
     renderTooltip,
+    isExpanded = false,
+    onBackgroundClick,
   } = props;
 
   const containerRef = useRef<HTMLDivElement | null>(null);
   const fieldRef = useRef<HTMLDivElement | null>(null);
-  const [scale, setScale] = useState(1);
+  const [markerScale, setMarkerScale] = useState(1);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -210,16 +261,26 @@ const Pitch = forwardRef<HTMLDivElement, PitchProps>((props, forwardedRef) => {
       if (!entry) {
         return;
       }
-      const { width, height } = entry.contentRect;
-      if (width === 0 || height === 0) {
+      const { width } = entry.contentRect;
+      if (width === 0) {
         return;
       }
-      const nextScale = Math.min(width / BASE_PITCH_WIDTH, height / BASE_PITCH_HEIGHT);
-      setScale(nextScale);
+
+      // Calculate scale just for markers based on width relative to reference
+      const widthRatio = width / REF_WIDTH;
+
+      // Marker scale logic
+      let currentScale = Math.max(0.7, Math.min(1.2, widthRatio / 0.8));
+
+      if (isExpanded) {
+        currentScale *= 1.1;
+      }
+      setMarkerScale(currentScale);
     });
+
     observer.observe(container);
     return () => observer.disconnect();
-  }, []);
+  }, [isExpanded]);
 
   const handleDragOver = useCallback((event: React.DragEvent<HTMLDivElement>) => {
     event.preventDefault();
@@ -234,15 +295,15 @@ const Pitch = forwardRef<HTMLDivElement, PitchProps>((props, forwardedRef) => {
     <div
       ref={containerRef}
       id="tp-pitch"
-      className="tp-pitch-surface relative w-full overflow-hidden bg-gradient-to-br from-emerald-700 via-emerald-800 to-emerald-900"
+      style={{ width: '100%', height: '100%', borderRadius: '0px', border: 'none' }}
+      className="tp-pitch-surface relative w-full h-full overflow-hidden bg-gradient-to-br from-emerald-700 via-emerald-800 to-emerald-900 shadow-inner block p-0 rounded-none border-none"
     >
+      {/* Inner container Set to 100% to fill outer container regardless of Aspect Ratio */}
       <div
-        className="absolute left-1/2 top-1/2 transition-transform duration-150 ease-out"
+        className="relative flex-shrink-0 transition-transform duration-150 ease-out origin-center"
         style={{
-          width: BASE_PITCH_WIDTH,
-          height: BASE_PITCH_HEIGHT,
-          transform: `translate(-50%, -50%) scale(${scale})`,
-          transformOrigin: 'center',
+          width: '100%',
+          height: '100%',
         }}
       >
         <div
@@ -251,56 +312,105 @@ const Pitch = forwardRef<HTMLDivElement, PitchProps>((props, forwardedRef) => {
           onDragOver={handleDragOver}
           onDrop={onPitchDrop}
         >
-          <div className="absolute inset-0 opacity-80">
-            <svg viewBox="0 0 100 100" className="absolute inset-0 h-full w-full text-white/60" pointerEvents="none">
-              <rect x="0" y="0" width="100" height="100" fill="none" stroke="currentColor" strokeWidth="2" />
-              <line x1="0" y1="50" x2="100" y2="50" stroke="currentColor" strokeWidth="1" />
+          {/* Horizontal Field SVG lines */}
+          <div className="absolute inset-0 opacity-60">
+            <svg viewBox="0 0 100 100" className="absolute inset-0 h-full w-full text-white/50" pointerEvents="none" preserveAspectRatio="none">
+              {/* 
+                   FULL STRETCH LAYOUT
+                   We use preserveAspectRatio="none" to forcibly stretch this SVG to fill the container.
+                   This satisfies the requirement to "fill the screen even if distorted".
+
+                   Field Geometry (92% width logic preserved for aesthetics):
+                */}
+
+              {/* Clickable background overlay */}
+              <div className="absolute inset-0 z-0" onClick={() => onBackgroundClick?.()} />
+
+              {/* Field Border: x=0->100, w=100 - Full Bleed */}
+              <rect x="0" y="0" width="100" height="100" fill="none" stroke="currentColor" strokeWidth="1" />
+
+              {/* Halfway Line */}
+              <line x1="50" y1="0" x2="50" y2="100" stroke="currentColor" strokeWidth="1" />
+
+              {/* Center Circle */}
               <circle cx="50" cy="50" r="9" stroke="currentColor" strokeWidth="1" fill="none" />
-              <rect x="16" y="0" width="68" height="16" stroke="currentColor" strokeWidth="1" fill="none" />
-              <rect x="16" y="84" width="68" height="16" stroke="currentColor" strokeWidth="1" fill="none" />
-              <rect x="30" y="0" width="40" height="6" stroke="currentColor" strokeWidth="1" fill="none" />
-              <rect x="30" y="94" width="40" height="6" stroke="currentColor" strokeWidth="1" fill="none" />
-              <circle cx="50" cy="11" r="1.5" fill="currentColor" />
-              <circle cx="50" cy="89" r="1.5" fill="currentColor" />
+              <circle cx="50" cy="50" r="1" fill="currentColor" />
+
+              {/* Left Goal Area */}
+              <rect x="0" y="36" width="5" height="28" stroke="currentColor" strokeWidth="1" fill="none" />
+              {/* Left Penalty Area */}
+              <rect x="0" y="22" width="14" height="56" stroke="currentColor" strokeWidth="1" fill="none" />
+              {/* Left Penalty Spot */}
+              <circle cx="10" cy="50" r="0.5" fill="currentColor" />
+              {/* Left Penalty Arc */}
+              <path d="M 14 40 A 10 10 0 0 1 14 60" stroke="currentColor" strokeWidth="1" fill="none" />
+
+
+              {/* Right Goal Area */}
+              <rect x="95" y="36" width="5" height="28" stroke="currentColor" strokeWidth="1" fill="none" />
+              {/* Right Penalty Area */}
+              <rect x="86" y="22" width="14" height="56" stroke="currentColor" strokeWidth="1" fill="none" />
+              {/* Right Penalty Spot */}
+              <circle cx="90" cy="50" r="0.5" fill="currentColor" />
+              {/* Right Penalty Arc */}
+              <path d="M 86 40 A 10 10 0 0 0 86 60" stroke="currentColor" strokeWidth="1" fill="none" />
+
             </svg>
           </div>
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-            <ArrowUp className="h-24 w-24 text-white/15" />
-          </div>
+
           <div className="absolute inset-0">
-            {slots.map(slot => (
-              <div
-                key={slot.slotIndex}
-                className="absolute flex -translate-x-1/2 -translate-y-1/2 flex-col items-center"
-                style={{ left: `${slot.x}%`, top: `${slot.y}%` }}
-                onDragOver={handleDragOver}
-                onDrop={event => onPositionDrop(event, slot)}
-                onClick={() => onSelectSlot?.(slot)}
-              >
-                {slot.player ? (
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <PitchPlayerMarker
-                        player={slot.player}
-                        value={getMetricValue(slot.player, selectedMetric)}
-                        metric={selectedMetric}
-                        isFocused={slot.player.id === focusedPlayerId}
-                        onSelect={() => onSelectPlayer(slot.player!.id)}
-                        onDragStart={event => onPlayerDragStart(slot.player!, event)}
-                        onDragEnd={event => onPlayerDragEnd(slot.player!, event)}
-                      />
-                    </TooltipTrigger>
-                    <TooltipContent className="z-50 w-56 space-y-2">
-                      {renderTooltip(slot.player)}
-                    </TooltipContent>
-                  </Tooltip>
-                ) : (
-                  <div className="flex h-[4.2rem] w-[4.2rem] items-center justify-center rounded-full border border-dashed border-white/50 bg-white/20 px-1.5 text-[10px] font-semibold uppercase tracking-wide text-white">
-                    {slot.position}
-                  </div>
-                )}
-              </div>
-            ))}
+            {slots.map(slot => {
+              // Coordinate logic matches SVG geometry (4% padding)
+              // Since SVG stretches 100%, these % values map perfectly to the visual elements.
+
+              const x_orig = 100 - slot.y;
+              const horizX = x_orig; // Pure 0-100 mapping
+
+              const y_raw = slot.x;
+              const horizY = y_raw; // Pure 0-100 mapping
+
+              return (
+                <div
+                  key={slot.slotIndex}
+                  className="absolute flex -translate-x-1/2 -translate-y-1/2 flex-col items-center"
+                  style={{ left: `${horizX}% `, top: `${horizY}% ` }}
+                  onDragOver={handleDragOver}
+                  onDrop={event => onPositionDrop(event, slot)}
+                  onClick={e => {
+                    e.stopPropagation();
+                    onSelectSlot?.(slot);
+                  }}
+                >
+                  {slot.player ? (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div style={{ transform: `scale(${markerScale})`, transformOrigin: 'center' }}>
+                          <PitchPlayerMarker
+                            player={slot.player}
+                            value={getMetricValue(slot.player, selectedMetric)}
+                            metric={selectedMetric}
+                            isFocused={slot.player.id === focusedPlayerId}
+                            onSelect={() => onSelectPlayer(slot.player!.id)}
+                            onDragStart={event => onPlayerDragStart(slot.player!, event)}
+                            onDragEnd={event => onPlayerDragEnd(slot.player!, event)}
+                          />
+                        </div>
+                      </TooltipTrigger>
+                      <TooltipContent className="z-50 w-56 space-y-2">
+                        {renderTooltip(slot.player)}
+                      </TooltipContent>
+                    </Tooltip>
+                  ) : (
+                    <div
+                      className="flex h-[3.5rem] w-[3.5rem] items-center justify-center rounded-full border-2 border-dashed border-white/30 bg-white/5 px-1.5 text-[10px] font-bold uppercase tracking-wider text-orange-100/50"
+                      style={{ transform: `scale(${markerScale})`, transformOrigin: 'center' }}
+                    >
+                      {getZoneShortCode(slot)}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </div>
       </div>

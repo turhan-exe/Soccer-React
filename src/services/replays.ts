@@ -1,32 +1,59 @@
-﻿import { collection, doc, getDoc, getDocs, query, where } from "firebase/firestore";
+import { collectionGroup, doc, getDoc, getDocs, query, where } from "firebase/firestore";
 import { auth, db } from "./firebase";
-import type { MatchDocument, MatchReplayPayload, MatchVideoMeta } from "@/types/matchReplay";
+import type { Fixture } from "@/types";
+import type { MatchReplayPayload, MatchVideoMeta } from "@/types/matchReplay";
 
 const REGION = import.meta.env.VITE_FUNCTIONS_REGION || "europe-west1";
 const PROJECT_ID = import.meta.env.VITE_FIREBASE_PROJECT_ID || "";
 const DEFAULT_BASE_URL = `https://${REGION}-${PROJECT_ID}.cloudfunctions.net`;
 
-export type MatchListItem = MatchDocument & { kickoffDate?: Date };
+export type MatchListItem = Fixture & { kickoffDate?: Date };
 
 const getFunctionsBaseUrl = () =>
   (import.meta.env.VITE_FUNCTIONS_BASE_URL as string | undefined) || DEFAULT_BASE_URL;
+
+const mapFixture = (snap: any): MatchListItem => {
+  const data = snap.data() as any;
+  const ts = data.date as { toDate?: () => Date } | undefined;
+  const kickoffDate = typeof ts?.toDate === "function" ? ts.toDate() : undefined;
+  const leagueId = snap.ref.parent.parent?.id || "";
+  const seasonId = data.seasonId ?? data.season ?? undefined;
+  return {
+    id: snap.id,
+    round: data.round,
+    date: kickoffDate || new Date(0),
+    homeTeamId: data.homeTeamId,
+    awayTeamId: data.awayTeamId,
+    participants: data.participants ?? [data.homeTeamId, data.awayTeamId],
+    status: data.status,
+    score: data.score ?? null,
+    replayPath: data.replayPath,
+    goalTimeline: data.goalTimeline ?? [],
+    leagueId,
+    seasonId: seasonId ? String(seasonId) : undefined,
+    video: data.video ?? null,
+    videoMissing: data.videoMissing,
+    videoError: data.videoError,
+    kickoffDate,
+  };
+};
 
 export async function fetchFinishedMatchesForClub(
   seasonId: string,
   clubId: string
 ): Promise<MatchListItem[]> {
-  const matchesCol = collection(db, "seasons", seasonId, "matches");
-  const baseQuery = (field: "homeClubId" | "awayClubId") =>
-    query(matchesCol, where("status", "==", "finished"), where(field, "==", clubId));
-
-  const [homeSnap, awaySnap] = await Promise.all([getDocs(baseQuery("homeClubId")), getDocs(baseQuery("awayClubId"))]);
-  const docs = [...homeSnap.docs, ...awaySnap.docs];
-  const mapped: MatchListItem[] = docs.map((doc) => {
-    const data = doc.data() as MatchDocument;
-    const kickoffDate = typeof data.kickoffAt?.toDate === "function" ? data.kickoffAt.toDate() : undefined;
-    return { ...data, seasonId, matchId: doc.id, kickoffDate };
-  });
-  return mapped.sort((a, b) => (b.kickoffDate?.getTime() || 0) - (a.kickoffDate?.getTime() || 0));
+  const baseQuery = query(
+    collectionGroup(db, "fixtures"),
+    where("status", "==", "played"),
+    where("participants", "array-contains", clubId)
+  );
+  const snap = await getDocs(baseQuery);
+  const mapped = snap.docs.map(mapFixture);
+  const seasonKey = (seasonId || "").trim();
+  const filtered = seasonKey
+    ? mapped.filter((m) => String(m.seasonId || "") === seasonKey)
+    : mapped;
+  return filtered.sort((a, b) => (b.kickoffDate?.getTime() || 0) - (a.kickoffDate?.getTime() || 0));
 }
 
 export async function fetchMatchReplayPayload(
@@ -50,27 +77,28 @@ export async function fetchMatchReplayPayload(
 }
 
 export async function fetchMatchDocument(
-  seasonId: string,
+  leagueId: string,
   matchId: string
-): Promise<MatchDocument | null> {
-  const ref = doc(db, "seasons", seasonId, "matches", matchId);
+): Promise<MatchListItem | null> {
+  if (!leagueId || !matchId) return null;
+  const ref = doc(db, "leagues", leagueId, "fixtures", matchId);
   const snap = await getDoc(ref);
   if (!snap.exists()) return null;
-  return snap.data() as MatchDocument;
+  return mapFixture(snap);
 }
 
 export async function fetchMatchVideoUrl(
-  seasonId: string,
+  leagueId: string,
   matchId: string,
   video?: MatchVideoMeta | null
 ): Promise<string> {
   const directUrl = video?.signedUrl || video?.signedGetUrl;
   if (directUrl) return directUrl;
-  if (!seasonId || !matchId) throw new Error("Video icin seasonId ve matchId gerekli");
+  if (!leagueId || !matchId) throw new Error("Video icin leagueId ve matchId gerekli");
   if (!video && !video?.storagePath) throw new Error("Video henuz yok");
 
   const qs = new URLSearchParams({
-    seasonId,
+    leagueId,
     matchId,
     ...(video?.storagePath ? { storagePath: video.storagePath } : {}),
   });

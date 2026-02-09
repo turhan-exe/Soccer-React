@@ -31,7 +31,7 @@ export const AlternativePlayerBubble: React.FC<AlternativePlayerBubbleProps> = (
       ? 'Yedek'
       : player.squadRole === 'reserve'
         ? 'Rezerv'
-        : 'Kadrod��Y��';
+        : 'Kadro Dışı';
 
   const comparisonPower = compareToPlayer ? getPlayerPower(compareToPlayer) : null;
   const playerPower = getPlayerPower(player);
@@ -61,35 +61,43 @@ export const AlternativePlayerBubble: React.FC<AlternativePlayerBubbleProps> = (
             </span>
           </div>
 
-          <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[10.5px] text-white/70">
-              <span className="font-semibold tracking-wide text-white/80">{positionLabel}</span>
-              <span>{player.age} ya�Y</span>
-              <span className="font-semibold text-white/80">GEN {formatRatingLabel(player.overall)}</span>
-              {player.originalOverall > player.assignedOverall ? (
-                <span className="text-[10px] uppercase tracking-wide text-emerald-200">
-                  Orj: {formatRatingLabel(player.originalOverall)}
-                </span>
-              ) : null}
-              {showStrengthIndicator ? (
+          <div className="min-w-0 flex-1 flex flex-col justify-center gap-0.5 py-0.5">
+            <span className="text-[10.5px] font-bold tracking-wide text-white/90 truncate pr-2">
+              {positionLabel}
+            </span>
+            <div className="flex flex-wrap items-center gap-x-2 text-[10px] text-white/60">
+              <span>{player.age} yaş</span>
+              <span className="text-white/30">•</span>
+              <span className="font-medium text-emerald-100">GEN {formatRatingLabel(player.overall)}</span>
+
+              {player.originalOverall > player.assignedOverall && (
+                <>
+                  <span className="text-white/30">•</span>
+                  <span className="uppercase tracking-wide text-emerald-200/70">
+                    ({formatRatingLabel(player.originalOverall)})
+                  </span>
+                </>
+              )}
+
+              {showStrengthIndicator && (
                 <span
                   className={cn(
-                    'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-tight shadow-sm',
+                    'ml-1 inline-flex items-center gap-0.5 rounded-full px-1.5 py-px text-[9px] font-bold uppercase tracking-tight shadow-sm',
                     isStronger
-                      ? 'bg-emerald-400/90 text-emerald-950'
-                      : 'bg-rose-400/90 text-rose-950',
+                      ? 'bg-emerald-400/20 text-emerald-300'
+                      : 'bg-rose-400/20 text-rose-300',
                   )}
                 >
-                  {isStronger ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />}
+                  {isStronger ? <ArrowUp className="h-2.5 w-2.5" /> : <ArrowDown className="h-2.5 w-2.5" />}
                   {Math.abs(powerDiff).toFixed(1)}
                 </span>
-              ) : null}
+              )}
             </div>
           </div>
 
-          <div className="hidden flex-col items-end text-[10px] font-semibold text-white/60 sm:flex">
-            <span className="uppercase tracking-wide">{badgeTitle}</span>
-            <span className="text-white/40">
+          <div className="hidden shrink-0 flex-col items-end text-[10px] font-medium text-white/50 xl:flex">
+            <span className="uppercase tracking-wide text-[9px]">{badgeTitle}</span>
+            <span className="text-white/30 font-mono text-[9px]">
               #{player.squadRole === 'bench' ? '02' : player.squadRole === 'reserve' ? '03' : '04'}
             </span>
           </div>

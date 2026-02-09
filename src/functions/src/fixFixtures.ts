@@ -1,10 +1,12 @@
 import * as functions from 'firebase-functions/v1';
 import './_firebase.js';
-import { getFirestore, Timestamp } from 'firebase-admin/firestore';
+import { FieldPath, getFirestore, Timestamp } from 'firebase-admin/firestore';
 import { requireAppCheck, requireAuth } from './mw/auth.js';
 import { generateDoubleRoundRobinSlots } from './utils/roundrobin.js';
 import { dateForRound } from './utils/time.js';
 import { nextDay19TR } from './utils/schedule.js';
+import { ensureBotTeamDoc } from './utils/bots.js';
+import { ensureLeagueTeamDocs } from './utils/leagueTeams.js';
 
 const db = getFirestore();
 const REGION = 'europe-west1';
@@ -103,7 +105,7 @@ function ensureEvenSlots(slots: SlotInfo[]): SlotInfo[] {
     ...slots,
     {
       slotIndex: fillerIndex,
-      teamId: `bot-auto-${fillerIndex}`,
+      teamId: null,
       botId: `bot-auto-${fillerIndex}`,
     },
   ];
@@ -126,7 +128,21 @@ async function rebuildFixturesForLeague(
   const slots = ensureEvenSlots(rawSlots);
   const slotOrder = slots.map((slot) => slot.slotIndex);
   const slotMap = new Map<number, SlotInfo>();
-  slots.forEach((slot) => slotMap.set(slot.slotIndex, slot));
+  for (const slot of slots) {
+    let teamId = slot.teamId || null;
+    if (!teamId && slot.botId) {
+      teamId = await ensureBotTeamDoc({ botId: slot.botId, slotIndex: slot.slotIndex });
+    }
+    slotMap.set(slot.slotIndex, { ...slot, teamId });
+  }
+  const leagueTeamIds = Array.from(
+    new Set(
+      Array.from(slotMap.values())
+        .map((slot) => slot.teamId)
+        .filter((teamId): teamId is string => Boolean(teamId))
+    )
+  );
+  await ensureLeagueTeamDocs(leagueId, leagueTeamIds);
 
   const template = generateDoubleRoundRobinSlots(slotOrder.length);
   if (template.length === 0) {
@@ -269,10 +285,21 @@ export const rebuildAllDailyFixturesHttp = functions
         ? (req.query.states as string).split(',').map((s) => s.trim()).filter(Boolean)
         : ['scheduled', 'active']);
     const force = req.body?.force ?? req.query?.force;
-    const leaguesSnap = await db
+    const cursor = (req.body?.cursor as string) || (req.query?.cursor as string) || '';
+    const limitRaw = Number(req.body?.limit ?? req.query?.limit ?? 20);
+    const limit = Number.isFinite(limitRaw) ? Math.min(Math.max(Math.floor(limitRaw), 1), 50) : 20;
+
+    let query = db
       .collection('leagues')
       .where('state', 'in', stateFilter.length > 0 ? stateFilter : ['scheduled', 'active'])
-      .get();
+      .orderBy(FieldPath.documentId())
+      .limit(limit);
+
+    if (cursor) {
+      query = query.startAfter(cursor);
+    }
+
+    const leaguesSnap = await query.get();
     const reports: RebuildResult[] = [];
     for (const doc of leaguesSnap.docs) {
       try {
@@ -296,5 +323,13 @@ export const rebuildAllDailyFixturesHttp = functions
         });
       }
     }
-    res.json({ ok: true, processed: reports.length, reports });
+    const lastDoc = leaguesSnap.docs[leaguesSnap.docs.length - 1];
+    const nextCursor = leaguesSnap.docs.length === limit ? lastDoc?.id : null;
+    res.json({
+      ok: true,
+      processed: reports.length,
+      reports,
+      nextCursor,
+      hasMore: Boolean(nextCursor),
+    });
   });

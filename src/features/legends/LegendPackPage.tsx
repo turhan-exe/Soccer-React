@@ -9,6 +9,16 @@ import {
   Dialog,
   DialogContent,
 } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
 import LegendCard from './LegendCard';
 import { LEGEND_PLAYERS, type LegendPlayer } from './players';
@@ -40,6 +50,25 @@ const LegendPackPage = () => {
   const [rented, setRented] = useState<RentedLegend[]>([]);
   const [ownedLegendIds, setOwnedLegendIds] = useState<number[]>([]);
   const [isLoadingTeam, setIsLoadingTeam] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
+
+  const handlePackClick = () => {
+    if (!user) {
+      toast.error('Giris yapmalisin');
+      return;
+    }
+    if (current) {
+      toast.info('Önce mevcut kartın için karar vermelisin');
+      return;
+    }
+
+    // If free, just open
+    if (vipNostalgiaFreeAvailable) {
+      handleOpen();
+    } else {
+      setShowConfirm(true);
+    }
+  };
 
   const legendById = useMemo(() => {
     const map = new Map<number, LegendPlayer>();
@@ -115,6 +144,8 @@ const LegendPackPage = () => {
 
   const ownedLegendSet = useMemo(() => new Set(ownedLegendIds), [ownedLegendIds]);
 
+  const [isOpening, setIsOpening] = useState(false);
+
   useEffect(() => {
     if (current) {
       setDialogOpen(true);
@@ -185,15 +216,21 @@ const LegendPackPage = () => {
       return;
     }
 
-    try {
-      const availableLegends = LEGEND_PLAYERS.filter(
-        (legend) => !ownedLegendSet.has(legend.id),
-      );
+    const availableLegends = LEGEND_PLAYERS.filter(
+      (legend) => !ownedLegendSet.has(legend.id),
+    );
 
-      if (availableLegends.length === 0) {
-        toast.info('Tüm nostalji oyuncularını topladın');
-        return;
-      }
+    if (availableLegends.length === 0) {
+      toast.info('Tüm nostalji oyuncularını topladın');
+      return;
+    }
+
+    // Start Animation
+    setIsOpening(true);
+
+    try {
+      // Wait for animation (e.g. 2 seconds)
+      await new Promise(resolve => setTimeout(resolve, 2000));
 
       if (!isFree) {
         await spend(PACK_COST);
@@ -209,6 +246,8 @@ const LegendPackPage = () => {
     } catch (err) {
       console.warn(err);
       toast.error('Islem basarisiz');
+    } finally {
+      setIsOpening(false);
     }
   };
 
@@ -239,128 +278,300 @@ const LegendPackPage = () => {
   };
 
   return (
-    <div className="legend-pack-page">
-      <div className="legend-pack-gradient" aria-hidden />
-      <div className="legend-pack-orb legend-pack-orb--left" aria-hidden />
-      <div className="legend-pack-orb legend-pack-orb--right" aria-hidden />
-      <div className="legend-pack-noise" aria-hidden />
+    <div className="relative h-screen w-full overflow-hidden bg-slate-950 text-white selection:bg-purple-500/30">
+      {/* Background Effects */}
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900 via-slate-950 to-black" />
+      <div className="absolute inset-0 bg-[url('/assets/menu/bg.png')] opacity-10 bg-cover bg-center mix-blend-overlay" />
+      <div className="legend-pack-gradient pointer-events-none" />
+      <div className="legend-pack-orb legend-pack-orb--left pointer-events-none" />
+      <div className="legend-pack-orb legend-pack-orb--right pointer-events-none" />
 
-      <div className="legend-pack-shell">
-        <header className="legend-pack-header">
-          <div className="legend-pack-header-main">
-            <BackButton />
-            <div>
-              <p className="legend-pack-title">Nostalji Paketi</p>
-              <p className="legend-pack-subtitle">
-                80'ler ve 90'ların efsanelerini kulübüne yeniden kazandır. Paketi aç, rastgele bir ikon 30 günlüğüne kadrona
-                katılsın. Nostalji oyuncuları transfer pazarında satılamaz ve sözleşmeleri uzatılamaz.
-              </p>
+      {/* Main Container */}
+      <div className="relative z-10 flex h-full flex-col p-4 md:p-6 gap-4 md:gap-6 max-w-7xl mx-auto">
+
+        {/* Header */}
+        <header className="flex items-center justify-between shrink-0 h-16 rounded-2xl bg-white/5 border border-white/10 px-6 backdrop-blur-md">
+          <div className="flex items-center gap-4">
+            <BackButton className="static translate-y-0" />
+            <div className="flex flex-col">
+              <h1 className="text-2xl font-bold tracking-tight text-white flex items-center gap-2">
+                <span className="text-purple-400">NOSTALJİ</span> PAKETİ
+              </h1>
             </div>
           </div>
-          <div className="legend-pack-balance">
-            <label>Elmas</label>
-            <strong>{balance}</strong>
+
+          <div className="flex items-center gap-6">
+            {vipNostalgiaFreeAvailable && (
+              <div className="hidden md:flex px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-bold tracking-wider uppercase">
+                VIP Ücretsiz Hak Mevcut
+              </div>
+            )}
+            <div className="flex flex-col items-end">
+              <span className="text-[10px] uppercase tracking-widest text-slate-400 font-semibold">Bakiye</span>
+              <span className="text-xl font-bold text-cyan-300 flex items-center gap-1">
+                {balance} <span className="text-xs text-cyan-500/70">💎</span>
+              </span>
+            </div>
           </div>
         </header>
 
-        <main className="legend-pack-main">
-          <section className="legend-pack-panel">
-            <h2>Yeni bir efsane keşfet</h2>
-            <p>
-              Her paket açılışında henüz sahip olmadığın bir efsaneyi kadrona kiralayabilir ve 30 gün boyunca mücadeleye
-              sokabilirsin. Süre sonunda efsane otomatik olarak kulübünden ayrılır.
-            </p>
-            <div className="legend-pack-metrics">
-              <div className="legend-pack-metric">
-                <span>Toplanan kart</span>
-                <strong>
-                  {ownedCount}/{TOTAL_LEGENDS}
-                </strong>
-              </div>
-              <div className="legend-pack-metric">
-                <span>Kira süresi</span>
-                <strong>{RENT_DURATION_DAYS} gün</strong>
-              </div>
-            </div>
-            {vipNostalgiaFreeAvailable ? (
-              <p className="mb-3 text-sm font-semibold text-emerald-200">
-                VIP uyeligin sayesinde bu paketi bir kez ucretsiz acabilirsin.
-              </p>
-            ) : null}
-            <Button
-              size="lg"
-              className="w-full"
-              onClick={handleOpen}
-              disabled={
-                (!vipNostalgiaFreeAvailable && balance < PACK_COST) || allCollected || isLoadingTeam || Boolean(current)
-              }
-            >
-              {vipNostalgiaFreeAvailable ? 'Paket Ac (Ucretsiz)' : `Paket Ac (${PACK_COST} Elmas)`}
-            </Button>
-            {isLoadingTeam ? (
-              <p className="text-sm text-slate-300/80">Takım bilgileri yükleniyor...</p>
-            ) : current ? (
-              <div className="flex flex-col gap-2 text-sm text-amber-200">
-                <span>
-                  Çektiğin kart seni bekliyor. Kabul etmeden veya serbest bırakmadan yeni paket
-                  açamazsın.
-                </span>
-                {!isDialogOpen ? (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="w-fit border-amber-300/40 bg-amber-300/10 text-amber-100 hover:bg-amber-300/15"
-                    onClick={() => setDialogOpen(true)}
-                  >
-                    Kartı Göster
-                  </Button>
-                ) : null}
-              </div>
-            ) : allCollected ? (
-              <p className="text-sm text-emerald-200">Tüm nostalji efsanelerine sahipsin!</p>
-            ) : (
-              <p className="text-sm text-slate-300/80">
-                Eksik kartlarını tamamlamak için paket açmaya devam et.
-              </p>
-            )}
-          </section>
-        </main>
+        {/* Content Grid - Scroll Free */}
+        <main className="flex-1 grid grid-cols-12 gap-2 sm:gap-4 md:gap-6 min-h-0">
 
-        <section className="legend-pack-rented">
-          <header>
-            <p className="legend-pack-rented-title">Kiralanan efsaneler</p>
-            <span className="legend-pack-rented-count">{rented.length} aktif</span>
-          </header>
-          {rented.length > 0 ? (
-            <div className="legend-pack-rented-list">
-              {rented.map((p) => (
-                <div key={p.id} className="legend-pack-rented-item">
-                  <strong>{p.name}</strong>
-                  <span>Bitiş tarihi</span>
-                  <time>{p.expiresAt.toLocaleDateString()}</time>
+          {/* LEFT: Collection Stats (3 cols) */}
+          <aside className="col-span-3 flex flex-col gap-2 sm:gap-4 min-h-0 overflow-y-auto custom-scrollbar">
+            {/* Info Card */}
+            <div className="shrink-0 rounded-2xl sm:rounded-3xl bg-slate-900/60 border border-white/10 p-3 sm:p-4 md:p-6 backdrop-blur-sm flex flex-col gap-3 sm:gap-4 md:gap-6 relative overflow-hidden group">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-purple-500/10 rounded-bl-full -mr-8 -mt-8 blur-2xl group-hover:bg-purple-500/20 transition-colors" />
+
+              <div>
+                <h3 className="text-lg font-bold text-white mb-1">Koleksiyon</h3>
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  80'ler ve 90'ların efsane oyuncularını topla. Efsaneler satılamaz.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 gap-4">
+                <div className="bg-slate-950/50 rounded-xl p-4 border border-white/5">
+                  <span className="text-[10px] uppercase tracking-wider text-slate-500 font-bold block mb-1">Toplanan</span>
+                  <div className="flex items-end gap-2">
+                    <span className="text-3xl font-black text-white">{ownedCount}</span>
+                    <span className="text-sm text-slate-500 font-medium mb-1.5">/ {TOTAL_LEGENDS}</span>
+                  </div>
+                  <div className="w-full h-1.5 bg-slate-800 rounded-full mt-3 overflow-hidden">
+                    <div
+                      className="h-full bg-gradient-to-r from-purple-500 to-cyan-500"
+                      style={{ width: `${(ownedCount / TOTAL_LEGENDS) * 100}%` }}
+                    />
+                  </div>
                 </div>
-              ))}
+
+                <div className="bg-slate-950/50 rounded-xl p-4 border border-white/5">
+                  <span className="text-[10px] uppercase tracking-wider text-slate-500 font-bold block mb-1">Kira Süresi</span>
+                  <div className="text-2xl font-bold text-white">{RENT_DURATION_DAYS} GÜN</div>
+                  <p className="text-[10px] text-slate-500 mt-1">Süre bitiminde oyuncu ayrılır.</p>
+                </div>
+              </div>
+
+              <div className="mt-auto">
+                <div className="p-3 rounded-lg bg-indigo-500/10 border border-indigo-500/20">
+                  <p className="text-[11px] text-indigo-300 text-center">
+                    Mevcut kartları "Kiralananlar" listesinden takip edebilirsin.
+                  </p>
+                </div>
+              </div>
             </div>
-          ) : (
-            <div className="legend-pack-empty flex justify-center">
-              <InfoPopupButton
-                title="Kiralanan Efsaneler"
-                triggerLabel="Kiralanan efsaneler bilgisi"
-                triggerClassName="h-10 w-10 rounded-2xl border-white/20 bg-transparent text-cyan-200 hover:border-cyan-300"
-                contentClassName="bg-slate-950/95"
-                message="Şu anda kiralanmış efsane oyuncun yok. Paketi açarak kadronu güçlendirebilirsin."
-              />
+          </aside>
+
+          {/* CENTER: Pack Opening (6 cols) */}
+          <section className="col-span-6 flex flex-col relative">
+            <div className="flex-1 rounded-3xl bg-gradient-to-b from-slate-900/80 to-slate-950/90 border border-white/10 p-1 backdrop-blur-md shadow-2xl relative overflow-hidden flex flex-col items-center justify-center max-h-[70vh] lg:max-h-[calc(100vh-12rem)]">
+
+              {/* Center Glow */}
+              <div className="absolute inset-0 bg-radial-gradient from-purple-500/10 via-transparent to-transparent opacity-50" />
+
+              {/* Pack Content */}
+              <div className="relative z-10 w-full h-full flex flex-col items-center justify-center p-4 pb-4 text-center">
+
+                {isLoadingTeam ? (
+                  <div className="flex flex-col items-center gap-4 animate-pulse">
+                    <div className="w-16 h-16 rounded-full border-4 border-white/10 border-t-purple-500 animate-spin" />
+                    <p className="text-sm text-slate-400 font-medium tracking-wider uppercase">Loading Data...</p>
+                  </div>
+                ) : isOpening ? (
+                  // ANIMATION STATE
+                  <div className="flex flex-col items-center justify-center gap-4 relative">
+                    <div className="relative w-32 h-32 md:w-48 md:h-48 flex items-center justify-center">
+                      {/* Spinning / Glowing effects */}
+                      <div className="absolute inset-0 bg-purple-500/30 rounded-full blur-[100px] animate-pulse" />
+                      <div className="absolute inset-0 border-4 border-purple-500/30 rounded-full animate-[spin_3s_linear_infinite]" />
+                      <div className="absolute inset-4 border-4 border-cyan-500/30 rounded-full animate-[spin_2s_linear_infinite_reverse]" />
+
+                      {/* Central Star shaking/scaling */}
+                      <div className="relative z-10 text-6xl animate-[bounce_0.5s_infinite]">
+                        ✨
+                      </div>
+                    </div>
+                    <p className="text-purple-300 font-bold tracking-widest animate-pulse uppercase">Efsane Çağırılıyor...</p>
+                  </div>
+                ) : current ? (
+                  // CARD REVEALED STATE
+                  <div className="flex flex-col items-center gap-6 w-full max-w-sm animate-in fade-in zoom-in duration-500">
+                    <div className="relative group cursor-pointer" onClick={() => setDialogOpen(true)}>
+                      <div className="absolute inset-0 bg-purple-500/20 blur-3xl group-hover:bg-purple-500/30 transition-all duration-500" />
+                      <div className="relative transform transition-transform group-hover:scale-105 duration-300">
+                        {/* Using placeholder card representation */}
+                        <div className="w-48 h-64 rounded-xl bg-slate-900 border-2 border-amber-500/50 shadow-[0_0_50px_rgba(245,158,11,0.2)] flex items-center justify-center flex-col gap-2 overflow-hidden">
+                          <img src={current.image} alt={current.name} className="absolute inset-0 w-full h-full object-cover opacity-60" />
+                          <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent" />
+                          <div className="absolute bottom-4 left-0 right-0 text-center">
+                            <div className="text-amber-400 font-black text-xl uppercase drop-shadow-md">{current.rating}</div>
+                            <div className="text-white font-bold text-sm truncate px-2">{current.name}</div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col gap-3 w-full">
+                      <p className="text-amber-200 text-sm font-medium">Yeni bir efsane yakaladın!</p>
+                      <Button
+                        size="lg"
+                        className="w-full bg-amber-500 hover:bg-amber-600 text-black font-bold shadow-lg shadow-amber-900/20"
+                        onClick={() => setDialogOpen(true)}
+                      >
+                        KARTI İNCELE
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  // IDLE STATE
+                  <div className="flex flex-col items-center gap-4 w-full max-w-md">
+                    <div
+                      className={`relative w-32 h-32 md:w-48 md:h-48 flex items-center justify-center group cursor-pointer ${(!vipNostalgiaFreeAvailable && balance < PACK_COST) || allCollected ? 'opacity-50 grayscale cursor-not-allowed' : ''}`}
+                      onClick={(!vipNostalgiaFreeAvailable && balance < PACK_COST) || allCollected ? undefined : handlePackClick}
+                    >
+                      <div className="absolute inset-0 bg-purple-600/20 rounded-full blur-[80px] animate-pulse group-hover:bg-purple-600/40 transition-colors duration-500" />
+                      {/* Pack Image / Icon */}
+                      <div className="relative z-10 w-full h-full transform group-hover:scale-110 transition-transform duration-300 ease-out">
+                        <svg className="w-full h-full text-slate-800 drop-shadow-2xl opacity-80" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+                          <path d="M100 20L180 60V140L100 180L20 140V60L100 20Z" fill="currentColor" stroke="rgba(255,255,255,0.1)" strokeWidth="2" />
+                          <path d="M100 20L100 180M20 60L180 60M20 140L180 140" stroke="rgba(255,255,255,0.05)" strokeWidth="1" />
+                        </svg>
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <span className="text-6xl filter drop-shadow-[0_0_15px_rgba(255,255,255,0.5)]">✨</span>
+                        </div>
+                      </div>
+
+                      {/* Click Hint */}
+                      <div className="absolute -bottom-4 bg-white/10 backdrop-blur-md border border-white/20 px-4 py-1 rounded-full text-xs font-bold text-white opacity-0 group-hover:opacity-100 transition-opacity transform translate-y-2 group-hover:translate-y-0">
+                        TIKLA VE AÇ
+                      </div>
+
+
+                    </div>
+
+                    <div className="space-y-4 w-full">
+                      {allCollected ? (
+                        <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-300">
+                          <p className="font-bold">Koleksiyon Tamamlandı!</p>
+                          <p className="text-xs opacity-70 mt-1">Tüm efsanelere sahipsin.</p>
+                        </div>
+                      ) : (
+                        <Button
+                          size="lg"
+                          className={`w-full h-12 text-lg font-bold tracking-wide shadow-xl transition-all duration-300 ${vipNostalgiaFreeAvailable
+                            ? "bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white shadow-emerald-900/20"
+                            : "bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white shadow-purple-900/20"
+                            }`}
+                          onClick={handlePackClick}
+                          disabled={!vipNostalgiaFreeAvailable && balance < PACK_COST}
+                        >
+                          {vipNostalgiaFreeAvailable ? 'ÜCRETSİZ AÇ' : `PAKET AÇ (${PACK_COST} 💎)`}
+                        </Button>
+                      )}
+
+                      {!vipNostalgiaFreeAvailable && !allCollected && (
+                        <p className="text-xs text-slate-500">
+                          Mevcut Bakiye: <span className={balance < PACK_COST ? "text-red-400" : "text-slate-300"}>{balance}</span> / {PACK_COST}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
-          )}
-        </section>
+          </section>
+
+          {/* RIGHT: Active Rentals (3 cols) */}
+          <aside className="col-span-3 flex flex-col gap-2 sm:gap-4 min-h-0 overflow-hidden">
+            <div className="flex items-center justify-between px-2">
+              <h3 className="text-sm font-bold text-slate-300 uppercase tracking-wider">Kiralananlar</h3>
+              <span className="bg-slate-800 text-slate-400 text-[10px] px-2 py-0.5 rounded-full font-bold">{rented.length}</span>
+            </div>
+
+            <div className="flex-1 rounded-3xl bg-slate-900/40 border border-white/5 backdrop-blur-sm overflow-hidden flex flex-col">
+              {rented.length > 0 ? (
+                <div className="overflow-y-auto p-2 space-y-2 pr-1 custom-scrollbar">
+                  {rented.map((p) => (
+                    <div key={p.id} className="group flex items-center gap-3 p-2.5 rounded-xl bg-slate-800/40 hover:bg-slate-800/80 border border-white/5 transition-colors">
+                      <div className="w-10 h-10 rounded-lg bg-slate-700 overflow-hidden shrink-0 relative">
+                        <img src={p.image} className="w-full h-full object-cover" alt={p.name} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-bold text-white truncate">{p.name}</div>
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                          <span className="text-[10px] text-slate-400">
+                            {Math.ceil((p.expiresAt.getTime() - Date.now()) / (1000 * 60 * 60 * 24))} gün kaldı
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="flex-1 flex flex-col items-center justify-center p-6 text-center opacity-60">
+                  <div className="w-12 h-12 rounded-full bg-slate-800 mb-3 flex items-center justify-center">
+                    <span className="text-xl">📋</span>
+                  </div>
+                  <p className="text-sm text-slate-400">Henüz kiralanan efsane yok.</p>
+                </div>
+              )}
+            </div>
+          </aside>
+        </main>
       </div>
 
       <Dialog open={Boolean(current) && isDialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="legend-pack-dialog">
-          {current ? <LegendCard player={current} onRent={handleRent} onRelease={handleRelease} /> : null}
+        <DialogContent className="border-none bg-transparent shadow-none p-0 max-w-sm w-full flex items-center justify-center overflow-visible">
+          {current ? (
+            <div className="relative w-full flex flex-col items-center gap-6">
+              {/* Glow Effect */}
+              <div className="absolute inset-0 bg-purple-500/20 blur-[60px] rounded-full pointer-events-none" />
+
+              <div className="relative z-10 text-center animate-in slide-in-from-bottom-4 fade-in duration-700">
+                <h2 className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-b from-amber-200 to-amber-500 drop-shadow-sm tracking-wide uppercase">
+                  YENİ EFSANE!
+                </h2>
+              </div>
+
+              <div className="relative z-10 transform transition-all duration-500 animate-in zoom-in-95 fade-in-0 scale-70 md:scale-90 pb-20">
+                <LegendCard player={current} onRent={handleRent} onRelease={handleRelease} />
+              </div>
+            </div>
+          ) : null}
         </DialogContent>
       </Dialog>
-    </div>
+
+      <AlertDialog open={showConfirm} onOpenChange={setShowConfirm}>
+        <AlertDialogContent className="bg-slate-900 border border-purple-500/30 text-white max-w-md w-full rounded-2xl shadow-[0_0_50px_rgba(168,85,247,0.2)]">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-2xl font-bold text-center text-purple-400">
+              NOSTALJİ PAKETİ AÇ
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-center text-slate-300 text-lg py-4">
+              Bu işlem için hesabınızdan <span className="font-bold text-amber-400">{PACK_COST} Elmas</span> düşülecektir.
+              <br /><br />
+              Efsane oyuncuyu açmak istediğinize emin misiniz?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="flex gap-4 justify-center sm:justify-center">
+            <AlertDialogCancel className="bg-slate-800 text-white border-slate-700 hover:bg-slate-700 hover:text-white px-8">
+              VAZGEÇ
+            </AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold px-8 shadow-lg shadow-purple-900/30 border-none"
+              onClick={() => {
+                handleOpen();
+                setShowConfirm(false);
+              }}
+            >
+              EVET, AÇ!
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div >
   );
 };
 

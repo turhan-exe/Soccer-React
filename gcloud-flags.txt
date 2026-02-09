@@ -1,0 +1,3 @@
+--update-env-vars:
+  UNITY_BATCH_URL: 'https://storage.googleapis.com/osm-react.firebasestorage.app/jobs/2025-12-25/batch_2025-12-25_s0.json?GoogleAccessId=osm-react%40a9%2FRwTMQ5OfUUQMc81cBrRoBHp4uJU6FK0iUTxrJPtW6fIirwveoV3FNq%2BtmjAPOZAhS1IaY9%2BMTV%2BiPpJ7vcQSHjIpuJWVysE2jgwPAob6hBgjYSWuFCG5HB1kcA3w2M9Si4TU05vcfbf%2BvkPV0DdZkaU94bKEHSS1OBZcnixelo3J%2Brx8UFc6X0g3GQ1%2F6FtPxDy39YV3SWLy9%2FzKkO1mX%2B2OGNntRzWZFD%2Bq1Mu17CTMpFgbTm6hEIlq%2FFQVaHxkhEkP0746WIwZo55YEFlzWQ%3D%3D'
+  BATCH_SHARDS: '16'

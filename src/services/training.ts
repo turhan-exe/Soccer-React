@@ -220,7 +220,7 @@ export async function reduceTrainingTimeWithAd(
         throw new Error('Antrenman zaten tamamlanmış');
       }
 
-      const reductionSeconds = Math.max(1, Math.floor(remainingSeconds * 0.25));
+      const reductionSeconds = remainingSeconds;
       const newDurationSeconds = Math.max(
         elapsedSeconds,
         data.durationSeconds - reductionSeconds,

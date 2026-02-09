@@ -23,3 +23,27 @@ dist-ssr
 *.sln
 *.sw?
 *.json text eol=lf working-tree-encoding=UTF-8
+
+
+# Keystore files
+android/keystore.properties
+android/*.keystore
+*.keystore
+
+# Unity WebGL Exports (Large files)
+public/Unity/**/*.wasm
+public/Unity/**/*.data
+public/Unity/**/*.bundle
+public/Unity/**/*.framework.js
+public/Unity/**/*.loader.js
+public/Unity/**/Builds.loader.js
+public/Unity/**/*.zip
+*.dwlt
+
+# Android Build Artifacts
+*.apk
+*.aab
+android/app/build/
+
+# Unity Shared Libraries
+**/GameAssembly.so
