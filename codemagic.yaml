@@ -60,8 +60,13 @@ workflows:
             --export-options-plist export_options.plist
     artifacts:
       - build/ios/ipa/*.ipa
-    publishing:
-      app_store_connect:
-        api_key: $APP_STORE_CONNECT_API_KEY
-        key_id: $APP_STORE_CONNECT_KEY_ID
-        issuer_id: $APP_STORE_CONNECT_ISSUER_ID
+      - name: Publish to App Store
+        script: |
+          # Create directory for the key
+          mkdir -p ~/.appstoreconnect/private_keys
+          
+          # Decode the Base64 key to the expected file location
+          echo "$APP_STORE_CONNECT_PRIVATE_KEY_BASE64" | base64 --decode > ~/.appstoreconnect/private_keys/AuthKey_$APP_STORE_CONNECT_KEY_ID.p8
+          
+          # Upload using altool
+          xcrun altool --upload-app -f build/ios/ipa/App.ipa -t ios --apiKey "$APP_STORE_CONNECT_KEY_ID" --apiIssuer "$APP_STORE_CONNECT_ISSUER_ID" --show-progress
