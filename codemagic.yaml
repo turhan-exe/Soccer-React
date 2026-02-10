@@ -58,8 +58,6 @@ workflows:
             --workspace "$XCODE_WORKSPACE" \
             --scheme "$XCODE_SCHEME" \
             --export-options-plist export_options.plist
-    artifacts:
-      - build/ios/ipa/*.ipa
       - name: Publish to App Store
         script: |
           # Create directory for the key
@@ -70,3 +68,5 @@ workflows:
           
           # Upload using altool
           xcrun altool --upload-app -f build/ios/ipa/App.ipa -t ios --apiKey "$APP_STORE_CONNECT_KEY_ID" --apiIssuer "$APP_STORE_CONNECT_ISSUER_ID" --show-progress
+    artifacts:
+      - build/ios/ipa/*.ipa
