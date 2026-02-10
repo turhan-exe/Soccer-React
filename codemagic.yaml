@@ -3,6 +3,8 @@ workflows:
     name: iOS App Store Build
     max_build_duration: 60
     environment:
+      groups:
+        - App Store
       ios_signing:
         provisioning_profiles:
           - fhs_app_store_profile
