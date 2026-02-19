@@ -681,7 +681,7 @@ export async function listLeagues(): Promise<League[]> {
       state: data.state,
       startDate: data.startDate,
       rounds: data.rounds,
-      teamCount,
+      teamCount: (data.teamCount !== undefined) ? data.teamCount : teamCount,
       teams: await hydrateTeamNames(teams),
     } as League);
   }

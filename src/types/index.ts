@@ -360,3 +360,30 @@ export type {
   RuntimePlayerState,
 } from './matchReplay';
 
+
+export interface Friend {
+  id: string; // teamId / userId
+  teamName: string;
+  managerName: string;
+  avatar?: string;
+  addedAt: string; // ISO date string
+}
+
+export interface PrivateMessage {
+  id: string;
+  text: string;
+  senderId: string;
+  createdAt: any; // Firestore Timestamp
+  read: boolean;
+}
+
+export interface FriendRequest {
+  id: string;
+  senderId: string;
+  senderName: string; // Team Name
+  senderManager: string; // Manager Name
+  senderAvatar: string;
+  receiverId: string;
+  status: 'pending' | 'accepted' | 'rejected';
+  createdAt: string; // ISO date string
+}

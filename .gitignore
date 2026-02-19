@@ -47,3 +47,12 @@ android/app/build/
 
 # Unity Shared Libraries
 **/GameAssembly.so
+
+# Certificates and Keys (Security)
+*.p12
+*.mobileprovision
+*.csr
+*.key
+*.cer
+*.pem
+*.keystore
