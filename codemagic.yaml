@@ -40,6 +40,13 @@ workflows:
         script: |
           npx cap add ios
           npx cap sync ios
+      
+      - name: Increment Build Number
+        script: |
+          cd ios/App
+          # Set the build number to the Codemagic build number
+          agvtool new-version -all $BUILD_NUMBER
+
       - name: Install CocoaPods
         script: |
           cd ios/App && pod install
