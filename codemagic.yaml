@@ -19,6 +19,10 @@ workflows:
           # Install capacitor-assets for icon generation
           npm install @capacitor/assets --save-dev
 
+      - name: Build web assets
+        script: |
+          npm run build
+
       - name: Generate Icons and Splash Screens
         script: |
           # Generate resources from the icon.png we committed
