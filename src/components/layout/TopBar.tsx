@@ -24,11 +24,14 @@ import {
   Bell,
   ChevronLeft,
   ChevronRight,
+  MessageCircle,
+  Star,
   type LucideIcon,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { subscribeToUnreadChats, getChatId } from '@/services/privateChat';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -111,6 +114,7 @@ const TopBar = forwardRef<TopBarHandle, TopBarProps>(
     const [isNotificationOpen, setIsNotificationOpen] = useState(false);
     const [currentKitIndex, setCurrentKitIndex] = useState(0);
     const [isKitMenuOpen, setIsKitMenuOpen] = useState(false);
+    const [unreadChats, setUnreadChats] = useState<any[]>([]);
 
     // Track dismissed notification IDs
     const [dismissedIds, setDismissedIds] = useState<string[]>([]);
@@ -356,8 +360,11 @@ const TopBar = forwardRef<TopBarHandle, TopBarProps>(
       let unsubscribeYouth: (() => void) | null = null;
       let unsubscribeTraining: (() => void) | null = null;
       let unsubscribeYouthGeneration: (() => void) | null = null;
+      let unsubscribeChats: (() => void) | null = null;
 
+      // ... (existing loadNotifications logic) ...
       const loadNotifications = async () => {
+        // ... (existing try-catch blocks) ...
         try {
           await finalizeExpiredTrainingSession(user.id);
         } catch (error) {
@@ -454,11 +461,23 @@ const TopBar = forwardRef<TopBarHandle, TopBarProps>(
         }
       }
 
+      // Chat Notifications
+      try {
+        unsubscribeChats = subscribeToUnreadChats(user.id, (chats) => {
+          if (!cancelled) {
+            setUnreadChats(chats);
+          }
+        });
+      } catch (error) {
+        console.warn('[TopBar] sohbet bildirim dinleyicisi basarisiz', error);
+      }
+
       return () => {
         cancelled = true;
         unsubscribeYouth?.();
         unsubscribeTraining?.();
         unsubscribeYouthGeneration?.();
+        unsubscribeChats?.();
       };
     }, [user]);
 
@@ -518,6 +537,22 @@ const TopBar = forwardRef<TopBarHandle, TopBarProps>(
           accent: 'text-pink-400',
         });
       }
+
+      // Add Chat Notifications
+      unreadChats.forEach(chat => {
+        const otherUserId = chat.participants.find((id: string) => id !== user?.id);
+        const count = chat.unreadCounts?.[user?.id!] || 0;
+
+        if (count > 0) {
+          items.push({
+            id: `chat-${chat.id}`,
+            message: `${count} yeni mesajin var`,
+            icon: MessageCircle,
+            path: `/friends?chatWith=${otherUserId}`, // URL parametresi ile yönlendir
+            accent: 'text-blue-400'
+          });
+        }
+      });
 
       // Filter out dismissed notifications
       return items.filter(item => !dismissedIds.includes(item.id));

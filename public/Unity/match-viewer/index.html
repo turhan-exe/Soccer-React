@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>FHS</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <link rel="stylesheet" href="TemplateData/style.css">
+</head>
+<body>
+    <div id="unity-container">
+        <canvas id="unity-canvas" tabindex="-1"></canvas>
+        <div id="unity-loading-bar">
+            <div id="unity-logo"></div>
+            <div id="unity-progress-bar-empty">
+                <div id="unity-progress-bar-full"></div>
+            </div>
+        </div>
+        <div id="unity-warning"></div>
+    </div>
+
+    <script>
+        (function setupMatchBridgeAPI() {
+            const queue = [];
+            const allowedCommands = new Set(["showTeams", "publishTeams", "loadByKeys", "hideOverlay"]);
+            const messageTarget = "unity-match-bridge";
+
+            function serializePayload(payload) {
+                if (typeof payload === "string") {
+                    return payload;
+                }
+
+                try {
+                    return JSON.stringify(payload || {});
+                } catch (err) {
+                    console.warn("[MatchBridge] Payload JSON.stringify hatasi", err);
+                    return "{}";
+                }
+            }
+
+            function sendMessage(method, payload) {
+                if (!window.__unityMatchBridgeInstance) {
+                    return false;
+                }
+
+                window.__unityMatchBridgeInstance.SendMessage("MatchBridge", method, serializePayload(payload));
+                return true;
+            }
+
+            function enqueue(method, payload) {
+                if (!sendMessage(method, payload)) {
+                    queue.push({ method, payload });
+                }
+            }
+
+            function flushQueue() {
+                if (!window.__unityMatchBridgeInstance || queue.length === 0) {
+                    return;
+                }
+
+                while (queue.length) {
+                    const entry = queue.shift();
+                    sendMessage(entry.method, entry.payload);
+                }
+            }
+
+            function notifyParent(type, detail) {
+                if (!window.parent || window.parent === window) {
+                    return;
+                }
+
+                try {
+                    window.parent.postMessage({ source: messageTarget, type, detail }, "*");
+                } catch (err) {
+                    console.warn("[MatchBridge] postMessage gonderilemedi", err);
+                }
+            }
+
+            function exposeApiToParent(api) {
+                if (!window.parent || window.parent === window) {
+                    return;
+                }
+
+                try {
+                    window.parent.MatchBridgeAPI = api;
+                    window.parent.__unityMatchBridgeAPI = api;
+                    if (typeof window.parent.dispatchEvent === "function") {
+                        window.parent.dispatchEvent(new CustomEvent("unityMatchBridgeApiReady"));
+                    }
+                } catch (err) {
+                    console.warn("[MatchBridge] Parent MatchBridgeAPI paylasilamadi", err);
+                }
+            }
+
+            function handleInboundMessage(event, api) {
+                const data = event && event.data;
+                if (!data || data.target !== messageTarget) {
+                    return;
+                }
+
+                const action = typeof data.action === "string" ? data.action : "";
+                if (!allowedCommands.has(action)) {
+                    console.warn("[MatchBridge] Tanimsiz mesaj eylemi", action);
+                    return;
+                }
+
+                const handler = api[action];
+                if (typeof handler !== "function") {
+                    console.warn("[MatchBridge] Handler bulunamadi", action);
+                    return;
+                }
+
+                handler(data.payload);
+            }
+
+            const api = {
+                showTeams(payload) {
+                    enqueue("ShowTeams", payload);
+                },
+                publishTeams(payload) {
+                    enqueue("PublishTeams", payload);
+                },
+                loadByKeys(payload) {
+                    enqueue("LoadByKeys", payload);
+                },
+                hideOverlay(payload) {
+                    enqueue("HideOverlay", payload);
+                }
+            };
+
+            window.MatchBridgeAPI = api;
+            window.addEventListener("message", (event) => handleInboundMessage(event, api), false);
+            exposeApiToParent(api);
+
+            window.__registerMatchBridgeInstance = function(instance) {
+                window.__unityMatchBridgeInstance = instance;
+                flushQueue();
+                notifyParent("ready");
+
+                if (window.parent && typeof window.parent.onUnityReady === "function") {
+                    try {
+                        window.parent.onUnityReady(instance);
+                    } catch (err) {
+                        console.warn("[MatchBridge] onUnityReady callback hata verdi", err);
+                    }
+                }
+            };
+
+            window.__matchBridgeDispatch = function(payload) {
+                try {
+                    const detail = typeof payload === "string" ? payload : JSON.stringify(payload || {});
+                    if (window.parent && typeof window.parent.dispatchEvent === "function") {
+                        window.parent.dispatchEvent(new CustomEvent("unityMatchFinished", { detail }));
+                    }
+                    notifyParent("matchFinished", detail);
+                } catch (err) {
+                    console.error("[MatchBridge] unityMatchFinished dispatch edilemedi", err);
+                }
+            };
+        })();
+    </script>
+
+    <script src="Build/Builds.loader.js"></script>
+    <script>
+        const container = document.getElementById("unity-container");
+        const canvas = document.getElementById("unity-canvas");
+        const loadingBar = document.getElementById("unity-loading-bar");
+        const progressBarFull = document.getElementById("unity-progress-bar-full");
+        const warningBanner = document.getElementById("unity-warning");
+
+        const buildUrl = "Build";
+        const config = {
+            dataUrl: buildUrl + "/Builds.data",
+            frameworkUrl: buildUrl + "/Builds.framework.js",
+            codeUrl: buildUrl + "/Builds.wasm",
+            streamingAssetsUrl: "StreamingAssets",
+            companyName: "NERBUSS",
+            productName: "FHS",
+            productVersion: "1.0.0",
+            showBanner: unityShowBanner
+        };
+
+        function unityShowBanner(msg, type) {
+            function updateBannerVisibility() {
+                warningBanner.style.display = warningBanner.children.length ? "block" : "none";
+            }
+
+            const div = document.createElement("div");
+            div.innerHTML = msg;
+            warningBanner.appendChild(div);
+            updateBannerVisibility();
+            if (type === "warning") {
+                div.className = "warning";
+            } else {
+                div.className = "error";
+            }
+
+            setTimeout(() => {
+                warningBanner.removeChild(div);
+                updateBannerVisibility();
+            }, 5000);
+        }
+
+        loadingBar.style.display = "block";
+
+        createUnityInstance(canvas, config, (progress) => {
+            progressBarFull.style.width = (100 * progress) + "%";
+        }).then((unityInstance) => {
+            loadingBar.style.display = "none";
+            window.__registerMatchBridgeInstance(unityInstance);
+        }).catch((message) => {
+            console.error(message);
+        });
+    </script>
+</body>
+</html>

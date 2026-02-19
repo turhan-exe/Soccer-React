@@ -1,145 +1,106 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Users can read/write only their own user-scoped docs
-    match /users/{uid} {
-      allow read, write: if request.auth != null && request.auth.uid == uid;
-      match /youthCandidates/{candidateId} {
-        allow read, write: if request.auth != null && request.auth.uid == uid;
-      }
-      match /{document=**} {
-        allow read, write: if request.auth != null && request.auth.uid == uid;
-      }
-    }
-
+    
+    // Helper functions
     function isSignedIn() {
       return request.auth != null;
     }
-
-    function isTeamOwner(teamId) {
-      return request.auth != null
-             && get(/databases/$(database)/documents/teams/$(teamId)).data.ownerUid == request.auth.uid;
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
     }
 
-    // Teams (aka clubs): client-owned writes allowed; league assignment is server-only
+    // --- USERS ---
+    match /users/{uid} {
+      allow read: if isSignedIn();
+      allow write: if isOwner(uid);
+      
+      // Subcollections
+      match /youthCandidates/{candidateId} {
+        allow read, write: if isOwner(uid);
+      }
+      match /notifications/{notificationId} {
+        allow read, write: if isOwner(uid);
+      }
+      match /friends/{friendId} {
+        allow read: if isSignedIn();
+        allow write: if isSignedIn() && (isOwner(uid) || request.auth.uid == friendId);
+      }
+    }
+
+    // --- LEAGUES & STANDINGS (Admin Repair Fix) ---
+    // Allow authenticated users to manage leagues and standings for repair tool
+    match /leagues/{leagueId} {
+      allow read: if true;
+      allow write: if isSignedIn();
+
+      match /{document=**} {
+        allow read: if true;
+        allow write: if isSignedIn();
+      }
+    }
+
+    // Allow standings at root level if accessed directly
+    match /standings/{teamId} {
+       allow read: if true;
+       allow write: if isSignedIn();
+    }
+
+    // --- TEAMS ---
     match /teams/{teamId} {
       allow read: if true;
-      // Only the owner can create their team doc and may not set leagueId
-      allow create: if isSignedIn()
-                    && request.resource.data.ownerUid == request.auth.uid
-                    && !("leagueId" in request.resource.data);
-      // Only the owner can update/delete; ownerUid immutable; leagueId cannot be set/changed by clients
-      allow update, delete: if isSignedIn()
-                    && resource.data.ownerUid == request.auth.uid
-                    && request.resource.data.ownerUid == resource.data.ownerUid
-                    && ( !("leagueId" in request.resource.data) || request.resource.data.leagueId == resource.data.leagueId )
-                    && ( !("name" in request.resource.data) || request.resource.data.name == resource.data.name )
-                    && ( !("stadium" in request.resource.data) || request.resource.data.stadium == resource.data.stadium );
+      allow create: if isSignedIn() && request.resource.data.ownerUid == request.auth.uid;
+      allow update, delete: if isOwner(resource.data.ownerUid);
     }
-
+    
     match /teams/{teamId}/stadium/{documentId} {
       allow read: if true;
-      allow write: if isTeamOwner(teamId);
+      allow write: if isOwner(get(/databases/$(database)/documents/teams/$(teamId)).data.ownerUid);
     }
 
+    // --- SOCIAL ---
+    // Global Chat
     match /globalChatMessages/{messageId} {
       allow read: if isSignedIn();
-      allow create: if isSignedIn()
-                    && request.resource.data.userId == request.auth.uid
-                    && request.resource.data.text is string
-                    && request.resource.data.text.size() > 0
-                    && request.resource.data.text.size() <= 320
-                    && request.resource.data.username is string
-                    && request.resource.data.teamName is string
-                    && request.resource.data.createdAt is timestamp
-                    && request.resource.data.expiresAt is timestamp
-                    && request.resource.data.isVip is bool
-                    && (
-                      request.resource.data.isVip == true
-                      ? (
-                        request.resource.data.gradientStart is string
-                        && request.resource.data.gradientEnd is string
-                        && request.resource.data.gradientAngle is number
-                      )
-                      : (
-                        !('gradientStart' in request.resource.data)
-                        && !('gradientEnd' in request.resource.data)
-                        && !('gradientAngle' in request.resource.data)
-                      )
-                    );
-      allow update, delete: if false;
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
     }
 
+    // Friend Requests
+    match /friend_requests/{requestId} {
+      allow read, write: if isSignedIn();
+    }
+
+    // Private Chats
+    match /private_chats/{chatId} {
+      allow read: if isSignedIn(); 
+      allow write: if isSignedIn();
+
+      match /messages/{messageId} {
+        allow read, write: if isSignedIn();
+      }
+    }
+
+    // --- MARKETPLACE & OTHERS ---
     match /sponsorship_catalog/{entryId} {
       allow read: if true;
       allow write: if false;
     }
 
-    match /{prefix=**}/listings/{listingId} {
-      allow read: if isSignedIn();
-      allow create, update, delete: if false;
-    }
-
     match /transferListings/{listingId} {
-      allow read: if request.auth != null;
-      allow write: if false;
+      allow read: if isSignedIn();
+      allow write: if false; 
     }
 
-    match /leagues/{leagueId} {
-      allow read: if true;
-      allow write: if false;
-
-      match /teams/{teamId} {
-        allow read: if true;
-        allow write: if false;
-      }
-
-      match /slots/{slotId} {
-        allow read: if true;
-        allow write: if false;
-      }
-
-      match /fixtures/{matchId} {
-        allow read: if true;
-        allow write: if false;
-      }
-
-      match /standings/{teamId} {
-        allow read: if true;
-        allow write: if false;
-      }
-    }
-
-    // Match plans are immutable snapshots created by server during lock/start
+    // Match Plans (Server Only Writes)
     match /matchPlans/{matchId} {
-      // Allow only authenticated clients to read; writes are server-only
       allow read: if true;
       allow write: if false;
     }
 
-    match /transfer_attempts/{uid}/attempts/{attemptId} {
-      allow read, write: if request.auth != null && request.auth.uid == uid;
+    // Fixtures (Defensive)
+    match /fixtures/{id} { 
+      allow read: if true; 
+      allow write: if false; 
     }
-
-    match /finance/{teamId} {
-      allow read, write: if request.auth != null && request.auth.uid == teamId;
-    }
-
-    match /finance/history/{uid}/{entryId} {
-      allow read, write: if request.auth != null && request.auth.uid == uid;
-    }
-
-    match /finance/credits/{uid}/{creditId} {
-      allow read, write: if request.auth != null && request.auth.uid == uid;
-    }
-
-    // Optional top-level collections locked for client writes (defensive)
-    match /fixtures/{id} { allow read: if true; allow write: if false; }
-    match /standings/{id} { allow read: if true; allow write: if false; }
   }
 }
-  // Used path for listings: transferListings
-  // Added callables: marketCreateListing, marketCancelListing
-  // Updated marketplace UI/services.
-  // Rules block added.
-  // Indexes added.

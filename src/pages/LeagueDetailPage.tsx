@@ -33,9 +33,14 @@ export default function LeagueDetailPage() {
           })),
         );
       } else {
-        setRows(sRows);
+        // Filter out header row if it exists or any duplicates by teamId
+        const uniqueRows = sRows.filter((row, index, self) =>
+          index === self.findIndex((t) => t.teamId === row.teamId)
+        );
+        setRows(uniqueRows);
+
         // Identify rows that update/fetch names
-        sRows.forEach(async (r) => {
+        uniqueRows.forEach(async (r) => {
           const rawName = r.name || r.teamId;
           // Check if name is exactly the ID (implies missing name)
           if (rawName === r.teamId && r.teamId.length > 15 && !r.teamId.startsWith('slot-')) {

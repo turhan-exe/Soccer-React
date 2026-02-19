@@ -3,6 +3,7 @@ import RootLayout from '@/layouts/RootLayout';
 
 // Pages
 import MainMenu from '@/pages/MainMenu';
+import FriendsPage from '@/pages/FriendsPage';
 import TeamPlanning from '@/pages/TeamPlanning';
 import TransferMarket from '@/pages/TransferMarket';
 import Youth from '@/pages/Youth';
@@ -30,7 +31,9 @@ import VipStorePage from '@/pages/VipStore';
 import MatchesHistoryPage from '@/pages/MatchesHistoryPage';
 import MatchReplayPage from '@/pages/MatchReplayPage';
 import MatchVideoPage from '@/pages/MatchVideoPage';
+import FriendlyMatchPage from '@/pages/FriendlyMatchPage';
 import ChatModerationAdmin from '@/pages/ChatModerationAdmin';
+import ChampionsLeaguePage from '@/pages/ChampionsLeaguePage';
 
 export const router = createBrowserRouter(
   [
@@ -38,8 +41,10 @@ export const router = createBrowserRouter(
       element: <RootLayout />,
       children: [
         { path: '/', element: <MainMenu /> },
+        { path: '/champions-league', element: <ChampionsLeaguePage /> },
         { path: '/team-planning', element: <TeamPlanning /> },
         { path: '/youth', element: <Youth /> },
+        { path: '/friends', element: <FriendsPage /> },
         { path: '/transfer-market', element: <TransferMarket /> },
         { path: '/fixtures', element: <MyFixturesPage /> },
         { path: '/my-matches', element: <MyFixturesPage /> },
@@ -59,6 +64,7 @@ export const router = createBrowserRouter(
         { path: '/matches-history', element: <MatchesHistoryPage /> },
         { path: '/match-replay', element: <MatchReplayPage /> },
         { path: '/match-video', element: <MatchVideoPage /> },
+        { path: '/friendly-match', element: <FriendlyMatchPage /> },
         { path: '/finance', element: <Finance /> },
         { path: '/settings', element: <Settings /> },
         { path: '/contact', element: <ContactPage /> },
