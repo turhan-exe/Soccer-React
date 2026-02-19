@@ -16,10 +16,23 @@ workflows:
       - name: Install dependencies
         script: |
           npm install
-      - name: Build web assets
+          # Install capacitor-assets for icon generation
+          npm install @capacitor/assets --save-dev
+
+      - name: Generate Icons and Splash Screens
         script: |
-          npm run build
-      - name: Add and Sync iOS Platform
+          # Generate resources from the icon.png we committed
+          npx capacitor-assets generate --ios
+
+      - name: Force iPhone Only (Disable iPad Support)
+        script: |
+          # Modifying project.pbxproj to target only iPhone (1) instead of iPhone/iPad (1,2)
+          # This prevents the app from running in iPad/Tablet mode where it crashes
+          find ios -name "project.pbxproj" -exec sed -i '' 's/TARGETED_DEVICE_FAMILY = "1,2"/TARGETED_DEVICE_FAMILY = "1"/g' {} +
+          find ios -name "project.pbxproj" -exec sed -i '' 's/TARGETED_DEVICE_FAMILY = "1, 2"/TARGETED_DEVICE_FAMILY = "1"/g' {} +
+          echo "Updated TARGETED_DEVICE_FAMILY to 1 (iPhone only)"
+
+      - name: Add iOS platform
         script: |
           npx cap add ios
           npx cap sync ios
