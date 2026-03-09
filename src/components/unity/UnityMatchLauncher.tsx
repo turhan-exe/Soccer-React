@@ -89,7 +89,7 @@ export function UnityMatchLauncher({
     }
 
     let cancelled = false;
-    let retryTimer: ReturnType<typeof setTimeout> | null = null;
+    let retryTimer: number | null = null;
 
     const attempt = () => {
       if (cancelled) return;

@@ -48,6 +48,12 @@ android {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
     }
+    packagingOptions {
+        jniLibs {
+            // Unity as Library bazı cihazlarda native lib'lerin extract edilmesini bekliyor.
+            useLegacyPackaging true
+        }
+    }
 }
 
 repositories {
@@ -66,6 +72,8 @@ dependencies {
     androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
     androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
     implementation project(':capacitor-cordova-android-plugins')
+    implementation project(':unityLibrary')
+
 }
 
 apply from: 'capacitor.build.gradle'

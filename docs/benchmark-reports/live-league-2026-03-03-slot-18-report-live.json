@@ -1,0 +1,77 @@
+{
+  "mode": "report",
+  "firestoreMode": "admin",
+  "kickoffHourTR": 18,
+  "kickoffAt": "2026-03-03T15:00:00.000Z",
+  "summary": {
+    "total": 40,
+    "scheduled": 20,
+    "running": 0,
+    "played": 20,
+    "failed": 0,
+    "withLiveMatchId": 20,
+    "liveStates": {
+      "running": 20,
+      "prepare_failed": 20
+    },
+    "missingVideo": 20,
+    "missingScore": 0
+  },
+  "sampleStatuses": [
+    {
+      "fixtureId": "2auiIPPPft4s7Exvj98O",
+      "matchId": "2auiIPPPft4s7Exvj98O",
+      "firestoreState": "running",
+      "matchControlState": "ended"
+    },
+    {
+      "fixtureId": "KYkdCcM4MM3iUbTM9tTQ",
+      "matchId": "KYkdCcM4MM3iUbTM9tTQ",
+      "firestoreState": "running",
+      "matchControlState": "ended"
+    },
+    {
+      "fixtureId": "OiH1XGy6MsihXamw3fRA",
+      "matchId": "OiH1XGy6MsihXamw3fRA",
+      "firestoreState": "running",
+      "matchControlState": "ended"
+    },
+    {
+      "fixtureId": "X4c54vKsEnJS6ZoUEOxd",
+      "matchId": "X4c54vKsEnJS6ZoUEOxd",
+      "firestoreState": "running",
+      "matchControlState": "ended"
+    },
+    {
+      "fixtureId": "rmAzM1LeMQOohjIJbdUU",
+      "matchId": "rmAzM1LeMQOohjIJbdUU",
+      "firestoreState": "running",
+      "matchControlState": "ended"
+    },
+    {
+      "fixtureId": "z7Shfh5UC1c1tOKrakrv",
+      "matchId": "z7Shfh5UC1c1tOKrakrv",
+      "firestoreState": "running",
+      "matchControlState": "ended"
+    },
+    {
+      "fixtureId": "zb8Po5laWKQ06mSWVQLN",
+      "matchId": "zb8Po5laWKQ06mSWVQLN",
+      "firestoreState": "running",
+      "matchControlState": "ended"
+    },
+    {
+      "fixtureId": "8id2787Ht4NTStevWzGB",
+      "matchId": "8id2787Ht4NTStevWzGB",
+      "firestoreState": "running",
+      "matchControlState": "ended"
+    },
+    {
+      "fixtureId": "9z9PCOXmvt1OkjNpFzcr",
+      "matchId": "9z9PCOXmvt1OkjNpFzcr",
+      "firestoreState": "running",
+      "matchControlState": "ended"
+    }
+  ],
+  "failures": []
+}

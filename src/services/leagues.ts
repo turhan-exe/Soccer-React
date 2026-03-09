@@ -20,11 +20,19 @@ import { auth, db, functions } from './firebase';
 import type { League, Fixture, Standing } from '@/types';
 import { formatInTimeZone } from 'date-fns-tz';
 
+export type LeagueBootstrapOptions = {
+  forceReset?: boolean;
+  targetMonth?: string;
+  startDate?: string;
+  capacity?: number;
+  leagueCount?: number;
+};
+
 /** Uygulama ilk açıldığında en az bir lig olduğundan emin ol */
 export async function ensureDefaultLeague(): Promise<void> {
   const snap = await getDocs(collection(db, 'leagues'));
   if (!snap.empty) return;
-  // Yeni akış: boşsa 25×15 slot’lu aylık ligleri kurmayı dener
+  // Yeni akış: boşsa aylık slot tabanlı ligleri kurmayı dener
   try {
     const fn = httpsCallable(functions, 'bootstrapMonthlyLeaguesOneTime');
     await fn({});
@@ -100,10 +108,10 @@ export async function requestJoinLeague(teamId: string): Promise<void> {
 }
 
 // One-time bootstrap for monthly slot-based leagues
-export async function requestBootstrap(): Promise<void> {
+export async function requestBootstrap(options: LeagueBootstrapOptions = {}): Promise<void> {
   try {
     const fn = httpsCallable(functions, 'bootstrapMonthlyLeaguesOneTime');
-    await fn({});
+    await fn(options);
     return;
   } catch (err: any) {
     const code: string | undefined = err?.code;
@@ -120,7 +128,7 @@ export async function requestBootstrap(): Promise<void> {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify({ data: {} }),
+      body: JSON.stringify({ data: options }),
     });
     if (!resp.ok) {
       const text = await resp.text().catch(() => '');
@@ -129,10 +137,13 @@ export async function requestBootstrap(): Promise<void> {
   }
 }
 
-export async function requestLeagueReset(): Promise<void> {
+export async function requestLeagueReset(
+  options: Omit<LeagueBootstrapOptions, 'forceReset'> = {}
+): Promise<void> {
+  const payload = { forceReset: true, ...options };
   try {
     const fn = httpsCallable(functions, 'bootstrapMonthlyLeaguesOneTime');
-    await fn({ forceReset: true });
+    await fn(payload);
   } catch (err: any) {
     console.warn('[leagues.requestLeagueReset] Callable failed, trying HTTP fallback', err);
     // If it's an auth error or any other error, try HTTP with ID token explicitly
@@ -148,7 +159,7 @@ export async function requestLeagueReset(): Promise<void> {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify({ forceReset: true }),
+      body: JSON.stringify(payload),
     });
     if (!resp.ok) {
       const text = await resp.text().catch(() => '');
@@ -388,6 +399,7 @@ export async function getFixturesForTeam(
       videoMissing: raw.videoMissing,
       videoError: raw.videoError,
       goalTimeline: raw.goalTimeline ?? [],
+      live: raw.live ?? null,
     } satisfies Fixture;
   });
 
@@ -441,6 +453,7 @@ export async function getFixtureByIdAcrossLeagues(
     videoMissing: raw.videoMissing,
     videoError: raw.videoError,
     goalTimeline: raw.goalTimeline ?? [],
+    live: raw.live ?? null,
   };
   // leagues/{leagueId}/fixtures/{matchId}
   const leagueId = d.ref.parent.parent!.id;
@@ -513,6 +526,7 @@ export async function getFixturesForTeamSlotAware(
         videoMissing: raw.videoMissing,
         videoError: raw.videoError,
         goalTimeline: raw.goalTimeline ?? [],
+        live: raw.live ?? null,
       } as Fixture;
     })
     .filter((m) => m.homeTeamId === teamId || m.awayTeamId === teamId)
@@ -572,6 +586,110 @@ async function hydrateTeamNames(
   });
 }
 
+function sortStandingsRows(rows: Standing[]) {
+  rows.sort((a, b) => {
+    if (b.Pts !== a.Pts) return b.Pts - a.Pts;
+    if (b.GD !== a.GD) return b.GD - a.GD;
+    return b.GF - a.GF;
+  });
+  return rows;
+}
+
+function buildStandingFromSlot(raw: Record<string, unknown>, fallbackId: string): Standing {
+  const slotIndex = typeof raw.slotIndex === 'number' ? raw.slotIndex : Number(raw.slotIndex ?? 0) || 0;
+  const stableTeamId =
+    typeof raw.teamId === 'string' && raw.teamId.trim().length > 0
+      ? raw.teamId
+      : slotIndex > 0
+        ? `slot-${slotIndex}`
+        : fallbackId;
+  const fallbackName =
+    typeof raw.name === 'string' && raw.name.trim().length > 0
+      ? raw.name
+      : typeof raw.teamId === 'string' && raw.teamId.trim().length > 0
+        ? raw.teamId
+        : slotIndex > 0
+          ? `Bot ${typeof raw.botId === 'string' && raw.botId.trim().length > 0 ? raw.botId : slotIndex}`
+          : stableTeamId;
+
+  return {
+    id: fallbackId,
+    ...(raw as Omit<Standing, 'id' | 'teamId' | 'name'>),
+    teamId: stableTeamId,
+    name: fallbackName,
+    P: typeof raw.P === 'number' ? raw.P : 0,
+    W: typeof raw.W === 'number' ? raw.W : 0,
+    D: typeof raw.D === 'number' ? raw.D : 0,
+    L: typeof raw.L === 'number' ? raw.L : 0,
+    GF: typeof raw.GF === 'number' ? raw.GF : 0,
+    GA: typeof raw.GA === 'number' ? raw.GA : 0,
+    GD: typeof raw.GD === 'number' ? raw.GD : 0,
+    Pts: typeof raw.Pts === 'number' ? raw.Pts : 0,
+  } satisfies Standing;
+}
+
+async function mergeStandingsWithSlots(leagueId: string, baseRows: Standing[]): Promise<Standing[]> {
+  const slotsSnap = await getDocs(collection(db, 'leagues', leagueId, 'slots'));
+  if (slotsSnap.empty) return sortStandingsRows(baseRows);
+
+  const rowsByTeamId = new Map(baseRows.map((row) => [row.teamId, row]));
+  const merged = [...baseRows];
+
+  slotsSnap.docs.forEach((slotDoc) => {
+    const raw = slotDoc.data() as Record<string, unknown>;
+    const slotIndex =
+      typeof raw.slotIndex === 'number'
+        ? raw.slotIndex
+        : Number(slotDoc.id) || 0;
+    if (slotIndex <= 0) return;
+
+    const stableTeamId =
+      typeof raw.teamId === 'string' && raw.teamId.trim().length > 0
+        ? raw.teamId
+        : `slot-${slotIndex}`;
+    if (rowsByTeamId.has(stableTeamId)) return;
+
+    merged.push(buildStandingFromSlot({ ...raw, slotIndex }, String(slotIndex)));
+  });
+
+  return sortStandingsRows(merged);
+}
+
+async function mergeTeamsWithSlots(
+  leagueId: string,
+  teams: { id: string; name: string; logo?: string | null }[]
+): Promise<{ id: string; name: string; logo?: string | null }[]> {
+  const slotsSnap = await getDocs(collection(db, 'leagues', leagueId, 'slots'));
+  if (slotsSnap.empty) return teams;
+
+  const merged = [...teams];
+  const seen = new Set(teams.map((team) => team.id));
+
+  slotsSnap.docs.forEach((slotDoc) => {
+    const raw = slotDoc.data() as Record<string, unknown>;
+    const slotIndex =
+      typeof raw.slotIndex === 'number'
+        ? raw.slotIndex
+        : Number(slotDoc.id) || 0;
+    if (slotIndex <= 0) return;
+
+    const stableId =
+      typeof raw.teamId === 'string' && raw.teamId.trim().length > 0
+        ? raw.teamId
+        : `slot-${slotIndex}`;
+    if (seen.has(stableId)) return;
+
+    const label =
+      typeof raw.teamId === 'string' && raw.teamId.trim().length > 0
+        ? raw.teamId
+        : `Bot ${typeof raw.botId === 'string' && raw.botId.trim().length > 0 ? raw.botId : slotIndex}`;
+    merged.push({ id: stableId, name: label });
+    seen.add(stableId);
+  });
+
+  return merged;
+}
+
 export async function getLeagueTeams(
   leagueId: string
 ): Promise<{ id: string; name: string; logo?: string | null }[]> {
@@ -590,7 +708,8 @@ export async function getLeagueTeams(
     // De-duplicate by id preserving first occurrence
     const seen = new Set<string>();
     const deduped = rows.filter((r) => (seen.has(r.id) ? false : (seen.add(r.id), true)));
-    return hydrateTeamNames(deduped);
+    const merged = await mergeTeamsWithSlots(leagueId, deduped);
+    return hydrateTeamNames(merged);
   }
 
   // Legacy teams subcollection
@@ -625,19 +744,11 @@ export function listenStandings(
   const col = collection(db, 'leagues', leagueId, 'standings');
 
   return onSnapshot(col, (snap) => {
-    const rows: Standing[] = snap.docs.map((d) => ({
-      id: d.id,
-      ...(d.data() as Omit<Standing, 'id'>),
-    }));
-
-    rows.sort((a, b) => {
-      // Pts desc, sonra GD desc, sonra GF desc
-      if (b.Pts !== a.Pts) return b.Pts - a.Pts;
-      if (b.GD !== a.GD) return b.GD - a.GD;
-      return b.GF - a.GF;
-    });
-
-    cb(rows);
+    void (async () => {
+      const rows: Standing[] = snap.docs.map((d) => buildStandingFromSlot(d.data() as Record<string, unknown>, d.id));
+      const merged = await mergeStandingsWithSlots(leagueId, rows);
+      cb(merged);
+    })();
   });
 }
 
@@ -648,29 +759,30 @@ export async function listLeagues(): Promise<League[]> {
   for (const d of snap.docs) {
     const data = d.data() as any;
     const standingsSnap = await getDocs(collection(d.ref, 'standings'));
+    const slotsSnap = await getDocs(collection(d.ref, 'slots'));
     let teams: { id: string; name: string }[] = [];
     let teamCount = 0;
     if (!standingsSnap.empty) {
       // Prefer standings for friendly names (works for human + bots)
       const rows = standingsSnap.docs.map((s) => s.data() as any);
       teams = rows.map((r) => ({ id: r.teamId || `slot-${r.slotIndex}`, name: r.name || r.teamId || `Slot ${r.slotIndex}` }));
-      teamCount = rows.filter((r) => !!r.teamId).length;
-    } else {
-      const slotsSnap = await getDocs(collection(d.ref, 'slots'));
-      if (!slotsSnap.empty) {
-        teams = slotsSnap.docs.map((s) => {
-          const sd = s.data() as any;
-          if (sd.type === 'human' && sd.teamId) teamCount++;
-          return { id: sd.teamId || `slot-${sd.slotIndex}`, name: sd.teamId || `Bot ${sd.botId || sd.slotIndex}` };
-        });
-      } else {
-        const teamsSnap = await getDocs(collection(d.ref, 'teams'));
-        teamCount = teamsSnap.size;
-        teams = teamsSnap.docs.map((t) => {
-          const td = t.data() as any;
-          return { id: t.id, name: td.name || t.id };
-        });
-      }
+      teamCount = rows.length;
+    }
+
+    if (!slotsSnap.empty) {
+      const slotTeams = slotsSnap.docs.map((s) => {
+        const sd = s.data() as any;
+        return { id: sd.teamId || `slot-${sd.slotIndex}`, name: sd.teamId || `Bot ${sd.botId || sd.slotIndex}` };
+      });
+      teams = await mergeTeamsWithSlots(d.id, teams.length > 0 ? teams : slotTeams);
+      teamCount = Math.max(teamCount, slotsSnap.size);
+    } else if (teams.length === 0) {
+      const teamsSnap = await getDocs(collection(d.ref, 'teams'));
+      teamCount = teamsSnap.size;
+      teams = teamsSnap.docs.map((t) => {
+        const td = t.data() as any;
+        return { id: t.id, name: td.name || t.id };
+      });
     }
     leagues.push({
       id: d.id,
@@ -681,7 +793,7 @@ export async function listLeagues(): Promise<League[]> {
       state: data.state,
       startDate: data.startDate,
       rounds: data.rounds,
-      teamCount: (data.teamCount !== undefined) ? data.teamCount : teamCount,
+      teamCount,
       teams: await hydrateTeamNames(teams),
     } as League);
   }
@@ -695,18 +807,8 @@ export async function listLeagueStandings(
   const col = collection(db, 'leagues', leagueId, 'standings');
   const snap = await getDocs(col);
 
-  const rows: Standing[] = snap.docs.map((d) => ({
-    id: d.id,
-    ...(d.data() as Omit<Standing, 'id'>),
-  }));
-
-  rows.sort((a, b) => {
-    if (b.Pts !== a.Pts) return b.Pts - a.Pts;
-    if (b.GD !== a.GD) return b.GD - a.GD;
-    return b.GF - a.GF;
-  });
-
-  return rows;
+  const rows: Standing[] = snap.docs.map((d) => buildStandingFromSlot(d.data() as Record<string, unknown>, d.id));
+  return mergeStandingsWithSlots(leagueId, rows);
 }
 
 // Get league via top-level teams/{teamId}.leagueId (slot-based flow)
@@ -766,6 +868,7 @@ export async function getFixturesByLeagueAndSlotMap(
         video: raw.video ?? null,
         videoMissing: raw.videoMissing,
         videoError: raw.videoError,
+        live: raw.live ?? null,
         opponentName: nameBySlot.get(oppSlot) || `Slot ${oppSlot}`,
         home,
       };

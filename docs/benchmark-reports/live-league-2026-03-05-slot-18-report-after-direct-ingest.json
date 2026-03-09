@@ -1,0 +1,83 @@
+{
+  "mode": "report",
+  "firestoreMode": "admin",
+  "kickoffHourTR": 18,
+  "kickoffAt": "2026-03-05T15:00:00.000Z",
+  "summary": {
+    "total": 40,
+    "scheduled": 39,
+    "running": 1,
+    "played": 0,
+    "failed": 0,
+    "withLiveMatchId": 40,
+    "liveStates": {
+      "starting": 39,
+      "running": 1
+    },
+    "missingVideo": 40,
+    "missingScore": 0
+  },
+  "sampleStatuses": [
+    {
+      "fixtureId": "1v8YtsiBEQ0Jp9SmfWVG",
+      "matchId": "1v8YtsiBEQ0Jp9SmfWVG",
+      "firestoreState": "starting",
+      "matchControlState": "running"
+    },
+    {
+      "fixtureId": "617o7P3fr1Bp6Xpqsu1E",
+      "matchId": "617o7P3fr1Bp6Xpqsu1E",
+      "firestoreState": "running",
+      "matchControlState": "running"
+    },
+    {
+      "fixtureId": "ASfFIpXUJe8rUqSDsURn",
+      "matchId": "ASfFIpXUJe8rUqSDsURn",
+      "firestoreState": "starting",
+      "matchControlState": "failed"
+    },
+    {
+      "fixtureId": "BpQd7HbiuIAb8uG7Fpor",
+      "matchId": "BpQd7HbiuIAb8uG7Fpor",
+      "firestoreState": "starting",
+      "matchControlState": "failed"
+    },
+    {
+      "fixtureId": "DS3Y7SYJGTBgvFNJ2P5w",
+      "matchId": "DS3Y7SYJGTBgvFNJ2P5w",
+      "firestoreState": "starting",
+      "matchControlState": "failed"
+    },
+    {
+      "fixtureId": "FxllXVHo3yuE7m82pCCb",
+      "matchId": "FxllXVHo3yuE7m82pCCb",
+      "firestoreState": "starting",
+      "matchControlState": "failed"
+    },
+    {
+      "fixtureId": "HoIFqNv6aO5dkQvpkPjL",
+      "matchId": "HoIFqNv6aO5dkQvpkPjL",
+      "firestoreState": "starting",
+      "matchControlState": "failed"
+    },
+    {
+      "fixtureId": "YzPayNQ68VMWp9UTx8rj",
+      "matchId": "YzPayNQ68VMWp9UTx8rj",
+      "firestoreState": "starting",
+      "matchControlState": "failed"
+    },
+    {
+      "fixtureId": "5nskMfkjwUUfWv6Ewofv",
+      "matchId": "5nskMfkjwUUfWv6Ewofv",
+      "firestoreState": "starting",
+      "matchControlState": "failed"
+    },
+    {
+      "fixtureId": "CW2Yfti0yczffEJF7H1F",
+      "matchId": "CW2Yfti0yczffEJF7H1F",
+      "firestoreState": "starting",
+      "matchControlState": "failed"
+    }
+  ],
+  "failures": []
+}

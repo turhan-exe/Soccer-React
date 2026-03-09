@@ -9,6 +9,7 @@ interface PlayerDetailOverlayProps {
     onClose: () => void;
     player: Player | null;
     onMoveToStarting: (id: string) => void;
+    moveToStartingLabel?: string;
     onMoveToBench: (id: string) => void;
     onMoveToReserve: (id: string) => void;
     onRename: (id: string) => void;
@@ -34,6 +35,7 @@ export function PlayerDetailOverlay({
     onClose,
     player,
     onMoveToStarting,
+    moveToStartingLabel,
     onMoveToBench,
     onMoveToReserve,
     onRename,
@@ -126,7 +128,7 @@ export function PlayerDetailOverlay({
                             {player.squadRole !== 'starting' && (
                                 <button onClick={() => onMoveToStarting(player.id)} className="w-full group flex items-center gap-4 px-2 py-2 text-slate-400 hover:text-white transition-colors">
                                     <Shirt className="w-4 h-4 text-[#3b82f6] group-hover:scale-110 transition-transform" />
-                                    <span className="text-sm font-medium">İlk 11'e Al</span>
+                                    <span className="text-sm font-medium">{moveToStartingLabel || "İlk 11'e Al"}</span>
                                 </button>
                             )}
 

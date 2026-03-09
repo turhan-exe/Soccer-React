@@ -587,6 +587,8 @@ export function promotePlayerToStartingRoster(
     options.targetPlayerId && options.targetPlayerId !== playerId
       ? options.targetPlayerId
       : null;
+  const startersCount = roster.filter(p => p.squadRole === 'starting').length;
+  const hasVacancy = startersCount < 11;
 
   let occupantIndex = -1;
   if (targetPlayerId) {
@@ -596,7 +598,7 @@ export function promotePlayerToStartingRoster(
     );
   }
 
-  if (occupantIndex === -1) {
+  if (occupantIndex === -1 && !hasVacancy) {
     occupantIndex = roster.findIndex(
       candidate =>
         candidate.id !== playerId &&
@@ -618,9 +620,6 @@ export function promotePlayerToStartingRoster(
   if (isAlreadyStartingSameSpot) {
     return { players: roster, updated: false, targetPosition: canonicalTarget };
   }
-
-  const startersCount = roster.filter(p => p.squadRole === 'starting').length;
-
   if (currentRole !== 'starting' && startersCount >= 11 && occupantIndex === -1) {
     return {
       players: roster,

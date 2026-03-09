@@ -34,6 +34,7 @@ import MatchVideoPage from '@/pages/MatchVideoPage';
 import FriendlyMatchPage from '@/pages/FriendlyMatchPage';
 import ChatModerationAdmin from '@/pages/ChatModerationAdmin';
 import ChampionsLeaguePage from '@/pages/ChampionsLeaguePage';
+import LiveLeagueOpsPage from '@/pages/LiveLeagueOpsPage';
 
 export const router = createBrowserRouter(
   [
@@ -73,6 +74,7 @@ export const router = createBrowserRouter(
         { path: '/academy', element: <AcademyPage /> },
         { path: '/legend-pack', element: <LegendPackPage /> },
         { path: '/admin/chat-moderation', element: <ChatModerationAdmin /> },
+        { path: '/admin/live-league', element: <LiveLeagueOpsPage /> },
         { path: '*', element: <NotFound /> },
       ],
     },

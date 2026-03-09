@@ -1,34 +1,148 @@
-/**
- * Unity Native Bridge Layer
- * This simulates calling Java/Kotlin (Android) or Obj-C (iOS) from React Native.
- * For now, it just logs to console to verify the flow.
- */
+import { Capacitor, registerPlugin } from '@capacitor/core';
+
+export type UnityBridgeEventType =
+  | 'ready'
+  | 'connected'
+  | 'connection_failed'
+  | 'match_ended'
+  | 'closed'
+  | 'error';
+
+export type UnityLaunchPayload = {
+  homeId: string;
+  awayId: string;
+  matchId?: string;
+  joinTicket?: string;
+  mode?: 'friendly' | 'league';
+  role?: 'spectator' | 'player';
+};
+
+export type UnityBridgeEvent = {
+  type: UnityBridgeEventType | string;
+  message?: string;
+  code?: string;
+  matchId?: string;
+  serverIp?: string;
+  serverPort?: number;
+  reason?: string;
+};
+
+type UnityMatchPluginOpenPayload = {
+  serverIp: string;
+  serverPort: number;
+  matchId?: string;
+  joinTicket?: string;
+  homeId?: string;
+  awayId?: string;
+  mode?: string;
+  role?: string;
+};
+
+type UnityMatchPlugin = {
+  openMatch(payload: UnityMatchPluginOpenPayload): Promise<{
+    ok: boolean;
+    nativeLaunch: boolean;
+    bridgeMode?: string;
+    activityClass?: string;
+  }>;
+  closeMatch(): Promise<{ ok: boolean }>;
+  addListener(
+    eventName: 'unityEvent',
+    listenerFunc: (event: UnityBridgeEvent) => void,
+  ): Promise<{ remove: () => Promise<void> }>;
+};
+
+const UnityMatch = registerPlugin<UnityMatchPlugin>('UnityMatch');
+
+function isAndroidNativePlatform(): boolean {
+  return Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'android';
+}
+
+async function launchNativeOnAndroid(
+  ip: string,
+  port: number,
+  matchRequest?: UnityLaunchPayload,
+): Promise<void> {
+  const response = await UnityMatch.openMatch({
+    serverIp: ip,
+    serverPort: Number.isFinite(port) ? Math.max(1, Math.floor(port)) : 7777,
+    matchId: matchRequest?.matchId,
+    joinTicket: matchRequest?.joinTicket,
+    homeId: matchRequest?.homeId,
+    awayId: matchRequest?.awayId,
+    mode: matchRequest?.mode ?? 'friendly',
+    role: matchRequest?.role ?? 'spectator',
+  });
+
+  if (!response?.ok) {
+    throw new Error('Unity native launch failed.');
+  }
+}
+
+function launchWebMock(ip: string, port: number, matchRequest?: UnityLaunchPayload): void {
+  let intentUrl = `connect://${ip}:${port}`;
+  if (matchRequest) {
+    const params = new URLSearchParams();
+    params.set('home', matchRequest.homeId);
+    params.set('away', matchRequest.awayId);
+    if (matchRequest.matchId) {
+      params.set('matchId', matchRequest.matchId);
+    }
+    if (matchRequest.joinTicket) {
+      params.set('joinTicket', matchRequest.joinTicket);
+    }
+    if (matchRequest.mode) {
+      params.set('mode', matchRequest.mode);
+    }
+    if (matchRequest.role) {
+      params.set('role', matchRequest.role);
+    }
+    intentUrl += `?${params.toString()}`;
+  }
+
+  console.log(`[UnityBridge] MOCK launch. intent=${intentUrl}`);
+
+  const matchInfo = matchRequest
+    ? `${matchRequest.homeId} vs ${matchRequest.awayId} (${matchRequest.matchId || 'no-match-id'})`
+    : 'Yok';
+  alert(`[MOCK] Unity Native Penceresi Acildi!\nBaglanti: ${ip}:${port}\nMac: ${matchInfo}`);
+}
 
 export const unityBridge = {
-  /**
-   * Launches the Unity Native Activity
-   * @param ip Server IP to connect to via KCP
-   * @param port Server Port (default 7777)
-   */
-  /**
-   * Launches the Unity Native Activity
-   * @param ip Server IP to connect to via KCP
-   * @param port Server Port (default 7777)
-   * @param matchRequest Optional match request data (home/away team IDs)
-   */
-  launchMatchActivity: (ip: string, port: number = 7777, matchRequest?: { homeId: string, awayId: string }) => {
-    let intentUrl = `connect://${ip}:${port}`;
-    if (matchRequest) {
-      intentUrl += `?home=${matchRequest.homeId}&away=${matchRequest.awayId}`;
+  async launchMatchActivity(
+    ip: string,
+    port: number = 7777,
+    matchRequest?: UnityLaunchPayload,
+  ): Promise<void> {
+    if (isAndroidNativePlatform()) {
+      await launchNativeOnAndroid(ip, port, matchRequest);
+      return;
     }
-    console.log(`[UnityBridge] Launching Native Activity with intent: ${intentUrl}`);
 
-    // In a real environment (Capacitor/React Native):
-    // NativeModules.UnityModule.launch(ip, port, matchRequest);
+    launchWebMock(ip, port, matchRequest);
+  },
 
-    // For Browser Test:
-    alert(`[MOCK] Unity Native Penceresi Acildi!\nBaglanti: ${ip}:${port}\nMac: ${matchRequest ? `${matchRequest.homeId} vs ${matchRequest.awayId}` : 'Yok'}`);
-  }
+  async closeMatchActivity(): Promise<void> {
+    if (!isAndroidNativePlatform()) {
+      console.log('[UnityBridge] closeMatchActivity() ignored on non-Android platform.');
+      return;
+    }
+
+    await UnityMatch.closeMatch();
+  },
+
+  async onUnityEvent(
+    callback: (event: UnityBridgeEvent) => void,
+  ): Promise<() => Promise<void>> {
+    if (!isAndroidNativePlatform()) {
+      return async () => {};
+    }
+
+    const subscription = await UnityMatch.addListener('unityEvent', callback);
+    return async () => {
+      await subscription.remove();
+    };
+  },
 };
 
 /**
@@ -67,32 +181,45 @@ export type TeamBadge = any;
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type TeamKitAssets = any;
 
+type LegacyBridge = {
+  sendTeams: (payload?: unknown) => boolean;
+  publishTeams: (payload?: unknown) => boolean;
+  sendMatch: (payload?: unknown) => boolean;
+  dispose: () => void;
+};
+
+type LegacyMatchBridgeApi = {
+  publishTeams: (payload?: unknown) => void;
+  showTeams: (payload?: unknown) => void;
+  sendTeams: (payload?: unknown) => void;
+  loadMatchFromJSON: (payload?: unknown) => void;
+};
 
 // --- Functions ---
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export const prepareUnityIframeBridge = (iframe: HTMLIFrameElement, callbacks?: any) => {
+export const prepareUnityIframeBridge = (iframe: HTMLIFrameElement, callbacks?: any): LegacyBridge => {
   console.log("[UnityBridge] Legacy WebGL bridge requested (Ignored for Native Mode)");
   return {
-    sendTeams: () => true,
-    publishTeams: () => true,
-    sendMatch: () => true,
+    sendTeams: (_payload?: unknown) => true,
+    publishTeams: (_payload?: unknown) => true,
+    sendMatch: (_payload?: unknown) => true,
     dispose: () => { }
   };
 };
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export const waitForMatchBridgeAPIOnWindow = async (win: any, timeout: number) => {
+export const waitForMatchBridgeAPIOnWindow = async (win: any, timeout: number): Promise<void> => {
   return Promise.resolve();
 };
 
-export const waitForMatchBridgeAPI = async (timeout: number = 10000) => {
+export const waitForMatchBridgeAPI = async (timeout: number = 10000): Promise<LegacyMatchBridgeApi> => {
   console.log("[UnityBridge] waitForMatchBridgeAPI called (Mock)");
   return Promise.resolve({
-    publishTeams: () => { },
-    showTeams: () => { },
-    sendTeams: () => { },
-    loadMatchFromJSON: () => { }
+    publishTeams: (_payload?: unknown) => { },
+    showTeams: (_payload?: unknown) => { },
+    sendTeams: (_payload?: unknown) => { },
+    loadMatchFromJSON: (_payload?: unknown) => { }
   });
 };
 

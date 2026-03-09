@@ -39,3 +39,43 @@ writing raw frames into the FIFO created by the render job (`/tmp/render.pipe` b
 - These scripts do not touch `Unity/Render/Build/FHS_*` directories.
 - If you need to change the FIFO or pixel format in the container,
   update `Unity/Render/Build/entrypoint_setup.sh` accordingly.
+
+## Online match end sync (Mirror)
+- `MatchEndReplicator` is a Mirror `NetworkBehaviour` that distributes server-authoritative
+  match-end state to clients.
+- Place it once in the scene on a `NetworkIdentity` object.
+- Recommended flow:
+  1) Server/host calls `DeclareMatchEnded(...)` when final-whistle condition is satisfied.
+  2) Clients receive `RpcMatchEnded(...)` and apply final-whistle locally once.
+  3) `ClientFinalWhistleGuard` can remain enabled as a safety net against premature local end.
+- If you cannot patch `MatchManager` directly, `MatchEndReplicator` can also auto-observe
+  `MatchManager.MatchFlags` on server and replicate when it detects match completion.
+
+## Dedicated server kickoff fallback
+- `OnlineMatchStartGate` now includes an optional dedicated-server fallback:
+  if the process is `batchmode`, role is `server` (`UNITY_MATCH_ROLE`/`MATCH_ROLE`),
+  and no client is connected, it can invoke `MatchManager.StartMatchEngine()` by reflection.
+- Default behavior is enabled and retry-based to avoid one-shot race conditions.
+- Inspector knobs:
+  - `forceStartEngineOnDedicatedServer`
+  - `dedicatedStartAfterSeconds`
+  - `dedicatedStartRetrySeconds`
+  - `dedicatedServerRoleValue`
+
+## Node-agent lifecycle bridge
+- `NodeAgentLifecycleBridge` auto-creates at runtime and emits node-agent compatible logs:
+  - minute heartbeat logs: `[NodeAgentLifecycleBridge] Minutes: <value>`
+  - end marker log: `unityMatchFinished => { ...json... }`
+- This is used by `services/node-agent` parser to push:
+  - `running` state with minute heartbeats
+  - `ended` state from parsed match result JSON
+- Fallback behavior:
+  - if `MatchEndReplicator` payload is not available but minute reaches configured threshold,
+    a synthetic result line is emitted after a grace window.
+
+## Dedicated build safety check
+- `NodeAgentLifecycleBridge` and `OnlineMatchStartGate` must exist in the **actual Unity project you build** (the one that has `Assets/Code/...` scripts).
+- Copying scripts only into this repository is not enough unless that Unity project includes them at build time.
+- Before runtime deploy, run:
+  - `.\scripts\live-league-deploy-runtime-fixes.ps1 -RepoRoot . -SkipControl -SkipNodes`
+- This preflight now fails if dedicated build output is missing lifecycle hooks.

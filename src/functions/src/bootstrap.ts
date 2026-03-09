@@ -2,22 +2,34 @@ import * as functions from 'firebase-functions/v1';
 import './_firebase.js';
 import { getFirestore, FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { getAuth } from 'firebase-admin/auth';
-import { formatInTimeZone } from 'date-fns-tz';
 import {
   generateDoubleRoundRobinSlots,
-  normalizeCapacity,
 } from './utils/roundrobin.js';
-import { nextMonthOrThisMonthFirstAt19, monthKeyTR, dateForRound } from './utils/time.js';
+import { nextMonthOrThisMonthFirstAt19, monthKeyTR, dateForRound, monthStartAt19TR } from './utils/time.js';
 import { ensureBotTeamDoc } from './utils/bots.js';
+import {
+  DEFAULT_MONTHLY_CAPACITY,
+  DEFAULT_MONTHLY_LEAGUE_COUNT,
+  resolveLeagueCapacity,
+  resolveLeagueCount,
+  roundsForCapacity,
+} from './utils/leagueConfig.js';
 
 const db = getFirestore();
 const REGION = 'europe-west1';
 
 const DEFAULTS = {
-  LEAGUE_COUNT: 25,
-  CAPACITY: 15,
-  ROUNDS: 28,
+  LEAGUE_COUNT: DEFAULT_MONTHLY_LEAGUE_COUNT,
+  CAPACITY: DEFAULT_MONTHLY_CAPACITY,
   TIMEZONE: 'Europe/Istanbul',
+};
+
+type BootstrapInput = {
+  forceReset?: boolean;
+  leagueCount?: number;
+  capacity?: number;
+  targetMonth?: string;
+  startDate?: string;
 };
 
 async function ensureBots(minCount: number) {
@@ -113,21 +125,33 @@ async function wipeLeagues(db: FirebaseFirestore.Firestore) {
   console.log('[wipeLeagues] Wipe complete.');
 }
 
+function resolveBootstrapWindow(input: BootstrapInput = {}) {
+  const rawStartDate = typeof input.startDate === 'string' ? input.startDate.trim() : '';
+  if (rawStartDate) {
+    const startDate = new Date(rawStartDate);
+    if (Number.isNaN(startDate.getTime())) {
+      throw new functions.https.HttpsError('invalid-argument', 'Invalid startDate');
+    }
+    return { startDate, monthKey: monthKeyTR(startDate) };
+  }
 
-async function runBootstrap(forceReset?: boolean) {
-  const LEAGUE_COUNT = Number(process.env.LEAGUE_COUNT || DEFAULTS.LEAGUE_COUNT);
-  const requestedCapacity = Number(
-    process.env.LEAGUE_CAPACITY || 15 // Force 15 capacity
-  );
-  const capacity = 15; // Hardcode strict 15
-  const ROUNDS = Number(process.env.ROUNDS_PER_SEASON || DEFAULTS.ROUNDS);
+  const rawTargetMonth = typeof input.targetMonth === 'string' ? input.targetMonth.trim() : '';
+  if (rawTargetMonth) {
+    const startDate = monthStartAt19TR(rawTargetMonth);
+    return { startDate, monthKey: monthKeyTR(startDate) };
+  }
+
+  const startDate = nextMonthOrThisMonthFirstAt19();
+  return { startDate, monthKey: monthKeyTR(startDate) };
+}
+
+async function runBootstrap(input: BootstrapInput = {}) {
+  const forceReset = input.forceReset === true;
+  const LEAGUE_COUNT = resolveLeagueCount(input.leagueCount ?? process.env.LEAGUE_COUNT ?? DEFAULTS.LEAGUE_COUNT);
+  const capacity = resolveLeagueCapacity(input.capacity ?? process.env.LEAGUE_CAPACITY ?? DEFAULTS.CAPACITY);
+  const ROUNDS = roundsForCapacity(capacity);
   const TIMEZONE = DEFAULTS.TIMEZONE;
-
-  // Force Start Date: Feb 1, 2026, 19:00:00 TRT
-  // 2026-02-01T16:00:00.000Z (UTC) for 19:00 TRT
-  // Or just create a Date object
-  const startDate = new Date('2026-02-01T19:00:00+03:00');
-  const mKey = '2026-02'; // Hardcode month key for Feb 2026
+  const { startDate, monthKey: mKey } = resolveBootstrapWindow(input);
 
   if (forceReset) {
     await wipeLeagues(db);
@@ -159,7 +183,7 @@ async function runBootstrap(forceReset?: boolean) {
     const leagueData = {
       name: `Lig ${i}`,
       season: 1,
-      capacity, // 15
+      capacity,
       timezone: TIMEZONE,
       state: 'scheduled' as const,
       createdAt: FieldValue.serverTimestamp(),
@@ -259,7 +283,14 @@ async function runBootstrap(forceReset?: boolean) {
     if (ops > 0) await batch.commit();
   }
 
-  return { ok: true, monthKey: mKey, startDate: startDate.toISOString(), leagues: LEAGUE_COUNT };
+  return {
+    ok: true,
+    monthKey: mKey,
+    startDate: startDate.toISOString(),
+    leagues: LEAGUE_COUNT,
+    capacity,
+    rounds: ROUNDS,
+  };
 }
 
 export const bootstrapMonthlyLeaguesOneTime = functions
@@ -268,8 +299,8 @@ export const bootstrapMonthlyLeaguesOneTime = functions
   .https.onCall(async (data, context) => {
     const uid = context.auth?.uid;
     if (!uid) throw new functions.https.HttpsError('unauthenticated', 'Auth required');
-    const forceReset = (data as any)?.forceReset === true;
-    return await runBootstrap(forceReset);
+    const payload = (data || {}) as BootstrapInput;
+    return await runBootstrap(payload);
   });
 
 export const bootstrapMonthlyLeaguesOneTimeHttp = functions
@@ -296,8 +327,8 @@ export const bootstrapMonthlyLeaguesOneTimeHttp = functions
       return;
     }
     try {
-      const forceReset = req.body?.data?.forceReset === true || req.body?.forceReset === true;
-      const result = await runBootstrap(forceReset);
+      const body = (req.body?.data || req.body || {}) as BootstrapInput;
+      const result = await runBootstrap(body);
       res.json(result);
     } catch (e: any) {
       res.status(500).json({ error: e?.message || 'error' });

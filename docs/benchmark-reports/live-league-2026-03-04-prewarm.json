@@ -1,0 +1,23 @@
+{
+  "mode": "prewarm",
+  "firestoreMode": "admin",
+  "kickoffAt": "2026-03-04T16:00:00.000Z",
+  "summary": {
+    "total": 200,
+    "scheduled": 200,
+    "running": 0,
+    "played": 0,
+    "failed": 0,
+    "withLiveMatchId": 0,
+    "liveStates": {
+      "none": 200
+    },
+    "missingVideo": 0,
+    "missingScore": 0
+  },
+  "sampleStatuses": [],
+  "failures": [
+    "Not every fixture has live.matchId before kickoff.",
+    "Expected all fixtures to be warm; got warm=0, total=200."
+  ]
+}

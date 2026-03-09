@@ -40,9 +40,17 @@ export function isInLockWindow(now = new Date()) {
 
 // Next day's 19:00 in TR timezone
 export function nextDay19TR(d: Date = new Date()) {
+  return nextDayAtTR(19, d);
+}
+
+export function nextDayAtTR(hour: number, d: Date = new Date()) {
+  const hh = Number(hour);
+  if (!Number.isInteger(hh) || hh < 0 || hh > 23) {
+    throw new Error(`Invalid TR hour: ${hour}`);
+  }
   const next = new Date(d.getTime());
   next.setUTCDate(next.getUTCDate() + 1);
-  return trAt(next, 19, 0);
+  return trAt(next, hh, 0);
 }
 
 export function ts(date: Date) {

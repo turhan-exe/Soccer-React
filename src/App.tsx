@@ -13,10 +13,14 @@ import { InventoryProvider } from '@/contexts/InventoryContext';
 
 const queryClient = new QueryClient();
 
+type ScreenOrientationWithLock = ScreenOrientation & {
+  lock?: (orientation: string) => Promise<void>;
+};
+
 const App = () => {
   useEffect(() => {
     const lockOrientation = async () => {
-      const { orientation } = window.screen ?? {};
+      const orientation = window.screen?.orientation as ScreenOrientationWithLock | undefined;
       if (orientation && typeof orientation.lock === 'function') {
         try {
           await orientation.lock('landscape');

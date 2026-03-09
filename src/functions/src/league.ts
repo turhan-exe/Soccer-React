@@ -1,6 +1,6 @@
 import * as functions from 'firebase-functions/v1';
 import { requireAppCheck, requireAuth } from './mw/auth.js';
-import { generateRoundRobinFixtures, nextDay19TR } from './utils/schedule.js';
+import { generateRoundRobinFixtures, nextDayAtTR } from './utils/schedule.js';
 import './_firebase.js';
 import {
   getFirestore,
@@ -16,6 +16,52 @@ import { normalizeCapacity } from './utils/roundrobin.js';
 const db = getFirestore();
 const ADMIN_SECRET = (functions.config() as any)?.admin?.secret || '';
 const DEFAULT_FORMING_CAPACITY = normalizeCapacity(22);
+const LEAGUE_KICKOFF_HOURS_TR = parseKickoffHours(
+  process.env.LEAGUE_KICKOFF_HOURS_TR ||
+    (functions.config() as any)?.liveleague?.kickoff_hours_tr ||
+    '19',
+);
+
+function parseKickoffHours(raw: unknown) {
+  const input = String(raw || '').trim();
+  const values = input
+    .split(',')
+    .map((part) => Number(part.trim()))
+    .filter((hour) => Number.isInteger(hour) && hour >= 0 && hour <= 23);
+  const uniqueSorted = Array.from(new Set(values)).sort((a, b) => a - b);
+  return uniqueSorted.length > 0 ? uniqueSorted : [19];
+}
+
+function normalizeKickoffHour(value: unknown): number | null {
+  const hour = Number(value);
+  if (!Number.isInteger(hour) || hour < 0 || hour > 23) return null;
+  return hour;
+}
+
+function hashStringToInt(input: string): number {
+  let hash = 0;
+  for (const ch of String(input || '')) {
+    hash = ((hash << 5) - hash + ch.charCodeAt(0)) | 0;
+  }
+  return Math.abs(hash);
+}
+
+function defaultKickoffHourForLeagueId(leagueId: string): number {
+  const hours = LEAGUE_KICKOFF_HOURS_TR;
+  const index = hashStringToInt(leagueId) % hours.length;
+  return hours[index]!;
+}
+
+function resolveLeagueKickoffHour(leagueId: string, leagueData?: any): number {
+  const explicit = normalizeKickoffHour(leagueData?.kickoffHourTR);
+  if (explicit != null) return explicit;
+  return defaultKickoffHourForLeagueId(leagueId);
+}
+
+function nextDayKickoffForLeague(leagueId: string, leagueData?: any): Date {
+  const hour = resolveLeagueKickoffHour(leagueId, leagueData);
+  return nextDayAtTR(hour);
+}
 
 /**
  * Core logic for assigning a team to a league. Ensures a team is only placed
@@ -47,6 +93,7 @@ export async function assignTeam(
     // Helper to create new forming league data (defer write until after reads)
     const prepareNewFormingLeague = async () => {
       const newLeagueRef = db.collection('leagues').doc();
+      const kickoffHourTR = defaultKickoffHourForLeagueId(newLeagueRef.id);
       const last = await tx.get(
         db.collection('leagues').orderBy('season', 'desc').limit(1)
       );
@@ -58,6 +105,7 @@ export async function assignTeam(
         season: nextSeason,
         capacity: DEFAULT_FORMING_CAPACITY,
         timezone: 'Europe/Istanbul',
+        kickoffHourTR,
         state: 'forming' as const,
         rounds: 21,
         teamCount: 0,
@@ -116,7 +164,7 @@ export async function assignTeam(
           count,
           capacity,
         });
-        const startDate = nextDay19TR();
+        const startDate = nextDayKickoffForLeague(doc.id, data);
         finalizeOldForming = { ref: doc.ref, startDate };
         const { newLeagueRef, newLeagueData } = await prepareNewFormingLeague();
         pendingNewLeague = { ref: newLeagueRef, data: newLeagueData };
@@ -189,15 +237,17 @@ export async function assignTeam(
         { merge: true }
       );
       const newCount = currentCount + 1;
+      const kickoffHourTR = resolveLeagueKickoffHour(chosenLeagueRef!.id, chosenLeagueData);
       // Loosen typing here to avoid dependency/type resolution issues in UI env
       const updateData: any = {
         teamCount: newCount,
         // Also mirror teams under league doc as an array for quick reads
         teams: FieldValue.arrayUnion({ id: teamId, name: teamName }),
         capacity,
+        kickoffHourTR,
       };
       if (newCount === capacity) {
-        const startDate = nextDay19TR();
+        const startDate = nextDayKickoffForLeague(chosenLeagueRef!.id, chosenLeagueData);
         updateData.state = 'scheduled';
         updateData.startDate = Timestamp.fromDate(startDate);
         updateData.lockedAt = FieldValue.serverTimestamp();
@@ -437,8 +487,8 @@ export const generateRoundRobinFixturesFn = functions.region('europe-west1').htt
   // Force modunda başlangıç gününü güvenli şekilde bugün+1 19:00 TR al
   // Aksi halde ligdeki mevcut startDate değerini kullan
   const startDateSafe = force
-    ? nextDay19TR()
-    : ((league.startDate as any)?.toDate?.() || nextDay19TR());
+    ? nextDayKickoffForLeague(leagueId, league)
+    : ((league.startDate as any)?.toDate?.() || nextDayKickoffForLeague(leagueId, league));
   await generateFixturesForLeague(leagueId, startDateSafe);
   functions.logger.info('[CALLABLE] generateRoundRobinFixturesFn bitti', { leagueId, forced: force });
   return { ok: true, forced: force };
@@ -491,7 +541,7 @@ export const finalizeIfFull = functions.region('europe-west1').https.onCall(asyn
     if (data.state !== 'forming' || count < capacity) {
       return { finalized: false, leagueId: doc.id };
     }
-    const startDate = nextDay19TR();
+    const startDate = nextDayKickoffForLeague(doc.id, data);
     tx.update(doc.ref, {
       state: 'scheduled',
       startDate: Timestamp.fromDate(startDate),

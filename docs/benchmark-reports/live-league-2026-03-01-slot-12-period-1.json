@@ -1,0 +1,734 @@
+{
+  "date": "2026-03-01",
+  "kickoffHourTR": 12,
+  "kickoffAt": "2026-03-01T09:00:00.000Z",
+  "timeoutMinutes": 25,
+  "intervalSeconds": 20,
+  "prepareResponse": {
+    "ok": true,
+    "day": "2026-03-01",
+    "mode": "prepare",
+    "result": {
+      "day": "2026-03-01",
+      "prepared": 0,
+      "reused": 0,
+      "skipped": 0,
+      "failed": 0,
+      "total": 0,
+      "targets": [
+        "2026-03-01T09:00:00.000Z"
+      ]
+    }
+  },
+  "kickoffResponse": {
+    "ok": true,
+    "day": "2026-03-01",
+    "mode": "kickoff",
+    "result": {
+      "day": "2026-03-01",
+      "started": 0,
+      "skipped": 0,
+      "failed": 0,
+      "total": 0,
+      "targets": [
+        "2026-03-01T09:00:00.000Z"
+      ]
+    }
+  },
+  "success": false,
+  "finalSummary": {
+    "total": 0,
+    "scheduled": 0,
+    "running": 0,
+    "played": 0,
+    "failed": 0,
+    "withLiveMatchId": 0,
+    "liveStates": {}
+  },
+  "timeline": [
+    {
+      "at": "2026-03-07T19:43:41.543Z",
+      "summary": {
+        "total": 0,
+        "scheduled": 0,
+        "running": 0,
+        "played": 0,
+        "failed": 0,
+        "withLiveMatchId": 0,
+        "liveStates": {}
+      }
+    },
+    {
+      "at": "2026-03-07T19:44:13.526Z",
+      "summary": {
+        "total": 0,
+        "scheduled": 0,
+        "running": 0,
+        "played": 0,
+        "failed": 0,
+        "withLiveMatchId": 0,
+        "liveStates": {}
+      }
+    },
+    {
+      "at": "2026-03-07T19:44:45.274Z",
+      "summary": {
+        "total": 0,
+        "scheduled": 0,
+        "running": 0,
+        "played": 0,
+        "failed": 0,
+        "withLiveMatchId": 0,
+        "liveStates": {}
+      }
+    },
+    {
+      "at": "2026-03-07T19:45:14.782Z",
+      "summary": {
+        "total": 0,
+        "scheduled": 0,
+        "running": 0,
+        "played": 0,
+        "failed": 0,
+        "withLiveMatchId": 0,
+        "liveStates": {}
+      }
+    },
+    {
+      "at": "2026-03-07T19:45:40.764Z",
+      "summary": {
+        "total": 0,
+        "scheduled": 0,
+        "running": 0,
+        "played": 0,
+        "failed": 0,
+        "withLiveMatchId": 0,
+        "liveStates": {}
+      }
+    },
+    {
+      "at": "2026-03-07T19:46:06.493Z",
+      "summary": {
+        "total": 0,
+        "scheduled": 0,
+        "running": 0,
+        "played": 0,
+        "failed": 0,
+        "withLiveMatchId": 0,
+        "liveStates": {}
+      }
+    },
+    {
+      "at": "2026-03-07T19:46:32.092Z",
+      "summary": {
+        "total": 0,
+        "scheduled": 0,
+        "running": 0,
+        "played": 0,
+        "failed": 0,
+        "withLiveMatchId": 0,
+        "liveStates": {}
+      }
+    },
+    {
+      "at": "2026-03-07T19:46:57.070Z",
+      "summary": {
+        "total": 0,
+        "scheduled": 0,
+        "running": 0,
+        "played": 0,
+        "failed": 0,
+        "withLiveMatchId": 0,
+        "liveStates": {}
+      }
+    },
+    {
+      "at": "2026-03-07T19:47:22.089Z",
+      "summary": {
+        "total": 0,
+        "scheduled": 0,
+        "running": 0,
+        "played": 0,
+        "failed": 0,
+        "withLiveMatchId": 0,
+        "liveStates": {}
+      }
+    },
+    {
+      "at": "2026-03-07T19:47:54.941Z",
+      "summary": {
+        "total": 0,
+        "scheduled": 0,
+        "running": 0,
+        "played": 0,
+        "failed": 0,
+        "withLiveMatchId": 0,
+        "liveStates": {}
+      }
+    },
+    {
+      "at": "2026-03-07T19:48:26.966Z",
+      "summary": {
+        "total": 0,
+        "scheduled": 0,
+        "running": 0,
+        "played": 0,
+        "failed": 0,
+        "withLiveMatchId": 0,
+        "liveStates": {}
+      }
+    },
+    {
+      "at": "2026-03-07T19:48:58.825Z",
+      "summary": {
+        "total": 0,
+        "scheduled": 0,
+        "running": 0,
+        "played": 0,
+        "failed": 0,
+        "withLiveMatchId": 0,
+        "liveStates": {}
+      }
+    },
+    {
+      "at": "2026-03-07T19:49:28.856Z",
+      "summary": {
+        "total": 0,
+        "scheduled": 0,
+        "running": 0,
+        "played": 0,
+        "failed": 0,
+        "withLiveMatchId": 0,
+        "liveStates": {}
+      }
+    },
+    {
+      "at": "2026-03-07T19:49:54.586Z",
+      "summary": {
+        "total": 0,
+        "scheduled": 0,
+        "running": 0,
+        "played": 0,
+        "failed": 0,
+        "withLiveMatchId": 0,
+        "liveStates": {}
+      }
+    },
+    {
+      "at": "2026-03-07T19:50:19.581Z",
+      "summary": {
+        "total": 0,
+        "scheduled": 0,
+        "running": 0,
+        "played": 0,
+        "failed": 0,
+        "withLiveMatchId": 0,
+        "liveStates": {}
+      }
+    },
+    {
+      "at": "2026-03-07T19:50:44.700Z",
+      "summary": {
+        "total": 0,
+        "scheduled": 0,
+        "running": 0,
+        "played": 0,
+        "failed": 0,
+        "withLiveMatchId": 0,
+        "liveStates": {}
+      }
+    },
+    {
+      "at": "2026-03-07T19:51:09.611Z",
+      "summary": {
+        "total": 0,
+        "scheduled": 0,
+        "running": 0,
+        "played": 0,
+        "failed": 0,
+        "withLiveMatchId": 0,
+        "liveStates": {}
+      }
+    },
+    {
+      "at": "2026-03-07T19:51:34.545Z",
+      "summary": {
+        "total": 0,
+        "scheduled": 0,
+        "running": 0,
+        "played": 0,
+        "failed": 0,
+        "withLiveMatchId": 0,
+        "liveStates": {}
+      }
+    },
+    {
+      "at": "2026-03-07T19:51:59.857Z",
+      "summary": {
+        "total": 0,
+        "scheduled": 0,
+        "running": 0,
+        "played": 0,
+        "failed": 0,
+        "withLiveMatchId": 0,
+        "liveStates": {}
+      }
+    },
+    {
+      "at": "2026-03-07T19:52:24.874Z",
+      "summary": {
+        "total": 0,
+        "scheduled": 0,
+        "running": 0,
+        "played": 0,
+        "failed": 0,
+        "withLiveMatchId": 0,
+        "liveStates": {}
+      }
+    },
+    {
+      "at": "2026-03-07T19:52:49.816Z",
+      "summary": {
+        "total": 0,
+        "scheduled": 0,
+        "running": 0,
+        "played": 0,
+        "failed": 0,
+        "withLiveMatchId": 0,
+        "liveStates": {}
+      }
+    },
+    {
+      "at": "2026-03-07T19:53:14.714Z",
+      "summary": {
+        "total": 0,
+        "scheduled": 0,
+        "running": 0,
+        "played": 0,
+        "failed": 0,
+        "withLiveMatchId": 0,
+        "liveStates": {}
+      }
+    },
+    {
+      "at": "2026-03-07T19:53:39.873Z",
+      "summary": {
+        "total": 0,
+        "scheduled": 0,
+        "running": 0,
+        "played": 0,
+        "failed": 0,
+        "withLiveMatchId": 0,
+        "liveStates": {}
+      }
+    },
+    {
+      "at": "2026-03-07T19:54:05.097Z",
+      "summary": {
+        "total": 0,
+        "scheduled": 0,
+        "running": 0,
+        "played": 0,
+        "failed": 0,
+        "withLiveMatchId": 0,
+        "liveStates": {}
+      }
+    },
+    {
+      "at": "2026-03-07T19:54:30.482Z",
+      "summary": {
+        "total": 0,
+        "scheduled": 0,
+        "running": 0,
+        "played": 0,
+        "failed": 0,
+        "withLiveMatchId": 0,
+        "liveStates": {}
+      }
+    },
+    {
+      "at": "2026-03-07T19:54:55.811Z",
+      "summary": {
+        "total": 0,
+        "scheduled": 0,
+        "running": 0,
+        "played": 0,
+        "failed": 0,
+        "withLiveMatchId": 0,
+        "liveStates": {}
+      }
+    },
+    {
+      "at": "2026-03-07T19:55:21.019Z",
+      "summary": {
+        "total": 0,
+        "scheduled": 0,
+        "running": 0,
+        "played": 0,
+        "failed": 0,
+        "withLiveMatchId": 0,
+        "liveStates": {}
+      }
+    },
+    {
+      "at": "2026-03-07T19:55:46.327Z",
+      "summary": {
+        "total": 0,
+        "scheduled": 0,
+        "running": 0,
+        "played": 0,
+        "failed": 0,
+        "withLiveMatchId": 0,
+        "liveStates": {}
+      }
+    },
+    {
+      "at": "2026-03-07T19:56:12.041Z",
+      "summary": {
+        "total": 0,
+        "scheduled": 0,
+        "running": 0,
+        "played": 0,
+        "failed": 0,
+        "withLiveMatchId": 0,
+        "liveStates": {}
+      }
+    },
+    {
+      "at": "2026-03-07T19:56:37.216Z",
+      "summary": {
+        "total": 0,
+        "scheduled": 0,
+        "running": 0,
+        "played": 0,
+        "failed": 0,
+        "withLiveMatchId": 0,
+        "liveStates": {}
+      }
+    },
+    {
+      "at": "2026-03-07T19:57:02.691Z",
+      "summary": {
+        "total": 0,
+        "scheduled": 0,
+        "running": 0,
+        "played": 0,
+        "failed": 0,
+        "withLiveMatchId": 0,
+        "liveStates": {}
+      }
+    },
+    {
+      "at": "2026-03-07T19:57:28.077Z",
+      "summary": {
+        "total": 0,
+        "scheduled": 0,
+        "running": 0,
+        "played": 0,
+        "failed": 0,
+        "withLiveMatchId": 0,
+        "liveStates": {}
+      }
+    },
+    {
+      "at": "2026-03-07T19:57:53.096Z",
+      "summary": {
+        "total": 0,
+        "scheduled": 0,
+        "running": 0,
+        "played": 0,
+        "failed": 0,
+        "withLiveMatchId": 0,
+        "liveStates": {}
+      }
+    },
+    {
+      "at": "2026-03-07T19:58:18.683Z",
+      "summary": {
+        "total": 0,
+        "scheduled": 0,
+        "running": 0,
+        "played": 0,
+        "failed": 0,
+        "withLiveMatchId": 0,
+        "liveStates": {}
+      }
+    },
+    {
+      "at": "2026-03-07T19:58:43.741Z",
+      "summary": {
+        "total": 0,
+        "scheduled": 0,
+        "running": 0,
+        "played": 0,
+        "failed": 0,
+        "withLiveMatchId": 0,
+        "liveStates": {}
+      }
+    },
+    {
+      "at": "2026-03-07T19:59:08.758Z",
+      "summary": {
+        "total": 0,
+        "scheduled": 0,
+        "running": 0,
+        "played": 0,
+        "failed": 0,
+        "withLiveMatchId": 0,
+        "liveStates": {}
+      }
+    },
+    {
+      "at": "2026-03-07T19:59:34.137Z",
+      "summary": {
+        "total": 0,
+        "scheduled": 0,
+        "running": 0,
+        "played": 0,
+        "failed": 0,
+        "withLiveMatchId": 0,
+        "liveStates": {}
+      }
+    },
+    {
+      "at": "2026-03-07T19:59:59.123Z",
+      "summary": {
+        "total": 0,
+        "scheduled": 0,
+        "running": 0,
+        "played": 0,
+        "failed": 0,
+        "withLiveMatchId": 0,
+        "liveStates": {}
+      }
+    },
+    {
+      "at": "2026-03-07T20:00:24.294Z",
+      "summary": {
+        "total": 0,
+        "scheduled": 0,
+        "running": 0,
+        "played": 0,
+        "failed": 0,
+        "withLiveMatchId": 0,
+        "liveStates": {}
+      }
+    },
+    {
+      "at": "2026-03-07T20:00:49.665Z",
+      "summary": {
+        "total": 0,
+        "scheduled": 0,
+        "running": 0,
+        "played": 0,
+        "failed": 0,
+        "withLiveMatchId": 0,
+        "liveStates": {}
+      }
+    },
+    {
+      "at": "2026-03-07T20:01:15.478Z",
+      "summary": {
+        "total": 0,
+        "scheduled": 0,
+        "running": 0,
+        "played": 0,
+        "failed": 0,
+        "withLiveMatchId": 0,
+        "liveStates": {}
+      }
+    },
+    {
+      "at": "2026-03-07T20:01:41.078Z",
+      "summary": {
+        "total": 0,
+        "scheduled": 0,
+        "running": 0,
+        "played": 0,
+        "failed": 0,
+        "withLiveMatchId": 0,
+        "liveStates": {}
+      }
+    },
+    {
+      "at": "2026-03-07T20:02:06.916Z",
+      "summary": {
+        "total": 0,
+        "scheduled": 0,
+        "running": 0,
+        "played": 0,
+        "failed": 0,
+        "withLiveMatchId": 0,
+        "liveStates": {}
+      }
+    },
+    {
+      "at": "2026-03-07T20:02:32.832Z",
+      "summary": {
+        "total": 0,
+        "scheduled": 0,
+        "running": 0,
+        "played": 0,
+        "failed": 0,
+        "withLiveMatchId": 0,
+        "liveStates": {}
+      }
+    },
+    {
+      "at": "2026-03-07T20:02:58.399Z",
+      "summary": {
+        "total": 0,
+        "scheduled": 0,
+        "running": 0,
+        "played": 0,
+        "failed": 0,
+        "withLiveMatchId": 0,
+        "liveStates": {}
+      }
+    },
+    {
+      "at": "2026-03-07T20:03:23.877Z",
+      "summary": {
+        "total": 0,
+        "scheduled": 0,
+        "running": 0,
+        "played": 0,
+        "failed": 0,
+        "withLiveMatchId": 0,
+        "liveStates": {}
+      }
+    },
+    {
+      "at": "2026-03-07T20:03:49.150Z",
+      "summary": {
+        "total": 0,
+        "scheduled": 0,
+        "running": 0,
+        "played": 0,
+        "failed": 0,
+        "withLiveMatchId": 0,
+        "liveStates": {}
+      }
+    },
+    {
+      "at": "2026-03-07T20:04:14.689Z",
+      "summary": {
+        "total": 0,
+        "scheduled": 0,
+        "running": 0,
+        "played": 0,
+        "failed": 0,
+        "withLiveMatchId": 0,
+        "liveStates": {}
+      }
+    },
+    {
+      "at": "2026-03-07T20:04:39.969Z",
+      "summary": {
+        "total": 0,
+        "scheduled": 0,
+        "running": 0,
+        "played": 0,
+        "failed": 0,
+        "withLiveMatchId": 0,
+        "liveStates": {}
+      }
+    },
+    {
+      "at": "2026-03-07T20:05:05.272Z",
+      "summary": {
+        "total": 0,
+        "scheduled": 0,
+        "running": 0,
+        "played": 0,
+        "failed": 0,
+        "withLiveMatchId": 0,
+        "liveStates": {}
+      }
+    },
+    {
+      "at": "2026-03-07T20:05:30.319Z",
+      "summary": {
+        "total": 0,
+        "scheduled": 0,
+        "running": 0,
+        "played": 0,
+        "failed": 0,
+        "withLiveMatchId": 0,
+        "liveStates": {}
+      }
+    },
+    {
+      "at": "2026-03-07T20:05:55.822Z",
+      "summary": {
+        "total": 0,
+        "scheduled": 0,
+        "running": 0,
+        "played": 0,
+        "failed": 0,
+        "withLiveMatchId": 0,
+        "liveStates": {}
+      }
+    },
+    {
+      "at": "2026-03-07T20:06:21.006Z",
+      "summary": {
+        "total": 0,
+        "scheduled": 0,
+        "running": 0,
+        "played": 0,
+        "failed": 0,
+        "withLiveMatchId": 0,
+        "liveStates": {}
+      }
+    },
+    {
+      "at": "2026-03-07T20:06:48.911Z",
+      "summary": {
+        "total": 0,
+        "scheduled": 0,
+        "running": 0,
+        "played": 0,
+        "failed": 0,
+        "withLiveMatchId": 0,
+        "liveStates": {}
+      }
+    },
+    {
+      "at": "2026-03-07T20:07:14.493Z",
+      "summary": {
+        "total": 0,
+        "scheduled": 0,
+        "running": 0,
+        "played": 0,
+        "failed": 0,
+        "withLiveMatchId": 0,
+        "liveStates": {}
+      }
+    },
+    {
+      "at": "2026-03-07T20:07:39.679Z",
+      "summary": {
+        "total": 0,
+        "scheduled": 0,
+        "running": 0,
+        "played": 0,
+        "failed": 0,
+        "withLiveMatchId": 0,
+        "liveStates": {}
+      }
+    },
+    {
+      "at": "2026-03-07T20:08:08.133Z",
+      "summary": {
+        "total": 0,
+        "scheduled": 0,
+        "running": 0,
+        "played": 0,
+        "failed": 0,
+        "withLiveMatchId": 0,
+        "liveStates": {}
+      }
+    }
+  ]
+}

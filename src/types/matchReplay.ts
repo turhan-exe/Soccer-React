@@ -44,6 +44,7 @@ export interface MatchVideoMeta {
   storagePath?: string;
   signedUrl?: string;
   signedGetUrl?: string;
+  source?: 'render' | 'live' | string;
   durationMs?: number;
   createdAt?: FirestoreTimestamp;
   uploaded?: boolean;

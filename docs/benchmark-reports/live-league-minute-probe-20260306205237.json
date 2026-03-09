@@ -1,0 +1,215 @@
+﻿{
+    "nodeIp":  "89.167.122.255",
+    "matchId":  "lg_9143f824eb3a476fb08ece2f2a1b5bec",
+    "pollIntervalSeconds":  20,
+    "timeline":  [
+                     {
+                         "at":  "2026-03-06T20:52:37.9274298+03:00",
+                         "step":  1,
+                         "matchState":  "starting",
+                         "matchMinute":  null,
+                         "matchMinuteAt":  null,
+                         "allocationState":  "starting",
+                         "allocationMinute":  null,
+                         "allocationMinuteAt":  null,
+                         "error":  null
+                     },
+                     {
+                         "at":  "2026-03-06T20:52:58.0811282+03:00",
+                         "step":  2,
+                         "matchState":  "server_started",
+                         "matchMinute":  null,
+                         "matchMinuteAt":  null,
+                         "allocationState":  "running",
+                         "allocationMinute":  null,
+                         "allocationMinuteAt":  null,
+                         "error":  null
+                     },
+                     {
+                         "at":  "2026-03-06T20:53:18.2404180+03:00",
+                         "step":  3,
+                         "matchState":  "server_started",
+                         "matchMinute":  null,
+                         "matchMinuteAt":  null,
+                         "allocationState":  "running",
+                         "allocationMinute":  null,
+                         "allocationMinuteAt":  null,
+                         "error":  null
+                     },
+                     {
+                         "at":  "2026-03-06T20:53:38.4052056+03:00",
+                         "step":  4,
+                         "matchState":  "server_started",
+                         "matchMinute":  null,
+                         "matchMinuteAt":  null,
+                         "allocationState":  "running",
+                         "allocationMinute":  null,
+                         "allocationMinuteAt":  null,
+                         "error":  null
+                     },
+                     {
+                         "at":  "2026-03-06T20:53:58.5654456+03:00",
+                         "step":  5,
+                         "matchState":  "server_started",
+                         "matchMinute":  null,
+                         "matchMinuteAt":  null,
+                         "allocationState":  "running",
+                         "allocationMinute":  null,
+                         "allocationMinuteAt":  null,
+                         "error":  null
+                     },
+                     {
+                         "at":  "2026-03-06T20:54:18.7208953+03:00",
+                         "step":  6,
+                         "matchState":  "server_started",
+                         "matchMinute":  null,
+                         "matchMinuteAt":  null,
+                         "allocationState":  "running",
+                         "allocationMinute":  null,
+                         "allocationMinuteAt":  null,
+                         "error":  null
+                     },
+                     {
+                         "at":  "2026-03-06T20:54:38.8735658+03:00",
+                         "step":  7,
+                         "matchState":  "server_started",
+                         "matchMinute":  null,
+                         "matchMinuteAt":  null,
+                         "allocationState":  "running",
+                         "allocationMinute":  null,
+                         "allocationMinuteAt":  null,
+                         "error":  null
+                     },
+                     {
+                         "at":  "2026-03-06T20:54:59.0398603+03:00",
+                         "step":  8,
+                         "matchState":  "server_started",
+                         "matchMinute":  null,
+                         "matchMinuteAt":  null,
+                         "allocationState":  "running",
+                         "allocationMinute":  null,
+                         "allocationMinuteAt":  null,
+                         "error":  null
+                     },
+                     {
+                         "at":  "2026-03-06T20:55:19.2042681+03:00",
+                         "step":  9,
+                         "matchState":  "server_started",
+                         "matchMinute":  null,
+                         "matchMinuteAt":  null,
+                         "allocationState":  "running",
+                         "allocationMinute":  null,
+                         "allocationMinuteAt":  null,
+                         "error":  null
+                     },
+                     {
+                         "at":  "2026-03-06T20:55:39.3560013+03:00",
+                         "step":  10,
+                         "matchState":  "server_started",
+                         "matchMinute":  null,
+                         "matchMinuteAt":  null,
+                         "allocationState":  "running",
+                         "allocationMinute":  null,
+                         "allocationMinuteAt":  null,
+                         "error":  null
+                     },
+                     {
+                         "at":  "2026-03-06T20:56:00.5096691+03:00",
+                         "step":  11,
+                         "matchState":  "server_started",
+                         "matchMinute":  null,
+                         "matchMinuteAt":  null,
+                         "allocationState":  "running",
+                         "allocationMinute":  null,
+                         "allocationMinuteAt":  null,
+                         "error":  null
+                     },
+                     {
+                         "at":  "2026-03-06T20:56:20.7527105+03:00",
+                         "step":  12,
+                         "matchState":  "server_started",
+                         "matchMinute":  null,
+                         "matchMinuteAt":  null,
+                         "allocationState":  "running",
+                         "allocationMinute":  null,
+                         "allocationMinuteAt":  null,
+                         "error":  null
+                     },
+                     {
+                         "at":  "2026-03-06T20:56:40.9114389+03:00",
+                         "step":  13,
+                         "matchState":  "server_started",
+                         "matchMinute":  null,
+                         "matchMinuteAt":  null,
+                         "allocationState":  "running",
+                         "allocationMinute":  null,
+                         "allocationMinuteAt":  null,
+                         "error":  null
+                     },
+                     {
+                         "at":  "2026-03-06T20:57:01.0698317+03:00",
+                         "step":  14,
+                         "matchState":  "server_started",
+                         "matchMinute":  null,
+                         "matchMinuteAt":  null,
+                         "allocationState":  "running",
+                         "allocationMinute":  null,
+                         "allocationMinuteAt":  null,
+                         "error":  null
+                     },
+                     {
+                         "at":  "2026-03-06T20:57:21.2314570+03:00",
+                         "step":  15,
+                         "matchState":  "server_started",
+                         "matchMinute":  null,
+                         "matchMinuteAt":  null,
+                         "allocationState":  "running",
+                         "allocationMinute":  null,
+                         "allocationMinuteAt":  null,
+                         "error":  null
+                     },
+                     {
+                         "at":  "2026-03-06T20:57:41.3782332+03:00",
+                         "step":  16,
+                         "matchState":  "server_started",
+                         "matchMinute":  null,
+                         "matchMinuteAt":  null,
+                         "allocationState":  "running",
+                         "allocationMinute":  null,
+                         "allocationMinuteAt":  null,
+                         "error":  null
+                     },
+                     {
+                         "at":  "2026-03-06T20:58:01.5403444+03:00",
+                         "step":  17,
+                         "matchState":  "server_started",
+                         "matchMinute":  null,
+                         "matchMinuteAt":  null,
+                         "allocationState":  "running",
+                         "allocationMinute":  null,
+                         "allocationMinuteAt":  null,
+                         "error":  null
+                     },
+                     {
+                         "at":  "2026-03-06T20:58:21.7010142+03:00",
+                         "step":  18,
+                         "matchState":  "server_started",
+                         "matchMinute":  null,
+                         "matchMinuteAt":  null,
+                         "allocationState":  "running",
+                         "allocationMinute":  null,
+                         "allocationMinuteAt":  null,
+                         "error":  null
+                     }
+                 ],
+    "pollCount":  18,
+    "prepare":  {
+                    "matchId":  "lg_9143f824eb3a476fb08ece2f2a1b5bec",
+                    "state":  "warm",
+                    "allocatedNodeId":  "league-01",
+                    "nodeId":  "league-01",
+                    "serverIp":  "89.167.122.255",
+                    "serverPort":  21001,
+                    "expiresAt":  "2026-03-06T17:52:37.305Z"
+                }
+}

@@ -19,6 +19,11 @@ export function firstOfMonthAt19TR(base: Date = new Date()): Date {
   return trAt(first, 19, 0);
 }
 
+export function firstOfSpecificMonthAt19TR(year: number, month: number): Date {
+  const first = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0));
+  return trAt(first, 19, 0);
+}
+
 export function nextMonthFirstAt19TR(base: Date = new Date()): Date {
   const d = new Date(base);
   const year = Number(formatInTimeZone(d, TZ, 'yyyy'));
@@ -39,6 +44,20 @@ export function monthKeyTR(date: Date = new Date()): string {
   return formatInTimeZone(date, TZ, 'yyyy-MM');
 }
 
+export function monthStartAt19TR(monthKey: string): Date {
+  const normalized = String(monthKey || '').trim();
+  const match = /^(\d{4})-(\d{2})$/.exec(normalized);
+  if (!match) {
+    throw new Error(`Invalid monthKey: ${monthKey}`);
+  }
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  if (month < 1 || month > 12) {
+    throw new Error(`Invalid monthKey: ${monthKey}`);
+  }
+  return firstOfSpecificMonthAt19TR(year, month);
+}
+
 export function computeRoundForDate(startDate: Date, at: Date = new Date()): number {
   // Round 1 is at startDate (19:00 TR); each subsequent round is +1 day at 19:00 TR
   const start = startDate;
@@ -54,6 +73,6 @@ export function computeRoundForDate(startDate: Date, at: Date = new Date()): num
 
 export function dateForRound(startDate: Date, round: number): Date {
   const d = addDays(startDate, Math.max(0, round - 1));
-  return trAt(d, 19, 0);
+  const hour = Number(formatInTimeZone(startDate, TZ, 'HH'));
+  return trAt(d, Number.isInteger(hour) ? hour : 19, 0);
 }
-

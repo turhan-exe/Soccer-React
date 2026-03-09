@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import {
      getFriends,
@@ -51,7 +51,7 @@ export default function FriendsPage() {
      const [selectedFriendForChat, setSelectedFriendForChat] = useState<Friend | null>(null);
      const [loading, setLoading] = useState(false);
 
-     const loadData = async () => {
+     const loadData = useCallback(async () => {
           if (!user) return;
           try {
                const [friendsData, requestsData] = await Promise.all([
@@ -64,11 +64,11 @@ export default function FriendsPage() {
                console.error("Veriler yuklenemedi", error);
                toast.error("Veriler yuklenirken hata olustu.");
           }
-     };
+     }, [user]);
 
      useEffect(() => {
           loadData();
-     }, [user]);
+     }, [loadData]);
 
      // URL'den chatWith parametresini kontrol et
      useEffect(() => {
@@ -109,7 +109,10 @@ export default function FriendsPage() {
                }
           } catch (error) {
                console.error(error);
-               const msg = (error as any)?.message || 'Bilinmeyen hata';
+               const msg =
+                    error && typeof error === 'object' && 'message' in error
+                         ? String((error as { message?: string }).message || 'Bilinmeyen hata')
+                         : 'Bilinmeyen hata';
                window.alert(`MOBIL HATA DETAYI:\n${msg}`);
                toast.error(`Arama hatasi: ${msg}`);
           } finally {
@@ -181,10 +184,13 @@ export default function FriendsPage() {
           }
      };
 
-     // Dostluk Maçı (Milestone 1 - Native Connection Test)
-     const handleFriendlyMatch = (friendName: string) => {
-          // Toast mesajı yerine doğrudan sayfaya yönlendiriyoruz
-          navigate('/friendly-match');
+     // Dostluk Maçı: seçili arkadaşı query ile FriendlyMatchPage'e taşı.
+     const handleFriendlyMatch = (friend: Friend) => {
+          const query = new URLSearchParams({
+               opponentUserId: friend.id,
+               opponentName: friend.teamName || friend.managerName || friend.id
+          });
+          navigate(`/friendly-match?${query.toString()}`);
      };
 
      // Chat Açma ve Okundu İşaretleme
@@ -271,7 +277,7 @@ export default function FriendsPage() {
                                                                       size="icon"
                                                                       variant="secondary"
                                                                       className="h-8 w-8 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20"
-                                                                      onClick={() => handleFriendlyMatch(friend.teamName)}
+                                                                      onClick={() => handleFriendlyMatch(friend)}
                                                                       title="Dostluk Maci"
                                                                  >
                                                                       <Swords size={14} />

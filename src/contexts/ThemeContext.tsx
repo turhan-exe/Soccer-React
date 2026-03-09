@@ -42,11 +42,8 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
           document.documentElement.classList.remove('dark');
         }
       } else {
-        // Default to dark? Or user preference?
-        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-        setTheme(prefersDark ? 'dark' : 'light');
-        if (prefersDark) document.documentElement.classList.add('dark');
-        else document.documentElement.classList.remove('dark');
+        setTheme('dark');
+        document.documentElement.classList.add('dark');
       }
     } catch {
       setTheme('dark');
@@ -64,7 +61,9 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
       }
       try {
         localStorage.setItem('theme', next);
-      } catch { }
+      } catch {
+        // Ignore storage write errors (private mode/quota).
+      }
       return next;
     });
   }, []);

@@ -18,12 +18,12 @@ const fromDateMock = vi.fn();
 const addDocMock = vi.fn(() => ({ id: 'id' }));
 
 vi.mock('firebase/firestore', () => ({
-  doc: (...args: unknown[]) => docMock(...args),
-  collection: (...args: unknown[]) => collectionMock(...args),
-  runTransaction: (...args: unknown[]) => runTransactionMock(...args),
-  addDoc: (...args: unknown[]) => addDocMock(...args),
+  doc: docMock,
+  collection: collectionMock,
+  runTransaction: runTransactionMock,
+  addDoc: addDocMock,
   serverTimestamp: vi.fn(),
-  Timestamp: { fromDate: (...args: unknown[]) => fromDateMock(...args) },
+  Timestamp: { fromDate: fromDateMock },
   increment: vi.fn(),
   getDocs: vi.fn(),
   query: vi.fn(),

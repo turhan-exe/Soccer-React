@@ -630,15 +630,14 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       return;
     }
 
-    let outcome: 'deactivated' | 'already' = 'already';
+    const isActive = sanitizeVip(inventory.vip).isActive;
+    if (!isActive) {
+      toast('VIP uyeligin zaten devre disi.');
+      return;
+    }
 
     setInventory((prev) => {
       const vipState = sanitizeVip(prev.vip);
-      if (!vipState.isActive) {
-        outcome = 'already';
-        return prev;
-      }
-      outcome = 'deactivated';
       return {
         ...prev,
         vip: {
@@ -651,12 +650,8 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       };
     });
 
-    if (outcome === 'deactivated') {
-      toast.success('VIP uyeligi devre disi birakildi.');
-    } else {
-      toast('VIP uyeligin zaten devre disi.');
-    }
-  }, [user]);
+    toast.success('VIP uyeligi devre disi birakildi.');
+  }, [inventory.vip, user]);
 
   const claimMonthlyStarCard = useCallback(() => {
     if (!user) {
@@ -664,24 +659,25 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       return;
     }
 
-    let outcome: 'success' | 'notVip' | 'already' = 'already';
-    let grantedAmount = 1;
+    const currentVipStatus = sanitizeVip(inventory.vip);
+    const currentVipActive = computeVipActive(currentVipStatus);
+    const currentMonth = formatMonthKey(new Date());
+
+    if (!currentVipActive) {
+      toast.error('Bu ozellik sadece VIP uyeler icin.');
+      return;
+    }
+
+    if (getMonthKeyFromIso(currentVipStatus.lastMonthlyStarCardDate) === currentMonth) {
+      toast.error('Bu ayki yildiz oyuncu kartini zaten aldin.');
+      return;
+    }
+
+    const grantedAmount = currentVipStatus.plan === 'yearly' ? 2 : 1;
 
     setInventory((prev) => {
       const vipState = sanitizeVip(prev.vip);
-      if (!computeVipActive(vipState)) {
-        outcome = 'notVip';
-        return prev;
-      }
-      const currentMonth = formatMonthKey(new Date());
-      const lastClaim = getMonthKeyFromIso(vipState.lastMonthlyStarCardDate);
-      if (lastClaim === currentMonth) {
-        outcome = 'already';
-        return prev;
-      }
-      outcome = 'success';
       const claimAmount = vipState.plan === 'yearly' ? 2 : 1;
-      grantedAmount = claimAmount;
       return {
         ...prev,
         vip: {
@@ -692,19 +688,12 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       };
     });
 
-    if (outcome === 'success') {
-      const claimAmount = grantedAmount;
-      const message =
-        claimAmount === 1
-          ? 'VIP yildiz oyuncu karti hesabina eklendi.'
-          : `${claimAmount} VIP yildiz oyuncu karti hesabina eklendi.`;
-      toast.success(message);
-    } else if (outcome === 'notVip') {
-      toast.error('Bu ozellik sadece VIP uyeler icin.');
-    } else {
-      toast.error('Bu ayki yildiz oyuncu kartini zaten aldin.');
-    }
-  }, [user]);
+    const message =
+      grantedAmount === 1
+        ? 'VIP yildiz oyuncu karti hesabina eklendi.'
+        : `${grantedAmount} VIP yildiz oyuncu karti hesabina eklendi.`;
+    toast.success(message);
+  }, [inventory.vip, user]);
 
   const consumeVipNostalgiaReward = useCallback(() => {
     setInventory((prev) => {

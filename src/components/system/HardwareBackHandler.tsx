@@ -38,7 +38,7 @@ const HardwareBackHandler = () => {
     });
 
     return () => {
-      removeListener.remove();
+      void removeListener.then((listener) => listener.remove());
     };
   }, [navigate, location]);
 

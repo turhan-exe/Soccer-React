@@ -1,0 +1,83 @@
+{
+  "mode": "report",
+  "firestoreMode": "client",
+  "kickoffHourTR": 12,
+  "kickoffAt": "2026-03-08T09:00:00.000Z",
+  "summary": {
+    "total": 24,
+    "scheduled": 0,
+    "running": 0,
+    "played": 23,
+    "failed": 1,
+    "withLiveMatchId": 24,
+    "liveStates": {
+      "running": 23,
+      "failed": 1
+    },
+    "missingVideo": 24,
+    "missingScore": 0
+  },
+  "sampleStatuses": [
+    {
+      "fixtureId": "0rwsq65K0qUxTwQSSOUi",
+      "matchId": "0rwsq65K0qUxTwQSSOUi",
+      "firestoreState": "running",
+      "matchControlState": null
+    },
+    {
+      "fixtureId": "4hugHisIepaDb11bnM5j",
+      "matchId": "4hugHisIepaDb11bnM5j",
+      "firestoreState": "running",
+      "matchControlState": null
+    },
+    {
+      "fixtureId": "8nqgfj3ZL2vaikdep6uL",
+      "matchId": "8nqgfj3ZL2vaikdep6uL",
+      "firestoreState": "running",
+      "matchControlState": null
+    },
+    {
+      "fixtureId": "Ctzn4NgTy9T8FcwEt1zS",
+      "matchId": "Ctzn4NgTy9T8FcwEt1zS",
+      "firestoreState": "running",
+      "matchControlState": null
+    },
+    {
+      "fixtureId": "RVWOcDDZnzDnJ8oe2nJp",
+      "matchId": "RVWOcDDZnzDnJ8oe2nJp",
+      "firestoreState": "running",
+      "matchControlState": null
+    },
+    {
+      "fixtureId": "ZF6aL8viKyPo0BIPmaFG",
+      "matchId": "ZF6aL8viKyPo0BIPmaFG",
+      "firestoreState": "running",
+      "matchControlState": null
+    },
+    {
+      "fixtureId": "cm9OfnwPmN8LfNoogpJj",
+      "matchId": "cm9OfnwPmN8LfNoogpJj",
+      "firestoreState": "running",
+      "matchControlState": null
+    },
+    {
+      "fixtureId": "w8RZ5fdKXhgZZ04d0YCr",
+      "matchId": "w8RZ5fdKXhgZZ04d0YCr",
+      "firestoreState": "running",
+      "matchControlState": null
+    },
+    {
+      "fixtureId": "2m1NTIbagJZEYWtACnNk",
+      "matchId": "2m1NTIbagJZEYWtACnNk",
+      "firestoreState": "running",
+      "matchControlState": null
+    },
+    {
+      "fixtureId": "7QIGlRo35Nrbn3l2I90m",
+      "matchId": "7QIGlRo35Nrbn3l2I90m",
+      "firestoreState": "failed",
+      "matchControlState": null
+    }
+  ],
+  "failures": []
+}

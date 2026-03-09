@@ -26,6 +26,15 @@ service cloud.firestore {
         allow read: if isSignedIn();
         allow write: if isSignedIn() && (isOwner(uid) || request.auth.uid == friendId);
       }
+      match /rentedLegends/{rentalId} {
+        allow read, write: if isOwner(uid);
+      }
+      match /training/{documentId} {
+        allow read, write: if isOwner(uid);
+      }
+      match /trainingHistory/{recordId} {
+        allow read, write: if isOwner(uid);
+      }
     }
 
     // --- LEAGUES & STANDINGS (Admin Repair Fix) ---

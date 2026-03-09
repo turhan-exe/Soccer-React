@@ -14,6 +14,8 @@ interface ImportMetaEnv {
   readonly VITE_USERS_API_ENDPOINT?: string;
   readonly VITE_CHAT_SANCTION_ENDPOINT?: string;
   readonly VITE_CHAT_SANCTION_SECRET?: string;
+  readonly VITE_MATCH_CONTROL_BASE_URL?: string;
+  readonly VITE_MATCH_CONTROL_BEARER?: string;
 }
 
 interface ImportMeta {

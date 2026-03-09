@@ -1,0 +1,83 @@
+{
+  "mode": "report",
+  "firestoreMode": "client",
+  "kickoffHourTR": 19,
+  "kickoffAt": "2026-03-08T16:00:00.000Z",
+  "summary": {
+    "total": 40,
+    "scheduled": 0,
+    "running": 0,
+    "played": 40,
+    "failed": 0,
+    "withLiveMatchId": 40,
+    "liveStates": {
+      "ended": 27,
+      "running": 13
+    },
+    "missingVideo": 40,
+    "missingScore": 0
+  },
+  "sampleStatuses": [
+    {
+      "fixtureId": "BDZki0l1izIHAU17L49I",
+      "matchId": "BDZki0l1izIHAU17L49I",
+      "firestoreState": "ended",
+      "matchControlState": null
+    },
+    {
+      "fixtureId": "HnYaEWXday0sfqAAa1RJ",
+      "matchId": "HnYaEWXday0sfqAAa1RJ",
+      "firestoreState": "ended",
+      "matchControlState": null
+    },
+    {
+      "fixtureId": "L9QVSWc97UmX0KqwPRRA",
+      "matchId": "L9QVSWc97UmX0KqwPRRA",
+      "firestoreState": "ended",
+      "matchControlState": null
+    },
+    {
+      "fixtureId": "Nj1g7R34YeVDHHcz1mnW",
+      "matchId": "Nj1g7R34YeVDHHcz1mnW",
+      "firestoreState": "ended",
+      "matchControlState": null
+    },
+    {
+      "fixtureId": "QiJDBRF54ZalSvzl87te",
+      "matchId": "QiJDBRF54ZalSvzl87te",
+      "firestoreState": "ended",
+      "matchControlState": null
+    },
+    {
+      "fixtureId": "dMMqIN4Tadoy6x3MmYqa",
+      "matchId": "dMMqIN4Tadoy6x3MmYqa",
+      "firestoreState": "ended",
+      "matchControlState": null
+    },
+    {
+      "fixtureId": "qjkehizsDtxwGJjbUbJi",
+      "matchId": "qjkehizsDtxwGJjbUbJi",
+      "firestoreState": "ended",
+      "matchControlState": null
+    },
+    {
+      "fixtureId": "uAitbPiqd0ksJhFJTJ8F",
+      "matchId": "uAitbPiqd0ksJhFJTJ8F",
+      "firestoreState": "ended",
+      "matchControlState": null
+    },
+    {
+      "fixtureId": "0PYwIP3rYu5mtBMnnqNu",
+      "matchId": "0PYwIP3rYu5mtBMnnqNu",
+      "firestoreState": "ended",
+      "matchControlState": null
+    },
+    {
+      "fixtureId": "HAzWxxwmywFadI2ExHPs",
+      "matchId": "HAzWxxwmywFadI2ExHPs",
+      "firestoreState": "ended",
+      "matchControlState": null
+    }
+  ],
+  "failures": []
+}

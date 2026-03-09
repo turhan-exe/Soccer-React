@@ -15,9 +15,7 @@ workflows:
     scripts:
       - name: Install dependencies
         script: |
-          npm install
-          # Install capacitor-assets for icon generation
-          npm install @capacitor/assets --save-dev
+          npm ci
 
       - name: Build web assets
         script: |
@@ -36,9 +34,11 @@ workflows:
           find ios -name "project.pbxproj" -exec sed -i '' 's/TARGETED_DEVICE_FAMILY = "1, 2"/TARGETED_DEVICE_FAMILY = "1"/g' {} +
           echo "Updated TARGETED_DEVICE_FAMILY to 1 (iPhone only)"
 
-      - name: Add iOS platform
+      - name: Sync iOS platform
         script: |
-          npx cap add ios
+          if [ ! -d "ios/App" ]; then
+            npx cap add ios
+          fi
           npx cap sync ios
       
       - name: Increment Build Number

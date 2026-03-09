@@ -206,7 +206,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     });
 
     return () => {
-      deepLinkHandler.remove();
+      void deepLinkHandler.then((listener) => listener.remove());
     };
   }, []);
 

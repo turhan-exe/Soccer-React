@@ -1,0 +1,82 @@
+{
+  "mode": "prewarm",
+  "firestoreMode": "admin",
+  "kickoffHourTR": 18,
+  "kickoffAt": "2026-03-05T15:00:00.000Z",
+  "summary": {
+    "total": 40,
+    "scheduled": 40,
+    "running": 0,
+    "played": 0,
+    "failed": 0,
+    "withLiveMatchId": 40,
+    "liveStates": {
+      "warm": 40
+    },
+    "missingVideo": 40,
+    "missingScore": 0
+  },
+  "sampleStatuses": [
+    {
+      "fixtureId": "1v8YtsiBEQ0Jp9SmfWVG",
+      "matchId": "1v8YtsiBEQ0Jp9SmfWVG",
+      "firestoreState": "warm",
+      "matchControlState": "warm"
+    },
+    {
+      "fixtureId": "617o7P3fr1Bp6Xpqsu1E",
+      "matchId": "617o7P3fr1Bp6Xpqsu1E",
+      "firestoreState": "warm",
+      "matchControlState": "warm"
+    },
+    {
+      "fixtureId": "ASfFIpXUJe8rUqSDsURn",
+      "matchId": "ASfFIpXUJe8rUqSDsURn",
+      "firestoreState": "warm",
+      "matchControlState": "warm"
+    },
+    {
+      "fixtureId": "BpQd7HbiuIAb8uG7Fpor",
+      "matchId": "BpQd7HbiuIAb8uG7Fpor",
+      "firestoreState": "warm",
+      "matchControlState": "warm"
+    },
+    {
+      "fixtureId": "DS3Y7SYJGTBgvFNJ2P5w",
+      "matchId": "DS3Y7SYJGTBgvFNJ2P5w",
+      "firestoreState": "warm",
+      "matchControlState": "warm"
+    },
+    {
+      "fixtureId": "FxllXVHo3yuE7m82pCCb",
+      "matchId": "FxllXVHo3yuE7m82pCCb",
+      "firestoreState": "warm",
+      "matchControlState": "warm"
+    },
+    {
+      "fixtureId": "HoIFqNv6aO5dkQvpkPjL",
+      "matchId": "HoIFqNv6aO5dkQvpkPjL",
+      "firestoreState": "warm",
+      "matchControlState": "warm"
+    },
+    {
+      "fixtureId": "YzPayNQ68VMWp9UTx8rj",
+      "matchId": "YzPayNQ68VMWp9UTx8rj",
+      "firestoreState": "warm",
+      "matchControlState": "warm"
+    },
+    {
+      "fixtureId": "5nskMfkjwUUfWv6Ewofv",
+      "matchId": "5nskMfkjwUUfWv6Ewofv",
+      "firestoreState": "warm",
+      "matchControlState": "warm"
+    },
+    {
+      "fixtureId": "CW2Yfti0yczffEJF7H1F",
+      "matchId": "CW2Yfti0yczffEJF7H1F",
+      "firestoreState": "warm",
+      "matchControlState": "warm"
+    }
+  ],
+  "failures": []
+}

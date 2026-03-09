@@ -5,6 +5,10 @@ import { ensureBotTeamDoc } from './utils/bots.js';
 
 const db = getFirestore();
 const REGION = 'europe-west1';
+const ADMIN_SECRET = (functions.config() as any)?.admin?.secret
+  || (functions.config() as any)?.scheduler?.secret
+  || (functions.config() as any)?.orchestrate?.secret
+  || '';
 
 async function updateFixturesForSlot(leagueId: string, slotIndex: number, teamId: string) {
   const ref = db.collection('leagues').doc(leagueId);
@@ -38,6 +42,12 @@ interface CleanupSlotTarget {
   leagueId: string;
   slotIndex: number;
 }
+
+type SlotAssignmentResult = {
+  status: 'assigned' | 'already';
+  leagueId: string;
+  slotIndex: number | null;
+};
 
 function extractSlotIndex(
   doc: FirebaseFirestore.QueryDocumentSnapshot<FirebaseFirestore.DocumentData>
@@ -375,12 +385,12 @@ export async function assignIntoRandomBotSlot(teamId: string, teamName: string) 
 
   if (result.status === 'assigned') {
     await updateFixturesForSlot(result.leagueId, result.slotIndex!, teamId);
-    return { leagueId: result.leagueId, slotIndex: result.slotIndex };
+    return { status: result.status, leagueId: result.leagueId, slotIndex: result.slotIndex } satisfies SlotAssignmentResult;
   }
 
   if (result.slotIndex != null) {
     await updateFixturesForSlot(result.leagueId, result.slotIndex, teamId);
-    return { leagueId: result.leagueId, slotIndex: result.slotIndex };
+    return { status: result.status, leagueId: result.leagueId, slotIndex: result.slotIndex } satisfies SlotAssignmentResult;
   }
 
   // status === 'already' but slotIndex unknown: resolve slotIndex by querying the league.
@@ -393,7 +403,7 @@ export async function assignIntoRandomBotSlot(teamId: string, teamName: string) 
   if (slotIndex != null) {
     await updateFixturesForSlot(result.leagueId, slotIndex, teamId);
   }
-  return { leagueId: result.leagueId, slotIndex: slotIndex ?? null } as any;
+  return { status: result.status, leagueId: result.leagueId, slotIndex: slotIndex ?? null } satisfies SlotAssignmentResult;
 }
 
 export const assignRealTeamToFirstAvailableBotSlot = functions
@@ -445,46 +455,94 @@ export const assignRealTeamToFirstAvailableBotSlotHttp = functions
     }
   });
 
+async function assignAllOwnedTeamsToLeaguesInternal() {
+  functions.logger.info('[assignAllOwnedTeamsToLeaguesInternal] started');
+
+  const teamsSnap = await db.collection('teams').get();
+  functions.logger.info('[assignAllOwnedTeamsToLeaguesInternal] teams loaded', { total: teamsSnap.size });
+
+  const details: Array<Record<string, unknown>> = [];
+  let assigned = 0;
+  let already = 0;
+  let errors = 0;
+
+  for (const doc of teamsSnap.docs) {
+    const tData = doc.data() as any;
+    if (!tData.ownerUid) continue;
+
+    const name = tData.name || `Team ${doc.id}`;
+    try {
+      const result = await assignIntoRandomBotSlot(doc.id, name);
+      details.push({ id: doc.id, ...result });
+      if (result.status === 'assigned') assigned += 1;
+      else already += 1;
+    } catch (e: any) {
+      errors += 1;
+      functions.logger.error('[assignAllOwnedTeamsToLeaguesInternal] team failed', {
+        teamId: doc.id,
+        error: e?.message || String(e),
+      });
+      details.push({ id: doc.id, error: e?.message || 'error' });
+    }
+  }
+
+  const payload = { ok: true, assigned, already, errors, totalProcessed: assigned + already + errors, details };
+  functions.logger.info('[assignAllOwnedTeamsToLeaguesInternal] finished', {
+    assigned,
+    already,
+    errors,
+    totalProcessed: payload.totalProcessed,
+  });
+  return payload;
+}
+
+export const assignAllTeamsToLeaguesCallable = functions
+  .runWith({ timeoutSeconds: 540, memory: '1GB' })
+  .region(REGION)
+  .https.onCall(async (request) => {
+    const uid = request.auth?.uid;
+    if (!uid) throw new functions.https.HttpsError('unauthenticated', 'Auth required');
+    return assignAllOwnedTeamsToLeaguesInternal();
+  });
+
 export const assignAllTeamsToLeagues = functions
   .runWith({ timeoutSeconds: 540, memory: '1GB' })
   .region(REGION)
   .https.onRequest(async (req, res) => {
-    // Admin-only via bearer secret or just open for now (dev)
     res.set('Access-Control-Allow-Origin', '*');
     res.set('Access-Control-Allow-Headers', 'Authorization, Content-Type');
     if (req.method === 'OPTIONS') { res.status(204).send(''); return; }
+
+    try {
+      const payload = await assignAllOwnedTeamsToLeaguesInternal();
+      res.json(payload);
+    } catch (e: any) {
+      res.status(500).json({ ok: false, error: e?.message || 'error' });
+    }
+  });
+
+export const assignAllTeamsToLeaguesHttpAuth = functions
+  .runWith({ timeoutSeconds: 540, memory: '1GB' })
+  .region(REGION)
+  .https.onRequest(async (req, res) => {
+    res.set('Access-Control-Allow-Origin', '*');
+    res.set('Access-Control-Allow-Headers', 'Authorization, Content-Type, x-admin-secret');
+    if (req.method === 'OPTIONS') { res.status(204).send(''); return; }
+
     const authz = (req.headers.authorization as string) || '';
+    const bearer = authz.startsWith('Bearer ') ? authz.slice(7) : '';
+    const headerSecret = (req.headers['x-admin-secret'] as string) || '';
+    const providedSecret = bearer || headerSecret;
 
-    // Authorization check omitted for dev/one-time, or you can add it back
-
-    functions.logger.info('[HTTP] assignAllTeamsToLeagues: Started');
-
-    const teamsSnap = await db.collection('teams').get();
-    functions.logger.info(`[HTTP] Found ${teamsSnap.size} teams to process.`);
-
-    const results: any[] = [];
-
-    // Process using simple loop to avoid complex concurrency issues
-    let assigned = 0;
-    let errors = 0;
-
-    for (const doc of teamsSnap.docs) {
-      const tData = doc.data();
-      // Skip bots or teams without owner
-      if (!tData.ownerUid) continue;
-
-      const name = tData.name || `Team ${doc.id}`;
-      try {
-        const res = await assignIntoRandomBotSlot(doc.id, name);
-        results.push({ id: doc.id, ...res });
-        if (res.status === 'assigned') assigned++;
-      } catch (e: any) {
-        errors++;
-        functions.logger.error(`[HTTP] Failed for ${doc.id}`, e);
-        results.push({ id: doc.id, error: e.message });
-      }
+    if (!ADMIN_SECRET || providedSecret !== ADMIN_SECRET) {
+      res.status(401).json({ ok: false, error: 'Invalid admin secret' });
+      return;
     }
 
-    functions.logger.info('[HTTP] assignAllTeamsToLeagues: Finished', { assigned, errors });
-    res.json({ assigned, errors, details: results });
+    try {
+      const payload = await assignAllOwnedTeamsToLeaguesInternal();
+      res.json(payload);
+    } catch (e: any) {
+      res.status(500).json({ ok: false, error: e?.message || 'error' });
+    }
   });

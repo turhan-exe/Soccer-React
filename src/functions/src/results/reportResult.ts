@@ -46,6 +46,12 @@ export const reportResult = functions.region('europe-west1').https.onRequest(asy
         score,
         replayPath,
         playedAt: FieldValue.serverTimestamp(),
+        endedAt: FieldValue.serverTimestamp(),
+        'live.state': 'ended',
+        'live.endedAt': FieldValue.serverTimestamp(),
+        'live.lastLifecycleAt': FieldValue.serverTimestamp(),
+        'live.resultMissing': false,
+        'live.reason': FieldValue.delete(),
       });
 
       const homeId = cur.homeTeamId;

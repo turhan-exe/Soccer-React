@@ -1,0 +1,82 @@
+{
+  "mode": "report",
+  "firestoreMode": "client",
+  "kickoffHourTR": 15,
+  "kickoffAt": "2026-03-08T12:00:00.000Z",
+  "summary": {
+    "total": 32,
+    "scheduled": 0,
+    "running": 0,
+    "played": 32,
+    "failed": 0,
+    "withLiveMatchId": 32,
+    "liveStates": {
+      "running": 32
+    },
+    "missingVideo": 32,
+    "missingScore": 0
+  },
+  "sampleStatuses": [
+    {
+      "fixtureId": "3nF8sqTROfPUfGkiUWBo",
+      "matchId": "3nF8sqTROfPUfGkiUWBo",
+      "firestoreState": "running",
+      "matchControlState": null
+    },
+    {
+      "fixtureId": "4LmlGZlKizbiSDK2LUlk",
+      "matchId": "4LmlGZlKizbiSDK2LUlk",
+      "firestoreState": "running",
+      "matchControlState": null
+    },
+    {
+      "fixtureId": "7Y3Sha8FPuw1IA3cnayg",
+      "matchId": "7Y3Sha8FPuw1IA3cnayg",
+      "firestoreState": "running",
+      "matchControlState": null
+    },
+    {
+      "fixtureId": "DZp02oJ7fcQ94jLK7Qs5",
+      "matchId": "DZp02oJ7fcQ94jLK7Qs5",
+      "firestoreState": "running",
+      "matchControlState": null
+    },
+    {
+      "fixtureId": "PNlNj4SiI8pSjJsLc93W",
+      "matchId": "PNlNj4SiI8pSjJsLc93W",
+      "firestoreState": "running",
+      "matchControlState": null
+    },
+    {
+      "fixtureId": "Q7pi24BRuRHZB440cZpq",
+      "matchId": "Q7pi24BRuRHZB440cZpq",
+      "firestoreState": "running",
+      "matchControlState": null
+    },
+    {
+      "fixtureId": "hRlcipu2kN8OJ1yvTcgM",
+      "matchId": "hRlcipu2kN8OJ1yvTcgM",
+      "firestoreState": "running",
+      "matchControlState": null
+    },
+    {
+      "fixtureId": "utViafzHXB8iTjqvNMlb",
+      "matchId": "utViafzHXB8iTjqvNMlb",
+      "firestoreState": "running",
+      "matchControlState": null
+    },
+    {
+      "fixtureId": "7FfUJiHA5cDPvh79xCja",
+      "matchId": "7FfUJiHA5cDPvh79xCja",
+      "firestoreState": "running",
+      "matchControlState": null
+    },
+    {
+      "fixtureId": "8x66mbSrY1b2xfm02f6Z",
+      "matchId": "8x66mbSrY1b2xfm02f6Z",
+      "firestoreState": "running",
+      "matchControlState": null
+    }
+  ],
+  "failures": []
+}

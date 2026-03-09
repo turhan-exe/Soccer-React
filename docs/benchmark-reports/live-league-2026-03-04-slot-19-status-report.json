@@ -1,0 +1,83 @@
+{
+  "mode": "report",
+  "firestoreMode": "admin",
+  "kickoffHourTR": 19,
+  "kickoffAt": "2026-03-04T16:00:00.000Z",
+  "summary": {
+    "total": 40,
+    "scheduled": 18,
+    "running": 18,
+    "played": 4,
+    "failed": 0,
+    "withLiveMatchId": 22,
+    "liveStates": {
+      "running": 22,
+      "prepare_failed": 18
+    },
+    "missingVideo": 22,
+    "missingScore": 0
+  },
+  "sampleStatuses": [
+    {
+      "fixtureId": "7bNyIGzaKPuDBgTjyyxm",
+      "matchId": "7bNyIGzaKPuDBgTjyyxm",
+      "firestoreState": "running",
+      "matchControlState": "ended"
+    },
+    {
+      "fixtureId": "94dQ1EqudcylC3e9P0Lp",
+      "matchId": "94dQ1EqudcylC3e9P0Lp",
+      "firestoreState": "running",
+      "matchControlState": "ended"
+    },
+    {
+      "fixtureId": "ATAPmepTGhMzbc4k0Vz1",
+      "matchId": "ATAPmepTGhMzbc4k0Vz1",
+      "firestoreState": "running",
+      "matchControlState": "running"
+    },
+    {
+      "fixtureId": "CbkYG86hNCey208vlsR4",
+      "matchId": "CbkYG86hNCey208vlsR4",
+      "firestoreState": "running",
+      "matchControlState": "ended"
+    },
+    {
+      "fixtureId": "HDlWWtk5eiR5xRa3OaKy",
+      "matchId": "HDlWWtk5eiR5xRa3OaKy",
+      "firestoreState": "running",
+      "matchControlState": "running"
+    },
+    {
+      "fixtureId": "lbr8B3NNSHHCdYDdcibt",
+      "matchId": "lbr8B3NNSHHCdYDdcibt",
+      "firestoreState": "running",
+      "matchControlState": "running"
+    },
+    {
+      "fixtureId": "s55O0W5rDxUHahsCf3rT",
+      "matchId": "s55O0W5rDxUHahsCf3rT",
+      "firestoreState": "running",
+      "matchControlState": "running"
+    },
+    {
+      "fixtureId": "zf68UvIH6z6s7jJ3Z0fE",
+      "matchId": "zf68UvIH6z6s7jJ3Z0fE",
+      "firestoreState": "running",
+      "matchControlState": "running"
+    },
+    {
+      "fixtureId": "GjvgjseZBKhRbluIdczx",
+      "matchId": "GjvgjseZBKhRbluIdczx",
+      "firestoreState": "running",
+      "matchControlState": "running"
+    },
+    {
+      "fixtureId": "Q9G67apreTmb3fvlDHym",
+      "matchId": "Q9G67apreTmb3fvlDHym",
+      "firestoreState": "running",
+      "matchControlState": "running"
+    }
+  ],
+  "failures": []
+}

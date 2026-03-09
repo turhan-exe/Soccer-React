@@ -1,0 +1,21 @@
+{
+  "mode": "report",
+  "firestoreMode": "admin",
+  "kickoffHourTR": 19,
+  "kickoffAt": "2026-03-03T16:00:00.000Z",
+  "summary": {
+    "total": 40,
+    "scheduled": 40,
+    "running": 0,
+    "played": 0,
+    "failed": 0,
+    "withLiveMatchId": 0,
+    "liveStates": {
+      "none": 40
+    },
+    "missingVideo": 0,
+    "missingScore": 0
+  },
+  "sampleStatuses": [],
+  "failures": []
+}

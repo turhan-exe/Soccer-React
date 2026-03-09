@@ -1,0 +1,4145 @@
+﻿
+02-25 23:46:40.301  6908 24708 I Unity   : 
+[MatchNetworkManager][Awake] matchId=m_75de
+38858e2842ef9f4182a6aa8ac8e2 scene=_Startin
+gScene isServer=False isClient=False manual
+ refs before resolve: playerPrefab=NetworkP
+layer manualNetworkPlayer=NetworkPlayer man
+ualPlayerPrefab=PlayerControllerPrefab manu
+alPlayerPrefab.PlayerController=PlayerRende
+rerMobile manualBallLoader=3D_BallLoader
+02-25 23:46:40.301  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:Awak
+e()
+02-25 23:46:40.302  6908 24708 I Unity   : 
+[MatchNetworkManager] playerPrefab=NetworkP
+layer, manual=NetworkPlayer
+02-25 23:46:40.302  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:Awak
+e()
+02-25 23:46:40.302  6908 24708 I Unity   : 
+[MatchNetworkManager] Registered Connection
+ Player: NetworkPlayer
+02-25 23:46:40.302  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:Awak
+e()
+02-25 23:46:40.302  6908 24708 I Unity   : 
+[MatchNetworkManager] Using assigned 'manua
+lPlayerPrefab'.
+02-25 23:46:40.302  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:Awak
+e()
+02-25 23:46:40.303  6908 24708 I Unity   : 
+[MatchNetworkManager] Using assigned 'manua
+lBallLoader'.
+02-25 23:46:40.303  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:Awak
+e()
+02-25 23:46:40.303  6908 24708 I Unity   : 
+[MatchNetworkManager] Processing Ball Loade
+r. BallsCollection null? False
+02-25 23:46:40.303  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:Awak
+e()
+02-25 23:46:40.303  6908 24708 I Unity   : 
+[MatchNetworkManager] Ball Entries Count: 2
+02-25 23:46:40.303  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:Awak
+e()
+02-25 23:46:40.304  6908 24708 I Unity   : 
+[MatchNetworkManager] Force Loading Ball As
+set: a809d6ed006c88a4591cc1442f9f1442
+02-25 23:46:40.304  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:Awak
+e()
+02-25 23:46:40.686  6908 24708 I Unity   : 
+[MatchNetworkManager] Registered Ball Prefa
+b: BallGraphic1
+02-25 23:46:40.686  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:Awak
+e()
+02-25 23:46:40.688  6908 24708 I Unity   : 
+[MatchNetworkManager] Force Loading Ball As
+set: 569d6bf86fcf0004f9b83f00b74189a4
+02-25 23:46:40.688  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:Awak
+e()
+02-25 23:46:40.721  6908 24708 I Unity   : 
+[MatchNetworkManager] Registered Ball Prefa
+b: BallGraphic2
+02-25 23:46:40.721  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:Awak
+e()
+02-25 23:46:40.722  6908 24708 I Unity   : 
+[MatchNetworkManager][Awake.final_prefab_du
+mp] matchId=m_75de38858e2842ef9f4182a6aa8ac
+8e2 scene=_StartingScene isServer=False isC
+lient=False spawnPrefabs.count=6
+02-25 23:46:40.722  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:LogS
+pawnPrefabDump(String)
+02-25 23:46:40.722  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:Awak
+e()
+02-25 23:46:40.723  6908 24708 I Unity   : 
+[MatchNetworkManager][Awake.final_prefab_du
+mp] matchId=m_75de38858e2842ef9f4182a6aa8ac
+8e2 scene=_StartingScene isServer=False isC
+lient=False spawnPrefabs[0] name=MatchManag
+er hasNI=True assetId=1132405993
+02-25 23:46:40.723  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:LogS
+pawnPrefabDump(String)
+02-25 23:46:40.723  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:Awak
+e()
+02-25 23:46:40.723  6908 24708 I Unity   : 
+[MatchNetworkManager][Awake.final_prefab_du
+mp] matchId=m_75de38858e2842ef9f4182a6aa8ac
+8e2 scene=_StartingScene isServer=False isC
+lient=False spawnPrefabs[1] name=Ball hasNI
+=True assetId=552110353
+02-25 23:46:40.723  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:LogS
+pawnPrefabDump(String)
+02-25 23:46:40.723  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:Awak
+e()
+02-25 23:46:40.724  6908 24708 I Unity   : 
+[MatchNetworkManager][Awake.final_prefab_du
+mp] matchId=m_75de38858e2842ef9f4182a6aa8ac
+8e2 scene=_StartingScene isServer=False isC
+lient=False spawnPrefabs[2] name=PlayerRend
+ererMobile hasNI=True assetId=2701278640
+02-25 23:46:40.724  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:LogS
+pawnPrefabDump(String)
+02-25 23:46:40.724  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:Awak
+e()
+02-25 23:46:40.725  6908 24708 I Unity   : 
+[MatchNetworkManager][Awake.final_prefab_du
+mp] matchId=m_75de38858e2842ef9f4182a6aa8ac
+8e2 scene=_StartingScene isServer=False isC
+lient=False spawnPrefabs[3] name=NetworkPla
+yer hasNI=True assetId=522473810
+02-25 23:46:40.725  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:LogS
+pawnPrefabDump(String)
+02-25 23:46:40.725  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:Awak
+e()
+02-25 23:46:40.726  6908 24708 I Unity   : 
+[MatchNetworkManager][Awake.final_prefab_du
+mp] matchId=m_75de38858e2842ef9f4182a6aa8ac
+8e2 scene=_StartingScene isServer=False isC
+lient=False spawnPrefabs[4] name=BallGraphi
+c1 hasNI=True assetId=645420535
+02-25 23:46:40.726  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:LogS
+pawnPrefabDump(String)
+02-25 23:46:40.726  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:Awak
+e()
+02-25 23:46:40.727  6908 24708 I Unity   : 
+[MatchNetworkManager][Awake.final_prefab_du
+mp] matchId=m_75de38858e2842ef9f4182a6aa8ac
+8e2 scene=_StartingScene isServer=False isC
+lient=False spawnPrefabs[5] name=BallGraphi
+c2 hasNI=True assetId=4063231353
+02-25 23:46:40.727  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:LogS
+pawnPrefabDump(String)
+02-25 23:46:40.727  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:Awak
+e()
+02-25 23:46:43.352  6908 24708 I Unity   : 
+[MatchNetworkManager][Start] matchId=m_75de
+38858e2842ef9f4182a6aa8ac8e2 scene=_Startin
+gScene isServer=False isClient=False networ
+kAddress=65.21.153.127 runtimePort=21001 mo
+bileAutoConnectScheduled=True headless=Fals
+e
+02-25 23:46:43.352  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:Star
+t()
+02-25 23:46:49.139  6908 24708 I Unity   : 
+[MatchNetworkManager][ConnectToServer] matc
+hId=m_75de38858e2842ef9f4182a6aa8ac8e2 scen
+e=_StartingScene isServer=False isClient=Fa
+lse connecting to address=65.21.153.127 por
+tOverride=21001
+02-25 23:46:49.139  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:Conn
+ectToServer()
+02-25 23:46:49.142  6908 24708 W Unity   : 
+FStudio.Networking.MatchNetworkManager:Conn
+ectToServer()
+02-25 23:46:49.147  6908 24708 I Unity   : 
+[MatchNetworkManager][OnStartClient] matchI
+d=m_75de38858e2842ef9f4182a6aa8ac8e2 scene=
+_StartingScene isServer=False isClient=True
+ Registering custom spawn handlers.
+02-25 23:46:49.147  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:OnSt
+artClient()
+02-25 23:46:49.147  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:Conn
+ectToServer()
+02-25 23:46:49.147  6908 24708 I Unity   : 
+[MatchNetworkManager][OnStartClient.prefabs
+] matchId=m_75de38858e2842ef9f4182a6aa8ac8e
+2 scene=_StartingScene isServer=False isCli
+ent=True spawnPrefabs.count=6
+02-25 23:46:49.147  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:LogS
+pawnPrefabDump(String)
+02-25 23:46:49.147  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:OnSt
+artClient()
+02-25 23:46:49.147  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:Conn
+ectToServer()
+02-25 23:46:49.147  6908 24708 I Unity   : 
+[MatchNetworkManager][OnStartClient.prefabs
+] matchId=m_75de38858e2842ef9f4182a6aa8ac8e
+2 scene=_StartingScene isServer=False isCli
+ent=True spawnPrefabs[0] name=MatchManager 
+hasNI=True assetId=1132405993
+02-25 23:46:49.147  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:LogS
+pawnPrefabDump(String)
+02-25 23:46:49.147  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:OnSt
+artClient()
+02-25 23:46:49.147  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:Conn
+ectToServer()
+02-25 23:46:49.148  6908 24708 I Unity   : 
+[MatchNetworkManager][OnStartClient.prefabs
+] matchId=m_75de38858e2842ef9f4182a6aa8ac8e
+2 scene=_StartingScene isServer=False isCli
+ent=True spawnPrefabs[1] name=Ball hasNI=Tr
+ue assetId=552110353
+02-25 23:46:49.148  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:LogS
+pawnPrefabDump(String)
+02-25 23:46:49.148  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:OnSt
+artClient()
+02-25 23:46:49.148  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:Conn
+ectToServer()
+02-25 23:46:49.148  6908 24708 I Unity   : 
+[MatchNetworkManager][OnStartClient.prefabs
+] matchId=m_75de38858e2842ef9f4182a6aa8ac8e
+2 scene=_StartingScene isServer=False isCli
+ent=True spawnPrefabs[2] name=PlayerRendere
+rMobile hasNI=True assetId=2701278640
+02-25 23:46:49.148  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:LogS
+pawnPrefabDump(String)
+02-25 23:46:49.148  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:OnSt
+artClient()
+02-25 23:46:49.148  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:Conn
+ectToServer()
+02-25 23:46:49.148  6908 24708 I Unity   : 
+[MatchNetworkManager][OnStartClient.prefabs
+] matchId=m_75de38858e2842ef9f4182a6aa8ac8e
+2 scene=_StartingScene isServer=False isCli
+ent=True spawnPrefabs[3] name=NetworkPlayer
+ hasNI=True assetId=522473810
+02-25 23:46:49.148  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:LogS
+pawnPrefabDump(String)
+02-25 23:46:49.148  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:OnSt
+artClient()
+02-25 23:46:49.148  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:Conn
+ectToServer()
+02-25 23:46:49.149  6908 24708 I Unity   : 
+[MatchNetworkManager][OnStartClient.prefabs
+] matchId=m_75de38858e2842ef9f4182a6aa8ac8e
+2 scene=_StartingScene isServer=False isCli
+ent=True spawnPrefabs[4] name=BallGraphic1 
+hasNI=True assetId=645420535
+02-25 23:46:49.149  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:LogS
+pawnPrefabDump(String)
+02-25 23:46:49.149  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:OnSt
+artClient()
+02-25 23:46:49.149  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:Conn
+ectToServer()
+02-25 23:46:49.149  6908 24708 I Unity   : 
+[MatchNetworkManager][OnStartClient.prefabs
+] matchId=m_75de38858e2842ef9f4182a6aa8ac8e
+2 scene=_StartingScene isServer=False isCli
+ent=True spawnPrefabs[5] name=BallGraphic2 
+hasNI=True assetId=4063231353
+02-25 23:46:49.149  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:LogS
+pawnPrefabDump(String)
+02-25 23:46:49.149  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:OnSt
+artClient()
+02-25 23:46:49.149  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:Conn
+ectToServer()
+02-25 23:46:49.149  6908 24708 I Unity   : 
+[MatchNetworkManager][OnStartClient] matchI
+d=m_75de38858e2842ef9f4182a6aa8ac8e2 scene=
+_StartingScene isServer=False isClient=True
+ Registered Ball SpawnHandler assetId=55211
+0353 prefab=Ball
+02-25 23:46:49.149  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:OnSt
+artClient()
+02-25 23:46:49.149  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:Conn
+ectToServer()
+02-25 23:46:49.150  6908 24708 I Unity   : 
+[MatchNetworkManager][OnStartClient] matchI
+d=m_75de38858e2842ef9f4182a6aa8ac8e2 scene=
+_StartingScene isServer=False isClient=True
+ PlayerRendererMobile assetId(runtime)=2701
+278640 legacy=2701278640 using=2701278640 p
+refab=PlayerRendererMobile
+02-25 23:46:49.150  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:OnSt
+artClient()
+02-25 23:46:49.150  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:Conn
+ectToServer()
+02-25 23:46:49.150  6908 24708 I Unity   : 
+[MatchNetworkManager][OnStartClient] matchI
+d=m_75de38858e2842ef9f4182a6aa8ac8e2 scene=
+_StartingScene isServer=False isClient=True
+ Registered Player SpawnHandler assetId=270
+1278640 prefabsCount=4
+02-25 23:46:49.150  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:OnSt
+artClient()
+02-25 23:46:49.150  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:Conn
+ectToServer()
+02-25 23:46:49.151  6908 24708 I Unity   : 
+[MatchNetworkManager] Registered core clien
+t handlers (setup/begin/kickoff/ball).
+02-25 23:46:49.151  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:OnSt
+artClient()
+02-25 23:46:49.151  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:Conn
+ectToServer()
+02-25 23:46:49.152  6908 24708 I Unity   : 
+[MatchNetworkManager] Registered fallback c
+lient handlers (start/state).
+02-25 23:46:49.152  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:OnSt
+artClient()
+02-25 23:46:49.152  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:Conn
+ectToServer()
+02-25 23:46:49.304  6908 24708 I Unity   : 
+[MatchTicketAuthenticator] OnClientAuthenti
+cate scene=_StartingScene isServer=False is
+Client=True matchId=m_75de38858e2842ef9f418
+2a6aa8ac8e2 ticketPresent=True ticketLen=21
+0
+02-25 23:46:49.304  6908 24708 I Unity   : 
+FStudio.Networking.MatchTicketAuthenticator
+:OnClientAuthenticate()
+02-25 23:46:49.409  6908 24708 I Unity   : 
+[MatchTicketAuthenticator] OnAuthResponseMe
+ssage scene=DefaultScene isServer=False isC
+lient=True ok=True reason=ok
+02-25 23:46:49.409  6908 24708 I Unity   : 
+FStudio.Networking.MatchTicketAuthenticator
+:OnAuthResponseMessage(MatchTicketAuthRespo
+nseMessage)
+02-25 23:46:49.411  6908 24708 I Unity   : 
+[MatchNetworkManager][ResetPerMatchNetworkD
+erivedState] matchId=m_75de38858e2842ef9f41
+82a6aa8ac8e2 scene=DefaultScene isServer=Fa
+lse isClient=True per-match derived state r
+eset.
+02-25 23:46:49.411  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:OnCl
+ientConnect()
+02-25 23:46:49.411  6908 24708 I Unity   : 
+FStudio.Networking.MatchTicketAuthenticator
+:OnAuthResponseMessage(MatchTicketAuthRespo
+nseMessage)
+02-25 23:46:49.412  6908 24708 I Unity   : 
+[MatchNetworkManager][OnClientConnect] matc
+hId=m_75de38858e2842ef9f4182a6aa8ac8e2 scen
+e=DefaultScene isServer=False isClient=True
+ connected networkAddress=65.21.153.127 run
+timePort=21001 autoRequestCandidate=True
+02-25 23:46:49.412  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:OnCl
+ientConnect()
+02-25 23:46:49.412  6908 24708 I Unity   : 
+FStudio.Networking.MatchTicketAuthenticator
+:OnAuthResponseMessage(MatchTicketAuthRespo
+nseMessage)
+02-25 23:46:49.418  6908 24708 I Unity   : 
+[MatchNetworkManager][OnClientConnect] matc
+hId=m_75de38858e2842ef9f4182a6aa8ac8e2 scen
+e=DefaultScene isServer=False isClient=True
+ RequestMatchButton activated.
+02-25 23:46:49.418  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:OnCl
+ientConnect()
+02-25 23:46:49.418  6908 24708 I Unity   : 
+FStudio.Networking.MatchTicketAuthenticator
+:OnAuthResponseMessage(MatchTicketAuthRespo
+nseMessage)
+02-25 23:46:49.419  6908 24708 I Unity   : 
+[MatchNetworkManager][OnClientConnect] matc
+hId=m_75de38858e2842ef9f4182a6aa8ac8e2 scen
+e=DefaultScene isServer=False isClient=True
+ Scheduling auto match request homeId=Fikre
+tleto awayId=turhantest
+02-25 23:46:49.419  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:OnCl
+ientConnect()
+02-25 23:46:49.419  6908 24708 I Unity   : 
+FStudio.Networking.MatchTicketAuthenticator
+:OnAuthResponseMessage(MatchTicketAuthRespo
+nseMessage)
+02-25 23:46:49.542  6908 24708 I Unity   : 
+[MatchNetworkManager] Sending Match Request
+ (home=Fikretleto, away=turhantest)...
+02-25 23:46:49.542  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:Send
+MatchRequest()
+02-25 23:46:49.726  6908 24708 I Unity   : 
+[MatchNetworkManager][OnMatchSetupReceived]
+ matchId=m_75de38858e2842ef9f4182a6aa8ac8e2
+ scene=DefaultScene isServer=False isClient
+=True received setup home=turhantest away=F
+ikretleto homePayloadLen=11550 awayPayloadL
+en=11544
+02-25 23:46:49.726  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:OnMa
+tchSetupReceived(MatchSetupMessage)
+02-25 23:46:49.727  6908 24708 I Unity   : 
+[MatchNetworkManager][ResetPerMatchNetworkD
+erivedState] matchId=m_75de38858e2842ef9f41
+82a6aa8ac8e2 scene=DefaultScene isServer=Fa
+lse isClient=True per-match derived state r
+eset.
+02-25 23:46:49.727  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:OnMa
+tchSetupReceived(MatchSetupMessage)
+02-25 23:46:49.728  6908 24708 I Unity   : 
+[MatchNetworkManager][OnMatchSetupReceived]
+ matchId=m_75de38858e2842ef9f4182a6aa8ac8e2
+ scene=DefaultScene isServer=False isClient
+=True flags after reset: clientSetupDone=Fa
+lse hasSetup=True kickoffConsumed=False cou
+ntdown=-1
+02-25 23:46:49.728  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:OnMa
+tchSetupReceived(MatchSetupMessage)
+02-25 23:46:49.730  6908 24708 I Unity   : 
+[MatchNetworkManager][SetupClientMatchAsync
+] matchId=m_75de38858e2842ef9f4182a6aa8ac8e
+2 scene=DefaultScene isServer=False isClien
+t=True enter.
+02-25 23:46:49.730  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:Setu
+pClientMatchAsync(MatchSetupMessage)
+02-25 23:46:49.730  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:OnMa
+tchSetupReceived(MatchSetupMessage)
+02-25 23:46:49.753  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:TryC
+reateTeamFromPayloadJson(String, String, Te
+amEntry&)
+02-25 23:46:49.753  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:TryR
+esolveTeamsFromPayloads(String, String, Tea
+mEntry&, TeamEntry&)
+02-25 23:46:49.753  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:Setu
+pClientMatchAsync(MatchSetupMessage)
+02-25 23:46:49.753  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:OnMa
+tchSetupReceived(MatchSetupMessage)
+02-25 23:46:49.754  6908 24708 W Unity   : 
+FStudio.Networking.MatchNetworkManager:TryC
+reateTeamFromPayloadJson(String, String, Te
+amEntry&)
+02-25 23:46:49.754  6908 24708 W Unity   : 
+FStudio.Networking.MatchNetworkManager:TryR
+esolveTeamsFromPayloads(String, String, Tea
+mEntry&, TeamEntry&)
+02-25 23:46:49.754  6908 24708 W Unity   : 
+FStudio.Networking.MatchNetworkManager:Setu
+pClientMatchAsync(MatchSetupMessage)
+02-25 23:46:49.754  6908 24708 W Unity   : 
+FStudio.Networking.MatchNetworkManager:OnMa
+tchSetupReceived(MatchSetupMessage)
+02-25 23:46:49.756  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:TryC
+reateTeamFromPayloadJson(String, String, Te
+amEntry&)
+02-25 23:46:49.756  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:TryR
+esolveTeamsFromPayloads(String, String, Tea
+mEntry&, TeamEntry&)
+02-25 23:46:49.756  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:Setu
+pClientMatchAsync(MatchSetupMessage)
+02-25 23:46:49.756  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:OnMa
+tchSetupReceived(MatchSetupMessage)
+02-25 23:46:49.756  6908 24708 I Unity   : 
+[MatchNetworkManager] home team created fro
+m payload: teamName='turhantest', players=1
+1, payloadLen=11550
+02-25 23:46:49.756  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:TryC
+reateTeamFromPayloadJson(String, String, Te
+amEntry&)
+02-25 23:46:49.756  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:TryR
+esolveTeamsFromPayloads(String, String, Tea
+mEntry&, TeamEntry&)
+02-25 23:46:49.756  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:Setu
+pClientMatchAsync(MatchSetupMessage)
+02-25 23:46:49.756  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:OnMa
+tchSetupReceived(MatchSetupMessage)
+02-25 23:46:49.764  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:TryC
+reateTeamFromPayloadJson(String, String, Te
+amEntry&)
+02-25 23:46:49.764  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:TryR
+esolveTeamsFromPayloads(String, String, Tea
+mEntry&, TeamEntry&)
+02-25 23:46:49.764  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:Setu
+pClientMatchAsync(MatchSetupMessage)
+02-25 23:46:49.764  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:OnMa
+tchSetupReceived(MatchSetupMessage)
+02-25 23:46:49.765  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:TryC
+reateTeamFromPayloadJson(String, String, Te
+amEntry&)
+02-25 23:46:49.765  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:TryR
+esolveTeamsFromPayloads(String, String, Tea
+mEntry&, TeamEntry&)
+02-25 23:46:49.765  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:Setu
+pClientMatchAsync(MatchSetupMessage)
+02-25 23:46:49.765  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:OnMa
+tchSetupReceived(MatchSetupMessage)
+02-25 23:46:49.765  6908 24708 I Unity   : 
+[MatchNetworkManager] away team created fro
+m payload: teamName='Fikretleto', players=1
+1, payloadLen=11544
+02-25 23:46:49.765  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:TryC
+reateTeamFromPayloadJson(String, String, Te
+amEntry&)
+02-25 23:46:49.765  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:TryR
+esolveTeamsFromPayloads(String, String, Tea
+mEntry&, TeamEntry&)
+02-25 23:46:49.765  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:Setu
+pClientMatchAsync(MatchSetupMessage)
+02-25 23:46:49.765  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:OnMa
+tchSetupReceived(MatchSetupMessage)
+02-25 23:46:49.765  6908 24708 I Unity   : 
+[MatchNetworkManager] Client resolved teams
+ locally: turhantest vs Fikretleto (request
+ed 'turhantest' vs 'Fikretleto', payload=Tr
+ue, ids=False)
+02-25 23:46:49.765  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:Setu
+pClientMatchAsync(MatchSetupMessage)
+02-25 23:46:49.765  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:OnMa
+tchSetupReceived(MatchSetupMessage)
+02-25 23:46:49.766  6908 24708 I Unity   : 
+[MatchNetworkManager][SetupClientMatchAsync
+] matchId=m_75de38858e2842ef9f4182a6aa8ac8e
+2 scene=DefaultScene isServer=False isClien
+t=True resolved teams payload=True ids=Fals
+e homePlayers=11 awayPlayers=11
+02-25 23:46:49.766  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:Setu
+pClientMatchAsync(MatchSetupMessage)
+02-25 23:46:49.766  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:OnMa
+tchSetupReceived(MatchSetupMessage)
+02-25 23:46:49.766  6908 24708 I Unity   : 
+[MatchNetworkManager][SetupClientMatchAsync
+] matchId=m_75de38858e2842ef9f4182a6aa8ac8e
+2 scene=DefaultScene isServer=False isClien
+t=True calling MatchEngineLoader.CreateMatc
+h.
+02-25 23:46:49.766  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:Setu
+pClientMatchAsync(MatchSetupMessage)
+02-25 23:46:49.766  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:OnMa
+tchSetupReceived(MatchSetupMessage)
+02-25 23:46:49.767  6908 24708 I Unity   : 
+[MatchEngineLoader][CreateMatch] enter scen
+e=DefaultScene isServer=False isClient=True
+ home=turhantest away=Fikretleto
+02-25 23:46:49.767  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchEngineLoader:Creat
+eMatch(MatchCreateRequest)
+02-25 23:46:49.767  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:Setu
+pClientMatchAsync(MatchSetupMessage)
+02-25 23:46:49.767  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:OnMa
+tchSetupReceived(MatchSetupMessage)
+02-25 23:46:50.266  6908 24708 I Unity   : 
+[MatchEngineLoader][CreateMatch] exit after
+ 0,499s scene=DefaultScene
+02-25 23:46:50.267  6908 24708 I Unity   : 
+[MatchNetworkManager][SetupClientMatchAsync
+] matchId=m_75de38858e2842ef9f4182a6aa8ac8e
+2 scene=DefaultScene isServer=False isClien
+t=True MatchEngineLoader.CreateMatch comple
+ted in 0,537s.
+02-25 23:46:53.450  6908 24708 I Unity   : 
+[MatchNetworkManager] BallStateMessage appl
+ied.
+02-25 23:46:53.450  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:OnBa
+llStateReceived(BallStateMessage)
+02-25 23:46:53.765  6908 24708 I Unity   : 
+[MatchNetworkManager][PlayerSpawnHandler] m
+atchId=m_75de38858e2842ef9f4182a6aa8ac8e2 s
+cene=DefaultScene isServer=False isClient=T
+rue instantiate count=1 assetId=2701278640 
+prefabName=PlayerRendererMobile pos=(34.50,
+ 0.00, 20.00)
+02-25 23:46:53.780  6908 24708 I Unity   : 
+[MatchNetworkManager][PlayerSpawnHandler] m
+atchId=m_75de38858e2842ef9f4182a6aa8ac8e2 s
+cene=DefaultScene isServer=False isClient=T
+rue instantiate count=2 assetId=2701278640 
+prefabName=PlayerRendererMobile pos=(35.25,
+ 0.00, 20.00)
+02-25 23:46:53.784  6908 24708 I Unity   : 
+[MatchNetworkManager][PlayerSpawnHandler] m
+atchId=m_75de38858e2842ef9f4182a6aa8ac8e2 s
+cene=DefaultScene isServer=False isClient=T
+rue instantiate count=3 assetId=2701278640 
+prefabName=PlayerRendererMobile pos=(36.00,
+ 0.00, 20.00)
+02-25 23:46:53.787  6908 24708 I Unity   : 
+[MatchNetworkManager][PlayerSpawnHandler] m
+atchId=m_75de38858e2842ef9f4182a6aa8ac8e2 s
+cene=DefaultScene isServer=False isClient=T
+rue instantiate count=4 assetId=2701278640 
+prefabName=PlayerRendererMobile pos=(36.75,
+ 0.00, 20.00)
+02-25 23:46:53.789  6908 24708 I Unity   : 
+[MatchNetworkManager][PlayerSpawnHandler] m
+atchId=m_75de38858e2842ef9f4182a6aa8ac8e2 s
+cene=DefaultScene isServer=False isClient=T
+rue instantiate count=5 assetId=2701278640 
+prefabName=PlayerRendererMobile pos=(37.50,
+ 0.00, 20.00)
+02-25 23:46:53.791  6908 24708 I Unity   : 
+[MatchNetworkManager][PlayerSpawnHandler] m
+atchId=m_75de38858e2842ef9f4182a6aa8ac8e2 s
+cene=DefaultScene isServer=False isClient=T
+rue instantiate count=6 assetId=2701278640 
+prefabName=PlayerRendererMobile pos=(38.25,
+ 0.00, 20.00)
+02-25 23:46:53.793  6908 24708 I Unity   : 
+[MatchNetworkManager][PlayerSpawnHandler] m
+atchId=m_75de38858e2842ef9f4182a6aa8ac8e2 s
+cene=DefaultScene isServer=False isClient=T
+rue instantiate count=7 assetId=2701278640 
+prefabName=PlayerRendererMobile pos=(39.00,
+ 0.00, 20.00)
+02-25 23:46:53.795  6908 24708 I Unity   : 
+[MatchNetworkManager][PlayerSpawnHandler] m
+atchId=m_75de38858e2842ef9f4182a6aa8ac8e2 s
+cene=DefaultScene isServer=False isClient=T
+rue instantiate count=8 assetId=2701278640 
+prefabName=PlayerRendererMobile pos=(39.75,
+ 0.00, 20.00)
+02-25 23:46:53.797  6908 24708 I Unity   : 
+[MatchNetworkManager][PlayerSpawnHandler] m
+atchId=m_75de38858e2842ef9f4182a6aa8ac8e2 s
+cene=DefaultScene isServer=False isClient=T
+rue instantiate count=9 assetId=2701278640 
+prefabName=PlayerRendererMobile pos=(40.50,
+ 0.00, 20.00)
+02-25 23:46:53.799  6908 24708 I Unity   : 
+[MatchNetworkManager][PlayerSpawnHandler] m
+atchId=m_75de38858e2842ef9f4182a6aa8ac8e2 s
+cene=DefaultScene isServer=False isClient=T
+rue instantiate count=10 assetId=2701278640
+ prefabName=PlayerRendererMobile pos=(41.25
+, 0.00, 20.00)
+02-25 23:46:53.801  6908 24708 I Unity   : 
+[MatchNetworkManager][PlayerSpawnHandler] m
+atchId=m_75de38858e2842ef9f4182a6aa8ac8e2 s
+cene=DefaultScene isServer=False isClient=T
+rue instantiate count=11 assetId=2701278640
+ prefabName=PlayerRendererMobile pos=(42.00
+, 0.00, 20.00)
+02-25 23:46:53.803  6908 24708 I Unity   : 
+[MatchNetworkManager][PlayerSpawnHandler] m
+atchId=m_75de38858e2842ef9f4182a6aa8ac8e2 s
+cene=DefaultScene isServer=False isClient=T
+rue instantiate count=12 assetId=2701278640
+ prefabName=PlayerRendererMobile pos=(42.75
+, 0.00, 20.00)
+02-25 23:46:53.805  6908 24708 I Unity   : 
+[MatchNetworkManager][PlayerSpawnHandler] m
+atchId=m_75de38858e2842ef9f4182a6aa8ac8e2 s
+cene=DefaultScene isServer=False isClient=T
+rue instantiate count=13 assetId=2701278640
+ prefabName=PlayerRendererMobile pos=(43.50
+, 0.00, 20.00)
+02-25 23:46:53.807  6908 24708 I Unity   : 
+[MatchNetworkManager][PlayerSpawnHandler] m
+atchId=m_75de38858e2842ef9f4182a6aa8ac8e2 s
+cene=DefaultScene isServer=False isClient=T
+rue instantiate count=14 assetId=2701278640
+ prefabName=PlayerRendererMobile pos=(44.25
+, 0.00, 20.00)
+02-25 23:46:53.811  6908 24708 I Unity   : 
+[MatchNetworkManager][PlayerSpawnHandler] m
+atchId=m_75de38858e2842ef9f4182a6aa8ac8e2 s
+cene=DefaultScene isServer=False isClient=T
+rue instantiate count=15 assetId=2701278640
+ prefabName=PlayerRendererMobile pos=(45.00
+, 0.00, 20.00)
+02-25 23:46:53.812  6908 24708 I Unity   : 
+[MatchNetworkManager][PlayerSpawnHandler] m
+atchId=m_75de38858e2842ef9f4182a6aa8ac8e2 s
+cene=DefaultScene isServer=False isClient=T
+rue instantiate count=16 assetId=2701278640
+ prefabName=PlayerRendererMobile pos=(45.75
+, 0.00, 20.00)
+02-25 23:46:53.814  6908 24708 I Unity   : 
+[MatchNetworkManager][PlayerSpawnHandler] m
+atchId=m_75de38858e2842ef9f4182a6aa8ac8e2 s
+cene=DefaultScene isServer=False isClient=T
+rue instantiate count=17 assetId=2701278640
+ prefabName=PlayerRendererMobile pos=(46.50
+, 0.00, 20.00)
+02-25 23:46:53.815  6908 24708 I Unity   : 
+[MatchNetworkManager][PlayerSpawnHandler] m
+atchId=m_75de38858e2842ef9f4182a6aa8ac8e2 s
+cene=DefaultScene isServer=False isClient=T
+rue instantiate count=18 assetId=2701278640
+ prefabName=PlayerRendererMobile pos=(47.25
+, 0.00, 20.00)
+02-25 23:46:53.817  6908 24708 I Unity   : 
+[MatchNetworkManager][PlayerSpawnHandler] m
+atchId=m_75de38858e2842ef9f4182a6aa8ac8e2 s
+cene=DefaultScene isServer=False isClient=T
+rue instantiate count=19 assetId=2701278640
+ prefabName=PlayerRendererMobile pos=(48.00
+, 0.00, 20.00)
+02-25 23:46:53.818  6908 24708 I Unity   : 
+[MatchNetworkManager][PlayerSpawnHandler] m
+atchId=m_75de38858e2842ef9f4182a6aa8ac8e2 s
+cene=DefaultScene isServer=False isClient=T
+rue instantiate count=20 assetId=2701278640
+ prefabName=PlayerRendererMobile pos=(48.75
+, 0.00, 20.00)
+02-25 23:46:53.820  6908 24708 I Unity   : 
+[MatchNetworkManager][PlayerSpawnHandler] m
+atchId=m_75de38858e2842ef9f4182a6aa8ac8e2 s
+cene=DefaultScene isServer=False isClient=T
+rue instantiate count=21 assetId=2701278640
+ prefabName=PlayerRendererMobile pos=(49.50
+, 0.00, 20.00)
+02-25 23:46:53.821  6908 24708 I Unity   : 
+[MatchNetworkManager][PlayerSpawnHandler] m
+atchId=m_75de38858e2842ef9f4182a6aa8ac8e2 s
+cene=DefaultScene isServer=False isClient=T
+rue instantiate count=22 assetId=2701278640
+ prefabName=PlayerRendererMobile pos=(50.25
+, 0.00, 20.00)
+02-25 23:46:53.822  6908 24708 I Unity   : 
+[MatchNetworkManager][PlayerSpawnHandler] m
+atchId=m_75de38858e2842ef9f4182a6aa8ac8e2 s
+cene=DefaultScene isServer=False isClient=T
+rue instantiate count=23 assetId=2701278640
+ prefabName=PlayerRendererMobile pos=(51.00
+, 0.00, 20.00)
+02-25 23:46:53.824  6908 24708 I Unity   : 
+[MatchNetworkManager][PlayerSpawnHandler] m
+atchId=m_75de38858e2842ef9f4182a6aa8ac8e2 s
+cene=DefaultScene isServer=False isClient=T
+rue instantiate count=24 assetId=2701278640
+ prefabName=PlayerRendererMobile pos=(51.75
+, 0.00, 20.00)
+02-25 23:46:53.825  6908 24708 I Unity   : 
+[MatchNetworkManager][PlayerSpawnHandler] m
+atchId=m_75de38858e2842ef9f4182a6aa8ac8e2 s
+cene=DefaultScene isServer=False isClient=T
+rue instantiate count=25 assetId=2701278640
+ prefabName=PlayerRendererMobile pos=(52.50
+, 0.00, 20.00)
+02-25 23:46:53.826  6908 24708 I Unity   : 
+[MatchNetworkManager][OnMatchStartCountdown
+Received] matchId=m_75de38858e2842ef9f4182a
+6aa8ac8e2 scene=DefaultScene isServer=False
+ isClient=True secondsRemaining=10
+02-25 23:46:53.826  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:OnMa
+tchStartCountdownReceived(MatchStartCountdo
+wnMessage)
+02-25 23:46:54.779  6908 24708 I Unity   : 
+[MatchNetworkManager][OnMatchStartCountdown
+Received] matchId=m_75de38858e2842ef9f4182a
+6aa8ac8e2 scene=DefaultScene isServer=False
+ isClient=True secondsRemaining=9
+02-25 23:46:54.779  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:OnMa
+tchStartCountdownReceived(MatchStartCountdo
+wnMessage)
+02-25 23:46:55.793  6908 24708 I Unity   : 
+[MatchNetworkManager][OnMatchStartCountdown
+Received] matchId=m_75de38858e2842ef9f4182a
+6aa8ac8e2 scene=DefaultScene isServer=False
+ isClient=True secondsRemaining=8
+02-25 23:46:55.793  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:OnMa
+tchStartCountdownReceived(MatchStartCountdo
+wnMessage)
+02-25 23:46:55.796  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:46:55.796  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:46:55.796  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:46:55.796  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:46:55.797  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:46:55.797  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:46:55.797  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:46:55.797  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:46:55.797  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:46:55.797  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:46:55.798  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:46:55.798  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:46:55.798  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:46:55.798  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:46:55.798  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:46:55.798  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:46:55.798  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:46:55.798  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:46:55.799  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:46:55.799  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:46:55.799  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:46:55.799  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:46:55.799  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:46:55.799  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:46:55.799  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:46:55.799  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:46:55.800  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:46:55.800  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:46:55.800  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:46:55.800  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:46:55.800  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:46:55.800  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:46:55.800  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:46:55.800  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:46:55.801  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:46:55.801  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:46:55.801  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:46:55.801  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:46:55.801  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:46:55.801  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:46:55.801  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:46:55.801  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:46:55.802  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:46:55.802  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:46:55.802  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:46:55.802  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:46:55.802  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:46:55.802  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:46:55.802  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:46:55.802  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:46:56.791  6908 24708 I Unity   : 
+[MatchNetworkManager] BallStateMessage appl
+ied.
+02-25 23:46:56.791  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:OnBa
+llStateReceived(BallStateMessage)
+02-25 23:46:56.791  6908 24708 I Unity   : 
+[MatchNetworkManager][OnMatchStartCountdown
+Received] matchId=m_75de38858e2842ef9f4182a
+6aa8ac8e2 scene=DefaultScene isServer=False
+ isClient=True secondsRemaining=7
+02-25 23:46:56.791  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:OnMa
+tchStartCountdownReceived(MatchStartCountdo
+wnMessage)
+02-25 23:46:57.787  6908 24708 I Unity   : 
+[MatchNetworkManager][OnMatchStartCountdown
+Received] matchId=m_75de38858e2842ef9f4182a
+6aa8ac8e2 scene=DefaultScene isServer=False
+ isClient=True secondsRemaining=6
+02-25 23:46:57.787  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:OnMa
+tchStartCountdownReceived(MatchStartCountdo
+wnMessage)
+02-25 23:46:57.801  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:46:57.801  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:46:57.801  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:46:57.801  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:46:57.801  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:46:57.801  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:46:57.801  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:46:57.801  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:46:57.802  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:46:57.802  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:46:57.802  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:46:57.802  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:46:57.802  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:46:57.802  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:46:57.802  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:46:57.802  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:46:57.803  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:46:57.803  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:46:57.803  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:46:57.803  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:46:57.803  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:46:57.803  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:46:57.803  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:46:57.803  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:46:57.804  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:46:57.804  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:46:57.804  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:46:57.804  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:46:57.804  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:46:57.804  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:46:57.804  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:46:57.804  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:46:57.805  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:46:57.805  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:46:57.805  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:46:57.805  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:46:57.805  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:46:57.805  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:46:57.805  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:46:57.805  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:46:57.805  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:46:57.805  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:46:57.806  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:46:57.806  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:46:57.806  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:46:57.806  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:46:57.806  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:46:57.806  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:46:57.806  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:46:57.806  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:46:58.793  6908 24708 I Unity   : 
+[MatchNetworkManager][OnMatchStartCountdown
+Received] matchId=m_75de38858e2842ef9f4182a
+6aa8ac8e2 scene=DefaultScene isServer=False
+ isClient=True secondsRemaining=5
+02-25 23:46:58.793  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:OnMa
+tchStartCountdownReceived(MatchStartCountdo
+wnMessage)
+02-25 23:46:59.791  6908 24708 I Unity   : 
+[MatchNetworkManager][OnMatchStartCountdown
+Received] matchId=m_75de38858e2842ef9f4182a
+6aa8ac8e2 scene=DefaultScene isServer=False
+ isClient=True secondsRemaining=4
+02-25 23:46:59.791  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:OnMa
+tchStartCountdownReceived(MatchStartCountdo
+wnMessage)
+02-25 23:46:59.796  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:46:59.796  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:46:59.797  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:46:59.797  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:46:59.798  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:46:59.798  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:46:59.798  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:46:59.798  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:46:59.799  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:46:59.799  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:46:59.799  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:46:59.799  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:46:59.800  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:46:59.800  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:46:59.800  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:46:59.800  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:46:59.801  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:46:59.801  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:46:59.801  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:46:59.801  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:46:59.801  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:46:59.801  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:46:59.802  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:46:59.802  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:46:59.802  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:46:59.802  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:46:59.802  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:46:59.802  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:46:59.803  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:46:59.803  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:46:59.803  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:46:59.803  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:46:59.803  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:46:59.803  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:46:59.804  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:46:59.804  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:46:59.804  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:46:59.804  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:46:59.804  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:46:59.804  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:46:59.805  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:46:59.805  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:46:59.805  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:46:59.805  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:46:59.805  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:46:59.805  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:46:59.805  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:46:59.805  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:46:59.806  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:46:59.806  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:00.130  6908 24708 I Unity   : 
+[MatchNetworkManager] BallStateMessage appl
+ied.
+02-25 23:47:00.130  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:OnBa
+llStateReceived(BallStateMessage)
+02-25 23:47:00.795  6908 24708 I Unity   : 
+[MatchNetworkManager][OnMatchStartCountdown
+Received] matchId=m_75de38858e2842ef9f4182a
+6aa8ac8e2 scene=DefaultScene isServer=False
+ isClient=True secondsRemaining=3
+02-25 23:47:00.795  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:OnMa
+tchStartCountdownReceived(MatchStartCountdo
+wnMessage)
+02-25 23:47:01.793  6908 24708 I Unity   : 
+[MatchNetworkManager][OnMatchStartCountdown
+Received] matchId=m_75de38858e2842ef9f4182a
+6aa8ac8e2 scene=DefaultScene isServer=False
+ isClient=True secondsRemaining=2
+02-25 23:47:01.793  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:OnMa
+tchStartCountdownReceived(MatchStartCountdo
+wnMessage)
+02-25 23:47:01.798  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:01.798  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:01.798  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:01.798  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:01.798  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:01.798  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:01.799  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:01.799  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:01.799  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:01.799  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:01.799  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:01.799  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:01.799  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:01.799  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:01.800  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:01.800  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:01.800  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:01.800  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:01.800  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:01.800  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:01.800  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:01.800  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:01.801  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:01.801  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:01.801  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:01.801  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:01.801  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:01.801  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:01.801  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:01.801  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:01.801  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:01.801  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:01.802  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:01.802  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:01.802  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:01.802  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:01.802  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:01.802  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:01.802  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:01.802  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:01.802  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:01.802  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:01.803  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:01.803  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:01.803  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:01.803  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:01.803  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:01.803  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:01.803  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:01.803  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:02.806  6908 24708 I Unity   : 
+[MatchNetworkManager][OnMatchStartCountdown
+Received] matchId=m_75de38858e2842ef9f4182a
+6aa8ac8e2 scene=DefaultScene isServer=False
+ isClient=True secondsRemaining=1
+02-25 23:47:02.806  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:OnMa
+tchStartCountdownReceived(MatchStartCountdo
+wnMessage)
+02-25 23:47:03.488  6908 24708 I Unity   : 
+[MatchNetworkManager] BallStateMessage appl
+ied.
+02-25 23:47:03.488  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:OnBa
+llStateReceived(BallStateMessage)
+02-25 23:47:03.789  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:03.789  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:03.790  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:03.790  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:03.791  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:03.791  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:03.791  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:03.791  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:03.792  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:03.792  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:03.792  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:03.792  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:03.793  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:03.793  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:03.793  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:03.793  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:03.793  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:03.793  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:03.794  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:03.794  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:03.794  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:03.794  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:03.794  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:03.794  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:03.795  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:03.795  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:03.795  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:03.795  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:03.795  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:03.795  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:03.796  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:03.796  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:03.796  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:03.796  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:03.796  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:03.796  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:03.796  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:03.796  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:03.797  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:03.797  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:03.797  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:03.797  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:03.797  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:03.797  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:03.797  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:03.797  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:03.798  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:03.798  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:03.798  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:03.798  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:03.803  6908 24708 I Unity   : 
+[MatchNetworkManager][OnMatchStartCountdown
+Received] matchId=m_75de38858e2842ef9f4182a
+6aa8ac8e2 scene=DefaultScene isServer=False
+ isClient=True secondsRemaining=0
+02-25 23:47:03.803  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:OnMa
+tchStartCountdownReceived(MatchStartCountdo
+wnMessage)
+02-25 23:47:04.071  6908 24708 I Unity   : 
+[MatchNetworkManager][OnMatchBeginReceived]
+ matchId=m_75de38858e2842ef9f4182a6aa8ac8e2
+ scene=DefaultScene isServer=False isClient
+=True received begin. clientSetupDone=True 
+matchManagerReady=False
+02-25 23:47:04.071  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:OnMa
+tchBeginReceived(MatchBeginMessage)
+02-25 23:47:04.073  6908 24708 I Unity   : 
+[MatchNetworkManager][OnMatchBeginReceived]
+ matchId=m_75de38858e2842ef9f4182a6aa8ac8e2
+ scene=DefaultScene isServer=False isClient
+=True UpcomingMatchPanel found after retrie
+s=0. Calling StartMatch().
+02-25 23:47:04.073  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:OnMa
+tchBeginReceived(MatchBeginMessage)
+02-25 23:47:04.075  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:OnMa
+tchBeginReceived(MatchBeginMessage)
+02-25 23:47:04.078  6908 24708 I Unity   : 
+[MatchEngineLoader][StartMatchEngine] scene
+=DefaultScene isServer=False isClient=True 
+enter isLoading=False isLoaded=False home=t
+urhantest away=Fikretleto homeKitAway=False
+ awayKitAway=True
+02-25 23:47:04.078  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchEngineLoader:Start
+MatchEngine(UpcomingMatchEvent, Boolean, Bo
+olean)
+02-25 23:47:04.078  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:OnMa
+tchBeginReceived(MatchBeginMessage)
+02-25 23:47:04.079  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchEngineLoader:Start
+MatchEngine(UpcomingMatchEvent, Boolean, Bo
+olean)
+02-25 23:47:04.079  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:OnMa
+tchBeginReceived(MatchBeginMessage)
+02-25 23:47:04.082  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchEngineLoader:Start
+MatchEngine(UpcomingMatchEvent, Boolean, Bo
+olean)
+02-25 23:47:04.082  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:OnMa
+tchBeginReceived(MatchBeginMessage)
+02-25 23:47:04.083  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchEngineLoader:Start
+MatchEngine(UpcomingMatchEvent, Boolean, Bo
+olean)
+02-25 23:47:04.084  6908 24708 I Unity   : 
+[MatchEngineLoader][StartMatchEngine] scene
+=DefaultScene isServer=False isClient=True 
+LoadStadium begin stadium=SmallStadium
+02-25 23:47:04.084  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchEngineLoader:Start
+MatchEngine(UpcomingMatchEvent, Boolean, Bo
+olean)
+02-25 23:47:04.084  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:OnMa
+tchBeginReceived(MatchBeginMessage)
+02-25 23:47:04.085  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchEngineLoader:Start
+MatchEngine(UpcomingMatchEvent, Boolean, Bo
+olean)
+02-25 23:47:04.085  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:OnMa
+tchBeginReceived(MatchBeginMessage)
+02-25 23:47:04.089  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchEngineLoader:Start
+MatchEngine(UpcomingMatchEvent, Boolean, Bo
+olean)
+02-25 23:47:05.792  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:05.792  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:05.792  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:05.792  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:05.793  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:05.793  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:05.794  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:05.794  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:05.794  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:05.794  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:05.794  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:05.794  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:05.795  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:05.795  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:05.795  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:05.795  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:05.796  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:05.796  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:05.796  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:05.796  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:05.796  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:05.796  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:05.797  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:05.797  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:05.797  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:05.797  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:05.798  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:05.798  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:05.798  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:05.798  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:05.798  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:05.798  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:05.798  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:05.798  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:05.799  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:05.799  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:05.799  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:05.799  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:05.799  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:05.799  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:05.800  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:05.800  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:05.800  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:05.800  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:05.800  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:05.800  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:05.800  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:05.800  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:05.801  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:05.801  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:06.853  6908 24708 I Unity   : 
+[MatchNetworkManager] BallStateMessage appl
+ied.
+02-25 23:47:06.853  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:OnBa
+llStateReceived(BallStateMessage)
+02-25 23:47:07.785  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:07.785  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:07.786  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:07.786  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:07.787  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:07.787  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:07.787  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:07.787  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:07.788  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:07.788  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:07.788  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:07.788  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:07.789  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:07.789  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:07.789  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:07.789  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:07.789  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:07.789  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:07.790  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:07.790  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:07.790  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:07.790  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:07.791  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:07.791  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:07.791  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:07.791  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:07.791  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:07.791  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:07.792  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:07.792  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:07.792  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:07.792  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:07.792  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:07.792  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:07.793  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:07.793  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:07.793  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:07.793  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:07.793  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:07.793  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:07.794  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:07.794  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:07.794  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:07.794  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:07.794  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:07.794  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:07.794  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:07.794  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:07.795  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:07.795  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:09.781  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:09.781  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:09.782  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:09.782  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:09.783  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:09.783  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:09.783  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:09.783  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:09.783  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:09.783  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:09.784  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:09.784  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:09.784  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:09.784  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:09.785  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:09.785  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:09.785  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:09.785  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:09.785  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:09.785  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:09.786  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:09.786  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:09.786  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:09.786  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:09.786  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:09.786  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:09.787  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:09.787  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:09.787  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:09.787  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:09.787  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:09.787  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:09.787  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:09.787  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:09.788  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:09.788  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:09.788  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:09.788  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:09.788  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:09.788  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:09.789  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:09.789  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:09.789  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:09.789  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:09.789  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:09.789  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:09.789  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:09.789  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:09.790  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:09.790  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:10.192  6908 24708 I Unity   : 
+[MatchNetworkManager] BallStateMessage appl
+ied.
+02-25 23:47:10.192  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:OnBa
+llStateReceived(BallStateMessage)
+02-25 23:47:11.773  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:11.773  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:11.773  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:11.773  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:11.773  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:11.773  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:11.773  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:11.773  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:11.774  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:11.774  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:11.774  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:11.774  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:11.774  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:11.774  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:11.774  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:11.774  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:11.774  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:11.774  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:11.775  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:11.775  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:11.775  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:11.775  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:11.775  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:11.775  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:11.775  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:11.775  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:11.775  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:11.775  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:11.776  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:11.776  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:11.776  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:11.776  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:11.776  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:11.776  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:11.776  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:11.776  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:11.776  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:11.776  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:11.777  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:11.777  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:11.777  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:11.777  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:11.777  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:11.777  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:11.777  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:11.777  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:11.777  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:11.777  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:11.778  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:11.778  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:13.533  6908 24708 I Unity   : 
+[MatchNetworkManager] BallStateMessage appl
+ied.
+02-25 23:47:13.533  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:OnBa
+llStateReceived(BallStateMessage)
+02-25 23:47:13.771  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:13.771  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:13.771  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:13.771  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:13.772  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:13.772  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:13.772  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:13.772  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:13.773  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:13.773  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:13.773  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:13.773  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:13.773  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:13.773  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:13.774  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:13.774  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:13.774  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:13.774  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:13.774  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:13.774  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:13.775  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:13.775  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:13.775  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:13.775  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:13.776  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:13.776  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:13.776  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:13.776  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:13.776  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:13.776  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:13.777  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:13.777  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:13.777  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:13.777  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:13.777  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:13.777  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:13.777  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:13.777  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:13.778  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:13.778  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:13.778  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:13.778  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:13.778  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:13.778  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:13.779  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:13.779  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:13.779  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:13.779  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:13.779  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:13.779  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:15.763  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:15.763  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:15.764  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:15.764  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:15.765  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:15.765  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:15.765  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:15.765  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:15.766  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:15.766  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:15.766  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:15.766  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:15.766  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:15.766  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:15.767  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:15.767  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:15.767  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:15.767  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:15.767  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:15.767  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:15.768  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:15.768  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:15.768  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:15.768  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:15.768  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:15.768  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:15.768  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:15.768  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:15.769  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:15.769  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:15.769  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:15.769  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:15.769  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:15.769  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:15.769  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:15.769  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:15.770  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:15.770  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:15.770  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:15.770  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:15.770  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:15.770  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:15.770  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:15.770  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:15.770  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:15.770  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:15.771  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:15.771  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:15.771  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:15.771  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:16.891  6908 24708 I Unity   : 
+[MatchNetworkManager] BallStateMessage appl
+ied.
+02-25 23:47:16.891  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:OnBa
+llStateReceived(BallStateMessage)
+02-25 23:47:17.760  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:17.760  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:17.761  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:17.761  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:17.761  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:17.761  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:17.762  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:17.762  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:17.763  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:17.763  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:17.763  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:17.763  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:17.763  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:17.763  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:17.764  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:17.764  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:17.764  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:17.764  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:17.765  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:17.765  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:17.765  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:17.765  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:17.765  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:17.765  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:17.766  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:17.766  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:17.766  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:17.766  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:17.767  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:17.767  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:17.767  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:17.767  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:17.767  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:17.767  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:17.768  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:17.768  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:17.768  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:17.768  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:17.768  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:17.768  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:17.769  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:17.769  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:17.769  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:17.769  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:17.769  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:17.769  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:17.769  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:17.769  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:17.770  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:17.770  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:19.753  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:19.753  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:19.754  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:19.754  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:19.755  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:19.755  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:19.755  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:19.755  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:19.756  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:19.756  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:19.756  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:19.756  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:19.757  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:19.757  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:19.757  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:19.757  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:19.758  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:19.758  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:19.758  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:19.758  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:19.758  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:19.758  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:19.759  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:19.759  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:19.759  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:19.759  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:19.759  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:19.759  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:19.760  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:19.760  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:19.760  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:19.760  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:19.760  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:19.760  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:19.760  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:19.760  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:19.761  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:19.761  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:19.761  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:19.761  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:19.761  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:19.761  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:19.762  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:19.762  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:19.762  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:19.762  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:19.762  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:19.762  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:19.762  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:19.762  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:20.249  6908 24708 I Unity   : 
+[MatchNetworkManager] BallStateMessage appl
+ied.
+02-25 23:47:20.249  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:OnBa
+llStateReceived(BallStateMessage)
+02-25 23:47:21.748  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:21.748  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:21.749  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:21.749  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:21.750  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:21.750  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:21.751  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:21.751  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:21.751  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:21.751  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:21.752  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:21.752  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:21.752  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:21.752  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:21.752  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:21.752  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:21.753  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:21.753  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:21.753  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:21.753  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:21.754  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:21.754  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:21.754  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:21.754  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:21.754  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:21.754  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:21.755  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:21.755  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:21.755  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:21.755  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:21.756  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:21.756  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:21.756  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:21.756  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:21.756  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:21.756  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:21.757  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:21.757  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:21.757  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:21.757  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:21.757  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:21.757  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:21.758  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:21.758  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:21.758  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:21.758  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:21.758  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:21.758  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:21.759  6908 24708 I Unity   : 
+[NetworkSync] Applying Anim: Speed=0,00, Ho
+lder=False on PlayerRendererMobile(Clone)
+02-25 23:47:21.759  6908 24708 I Unity   : 
+FStudio.Networking.NetworkSync:Update()
+02-25 23:47:26.279  6908 24708 I Unity   : 
+[MatchEngineLoader][StartMatchEngine] scene
+=Stadium1_Small isServer=False isClient=Tru
+e LoadStadium completed in 22,195s activeSc
+ene=Stadium1_Small
+02-25 23:47:26.281  6908 24708 I Unity   : 
+[MatchEngineLoader][StartMatchEngine] scene
+=Stadium1_Small isServer=False isClient=Tru
+e loader.Load() begin (match prefab instant
+iate).
+02-25 23:47:26.734  6908 24708 I Unity   : 
+[MatchEngineLoader][StartMatchEngine] scene
+=Stadium1_Small isServer=False isClient=Tru
+e loader.Load() completed in 0,452s.
+02-25 23:47:26.734  6908 24708 I Unity   : 
+[MatchEngineLoader][StartMatchEngine] scene
+=Stadium1_Small isServer=False isClient=Tru
+e Waiting for MatchManager.Current...
+02-25 23:47:26.734  6908 24708 I Unity   : 
+[MatchEngineLoader][StartMatchEngine] scene
+=Stadium1_Small isServer=False isClient=Tru
+e MatchManager.Current ready after 0,000s.
+02-25 23:47:26.737  6908 24708 I Unity   : 
+[MatchEngineLoader] Loading ball locally (I
+sClientMode=True)...
+02-25 23:47:26.745  6908 24708 I Unity   : 
+[MatchEngineLoader][StartMatchEngine] scene
+=Stadium1_Small isServer=False isClient=Tru
+e MatchManager.CreateMatch begin.
+02-25 23:47:26.746  6908 24708 I Unity   : 
+[MatchManager][CreateMatch.static] scene=St
+adium1_Small isServer=False isClient=True h
+ome=turhantest away=Fikretleto homePlayers=
+11 awayPlayers=11 homeFormation=_4_4_2 away
+Formation=_4_2_3_1_A
+02-25 23:47:26.746  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:CreateMatc
+h(MatchDetails)
+02-25 23:47:26.900  6908 24708 I Unity   : 
+[MatchManager][CreateMatch.instance] enter 
+scene=Stadium1_Small isServer=False isClien
+t=True team1Players=11 team2Players=11
+02-25 23:47:26.900  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:CreateMatc
+h(MatchTeam, MatchTeam)
+02-25 23:47:26.901  6908 24708 I Unity   : 
+[GameTeam] Set Team to turhantest
+02-25 23:47:26.901  6908 24708 I Unity   : 
+FStudio.MatchEngine.GameTeam:SetTeam(MatchT
+eam)
+02-25 23:47:26.901  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:CreateMatc
+h(MatchTeam, MatchTeam)
+02-25 23:47:26.903  6908 24708 I Unity   : 
+FStudio.MatchEngine.GameTeam:SetTeam(MatchT
+eam)
+02-25 23:47:26.903  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:CreateMatc
+h(MatchTeam, MatchTeam)
+02-25 23:47:26.904  6908 24708 I Unity   : 
+FStudio.MatchEngine.GameTeam:SetTeam(MatchT
+eam)
+02-25 23:47:26.904  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:CreateMatc
+h(MatchTeam, MatchTeam)
+02-25 23:47:26.904  6908 24708 I Unity   : 
+FStudio.MatchEngine.GameTeam:SetTeam(MatchT
+eam)
+02-25 23:47:26.904  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:CreateMatc
+h(MatchTeam, MatchTeam)
+02-25 23:47:26.905  6908 24708 I Unity   : 
+FStudio.MatchEngine.GameTeam:SetTeam(MatchT
+eam)
+02-25 23:47:26.905  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:CreateMatc
+h(MatchTeam, MatchTeam)
+02-25 23:47:26.905  6908 24708 I Unity   : 
+FStudio.MatchEngine.GameTeam:SetTeam(MatchT
+eam)
+02-25 23:47:26.905  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:CreateMatc
+h(MatchTeam, MatchTeam)
+02-25 23:47:26.906  6908 24708 I Unity   : 
+FStudio.MatchEngine.GameTeam:SetTeam(MatchT
+eam)
+02-25 23:47:26.906  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:CreateMatc
+h(MatchTeam, MatchTeam)
+02-25 23:47:26.906  6908 24708 I Unity   : 
+FStudio.MatchEngine.GameTeam:SetTeam(MatchT
+eam)
+02-25 23:47:26.906  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:CreateMatc
+h(MatchTeam, MatchTeam)
+02-25 23:47:26.906  6908 24708 I Unity   : 
+FStudio.MatchEngine.GameTeam:SetTeam(MatchT
+eam)
+02-25 23:47:26.906  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:CreateMatc
+h(MatchTeam, MatchTeam)
+02-25 23:47:26.907  6908 24708 I Unity   : 
+FStudio.MatchEngine.GameTeam:SetTeam(MatchT
+eam)
+02-25 23:47:26.907  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:CreateMatc
+h(MatchTeam, MatchTeam)
+02-25 23:47:26.907  6908 24708 I Unity   : 
+FStudio.MatchEngine.GameTeam:SetTeam(MatchT
+eam)
+02-25 23:47:26.907  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:CreateMatc
+h(MatchTeam, MatchTeam)
+02-25 23:47:26.908  6908 24708 I Unity   : 
+FStudio.MatchEngine.GameTeam:SetTeam(MatchT
+eam)
+02-25 23:47:26.908  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:CreateMatc
+h(MatchTeam, MatchTeam)
+02-25 23:47:26.908  6908 24708 I Unity   : 
+[GameTeam] Set Team to Fikretleto
+02-25 23:47:26.908  6908 24708 I Unity   : 
+FStudio.MatchEngine.GameTeam:SetTeam(MatchT
+eam)
+02-25 23:47:26.908  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:CreateMatc
+h(MatchTeam, MatchTeam)
+02-25 23:47:26.909  6908 24708 I Unity   : 
+FStudio.MatchEngine.GameTeam:SetTeam(MatchT
+eam)
+02-25 23:47:26.909  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:CreateMatc
+h(MatchTeam, MatchTeam)
+02-25 23:47:26.909  6908 24708 I Unity   : 
+FStudio.MatchEngine.GameTeam:SetTeam(MatchT
+eam)
+02-25 23:47:26.909  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:CreateMatc
+h(MatchTeam, MatchTeam)
+02-25 23:47:26.909  6908 24708 I Unity   : 
+FStudio.MatchEngine.GameTeam:SetTeam(MatchT
+eam)
+02-25 23:47:26.909  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:CreateMatc
+h(MatchTeam, MatchTeam)
+02-25 23:47:26.910  6908 24708 I Unity   : 
+FStudio.MatchEngine.GameTeam:SetTeam(MatchT
+eam)
+02-25 23:47:26.910  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:CreateMatc
+h(MatchTeam, MatchTeam)
+02-25 23:47:26.910  6908 24708 I Unity   : 
+FStudio.MatchEngine.GameTeam:SetTeam(MatchT
+eam)
+02-25 23:47:26.910  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:CreateMatc
+h(MatchTeam, MatchTeam)
+02-25 23:47:26.910  6908 24708 I Unity   : 
+FStudio.MatchEngine.GameTeam:SetTeam(MatchT
+eam)
+02-25 23:47:26.910  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:CreateMatc
+h(MatchTeam, MatchTeam)
+02-25 23:47:26.911  6908 24708 I Unity   : 
+FStudio.MatchEngine.GameTeam:SetTeam(MatchT
+eam)
+02-25 23:47:26.911  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:CreateMatc
+h(MatchTeam, MatchTeam)
+02-25 23:47:26.911  6908 24708 I Unity   : 
+FStudio.MatchEngine.GameTeam:SetTeam(MatchT
+eam)
+02-25 23:47:26.911  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:CreateMatc
+h(MatchTeam, MatchTeam)
+02-25 23:47:26.912  6908 24708 I Unity   : 
+FStudio.MatchEngine.GameTeam:SetTeam(MatchT
+eam)
+02-25 23:47:26.912  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:CreateMatc
+h(MatchTeam, MatchTeam)
+02-25 23:47:26.912  6908 24708 I Unity   : 
+FStudio.MatchEngine.GameTeam:SetTeam(MatchT
+eam)
+02-25 23:47:26.912  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:CreateMatc
+h(MatchTeam, MatchTeam)
+02-25 23:47:26.912  6908 24708 I Unity   : 
+FStudio.MatchEngine.GameTeam:SetTeam(MatchT
+eam)
+02-25 23:47:26.912  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:CreateMatc
+h(MatchTeam, MatchTeam)
+02-25 23:47:26.913  6908 24708 I Unity   : 
+[MatchManager][CreateMatch.instance] Origin
+ateAll begin.
+02-25 23:47:26.913  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:CreateMatc
+h(MatchTeam, MatchTeam)
+02-25 23:47:26.913  6908 24708 I Unity   : 
+[MatchManager] OriginateAll. IsClientMode: 
+True, NetworkServer.active: False
+02-25 23:47:26.913  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:OriginateA
+ll()
+02-25 23:47:26.913  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:CreateMatc
+h(MatchTeam, MatchTeam)
+02-25 23:47:26.914  6908 24708 I Unity   : 
+[MatchManager] OriginateAll: Skipping local
+ creation in Client-Only Mode.
+02-25 23:47:26.914  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:OriginateA
+ll()
+02-25 23:47:26.914  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:CreateMatc
+h(MatchTeam, MatchTeam)
+02-25 23:47:26.914  6908 24708 I Unity   : 
+[MatchManager][CreateMatch.instance] Origin
+ateAll completed in 0,001s.
+02-25 23:47:26.914  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:CreateMatc
+h(MatchTeam, MatchTeam)
+02-25 23:47:26.914  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:CreateMatc
+h(MatchTeam, MatchTeam)
+02-25 23:47:26.916  6908 24708 I Unity   : 
+[MatchManager] StatisticsManager created.
+02-25 23:47:26.916  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:CreateMatc
+h(MatchTeam, MatchTeam)
+02-25 23:47:26.916  6908 24708 I Unity   : 
+[MatchManager] MatchSceneManager created.
+02-25 23:47:26.916  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:CreateMatc
+h(MatchTeam, MatchTeam)
+02-25 23:47:26.917  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:CreateMatc
+h(MatchTeam, MatchTeam)
+02-25 23:47:26.918  6908 24708 I Unity   : 
+[MatchManager][CreateMatch.instance] FindSc
+eneReferences completed in 0,000s goalNet1=
+True goalNet2=True corners=4
+02-25 23:47:26.918  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:CreateMatc
+h(MatchTeam, MatchTeam)
+02-25 23:47:26.918  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:CreateMatc
+h(MatchTeam, MatchTeam)
+02-25 23:47:26.918  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:CreateMatc
+h(MatchTeam, MatchTeam)
+02-25 23:47:26.919  6908 24708 I Unity   : 
+[MatchManager] Client Mode: Linking players
+ to controllers...
+02-25 23:47:26.919  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:CreateMatc
+h(MatchTeam, MatchTeam)
+02-25 23:47:26.919  6908 24708 I Unity   : 
+[MatchManager] Searching netSync for player
+ Elam Uzgor No:1 TeamId:0
+02-25 23:47:26.919  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:CreateMatc
+h(MatchTeam, MatchTeam)
+02-25 23:47:26.921  6908 24708 I Unity   : 
+[MatchManager] Searching netSync for player
+ Maer Nazu No:2 TeamId:0
+02-25 23:47:26.921  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:CreateMatc
+h(MatchTeam, MatchTeam)
+02-25 23:47:26.923  6908 24708 I Unity   : 
+[MatchManager] Searching netSync for player
+ Buor Canu No:3 TeamId:0
+02-25 23:47:26.923  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:CreateMatc
+h(MatchTeam, MatchTeam)
+02-25 23:47:26.925  6908 24708 I Unity   : 
+[MatchManager] Searching netSync for player
+ Ayir Yenor No:4 TeamId:0
+02-25 23:47:26.925  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:CreateMatc
+h(MatchTeam, MatchTeam)
+02-25 23:47:26.927  6908 24708 I Unity   : 
+[MatchManager] Searching netSync for player
+ Elun Yenam No:5 TeamId:0
+02-25 23:47:26.927  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:CreateMatc
+h(MatchTeam, MatchTeam)
+02-25 23:47:26.928  6908 24708 I Unity   : 
+[MatchManager] Searching netSync for player
+ Bua Eru No:6 TeamId:0
+02-25 23:47:26.928  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:CreateMatc
+h(MatchTeam, MatchTeam)
+02-25 23:47:26.930  6908 24708 I Unity   : 
+[MatchManager] Searching netSync for player
+ Hein Polun No:7 TeamId:0
+02-25 23:47:26.930  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:CreateMatc
+h(MatchTeam, MatchTeam)
+02-25 23:47:26.931  6908 24708 I Unity   : 
+[MatchManager] Searching netSync for player
+ Gerd M├╝ller No:8 TeamId:0
+02-25 23:47:26.931  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:CreateMatc
+h(MatchTeam, MatchTeam)
+02-25 23:47:26.933  6908 24708 I Unity   : 
+[MatchManager] Searching netSync for player
+ Cafu No:9 TeamId:0
+02-25 23:47:26.933  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:CreateMatc
+h(MatchTeam, MatchTeam)
+02-25 23:47:26.935  6908 24708 I Unity   : 
+[MatchManager] Searching netSync for player
+ Claude Mak├®l├®l├® No:10 TeamId:0
+02-25 23:47:26.935  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:CreateMatc
+h(MatchTeam, MatchTeam)
+02-25 23:47:26.936  6908 24708 I Unity   : 
+[MatchManager] Searching netSync for player
+ Gheorghe Hagi No:11 TeamId:0
+02-25 23:47:26.936  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:CreateMatc
+h(MatchTeam, MatchTeam)
+02-25 23:47:26.938  6908 24708 I Unity   : 
+[MatchManager] Searching netSync for player
+ Caer Celon No:1 TeamId:1
+02-25 23:47:26.938  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:CreateMatc
+h(MatchTeam, MatchTeam)
+02-25 23:47:26.939  6908 24708 I Unity   : 
+[MatchManager] Searching netSync for player
+ Emer Uzgi No:2 TeamId:1
+02-25 23:47:26.939  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:CreateMatc
+h(MatchTeam, MatchTeam)
+02-25 23:47:26.941  6908 24708 I Unity   : 
+[MatchManager] Searching netSync for player
+ Emim Balon No:3 TeamId:1
+02-25 23:47:26.941  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:CreateMatc
+h(MatchTeam, MatchTeam)
+02-25 23:47:26.942  6908 24708 I Unity   : 
+[MatchManager] Searching netSync for player
+ Ilar Gular No:4 TeamId:1
+02-25 23:47:26.942  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:CreateMatc
+h(MatchTeam, MatchTeam)
+02-25 23:47:26.944  6908 24708 I Unity   : 
+[MatchManager] Searching netSync for player
+ Faum Gulu No:5 TeamId:1
+02-25 23:47:26.944  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:CreateMatc
+h(MatchTeam, MatchTeam)
+02-25 23:47:26.946  6908 24708 I Unity   : 
+[MatchManager] Searching netSync for player
+ Beum Canur No:6 TeamId:1
+02-25 23:47:26.946  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:CreateMatc
+h(MatchTeam, MatchTeam)
+02-25 23:47:26.947  6908 24708 I Unity   : 
+[MatchManager] Searching netSync for player
+ Haum Kara No:7 TeamId:1
+02-25 23:47:26.947  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:CreateMatc
+h(MatchTeam, MatchTeam)
+02-25 23:47:26.949  6908 24708 I Unity   : 
+[MatchManager] Searching netSync for player
+ Deom Naza No:8 TeamId:1
+02-25 23:47:26.949  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:CreateMatc
+h(MatchTeam, MatchTeam)
+02-25 23:47:26.950  6908 24708 I Unity   : 
+[MatchManager] Searching netSync for player
+ Ceom Aker No:9 TeamId:1
+02-25 23:47:26.950  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:CreateMatc
+h(MatchTeam, MatchTeam)
+02-25 23:47:26.952  6908 24708 I Unity   : 
+[MatchManager] Searching netSync for player
+ Ilun Barin No:10 TeamId:1
+02-25 23:47:26.952  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:CreateMatc
+h(MatchTeam, MatchTeam)
+02-25 23:47:26.953  6908 24708 I Unity   : 
+[MatchManager] Searching netSync for player
+ Arer Sarir No:11 TeamId:1
+02-25 23:47:26.953  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:CreateMatc
+h(MatchTeam, MatchTeam)
+02-25 23:47:26.955  6908 24708 I Unity   : 
+[MatchManager] Calling PrePositionTeamsForK
+ickOff...
+02-25 23:47:26.955  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:CreateMatc
+h(MatchTeam, MatchTeam)
+02-25 23:47:26.956  6908 24708 I Unity   : 
+[MatchManager] PrePositionTeamsForKickOff. 
+IsClientMode: True, NetworkServer.active: F
+alse
+02-25 23:47:26.956  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:PrePositio
+nTeamsForKickOff()
+02-25 23:47:26.956  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:CreateMatc
+h(MatchTeam, MatchTeam)
+02-25 23:47:26.956  6908 24708 I Unity   : 
+[MatchManager] Skipping PrePositionTeamsFor
+KickOff in Client-Only Mode.
+02-25 23:47:26.956  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:PrePositio
+nTeamsForKickOff()
+02-25 23:47:26.956  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:CreateMatc
+h(MatchTeam, MatchTeam)
+02-25 23:47:26.956  6908 24708 I Unity   : 
+[MatchManager] PrePositionTeamsForKickOff r
+eturned.
+02-25 23:47:26.956  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:CreateMatc
+h(MatchTeam, MatchTeam)
+02-25 23:47:26.957  6908 24708 I Unity   : 
+[MatchManager][CreateMatch.instance] Networ
+kCreateReadyForKickoff=true after 0,057s.
+02-25 23:47:26.957  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:CreateMatc
+h(MatchTeam, MatchTeam)
+02-25 23:47:26.957  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:CreateMatc
+h(MatchTeam, MatchTeam)
+02-25 23:47:26.957  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:CreateMatc
+h(MatchTeam, MatchTeam)
+02-25 23:47:26.958  6908 24708 I Unity   : 
+[MatchManager] Match Created Successfully.
+02-25 23:47:26.958  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:CreateMatc
+h(MatchTeam, MatchTeam)
+02-25 23:47:26.958  6908 24708 I Unity   : 
+[MatchEngineLoader][StartMatchEngine] scene
+=Stadium1_Small isServer=False isClient=Tru
+e MatchManager.CreateMatch completed in 0,2
+13s.
+02-25 23:47:26.958  6908 24708 I Unity   : 
+[MatchEngineLoader] Ball loaded locally. Fo
+cusing Camera...
+02-25 23:47:26.960  6908 24708 I Unity   : 
+[MatchEngineLoader][StartMatchEngine] scene
+=Stadium1_Small isServer=False isClient=Tru
+e Match loaded successfully total=22,883s.
+02-25 23:47:26.961  6908 24708 I Unity   : 
+[MatchManager] Status: NotPlaying, Minutes:
+ 0, IsServer: False
+02-25 23:47:26.961  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:LateUpdate
+()
+02-25 23:47:26.979  6908 24708 I Unity   : 
+[MatchNetworkManager][WaitForClientGameplay
+ReadyAsync] matchId=m_75de38858e2842ef9f418
+2a6aa8ac8e2 scene=Stadium1_Small isServer=F
+alse isClient=True OnMatchBeginReceived: cl
+ient gameplay ready after 22,886s.
+02-25 23:47:26.979  6908 24708 I Unity   : 
+[MatchNetworkManager][TrySignalClientSceneL
+oadedReady] matchId=m_75de38858e2842ef9f418
+2a6aa8ac8e2 scene=Stadium1_Small isServer=F
+alse isClient=True OnMatchBeginReceived: be
+fore Ready() clientReady=False connReady=Tr
+ue
+02-25 23:47:26.979  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:TryS
+ignalClientSceneLoadedReady(String)
+02-25 23:47:26.980  6908 24708 I Unity   : 
+[MatchNetworkManager][TrySignalClientSceneL
+oadedReady] matchId=m_75de38858e2842ef9f418
+2a6aa8ac8e2 scene=Stadium1_Small isServer=F
+alse isClient=True OnMatchBeginReceived: Ne
+tworkClient.Ready() => True
+02-25 23:47:26.980  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:TryS
+ignalClientSceneLoadedReady(String)
+02-25 23:47:27.271  6908 24708 I Unity   : 
+[MatchNetworkManager] BallStateMessage appl
+ied.
+02-25 23:47:27.271  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:OnBa
+llStateReceived(BallStateMessage)
+02-25 23:47:28.656  6908 24708 I Unity   : 
+[MatchManager] Status: NotPlaying, Minutes:
+ 0, IsServer: False
+02-25 23:47:28.656  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:LateUpdate
+()
+02-25 23:47:28.751  6908 24708 I Unity   : 
+[MatchNetworkManager][OnKickoffStartReceive
+d] matchId=m_75de38858e2842ef9f4182a6aa8ac8
+e2 scene=Stadium1_Small isServer=False isCl
+ient=True KickoffStartMessage received. Wai
+ting for MatchManager.
+02-25 23:47:28.751  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:OnKi
+ckoffStartReceived(KickoffStartMessage)
+02-25 23:47:28.751  6908 24708 I Unity   : 
+[MatchNetworkManager][OnKickoffStartReceive
+d] matchId=m_75de38858e2842ef9f4182a6aa8ac8
+e2 scene=Stadium1_Small isServer=False isCl
+ient=True MatchManager ready after 0,001s. 
+Triggering BeginNetworkKickOffOnClient().
+02-25 23:47:28.751  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:OnKi
+ckoffStartReceived(KickoffStartMessage)
+02-25 23:47:28.752  6908 24708 I Unity   : 
+[MatchManager] BeginNetworkKickOffOnClient 
+called. Starting Kick-off sequence on Clien
+t.
+02-25 23:47:28.752  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:BeginNetwo
+rkKickOffOnClient()
+02-25 23:47:28.752  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:OnKi
+ckoffStartReceived(KickoffStartMessage)
+02-25 23:47:28.752  6908 24708 I Unity   : 
+[MatchManager] KickoffRoutine Started. Wait
+ing 1000ms...
+02-25 23:47:28.752  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:BeginNetwo
+rkKickOffOnClient()
+02-25 23:47:28.752  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:OnKi
+ckoffStartReceived(KickoffStartMessage)
+02-25 23:47:29.426  6908 24708 I Unity   : 
+[MatchManager] Triggering RefereeShortWhist
+leEvent & ShowScoreboardEvent
+02-25 23:47:29.431  6908 24708 I Unity   : 
+[MatchManager] Waiting 1000ms for KickOff..
+.
+02-25 23:47:29.462  6908 24708 I Unity   : 
+[MatchManager] Network State Change: NotPla
+ying -> Playing
+02-25 23:47:29.462  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:SetMatchSt
+ateFromNetwork(Single, Int32, Int32, MatchS
+tatus)
+02-25 23:47:29.462  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:OnMa
+tchStateReceived(MatchStateMessage)
+02-25 23:47:30.114  6908 24708 I Unity   : 
+[MatchManager] First whistle skipped (minut
+es=0,3341028)
+02-25 23:47:30.114  6908 24708 I Unity   : 
+[MatchManager] Triggering KickOffEvent
+02-25 23:47:30.117  6908 24708 I Unity   : 
+[MatchManager] KickOff Event Received. IsCl
+ientMode: True
+02-25 23:47:30.117  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:KickOff(Ki
+ckOffEvent)
+02-25 23:47:30.468  6908 24708 I Unity   : 
+[MatchManager] Status: Playing, Minutes: 0,
+5444946, IsServer: False
+02-25 23:47:30.468  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:LateUpdate
+()
+02-25 23:47:30.616  6908 24708 I Unity   : 
+[MatchNetworkManager] BallStateMessage appl
+ied.
+02-25 23:47:30.616  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:OnBa
+llStateReceived(BallStateMessage)
+02-25 23:47:32.200  6908 24708 I Unity   : 
+[MatchManager] Status: Playing, Minutes: 1,
+426929, IsServer: False
+02-25 23:47:32.200  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:LateUpdate
+()
+02-25 23:47:33.978  6908 24708 I Unity   : 
+[MatchManager] Status: Playing, Minutes: 2,
+268554, IsServer: False
+02-25 23:47:33.978  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:LateUpdate
+()
+02-25 23:47:34.018  6908 24708 I Unity   : 
+[MatchNetworkManager] BallStateMessage appl
+ied.
+02-25 23:47:34.018  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:OnBa
+llStateReceived(BallStateMessage)
+02-25 23:47:35.699  6908 24708 I Unity   : 
+[MatchManager] Status: Playing, Minutes: 3,
+250372, IsServer: False
+02-25 23:47:35.699  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:LateUpdate
+()
+02-25 23:47:37.379  6908 24708 I Unity   : 
+[MatchNetworkManager] BallStateMessage appl
+ied.
+02-25 23:47:37.379  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:OnBa
+llStateReceived(BallStateMessage)
+02-25 23:47:37.467  6908 24708 I Unity   : 
+[MatchManager] Status: Playing, Minutes: 4,
+20581, IsServer: False
+02-25 23:47:37.467  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:LateUpdate
+()
+02-25 23:47:39.139  6908 24708 I Unity   : 
+[MatchManager] Status: Playing, Minutes: 5,
+082508, IsServer: False
+02-25 23:47:39.139  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:LateUpdate
+()
+02-25 23:47:40.720  6908 24708 I Unity   : 
+[MatchNetworkManager] BallStateMessage appl
+ied.
+02-25 23:47:40.720  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:OnBa
+llStateReceived(BallStateMessage)
+02-25 23:47:40.814  6908 24708 I Unity   : 
+[MatchManager] Status: Playing, Minutes: 5,
+959038, IsServer: False
+02-25 23:47:40.814  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:LateUpdate
+()
+02-25 23:47:41.099  6908 24708 I Unity   : 
+[MatchManager] Network State Change: Playin
+g -> Freeze
+02-25 23:47:41.099  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:SetMatchSt
+ateFromNetwork(Single, Int32, Int32, MatchS
+tatus)
+02-25 23:47:41.099  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:OnMa
+tchStateReceived(MatchStateMessage)
+02-25 23:47:42.573  6908 24708 I Unity   : 
+[MatchManager] Status: Freeze, Minutes: 6,0
+46715, IsServer: False
+02-25 23:47:42.573  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:LateUpdate
+()
+02-25 23:47:43.966  6908 24708 I Unity   : 
+[MatchManager] Network State Change: Freeze
+ -> WaitingForKickOff
+02-25 23:47:43.966  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:SetMatchSt
+ateFromNetwork(Single, Int32, Int32, MatchS
+tatus)
+02-25 23:47:43.966  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:OnMa
+tchStateReceived(MatchStateMessage)
+02-25 23:47:44.066  6908 24708 I Unity   : 
+[MatchNetworkManager] BallStateMessage appl
+ied.
+02-25 23:47:44.066  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:OnBa
+llStateReceived(BallStateMessage)
+02-25 23:47:44.233  6908 24708 I Unity   : 
+[MatchManager] Network State Change: Waitin
+gForKickOff -> Playing
+02-25 23:47:44.233  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:SetMatchSt
+ateFromNetwork(Single, Int32, Int32, MatchS
+tatus)
+02-25 23:47:44.233  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:OnMa
+tchStateReceived(MatchStateMessage)
+02-25 23:47:44.266  6908 24708 I Unity   : 
+[MatchManager] Status: Playing, Minutes: 6,
+064228, IsServer: False
+02-25 23:47:44.266  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:LateUpdate
+()
+02-25 23:47:45.976  6908 24708 I Unity   : 
+[MatchManager] Status: Playing, Minutes: 6,
+955298, IsServer: False
+02-25 23:47:45.976  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:LateUpdate
+()
+02-25 23:47:47.412  6908 24708 I Unity   : 
+[MatchNetworkManager] BallStateMessage appl
+ied.
+02-25 23:47:47.412  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:OnBa
+llStateReceived(BallStateMessage)
+02-25 23:47:47.680  6908 24708 I Unity   : 
+[MatchManager] Status: Playing, Minutes: 7,
+87775, IsServer: False
+02-25 23:47:47.680  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:LateUpdate
+()
+02-25 23:47:49.417  6908 24708 I Unity   : 
+[MatchManager] Status: Playing, Minutes: 8,
+758292, IsServer: False
+02-25 23:47:49.417  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:LateUpdate
+()
+02-25 23:47:50.840  6908 24708 I Unity   : 
+[MatchNetworkManager] BallStateMessage appl
+ied.
+02-25 23:47:50.840  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:OnBa
+llStateReceived(BallStateMessage)
+02-25 23:47:51.159  6908 24708 I Unity   : 
+[MatchManager] Status: Playing, Minutes: 9,
+695825, IsServer: False
+02-25 23:47:51.159  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:LateUpdate
+()
+02-25 23:47:52.830  6908 24708 I Unity   : 
+[MatchManager] Status: Playing, Minutes: 10
+,56521, IsServer: False
+02-25 23:47:52.830  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:LateUpdate
+()
+02-25 23:47:54.180  6908 24708 I Unity   : 
+[MatchNetworkManager] BallStateMessage appl
+ied.
+02-25 23:47:54.180  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:OnBa
+llStateReceived(BallStateMessage)
+02-25 23:47:54.552  6908 24708 I Unity   : 
+[MatchManager] Status: Playing, Minutes: 11
+,47948, IsServer: False
+02-25 23:47:54.552  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:LateUpdate
+()
+02-25 23:47:55.494  6908 24708 I Unity   : 
+[MatchManager] Network State Change: Playin
+g -> Freeze
+02-25 23:47:55.494  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:SetMatchSt
+ateFromNetwork(Single, Int32, Int32, MatchS
+tatus)
+02-25 23:47:55.494  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:OnMa
+tchStateReceived(MatchStateMessage)
+02-25 23:47:56.213  6908 24708 I Unity   : 
+[MatchManager] Status: Freeze, Minutes: 11,
+91829, IsServer: False
+02-25 23:47:56.213  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:LateUpdate
+()
+02-25 23:47:57.559  6908 24708 I Unity   : 
+[MatchNetworkManager] BallStateMessage appl
+ied.
+02-25 23:47:57.559  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:OnBa
+llStateReceived(BallStateMessage)
+02-25 23:47:57.890  6908 24708 I Unity   : 
+[MatchManager] Status: Freeze, Minutes: 11,
+91829, IsServer: False
+02-25 23:47:57.890  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:LateUpdate
+()
+02-25 23:47:58.376  6908 24708 I Unity   : 
+[MatchManager] Network State Change: Freeze
+ -> WaitingForKickOff
+02-25 23:47:58.376  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:SetMatchSt
+ateFromNetwork(Single, Int32, Int32, MatchS
+tatus)
+02-25 23:47:58.376  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:OnMa
+tchStateReceived(MatchStateMessage)
+02-25 23:47:58.715  6908 24708 I Unity   : 
+[MatchManager] Network State Change: Waitin
+gForKickOff -> Playing
+02-25 23:47:58.715  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:SetMatchSt
+ateFromNetwork(Single, Int32, Int32, MatchS
+tatus)
+02-25 23:47:58.715  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:OnMa
+tchStateReceived(MatchStateMessage)
+02-25 23:47:59.563  6908 24708 I Unity   : 
+[MatchManager] Status: Playing, Minutes: 12
+,40544, IsServer: False
+02-25 23:47:59.563  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:LateUpdate
+()
+02-25 23:48:00.925  6908 24708 I Unity   : 
+[MatchNetworkManager] BallStateMessage appl
+ied.
+02-25 23:48:00.925  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:OnBa
+llStateReceived(BallStateMessage)
+02-25 23:48:01.261  6908 24708 I Unity   : 
+[MatchManager] Status: Playing, Minutes: 13
+,28629, IsServer: False
+02-25 23:48:01.261  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:LateUpdate
+()
+02-25 23:48:02.974  6908 24708 I Unity   : 
+[MatchManager] Status: Playing, Minutes: 14
+,18215, IsServer: False
+02-25 23:48:02.974  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:LateUpdate
+()
+02-25 23:48:04.260  6908 24708 I Unity   : 
+[MatchNetworkManager] BallStateMessage appl
+ied.
+02-25 23:48:04.260  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:OnBa
+llStateReceived(BallStateMessage)
+02-25 23:48:04.743  6908 24708 I Unity   : 
+[MatchManager] Status: Playing, Minutes: 15
+,12055, IsServer: False
+02-25 23:48:04.743  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:LateUpdate
+()
+02-25 23:48:06.428  6908 24708 I Unity   : 
+[MatchManager] Status: Playing, Minutes: 15
+,98581, IsServer: False
+02-25 23:48:06.428  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:LateUpdate
+()
+02-25 23:48:07.602  6908 24708 I Unity   : 
+[MatchNetworkManager] BallStateMessage appl
+ied.
+02-25 23:48:07.602  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:OnBa
+llStateReceived(BallStateMessage)
+02-25 23:48:08.117  6908 24708 I Unity   : 
+[MatchManager] Status: Playing, Minutes: 16
+,87099, IsServer: False
+02-25 23:48:08.117  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:LateUpdate
+()
+02-25 23:48:09.845  6908 24708 I Unity   : 
+[MatchManager] Status: Playing, Minutes: 17
+,80506, IsServer: False
+02-25 23:48:09.845  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:LateUpdate
+()
+02-25 23:48:10.948  6908 24708 I Unity   : 
+[MatchNetworkManager] BallStateMessage appl
+ied.
+02-25 23:48:10.948  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:OnBa
+llStateReceived(BallStateMessage)
+02-25 23:48:11.530  6908 24708 I Unity   : 
+[MatchManager] Status: Playing, Minutes: 18
+,66724, IsServer: False
+02-25 23:48:11.530  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:LateUpdate
+()
+02-25 23:48:13.261  6908 24708 I Unity   : 
+[MatchManager] Status: Playing, Minutes: 19
+,59508, IsServer: False
+02-25 23:48:13.261  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:LateUpdate
+()
+02-25 23:48:14.297  6908 24708 I Unity   : 
+[MatchNetworkManager] BallStateMessage appl
+ied.
+02-25 23:48:14.297  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:OnBa
+llStateReceived(BallStateMessage)
+02-25 23:48:14.948  6908 24708 I Unity   : 
+[MatchManager] Status: Playing, Minutes: 20
+,47079, IsServer: False
+02-25 23:48:14.948  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:LateUpdate
+()
+02-25 23:48:15.700  6908 24708 W Unity   : 
+[MatchManager] Suppressed network final whi
+stle. flags=Playing->Freeze, Special prevMi
+nute=20,71 incomingMinute=20,72 minuteRefer
+ence=20,72 threshold=89,50
+02-25 23:48:15.700  6908 24708 W Unity   : 
+FStudio.MatchEngine.MatchManager:LogSuppres
+sedNetworkFinalWhistle(MatchStatus, MatchSt
+atus, Single, Single, Single)
+02-25 23:48:15.700  6908 24708 W Unity   : 
+FStudio.MatchEngine.MatchManager:SetMatchSt
+ateFromNetwork(Single, Int32, Int32, MatchS
+tatus)
+02-25 23:48:15.700  6908 24708 W Unity   : 
+FStudio.Networking.MatchNetworkManager:OnMa
+tchStateReceived(MatchStateMessage)
+02-25 23:48:15.701  6908 24708 I Unity   : 
+[MatchManager] Network State Change: Playin
+g -> Freeze, Special
+02-25 23:48:15.701  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:SetMatchSt
+ateFromNetwork(Single, Int32, Int32, MatchS
+tatus)
+02-25 23:48:15.701  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:OnMa
+tchStateReceived(MatchStateMessage)
+02-25 23:48:17.190  6908 24708 I Unity   : 
+[MatchManager] Status: Freeze, Special, Min
+utes: 20,7218, IsServer: False
+02-25 23:48:17.190  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:LateUpdate
+()
+02-25 23:48:17.644  6908 24708 I Unity   : 
+[MatchNetworkManager] BallStateMessage appl
+ied.
+02-25 23:48:17.644  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:OnBa
+llStateReceived(BallStateMessage)
+02-25 23:48:19.521  6908 24708 I Unity   : 
+[MatchManager] Status: Freeze, Special, Min
+utes: 20,7218, IsServer: False
+02-25 23:48:19.521  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:LateUpdate
+()
+02-25 23:48:20.369  6908 24708 I Unity   : 
+[MatchManager] Network State Change: Freeze
+, Special -> Freeze
+02-25 23:48:20.369  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:SetMatchSt
+ateFromNetwork(Single, Int32, Int32, MatchS
+tatus)
+02-25 23:48:20.369  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:OnMa
+tchStateReceived(MatchStateMessage)
+02-25 23:48:21.008  6908 24708 I Unity   : 
+[MatchNetworkManager] BallStateMessage appl
+ied.
+02-25 23:48:21.008  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:OnBa
+llStateReceived(BallStateMessage)
+02-25 23:48:21.008  6908 24708 I Unity   : 
+[MatchNetworkManager] Duplicate KickoffStar
+tMessage ignored.
+02-25 23:48:21.008  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:OnKi
+ckoffStartReceived(KickoffStartMessage)
+02-25 23:48:21.600  6908 24708 I Unity   : 
+[MatchManager] Status: Freeze, Minutes: 20,
+7218, IsServer: False
+02-25 23:48:21.600  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:LateUpdate
+()
+02-25 23:48:21.746  6908 24708 I Unity   : 
+[MatchManager] Network State Change: Freeze
+ -> WaitingForKickOff
+02-25 23:48:21.746  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:SetMatchSt
+ateFromNetwork(Single, Int32, Int32, MatchS
+tatus)
+02-25 23:48:21.746  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:OnMa
+tchStateReceived(MatchStateMessage)
+02-25 23:48:21.991  6908 24708 I Unity   : 
+[MatchManager] Network State Change: Waitin
+gForKickOff -> Playing
+02-25 23:48:21.991  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:SetMatchSt
+ateFromNetwork(Single, Int32, Int32, MatchS
+tatus)
+02-25 23:48:21.991  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:OnMa
+tchStateReceived(MatchStateMessage)
+02-25 23:48:23.301  6908 24708 I Unity   : 
+[MatchManager] Status: Playing, Minutes: 21
+,42366, IsServer: False
+02-25 23:48:23.301  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:LateUpdate
+()
+02-25 23:48:24.359  6908 24708 I Unity   : 
+[MatchNetworkManager] BallStateMessage appl
+ied.
+02-25 23:48:24.359  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:OnBa
+llStateReceived(BallStateMessage)
+02-25 23:48:24.989  6908 24708 I Unity   : 
+[MatchManager] Status: Playing, Minutes: 22
+,2947, IsServer: False
+02-25 23:48:24.989  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:LateUpdate
+()
+02-25 23:48:26.703  6908 24708 I Unity   : 
+[MatchManager] Status: Playing, Minutes: 23
+,21103, IsServer: False
+02-25 23:48:26.703  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:LateUpdate
+()
+02-25 23:48:27.708  6908 24708 I Unity   : 
+[MatchNetworkManager] BallStateMessage appl
+ied.
+02-25 23:48:27.708  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:OnBa
+llStateReceived(BallStateMessage)
+02-25 23:48:28.396  6908 24708 I Unity   : 
+[MatchManager] Status: Playing, Minutes: 24
+,12465, IsServer: False
+02-25 23:48:28.396  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:LateUpdate
+()
+02-25 23:48:30.067  6908 24708 I Unity   : 
+[MatchManager] Status: Playing, Minutes: 24
+,97319, IsServer: False
+02-25 23:48:30.067  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:LateUpdate
+()
+02-25 23:48:31.067  6908 24708 I Unity   : 
+[MatchNetworkManager] BallStateMessage appl
+ied.
+02-25 23:48:31.067  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:OnBa
+llStateReceived(BallStateMessage)
+02-25 23:48:31.747  6908 24708 I Unity   : 
+[MatchManager] Status: Playing, Minutes: 25
+,85534, IsServer: False
+02-25 23:48:31.747  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:LateUpdate
+()
+02-25 23:48:33.448  6908 24708 I Unity   : 
+[MatchManager] Status: Playing, Minutes: 26
+,76256, IsServer: False
+02-25 23:48:33.448  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:LateUpdate
+()
+02-25 23:48:33.668  6908 24708 W Unity   : 
+[MatchManager] Suppressed network final whi
+stle. flags=Playing->Freeze, Special prevMi
+nute=26,80 incomingMinute=26,81 minuteRefer
+ence=26,81 threshold=89,50
+02-25 23:48:33.668  6908 24708 W Unity   : 
+FStudio.MatchEngine.MatchManager:LogSuppres
+sedNetworkFinalWhistle(MatchStatus, MatchSt
+atus, Single, Single, Single)
+02-25 23:48:33.668  6908 24708 W Unity   : 
+FStudio.MatchEngine.MatchManager:SetMatchSt
+ateFromNetwork(Single, Int32, Int32, MatchS
+tatus)
+02-25 23:48:33.668  6908 24708 W Unity   : 
+FStudio.Networking.MatchNetworkManager:OnMa
+tchStateReceived(MatchStateMessage)
+02-25 23:48:33.668  6908 24708 I Unity   : 
+[MatchManager] Network State Change: Playin
+g -> Freeze, Special
+02-25 23:48:33.668  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:SetMatchSt
+ateFromNetwork(Single, Int32, Int32, MatchS
+tatus)
+02-25 23:48:33.668  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:OnMa
+tchStateReceived(MatchStateMessage)
+02-25 23:48:34.427  6908 24708 I Unity   : 
+[MatchNetworkManager] BallStateMessage appl
+ied.
+02-25 23:48:34.427  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:OnBa
+llStateReceived(BallStateMessage)
+02-25 23:48:35.950  6908 24708 I Unity   : 
+[MatchManager] Status: Freeze, Special, Min
+utes: 26,80641, IsServer: False
+02-25 23:48:35.950  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:LateUpdate
+()
+02-25 23:48:37.216  6908 24708 I Unity   : 
+[MatchManager] Network State Change: Freeze
+, Special -> Freeze
+02-25 23:48:37.216  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:SetMatchSt
+ateFromNetwork(Single, Int32, Int32, MatchS
+tatus)
+02-25 23:48:37.216  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:OnMa
+tchStateReceived(MatchStateMessage)
+02-25 23:48:37.729  6908 24708 I Unity   : 
+[MatchNetworkManager] Duplicate KickoffStar
+tMessage ignored.
+02-25 23:48:37.729  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:OnKi
+ckoffStartReceived(KickoffStartMessage)
+02-25 23:48:37.783  6908 24708 I Unity   : 
+[MatchNetworkManager] BallStateMessage appl
+ied.
+02-25 23:48:37.783  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:OnBa
+llStateReceived(BallStateMessage)
+02-25 23:48:38.424  6908 24708 I Unity   : 
+[MatchManager] Network State Change: Freeze
+ -> WaitingForKickOff
+02-25 23:48:38.424  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:SetMatchSt
+ateFromNetwork(Single, Int32, Int32, MatchS
+tatus)
+02-25 23:48:38.424  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:OnMa
+tchStateReceived(MatchStateMessage)
+02-25 23:48:38.443  6908 24708 I Unity   : 
+[MatchManager] Status: WaitingForKickOff, M
+inutes: 26,80641, IsServer: False
+02-25 23:48:38.443  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:LateUpdate
+()
+02-25 23:48:38.536  6908 24708 I Unity   : 
+[MatchManager] Network State Change: Waitin
+gForKickOff -> Playing
+02-25 23:48:38.536  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:SetMatchSt
+ateFromNetwork(Single, Int32, Int32, MatchS
+tatus)
+02-25 23:48:38.536  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:OnMa
+tchStateReceived(MatchStateMessage)
+02-25 23:48:40.581  6908 24708 I Unity   : 
+[MatchManager] Status: Playing, Minutes: 27
+,90538, IsServer: False
+02-25 23:48:40.581  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:LateUpdate
+()
+02-25 23:48:41.126  6908 24708 I Unity   : 
+[MatchNetworkManager] BallStateMessage appl
+ied.
+02-25 23:48:41.126  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:OnBa
+llStateReceived(BallStateMessage)
+02-25 23:48:42.512  6908 24708 I Unity   : 
+[MatchManager] Status: Playing, Minutes: 28
+,8941, IsServer: False
+02-25 23:48:42.512  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:LateUpdate
+()
+02-25 23:48:44.459  6908 24708 I Unity   : 
+[MatchNetworkManager] BallStateMessage appl
+ied.
+02-25 23:48:44.459  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:OnBa
+llStateReceived(BallStateMessage)
+02-25 23:48:44.514  6908 24708 I Unity   : 
+[MatchManager] Status: Playing, Minutes: 29
+,95791, IsServer: False
+02-25 23:48:44.514  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:LateUpdate
+()
+02-25 23:48:46.476  6908 24708 I Unity   : 
+[MatchManager] Status: Playing, Minutes: 30
+,99499, IsServer: False
+02-25 23:48:46.476  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:LateUpdate
+()
+02-25 23:48:47.810  6908 24708 I Unity   : 
+[MatchNetworkManager] BallStateMessage appl
+ied.
+02-25 23:48:47.810  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:OnBa
+llStateReceived(BallStateMessage)
+02-25 23:48:48.458  6908 24708 I Unity   : 
+[MatchManager] Status: Playing, Minutes: 32
+,04092, IsServer: False
+02-25 23:48:48.458  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:LateUpdate
+()
+02-25 23:48:50.367  6908 24708 I Unity   : 
+[MatchManager] Status: Playing, Minutes: 33
+,00829, IsServer: False
+02-25 23:48:50.367  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:LateUpdate
+()
+02-25 23:48:51.181  6908 24708 I Unity   : 
+[MatchNetworkManager] BallStateMessage appl
+ied.
+02-25 23:48:51.181  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:OnBa
+llStateReceived(BallStateMessage)
+02-25 23:48:52.297  6908 24708 I Unity   : 
+[MatchManager] Status: Playing, Minutes: 34
+,0348, IsServer: False
+02-25 23:48:52.297  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:LateUpdate
+()
+02-25 23:48:54.220  6908 24708 I Unity   : 
+[MatchManager] Status: Playing, Minutes: 35
+,05811, IsServer: False
+02-25 23:48:54.220  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:LateUpdate
+()
+02-25 23:48:54.556  6908 24708 I Unity   : 
+[MatchNetworkManager] BallStateMessage appl
+ied.
+02-25 23:48:54.556  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:OnBa
+llStateReceived(BallStateMessage)
+02-25 23:48:56.149  6908 24708 I Unity   : 
+[MatchManager] Status: Playing, Minutes: 36
+,04503, IsServer: False
+02-25 23:48:56.149  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:LateUpdate
+()
+02-25 23:48:57.895  6908 24708 I Unity   : 
+[MatchNetworkManager] BallStateMessage appl
+ied.
+02-25 23:48:57.895  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:OnBa
+llStateReceived(BallStateMessage)
+02-25 23:48:58.123  6908 24708 I Unity   : 
+[MatchManager] Status: Playing, Minutes: 37
+,08734, IsServer: False
+02-25 23:48:58.123  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:LateUpdate
+()
+02-25 23:49:00.048  6908 24708 I Unity   : 
+[MatchManager] Status: Playing, Minutes: 38
+,10002, IsServer: False
+02-25 23:49:00.048  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:LateUpdate
+()
+02-25 23:49:01.273  6908 24708 I Unity   : 
+[MatchNetworkManager] BallStateMessage appl
+ied.
+02-25 23:49:01.273  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:OnBa
+llStateReceived(BallStateMessage)
+02-25 23:49:01.982  6908 24708 I Unity   : 
+[MatchManager] Status: Playing, Minutes: 39
+,11144, IsServer: False
+02-25 23:49:01.982  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:LateUpdate
+()
+02-25 23:49:02.240  6908 24708 W Unity   : 
+[MatchManager] Suppressed network final whi
+stle. flags=Playing->Freeze, Special prevMi
+nute=39,15 incomingMinute=39,19 minuteRefer
+ence=39,19 threshold=89,50
+02-25 23:49:02.240  6908 24708 W Unity   : 
+FStudio.MatchEngine.MatchManager:LogSuppres
+sedNetworkFinalWhistle(MatchStatus, MatchSt
+atus, Single, Single, Single)
+02-25 23:49:02.240  6908 24708 W Unity   : 
+FStudio.MatchEngine.MatchManager:SetMatchSt
+ateFromNetwork(Single, Int32, Int32, MatchS
+tatus)
+02-25 23:49:02.240  6908 24708 W Unity   : 
+FStudio.Networking.MatchNetworkManager:OnMa
+tchStateReceived(MatchStateMessage)
+02-25 23:49:02.240  6908 24708 I Unity   : 
+[MatchManager] Network State Change: Playin
+g -> Freeze, Special
+02-25 23:49:02.240  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:SetMatchSt
+ateFromNetwork(Single, Int32, Int32, MatchS
+tatus)
+02-25 23:49:02.240  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:OnMa
+tchStateReceived(MatchStateMessage)
+02-25 23:49:04.554  6908 24708 I Unity   : 
+[MatchManager] Status: Freeze, Special, Min
+utes: 39,18615, IsServer: False
+02-25 23:49:04.554  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:LateUpdate
+()
+02-25 23:49:04.614  6908 24708 I Unity   : 
+[MatchNetworkManager] BallStateMessage appl
+ied.
+02-25 23:49:04.614  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:OnBa
+llStateReceived(BallStateMessage)
+02-25 23:49:07.074  6908 24708 I Unity   : 
+[MatchManager] Status: Freeze, Special, Min
+utes: 39,18615, IsServer: False
+02-25 23:49:07.074  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:LateUpdate
+()
+02-25 23:49:07.079  6908 24708 I Unity   : 
+[MatchManager] Network State Change: Freeze
+, Special -> Freeze
+02-25 23:49:07.079  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:SetMatchSt
+ateFromNetwork(Single, Int32, Int32, MatchS
+tatus)
+02-25 23:49:07.079  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:OnMa
+tchStateReceived(MatchStateMessage)
+02-25 23:49:07.706  6908 24708 I Unity   : 
+[MatchNetworkManager] Duplicate KickoffStar
+tMessage ignored.
+02-25 23:49:07.706  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:OnKi
+ckoffStartReceived(KickoffStartMessage)
+02-25 23:49:07.954  6908 24708 I Unity   : 
+[MatchNetworkManager] BallStateMessage appl
+ied.
+02-25 23:49:07.954  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:OnBa
+llStateReceived(BallStateMessage)
+02-25 23:49:08.434  6908 24708 I Unity   : 
+[MatchManager] Network State Change: Freeze
+ -> WaitingForKickOff
+02-25 23:49:08.434  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:SetMatchSt
+ateFromNetwork(Single, Int32, Int32, MatchS
+tatus)
+02-25 23:49:08.434  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:OnMa
+tchStateReceived(MatchStateMessage)
+02-25 23:49:08.642  6908 24708 I Unity   : 
+[MatchManager] Network State Change: Waitin
+gForKickOff -> Playing
+02-25 23:49:08.642  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:SetMatchSt
+ateFromNetwork(Single, Int32, Int32, MatchS
+tatus)
+02-25 23:49:08.642  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:OnMa
+tchStateReceived(MatchStateMessage)
+02-25 23:49:09.288  6908 24708 I Unity   : 
+[MatchManager] Status: Playing, Minutes: 39
+,50237, IsServer: False
+02-25 23:49:09.288  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:LateUpdate
+()
+02-25 23:49:11.306  6908 24708 I Unity   : 
+[MatchNetworkManager] BallStateMessage appl
+ied.
+02-25 23:49:11.306  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:OnBa
+llStateReceived(BallStateMessage)
+02-25 23:49:11.322  6908 24708 I Unity   : 
+[MatchManager] Status: Playing, Minutes: 40
+,56319, IsServer: False
+02-25 23:49:11.322  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:LateUpdate
+()
+02-25 23:49:13.418  6908 24708 I Unity   : 
+[MatchManager] Status: Playing, Minutes: 41
+,68911, IsServer: False
+02-25 23:49:13.418  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:LateUpdate
+()
+02-25 23:49:14.681  6908 24708 I Unity   : 
+[MatchNetworkManager] BallStateMessage appl
+ied.
+02-25 23:49:14.681  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:OnBa
+llStateReceived(BallStateMessage)
+02-25 23:49:15.598  6908 24708 I Unity   : 
+[MatchManager] Status: Playing, Minutes: 42
+,81887, IsServer: False
+02-25 23:49:15.598  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:LateUpdate
+()
+02-25 23:49:17.667  6908 24708 I Unity   : 
+[MatchManager] Status: Playing, Minutes: 43
+,91028, IsServer: False
+02-25 23:49:17.667  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:LateUpdate
+()
+02-25 23:49:18.066  6908 24708 I Unity   : 
+[MatchNetworkManager] BallStateMessage appl
+ied.
+02-25 23:49:18.066  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:OnBa
+llStateReceived(BallStateMessage)
+02-25 23:49:19.767  6908 24708 I Unity   : 
+[MatchManager] Status: Playing, Minutes: 45
+,01468, IsServer: False
+02-25 23:49:19.767  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:LateUpdate
+()
+02-25 23:49:21.436  6908 24708 I Unity   : 
+[MatchNetworkManager] BallStateMessage appl
+ied.
+02-25 23:49:21.436  6908 24708 I Unity   : 
+FStudio.Networking.MatchNetworkManager:OnBa
+llStateReceived(BallStateMessage)
+02-25 23:49:21.869  6908 24708 I Unity   : 
+[MatchManager] Status: Playing, Minutes: 46
+,11811, IsServer: False
+02-25 23:49:21.869  6908 24708 I Unity   : 
+FStudio.MatchEngine.MatchManager:LateUpdate
+()
+
+

@@ -4,4 +4,5 @@
     <string name="title_activity_main">FHS MANAGER GAME</string>
     <string name="package_name">com.nerbuss.fhsmanager</string>
     <string name="custom_url_scheme">com.nerbuss.fhsmanager</string>
+    <string name="game_view_content_description">Game view</string>
 </resources>

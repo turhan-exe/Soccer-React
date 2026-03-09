@@ -13,6 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Textarea } from '@/components/ui/textarea';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import BackButton from '@/components/ui/back-button';
 import { AlertTriangle, Ban, BellOff, CheckCircle2, MessageSquare, ShieldAlert, ShieldCheck } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { subscribeToGlobalChat } from '@/services/chat';
@@ -718,12 +719,18 @@ const ChatModerationAdmin = () => {
     <div className="min-h-screen bg-slate-950 px-4 py-10 text-slate-100">
       <div className="mx-auto flex max-w-7xl flex-col gap-6">
         <header className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <p className="text-sm uppercase tracking-[0.3em] text-slate-500">Game Ops</p>
-            <h1 className="text-3xl font-semibold text-white">Chat Moderation Admin Panel</h1>
-            <p className="mt-1 text-sm text-slate-400">
-              Gercek zamanli mesaj akis, hizli aksiyon butonlari ve yaptirim kayitlari tek ekranda.
-            </p>
+          <div className="flex items-start gap-3">
+            <BackButton
+              fallbackPath="/"
+              className="mt-1 border border-slate-800 bg-slate-900/80 text-slate-100 hover:bg-slate-800 hover:text-white"
+            />
+            <div>
+              <p className="text-sm uppercase tracking-[0.3em] text-slate-500">Game Ops</p>
+              <h1 className="text-3xl font-semibold text-white">Chat Moderation Admin Panel</h1>
+              <p className="mt-1 text-sm text-slate-400">
+                Gercek zamanli mesaj akis, hizli aksiyon butonlari ve yaptirim kayitlari tek ekranda.
+              </p>
+            </div>
           </div>
           <div className="flex items-center gap-4 rounded-2xl border border-slate-800 bg-slate-900/70 p-3">
             <div>
@@ -731,9 +738,6 @@ const ChatModerationAdmin = () => {
               <p className="font-semibold text-white">{sessionUser.name}</p>
               <p className="text-xs text-slate-500">{sessionUser.email}</p>
             </div>
-            <Button variant="outline" size="sm" onClick={handleBackToHome}>
-              Geri Don
-            </Button>
           </div>
         </header>
 

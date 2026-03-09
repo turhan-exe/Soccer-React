@@ -174,7 +174,7 @@ async function processMatch(
   });
 }
 
-// Slot-based variant for monthly leagues with 15 teams (double round-robin)
+// Slot-based variant for monthly leagues with even-capacity double round-robin.
 export const runDailyMatchesAt19TR = functions
   .region(REGION)
   .pubsub.schedule('0 19 * * *')

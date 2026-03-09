@@ -1,0 +1,82 @@
+{
+  "mode": "final",
+  "firestoreMode": "admin",
+  "kickoffHourTR": 16,
+  "kickoffAt": "2026-03-01T13:00:00.000Z",
+  "summary": {
+    "total": 32,
+    "scheduled": 0,
+    "running": 0,
+    "played": 32,
+    "failed": 0,
+    "withLiveMatchId": 32,
+    "liveStates": {
+      "running": 32
+    },
+    "missingVideo": 32,
+    "missingScore": 0
+  },
+  "sampleStatuses": [
+    {
+      "fixtureId": "7GJEVYW1VSg9UlYvKNbk",
+      "matchId": "7GJEVYW1VSg9UlYvKNbk",
+      "firestoreState": "running",
+      "matchControlState": "ended"
+    },
+    {
+      "fixtureId": "BaPcVc8qL6fyU2AWUP2E",
+      "matchId": "BaPcVc8qL6fyU2AWUP2E",
+      "firestoreState": "running",
+      "matchControlState": "ended"
+    },
+    {
+      "fixtureId": "MeUThKCIFpSuLYnRcawz",
+      "matchId": "MeUThKCIFpSuLYnRcawz",
+      "firestoreState": "running",
+      "matchControlState": "ended"
+    },
+    {
+      "fixtureId": "TtNNqgv1gwF4rOWNbPyj",
+      "matchId": "TtNNqgv1gwF4rOWNbPyj",
+      "firestoreState": "running",
+      "matchControlState": "ended"
+    },
+    {
+      "fixtureId": "VOWo9ATtvrtogNzmR6sy",
+      "matchId": "VOWo9ATtvrtogNzmR6sy",
+      "firestoreState": "running",
+      "matchControlState": "ended"
+    },
+    {
+      "fixtureId": "c1ikO5lEyToP2MgYdtYn",
+      "matchId": "c1ikO5lEyToP2MgYdtYn",
+      "firestoreState": "running",
+      "matchControlState": "ended"
+    },
+    {
+      "fixtureId": "ihoztaTXibkjohnA7GTK",
+      "matchId": "ihoztaTXibkjohnA7GTK",
+      "firestoreState": "running",
+      "matchControlState": "ended"
+    },
+    {
+      "fixtureId": "pOAt0QHChXHazgBk32NH",
+      "matchId": "pOAt0QHChXHazgBk32NH",
+      "firestoreState": "running",
+      "matchControlState": "ended"
+    },
+    {
+      "fixtureId": "80nctrdb3x8HrVJKnssl",
+      "matchId": "80nctrdb3x8HrVJKnssl",
+      "firestoreState": "running",
+      "matchControlState": "ended"
+    },
+    {
+      "fixtureId": "AJo5B5CyCrRBFAFltrJ3",
+      "matchId": "AJo5B5CyCrRBFAFltrJ3",
+      "firestoreState": "running",
+      "matchControlState": "ended"
+    }
+  ],
+  "failures": []
+}

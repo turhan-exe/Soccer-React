@@ -132,8 +132,8 @@ export function buildKnockoutBracket(
       const awaySeed = awayEntry.type === 'seed' ? awayEntry.seed : null;
       const homeParticipant = homeSeed ? participantBySeed.get(homeSeed) ?? null : null;
       const awayParticipant = awaySeed ? participantBySeed.get(awaySeed) ?? null : null;
-      const homeSource = homeEntry.type === 'winner' ? { type: 'winner', matchId: homeEntry.matchId } : undefined;
-      const awaySource = awayEntry.type === 'winner' ? { type: 'winner', matchId: awayEntry.matchId } : undefined;
+      const homeSource = homeEntry.type === 'winner' ? { type: 'winner' as const, matchId: homeEntry.matchId } : undefined;
+      const awaySource = awayEntry.type === 'winner' ? { type: 'winner' as const, matchId: awayEntry.matchId } : undefined;
       const hasHome = !!homeParticipant || !!homeSource;
       const hasAway = !!awayParticipant || !!awaySource;
       const isBye = hasHome && !hasAway || hasAway && !hasHome;

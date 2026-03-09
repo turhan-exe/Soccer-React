@@ -1,0 +1,15 @@
+[Unit]
+Description=MGX Match Control API
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/mgx/services/match-control-api
+EnvironmentFile=/opt/mgx/services/match-control-api/.env
+ExecStart=/usr/bin/node src/index.js
+Restart=always
+RestartSec=5
+User=root
+
+[Install]
+WantedBy=multi-user.target

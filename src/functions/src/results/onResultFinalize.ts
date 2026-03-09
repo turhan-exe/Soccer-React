@@ -100,9 +100,16 @@ export const onResultFinalize = functions
           videoMissing: true,
           'video.storagePath': videoPath,
           'video.type': 'mp4-v1',
+          'video.source': cur?.video?.source || 'render',
           'video.uploaded': false,
           'video.updatedAt': FieldValue.serverTimestamp(),
+          'live.state': 'ended',
+          'live.endedAt': FieldValue.serverTimestamp(),
+          'live.lastLifecycleAt': FieldValue.serverTimestamp(),
+          'live.resultMissing': false,
+          'live.reason': FieldValue.delete(),
           endedAt: FieldValue.serverTimestamp(),
+          playedAt: FieldValue.serverTimestamp(),
         });
         if (!score) return;
         const homeSlot = Number(cur.homeSlot);
@@ -148,15 +155,18 @@ export const onResultFinalize = functions
         log.info('result finalized', { leagueId, matchId, replayPath, simDurationMs });
 
         const video = fxd?.video || {};
+        const videoSource = String(video?.source || '');
         const alreadyQueued = !!video?.renderQueuedAt;
         const alreadyUploaded = !!video?.uploaded;
-        if (!alreadyQueued && !alreadyUploaded) {
+        const shouldUseLiveUpload = videoSource === 'live' || !!fxd?.live?.matchId;
+        if (!alreadyQueued && !alreadyUploaded && !shouldUseLiveUpload) {
           await enqueueRenderJob({ matchId, leagueId, seasonId, replayPath, videoPath });
           await fxRef.set(
             {
               videoMissing: true,
               'video.storagePath': videoPath,
               'video.type': 'mp4-v1',
+              'video.source': videoSource || 'render',
               'video.uploaded': false,
               'video.updatedAt': FieldValue.serverTimestamp(),
               'video.renderQueuedAt': FieldValue.serverTimestamp(),
@@ -164,6 +174,8 @@ export const onResultFinalize = functions
             { merge: true }
           );
           log.info('render job queued', { leagueId, matchId, videoPath });
+        } else if (shouldUseLiveUpload) {
+          log.info('render job skipped for live upload source', { leagueId, matchId, videoSource });
         }
       } catch (err: any) {
         log.warn('result finalized (render queue skipped)', {

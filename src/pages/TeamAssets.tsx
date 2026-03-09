@@ -21,6 +21,7 @@ type KitKey = 'home' | 'away' | 'third';
 type KitField = 'textureUrl' | 'normalMapUrl' | 'contentType' | 'width' | 'height';
 
 type KitEditable = NonNullable<TeamKitAssets>[KitKey];
+type KitEditableDraft = Partial<NonNullable<KitEditable>>;
 
 const toNumberString = (value?: number | null) => (Number.isFinite(value ?? NaN) ? String(value) : '');
 const parseNumber = (value: string) => {
@@ -77,7 +78,7 @@ export default function TeamAssetsPage() {
   const handleKitChange = (kitKey: KitKey, field: KitField, value: string) => {
     setKit((prev) => {
       const next: TeamKitAssets = { ...(prev ?? {}) };
-      const current: KitEditable = { ...(next[kitKey] ?? {}) };
+      const current: KitEditableDraft = { ...(next[kitKey] ?? {}) };
       if (field === 'width' || field === 'height') {
         const parsed = parseNumber(value);
         if (parsed === undefined) {
@@ -92,7 +93,7 @@ export default function TeamAssetsPage() {
           delete (current as any)[field];
         }
       }
-      next[kitKey] = current;
+      next[kitKey] = current as KitEditable;
       return next;
     });
   };

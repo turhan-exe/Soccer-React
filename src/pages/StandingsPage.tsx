@@ -73,7 +73,7 @@ export default function StandingsPage() {
               </thead>
               <tbody>
                 {rows.map((r, idx) => (
-                  <tr key={r.teamId} data-testid={`standings-row-${r.teamId}`} className="border-b">
+                  <tr key={r.id} data-testid={`standings-row-${r.teamId}`} className="border-b">
                     <td className="p-2">{idx + 1}</td>
                     <td className="p-2">{r.name}</td>
                     <td className="p-2">{r.P}</td>
@@ -94,4 +94,3 @@ export default function StandingsPage() {
     </div>
   );
 }
-

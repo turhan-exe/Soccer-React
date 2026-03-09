@@ -481,7 +481,7 @@ export async function applySponsorEarnings(teamId: string, sponsorId: string): P
     }
     const reward = data.reward;
     const cadenceMs = reward.cycle === 'weekly' ? 7 * DAY_MS : DAY_MS;
-    const nowMs = sponsorSnap.readTime?.toMillis() ?? Date.now();
+    const nowMs = Date.now();
     const lastPayoutMs = data.lastPayoutAt?.toMillis();
     const lastPayout = lastPayoutMs ?? data.activatedAt.toMillis();
     const nextPayoutAt = data.nextPayoutAt?.toMillis();

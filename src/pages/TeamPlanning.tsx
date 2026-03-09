@@ -489,6 +489,8 @@ function TeamPlanningContent() {
     let errorMessage: string | null = null;
     let changed = false;
     let swappedPlayerId: string | null = null;
+    let filledStartingVacancy = false;
+    let movedPlayerPosition: Player['position'] | null = null;
 
     setPlayers(prev => {
       const playerIndex = prev.findIndex(player => player.id === playerId);
@@ -498,7 +500,9 @@ function TeamPlanningContent() {
       }
 
       const player = prev[playerIndex];
+      movedPlayerPosition = player.position;
       if (newRole === 'starting') {
+        const hadStartingVacancy = prev.filter(candidate => candidate.squadRole === 'starting').length < 11;
         const result = promotePlayerToStartingRoster(prev, playerId);
         if (result.error) {
           errorMessage = result.error;
@@ -509,6 +513,7 @@ function TeamPlanningContent() {
         }
         changed = true;
         swappedPlayerId = result.swappedPlayerId ?? null;
+        filledStartingVacancy = hadStartingVacancy && !result.swappedPlayerId;
         return result.players;
       }
 
@@ -532,6 +537,22 @@ function TeamPlanningContent() {
         removePlayerFromCustomFormations(playerId);
       } else if (swappedPlayerId) {
         removePlayerFromCustomFormations(swappedPlayerId);
+      }
+      if (newRole === 'starting') {
+        if (filledStartingVacancy) {
+          toast.success('Oyuncu bos slota alindi', {
+            description: movedPlayerPosition
+              ? `${movedPlayerPosition} icin bos slot dolduruldu.`
+              : 'Ilk 11 icindeki bos alan dolduruldu.',
+          });
+        } else if (swappedPlayerId) {
+          toast.success("Oyuncu ilk 11'e alindi", {
+            description: 'Ilk 11 dolu oldugu icin swap yapildi.',
+          });
+        } else {
+          toast.success("Oyuncu ilk 11'e alindi");
+        }
+        return;
       }
       toast.success('Oyuncu başarıyla taşındı');
     }
@@ -1257,6 +1278,14 @@ function TeamPlanningContent() {
   const startingEleven = displayPlayers.filter(p => p.squadRole === 'starting');
   const benchPlayers = displayPlayers.filter(p => p.squadRole === 'bench');
   const reservePlayers = displayPlayers.filter(p => p.squadRole === 'reserve');
+  const hasStartingVacancy = startingEleven.length < 11;
+  const getMoveToStartingLabel = useCallback(
+    (player: Pick<Player, 'position'>) =>
+      hasStartingVacancy
+        ? `İlk 11'e Al (Bos slot - ${player.position})`
+        : `İlk 11'e Al (Swap - ${player.position})`,
+    [hasStartingVacancy],
+  );
 
   const currentFormation =
     formations.find(f => f.name === selectedFormation) ?? formations[0];
@@ -2366,6 +2395,7 @@ function TeamPlanningContent() {
                               }}
                               onDragEnd={() => setDraggedPlayerId(null)}
                               onMoveToStarting={() => movePlayer(player.id, 'starting')}
+                              moveToStartingLabel={getMoveToStartingLabel(player)}
                               onMoveToReserve={() => movePlayer(player.id, 'reserve')}
                               onListForTransfer={() => handleListForTransfer(player.id)}
                               onRenamePlayer={() => setRenamePlayerId(player.id)}
@@ -2415,6 +2445,7 @@ function TeamPlanningContent() {
                               }}
                               onDragEnd={() => setDraggedPlayerId(null)}
                               onMoveToStarting={() => movePlayer(player.id, 'starting')}
+                              moveToStartingLabel={getMoveToStartingLabel(player)}
                               onMoveToBench={() => movePlayer(player.id, 'bench')}
                               onListForTransfer={() => handleListForTransfer(player.id)}
                               onRenamePlayer={() => setRenamePlayerId(player.id)}
@@ -2489,6 +2520,7 @@ function TeamPlanningContent() {
         onClose={() => setIsDetailOverlayOpen(false)}
         player={selectedPlayer}
         onMoveToStarting={(id) => { movePlayer(id, 'starting'); setIsDetailOverlayOpen(false); }}
+        moveToStartingLabel={selectedPlayer ? getMoveToStartingLabel(selectedPlayer) : undefined}
         onMoveToBench={(id) => { movePlayer(id, 'bench'); setIsDetailOverlayOpen(false); }}
         onMoveToReserve={(id) => { movePlayer(id, 'reserve'); setIsDetailOverlayOpen(false); }}
         onRename={(id) => { setRenamePlayerId(id); setIsDetailOverlayOpen(false); }}

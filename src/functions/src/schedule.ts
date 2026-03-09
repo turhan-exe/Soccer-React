@@ -2,8 +2,9 @@ import * as functions from 'firebase-functions/v1';
 import './_firebase.js';
 import { getFirestore, FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { generateDoubleRoundRobinSlots } from './utils/roundrobin.js';
-import { nextMonthOrThisMonthFirstAt19, monthKeyTR, dateForRound } from './utils/time.js';
+import { nextMonthOrThisMonthFirstAt19, monthKeyTR, dateForRound, monthStartAt19TR } from './utils/time.js';
 import { ensureBotTeamDoc } from './utils/bots.js';
+import { DEFAULT_MONTHLY_CAPACITY, resolveLeagueCapacity, roundsForCapacity } from './utils/leagueConfig.js';
 
 const db = getFirestore();
 const REGION = 'europe-west1';
@@ -24,20 +25,291 @@ async function loadLeagues(targetLeagueId?: string) {
   return snap.docs;
 }
 
-async function resetSeasonMonthlyInternal(targetLeagueId?: string) {
-  const leagues = await loadLeagues(targetLeagueId);
+type ResetSeasonInput = {
+  leagueId?: string;
+  targetMonth?: string;
+  startDate?: string;
+  capacity?: number;
+};
+
+type RepairLeagueInput = {
+  leagueId?: string;
+  capacity?: number;
+};
+
+type SlotState = {
+  slotIndex: number;
+  type: 'human' | 'bot';
+  teamId: string | null;
+  botId: string | null;
+  fixtureTeamId: string | null;
+  displayName: string;
+};
+
+function syntheticBotId(leagueId: string, slotIndex: number) {
+  return `repair-bot-${leagueId}-${slotIndex}`;
+}
+
+function readSlotIndex(doc: FirebaseFirestore.QueryDocumentSnapshot<FirebaseFirestore.DocumentData>) {
+  const data = doc.data() as any;
+  return typeof data?.slotIndex === 'number' ? data.slotIndex : Number(doc.id) || 0;
+}
+
+async function loadTeamName(teamId: string, fallback: string) {
+  try {
+    const snap = await db.collection('teams').doc(teamId).get();
+    if (!snap.exists) return fallback;
+    const data = snap.data() as any;
+    return data?.name || data?.clubName || fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+async function ensureLeagueSlotsIntegrity(
+  leagueRef: FirebaseFirestore.DocumentReference<FirebaseFirestore.DocumentData>,
+  capacity: number
+) {
+  const slotsCol = leagueRef.collection('slots');
+  const slotsSnap = await slotsCol.get();
+  const existingByIndex = new Map<number, FirebaseFirestore.QueryDocumentSnapshot<FirebaseFirestore.DocumentData>>();
+  slotsSnap.docs.forEach((doc) => {
+    const slotIndex = readSlotIndex(doc);
+    if (slotIndex > 0) existingByIndex.set(slotIndex, doc);
+  });
+
+  let batch = db.batch();
+  let ops = 0;
+  let created = 0;
+  let patched = 0;
+
+  const flush = async () => {
+    if (ops === 0) return;
+    await batch.commit();
+    batch = db.batch();
+    ops = 0;
+  };
+
+  for (let slotIndex = 1; slotIndex <= capacity; slotIndex += 1) {
+    const existing = existingByIndex.get(slotIndex);
+    if (!existing) {
+      batch.set(slotsCol.doc(String(slotIndex)), {
+        slotIndex,
+        type: 'bot',
+        teamId: null,
+        botId: syntheticBotId(leagueRef.id, slotIndex),
+        lockedAt: null,
+      });
+      created += 1;
+      ops += 1;
+      if (ops >= 450) await flush();
+      continue;
+    }
+
+    const data = existing.data() as any;
+    const teamId = typeof data?.teamId === 'string' && data.teamId.trim().length > 0 ? data.teamId : null;
+    const botId = typeof data?.botId === 'string' && data.botId.trim().length > 0 ? data.botId : null;
+    const expectedType = teamId ? 'human' : 'bot';
+    const nextBotId = teamId ? null : (botId || syntheticBotId(leagueRef.id, slotIndex));
+    const needsPatch =
+      data?.slotIndex !== slotIndex ||
+      data?.type !== expectedType ||
+      teamId !== (data?.teamId ?? null) ||
+      nextBotId !== (data?.botId ?? null);
+
+    if (!needsPatch) continue;
+    batch.set(existing.ref, {
+      slotIndex,
+      type: expectedType,
+      teamId,
+      botId: nextBotId,
+    }, { merge: true });
+    patched += 1;
+    ops += 1;
+    if (ops >= 450) await flush();
+  }
+
+  await flush();
+
+  const repairedSnap = await slotsCol.orderBy('slotIndex', 'asc').get();
+  const slots: SlotState[] = [];
+  for (const doc of repairedSnap.docs) {
+    const data = doc.data() as any;
+    const slotIndex = readSlotIndex(doc);
+    if (slotIndex < 1 || slotIndex > capacity) continue;
+
+    const teamId = typeof data?.teamId === 'string' && data.teamId.trim().length > 0 ? data.teamId : null;
+    const botId = typeof data?.botId === 'string' && data.botId.trim().length > 0
+      ? data.botId
+      : syntheticBotId(leagueRef.id, slotIndex);
+
+    if (teamId) {
+      const displayName = await loadTeamName(teamId, `Team ${teamId}`);
+      slots.push({
+        slotIndex,
+        type: 'human',
+        teamId,
+        botId: null,
+        fixtureTeamId: teamId,
+        displayName,
+      });
+      continue;
+    }
+
+    const fixtureTeamId = await ensureBotTeamDoc({ botId, slotIndex, name: `Bot ${slotIndex}` });
+    slots.push({
+      slotIndex,
+      type: 'bot',
+      teamId: null,
+      botId,
+      fixtureTeamId: fixtureTeamId || null,
+      displayName: `Bot ${slotIndex}`,
+    });
+  }
+
+  slots.sort((a, b) => a.slotIndex - b.slotIndex);
+  return { created, patched, slots };
+}
+
+async function rebuildStandingsFromSlots(
+  leagueRef: FirebaseFirestore.DocumentReference<FirebaseFirestore.DocumentData>,
+  slots: SlotState[]
+) {
+  const standingsCol = leagueRef.collection('standings');
+  const standingsSnap = await standingsCol.get();
+  let batch = db.batch();
+  let ops = 0;
+
+  const flush = async () => {
+    if (ops === 0) return;
+    await batch.commit();
+    batch = db.batch();
+    ops = 0;
+  };
+
+  for (const doc of standingsSnap.docs) {
+    batch.delete(doc.ref);
+    ops += 1;
+    if (ops >= 450) await flush();
+  }
+
+  for (const slot of slots) {
+    batch.set(standingsCol.doc(String(slot.slotIndex)), {
+      slotIndex: slot.slotIndex,
+      teamId: slot.teamId,
+      name: slot.displayName,
+      P: 0,
+      W: 0,
+      D: 0,
+      L: 0,
+      GF: 0,
+      GA: 0,
+      GD: 0,
+      Pts: 0,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    ops += 1;
+    if (ops >= 450) await flush();
+  }
+
+  await flush();
+}
+
+async function refreshFixtureParticipants(
+  leagueRef: FirebaseFirestore.DocumentReference<FirebaseFirestore.DocumentData>,
+  slots: SlotState[]
+) {
+  const teamIdBySlot = new Map<number, string | null>();
+  slots.forEach((slot) => {
+    teamIdBySlot.set(slot.slotIndex, slot.fixtureTeamId);
+  });
+
+  const fixturesSnap = await leagueRef.collection('fixtures').get();
+  let batch = db.batch();
+  let ops = 0;
+
+  for (const doc of fixturesSnap.docs) {
+    const data = doc.data() as any;
+    const homeSlot = typeof data?.homeSlot === 'number' ? data.homeSlot : Number(data?.homeSlot) || 0;
+    const awaySlot = typeof data?.awaySlot === 'number' ? data.awaySlot : Number(data?.awaySlot) || 0;
+    const homeTeamId = teamIdBySlot.get(homeSlot) || null;
+    const awayTeamId = teamIdBySlot.get(awaySlot) || null;
+    batch.set(doc.ref, {
+      homeTeamId,
+      awayTeamId,
+      participants: [homeTeamId, awayTeamId].filter(Boolean),
+    }, { merge: true });
+    ops += 1;
+    if (ops >= 450) {
+      await batch.commit();
+      batch = db.batch();
+      ops = 0;
+    }
+  }
+
+  if (ops > 0) await batch.commit();
+}
+
+async function repairLeagueBotSlotsInternal(input: RepairLeagueInput = {}) {
+  const leagues = await loadLeagues(input.leagueId);
+  let repairedLeagues = 0;
+  let createdSlots = 0;
+  let patchedSlots = 0;
+
+  for (const lg of leagues) {
+    const league = lg.data() as any;
+    const capacity = resolveLeagueCapacity(input.capacity ?? league.capacity ?? DEFAULT_MONTHLY_CAPACITY);
+    await lg.ref.set({ capacity }, { merge: true });
+    const repair = await ensureLeagueSlotsIntegrity(lg.ref, capacity);
+    await rebuildStandingsFromSlots(lg.ref, repair.slots);
+    await refreshFixtureParticipants(lg.ref, repair.slots);
+    repairedLeagues += 1;
+    createdSlots += repair.created;
+    patchedSlots += repair.patched;
+  }
+
+  return {
+    ok: true,
+    repairedLeagues,
+    createdSlots,
+    patchedSlots,
+  };
+}
+
+function resolveSeasonWindow(input: ResetSeasonInput = {}) {
+  const rawStartDate = typeof input.startDate === 'string' ? input.startDate.trim() : '';
+  if (rawStartDate) {
+    const startDate = new Date(rawStartDate);
+    if (Number.isNaN(startDate.getTime())) {
+      throw new functions.https.HttpsError('invalid-argument', 'Invalid startDate');
+    }
+    return { startDate, monthKey: monthKeyTR(startDate) };
+  }
+
+  const rawTargetMonth = typeof input.targetMonth === 'string' ? input.targetMonth.trim() : '';
+  if (rawTargetMonth) {
+    const startDate = monthStartAt19TR(rawTargetMonth);
+    return { startDate, monthKey: monthKeyTR(startDate) };
+  }
+
   const startDate = nextMonthOrThisMonthFirstAt19();
-  const mKey = monthKeyTR(startDate);
+  return { startDate, monthKey: monthKeyTR(startDate) };
+}
+
+async function resetSeasonMonthlyInternal(input: ResetSeasonInput = {}) {
+  const leagues = await loadLeagues(input.leagueId);
+  const { startDate, monthKey: mKey } = resolveSeasonWindow(input);
 
   for (const lg of leagues) {
     const leagueRef = lg.ref;
     const league = lg.data() as any;
-    const capacity = league.capacity ?? 15;
-    const rounds = Math.max(28, league.rounds ?? 28);
+    const capacity = resolveLeagueCapacity(input.capacity ?? league.capacity ?? DEFAULT_MONTHLY_CAPACITY);
+    const rounds = roundsForCapacity(capacity);
     const template = generateDoubleRoundRobinSlots(capacity);
 
     // Mark completed previous season and schedule new one
     await leagueRef.set({
+      capacity,
       state: 'scheduled',
       startDate: Timestamp.fromDate(startDate),
       rounds,
@@ -45,45 +317,8 @@ async function resetSeasonMonthlyInternal(targetLeagueId?: string) {
       lockedAt: FieldValue.serverTimestamp(),
     }, { merge: true });
 
-    // Ensure slots: keep human, fill missing with bots
-    const slotsSnap = await leagueRef.collection('slots').get();
-    // naive bot refill: any with type bot but missing botId => assign random placeholder
-    for (const sDoc of slotsSnap.docs) {
-      const s = sDoc.data() as any;
-      if (s.type === 'bot' && !s.teamId && !s.botId) {
-        await sDoc.ref.set({ botId: `bot-${sDoc.id}` }, { merge: true });
-      }
-    }
-
-    // Reset standings using current names
-    const standingsBatch = db.batch();
-    const standingsSnap = await leagueRef.collection('standings').get();
-    const nameBySlot = new Map<number, string>();
-    for (const s of slotsSnap.docs) {
-      const sd = s.data() as any;
-      const slotIndex = sd.slotIndex;
-      const name = sd.teamId ? (sd.teamId as string) : `Bot ${sd.botId || slotIndex}`;
-      nameBySlot.set(slotIndex, name);
-    }
-    // Clear standings and write new
-    for (const st of standingsSnap.docs) standingsBatch.delete(st.ref);
-    for (const [slotIndex, name] of nameBySlot) {
-      const ref = leagueRef.collection('standings').doc(String(slotIndex));
-      standingsBatch.set(ref, {
-        slotIndex,
-        teamId: slotsSnap.docs.find((d) => (d.data() as any).slotIndex === slotIndex)?.data()?.teamId || null,
-        name,
-        P: 0,
-        W: 0,
-        D: 0,
-        L: 0,
-        GF: 0,
-        GA: 0,
-        GD: 0,
-        Pts: 0,
-      });
-    }
-    await standingsBatch.commit();
+    const repair = await ensureLeagueSlotsIntegrity(leagueRef, capacity);
+    await rebuildStandingsFromSlots(leagueRef, repair.slots);
 
     // Regenerate fixtures
     const existingFix = await leagueRef.collection('fixtures').get();
@@ -94,17 +329,11 @@ async function resetSeasonMonthlyInternal(targetLeagueId?: string) {
     }
     if (ops > 0) { await batch.commit(); batch = db.batch(); ops = 0; }
 
-    // Build slot map for teamIds
+    // Build slot map for current slot owners
     const slotMap = new Map<number, string | null>();
-    for (const s of slotsSnap.docs) {
-      const sd = s.data() as any;
-      const slotIndex = sd.slotIndex as number;
-      let teamId = sd.teamId || null;
-      if (!teamId && sd.botId) {
-        teamId = await ensureBotTeamDoc({ botId: sd.botId, slotIndex });
-      }
-      slotMap.set(slotIndex, teamId);
-    }
+    repair.slots.forEach((slot) => {
+      slotMap.set(slot.slotIndex, slot.fixtureTeamId);
+    });
 
     for (const f of template) {
       const fRef = leagueRef.collection('fixtures').doc();
@@ -156,10 +385,47 @@ export const resetSeasonMonthlyHttp = functions
       return;
     }
 
-    const leagueId = (req.body?.leagueId as string) || (req.query?.leagueId as string);
+    const payload = {
+      leagueId: (req.body?.leagueId as string) || (req.query?.leagueId as string),
+      targetMonth: (req.body?.targetMonth as string) || (req.query?.targetMonth as string),
+      startDate: (req.body?.startDate as string) || (req.query?.startDate as string),
+      capacity: req.body?.capacity ?? req.query?.capacity,
+    } satisfies ResetSeasonInput;
     try {
-      const result = await resetSeasonMonthlyInternal(leagueId);
+      const result = await resetSeasonMonthlyInternal(payload);
       res.json({ ok: true, ...result });
+    } catch (e: any) {
+      res.status(500).json({ error: e?.message || 'internal' });
+    }
+  });
+
+export const repairLeagueBotSlotsHttp = functions
+  .runWith({ timeoutSeconds: 540, memory: '1GB' })
+  .region(REGION)
+  .https.onRequest(async (req, res) => {
+    res.set('Access-Control-Allow-Origin', '*');
+    res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
+    res.set('Access-Control-Allow-Headers', 'Authorization, Content-Type, x-admin-secret');
+    if (req.method === 'OPTIONS') { res.status(204).send(''); return; }
+    if (req.method !== 'POST') { res.status(405).json({ error: 'Method not allowed' }); return; }
+
+    const authz = (req.headers.authorization as string) || '';
+    const bearer = authz.startsWith('Bearer ') ? authz.slice(7) : '';
+    const headerSecret = (req.headers['x-admin-secret'] as string) || '';
+    const providedSecret = bearer || headerSecret;
+    if (!ADMIN_SECRET || providedSecret !== ADMIN_SECRET) {
+      res.status(401).json({ error: 'unauthorized' });
+      return;
+    }
+
+    const payload = {
+      leagueId: (req.body?.leagueId as string) || (req.query?.leagueId as string),
+      capacity: req.body?.capacity ?? req.query?.capacity,
+    } satisfies RepairLeagueInput;
+
+    try {
+      const result = await repairLeagueBotSlotsInternal(payload);
+      res.json(result);
     } catch (e: any) {
       res.status(500).json({ error: e?.message || 'internal' });
     }

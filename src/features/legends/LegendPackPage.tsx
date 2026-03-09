@@ -103,31 +103,40 @@ const LegendPackPage = () => {
 
     const loadData = async () => {
       try {
-        const [team, rentals] = await Promise.all([
+        const [teamResult, rentalsResult] = await Promise.allSettled([
           getTeam(user.id),
           getRentedLegends(user.id),
         ]);
         if (!isActive) return;
-        if (!team?.players) {
-          setOwnedLegendIds([]);
+
+        if (teamResult.status === 'fulfilled') {
+          if (!teamResult.value?.players) {
+            setOwnedLegendIds([]);
+          } else {
+            const legendIds = extractLegendIds(teamResult.value.players);
+            setOwnedLegendIds(legendIds);
+          }
         } else {
-          const legendIds = extractLegendIds(team.players);
-          setOwnedLegendIds(legendIds);
+          console.warn(teamResult.reason);
+          setOwnedLegendIds([]);
         }
 
-        const normalizedRentals = rentals
-          .map(({ legendId, playerId, expiresAt }) => {
-            const legend = legendById.get(legendId);
-            if (!legend) {
-              return null;
-            }
-            return { ...legend, expiresAt, playerId } as RentedLegend;
-          })
-          .filter((value): value is RentedLegend => Boolean(value))
-          .sort((a, b) => a.expiresAt.getTime() - b.expiresAt.getTime());
-        setRented(normalizedRentals);
-      } catch (err) {
-        console.warn(err);
+        if (rentalsResult.status === 'fulfilled') {
+          const normalizedRentals = rentalsResult.value
+            .map(({ legendId, playerId, expiresAt }) => {
+              const legend = legendById.get(legendId);
+              if (!legend) {
+                return null;
+              }
+              return { ...legend, expiresAt, playerId } as RentedLegend;
+            })
+            .filter((value): value is RentedLegend => Boolean(value))
+            .sort((a, b) => a.expiresAt.getTime() - b.expiresAt.getTime());
+          setRented(normalizedRentals);
+        } else {
+          console.warn(rentalsResult.reason);
+          setRented([]);
+        }
       } finally {
         if (isActive) {
           setIsLoadingTeam(false);
@@ -255,11 +264,30 @@ const LegendPackPage = () => {
     if (!user) return;
     const expiresAt = new Date(Date.now() + RENT_DURATION_MS);
     try {
-      const rentedPlayer = await rentLegend(user.id, legend, expiresAt);
+      const result = await rentLegend(user.id, legend, expiresAt);
       setRented(prev => {
-        const next = [...prev, { ...legend, playerId: rentedPlayer.id, expiresAt }];
+        const next = [
+          ...prev.filter(item => item.id !== legend.id && item.playerId !== result.player.id),
+          { ...legend, playerId: result.player.id, expiresAt: result.expiresAt },
+        ];
         return next.sort((a, b) => a.expiresAt.getTime() - b.expiresAt.getTime());
       });
+      if (result.status === 'repaired') {
+        setOwnedLegendIds((prev) =>
+          prev.includes(legend.id) ? prev : [...prev, legend.id].sort((a, b) => a - b),
+        );
+        toast.success(`${legend.name} kadro kaydÄ± onarÄ±ldÄ±`);
+        setCurrent(null);
+        return;
+      }
+      if (result.status === 'existing') {
+        setOwnedLegendIds((prev) =>
+          prev.includes(legend.id) ? prev : [...prev, legend.id].sort((a, b) => a - b),
+        );
+        toast.info(`${legend.name} zaten takÄ±mÄ±ndaydÄ±, kayÄ±tlar senkronize edildi`);
+        setCurrent(null);
+        return;
+      }
       setOwnedLegendIds((prev) =>
         prev.includes(legend.id) ? prev : [...prev, legend.id].sort((a, b) => a - b),
       );

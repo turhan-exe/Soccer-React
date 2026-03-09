@@ -135,7 +135,8 @@ export const cronWatchdog = functions
     const snap = await db.doc(`ops_heartbeats/${day}`).get();
     const hb = snap.exists ? (snap.data() as any) : {};
     const problems: string[] = [];
-    if (!hb.orchestrateOk && !hb.batchOk) problems.push('orchestrate19TRT/heartbeat eksik');
+    if (!hb.leaguePrepareOk) problems.push('leaguePrepare heartbeat eksik');
+    if (!hb.leagueKickoffOk) problems.push('leagueKickoff heartbeat eksik');
 
     // scheduled matches that should have started but didn't
     const scheduledPastSnap = await db
@@ -151,7 +152,7 @@ export const cronWatchdog = functions
     const longRunningSnap = await db
       .collectionGroup('fixtures')
       .where('status', '==', 'running')
-      .where('startedAt', '<=', twentyMinAgo)
+      .where('live.startedAt', '<=', twentyMinAgo)
       .limit(50)
       .get();
     if (longRunningSnap.size > 0) problems.push(`longRunning=${longRunningSnap.size}`);

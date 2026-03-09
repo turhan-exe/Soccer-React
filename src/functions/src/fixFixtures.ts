@@ -4,7 +4,7 @@ import { FieldPath, getFirestore, Timestamp } from 'firebase-admin/firestore';
 import { requireAppCheck, requireAuth } from './mw/auth.js';
 import { generateDoubleRoundRobinSlots } from './utils/roundrobin.js';
 import { dateForRound } from './utils/time.js';
-import { nextDay19TR } from './utils/schedule.js';
+import { nextDayAtTR } from './utils/schedule.js';
 import { ensureBotTeamDoc } from './utils/bots.js';
 import { ensureLeagueTeamDocs } from './utils/leagueTeams.js';
 
@@ -41,7 +41,11 @@ function pickStartDate(data: any): Date {
     const parsed = new Date(raw);
     if (!Number.isNaN(parsed.getTime())) return parsed;
   }
-  return nextDay19TR();
+  const kickoffHour = Number(data?.kickoffHourTR);
+  const hour = Number.isInteger(kickoffHour) && kickoffHour >= 0 && kickoffHour <= 23
+    ? kickoffHour
+    : 19;
+  return nextDayAtTR(hour);
 }
 
 async function deleteExistingFixtures(

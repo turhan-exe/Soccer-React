@@ -1,0 +1,16 @@
+﻿{
+    "ok":  true,
+    "day":  "2026-03-05",
+    "mode":  "prepare",
+    "result":  {
+                   "day":  "2026-03-05",
+                   "prepared":  40,
+                   "reused":  0,
+                   "skipped":  0,
+                   "failed":  0,
+                   "total":  40,
+                   "targets":  [
+                                   "2026-03-05T15:00:00.000Z"
+                               ]
+               }
+}

@@ -1,0 +1,183 @@
+﻿{
+    "matchId":  "lg_2de345eca9424c0ea8071889e0258044",
+    "kickoff":  {
+                    "matchId":  "lg_2de345eca9424c0ea8071889e0258044",
+                    "state":  "starting",
+                    "nodeId":  "league-01",
+                    "serverIp":  "89.167.122.255",
+                    "serverPort":  21001
+                },
+    "timeline":  [
+                     {
+                         "at":  "2026-03-06T20:26:28.7181178+03:00",
+                         "step":  1,
+                         "state":  "starting",
+                         "liveMinute":  null,
+                         "liveMinuteAt":  null,
+                         "endedAt":  null,
+                         "endedReason":  null
+                     },
+                     {
+                         "at":  "2026-03-06T20:26:48.8152251+03:00",
+                         "step":  2,
+                         "state":  "server_started",
+                         "liveMinute":  null,
+                         "liveMinuteAt":  null,
+                         "endedAt":  null,
+                         "endedReason":  "node_agent_detected_server_ready"
+                     },
+                     {
+                         "at":  "2026-03-06T20:27:08.8924032+03:00",
+                         "step":  3,
+                         "state":  "server_started",
+                         "liveMinute":  null,
+                         "liveMinuteAt":  null,
+                         "endedAt":  null,
+                         "endedReason":  "node_agent_detected_server_ready"
+                     },
+                     {
+                         "at":  "2026-03-06T20:27:28.9768476+03:00",
+                         "step":  4,
+                         "state":  "server_started",
+                         "liveMinute":  null,
+                         "liveMinuteAt":  null,
+                         "endedAt":  null,
+                         "endedReason":  "node_agent_detected_server_ready"
+                     },
+                     {
+                         "at":  "2026-03-06T20:27:49.0567472+03:00",
+                         "step":  5,
+                         "state":  "server_started",
+                         "liveMinute":  null,
+                         "liveMinuteAt":  null,
+                         "endedAt":  null,
+                         "endedReason":  "node_agent_detected_server_ready"
+                     },
+                     {
+                         "at":  "2026-03-06T20:28:09.1409764+03:00",
+                         "step":  6,
+                         "state":  "server_started",
+                         "liveMinute":  null,
+                         "liveMinuteAt":  null,
+                         "endedAt":  null,
+                         "endedReason":  "node_agent_detected_server_ready"
+                     },
+                     {
+                         "at":  "2026-03-06T20:28:29.2165419+03:00",
+                         "step":  7,
+                         "state":  "server_started",
+                         "liveMinute":  null,
+                         "liveMinuteAt":  null,
+                         "endedAt":  null,
+                         "endedReason":  "node_agent_detected_server_ready"
+                     },
+                     {
+                         "at":  "2026-03-06T20:28:49.2978056+03:00",
+                         "step":  8,
+                         "state":  "server_started",
+                         "liveMinute":  null,
+                         "liveMinuteAt":  null,
+                         "endedAt":  null,
+                         "endedReason":  "node_agent_detected_server_ready"
+                     },
+                     {
+                         "at":  "2026-03-06T20:29:09.3851658+03:00",
+                         "step":  9,
+                         "state":  "server_started",
+                         "liveMinute":  null,
+                         "liveMinuteAt":  null,
+                         "endedAt":  null,
+                         "endedReason":  "node_agent_detected_server_ready"
+                     },
+                     {
+                         "at":  "2026-03-06T20:29:29.4699537+03:00",
+                         "step":  10,
+                         "state":  "server_started",
+                         "liveMinute":  null,
+                         "liveMinuteAt":  null,
+                         "endedAt":  null,
+                         "endedReason":  "node_agent_detected_server_ready"
+                     },
+                     {
+                         "at":  "2026-03-06T20:29:49.5535681+03:00",
+                         "step":  11,
+                         "state":  "server_started",
+                         "liveMinute":  null,
+                         "liveMinuteAt":  null,
+                         "endedAt":  null,
+                         "endedReason":  "node_agent_detected_server_ready"
+                     },
+                     {
+                         "at":  "2026-03-06T20:30:09.6426337+03:00",
+                         "step":  12,
+                         "state":  "server_started",
+                         "liveMinute":  null,
+                         "liveMinuteAt":  null,
+                         "endedAt":  null,
+                         "endedReason":  "node_agent_detected_server_ready"
+                     },
+                     {
+                         "at":  "2026-03-06T20:30:29.7209722+03:00",
+                         "step":  13,
+                         "state":  "server_started",
+                         "liveMinute":  null,
+                         "liveMinuteAt":  null,
+                         "endedAt":  null,
+                         "endedReason":  "node_agent_detected_server_ready"
+                     },
+                     {
+                         "at":  "2026-03-06T20:30:49.7988244+03:00",
+                         "step":  14,
+                         "state":  "server_started",
+                         "liveMinute":  null,
+                         "liveMinuteAt":  null,
+                         "endedAt":  null,
+                         "endedReason":  "node_agent_detected_server_ready"
+                     },
+                     {
+                         "at":  "2026-03-06T20:31:09.8848674+03:00",
+                         "step":  15,
+                         "state":  "server_started",
+                         "liveMinute":  null,
+                         "liveMinuteAt":  null,
+                         "endedAt":  null,
+                         "endedReason":  "node_agent_detected_server_ready"
+                     },
+                     {
+                         "at":  "2026-03-06T20:31:29.9638719+03:00",
+                         "step":  16,
+                         "state":  "server_started",
+                         "liveMinute":  null,
+                         "liveMinuteAt":  null,
+                         "endedAt":  null,
+                         "endedReason":  "node_agent_detected_server_ready"
+                     },
+                     {
+                         "at":  "2026-03-06T20:31:50.0492195+03:00",
+                         "step":  17,
+                         "state":  "server_started",
+                         "liveMinute":  null,
+                         "liveMinuteAt":  null,
+                         "endedAt":  null,
+                         "endedReason":  "node_agent_detected_server_ready"
+                     },
+                     {
+                         "at":  "2026-03-06T20:32:10.1307467+03:00",
+                         "step":  18,
+                         "state":  "server_started",
+                         "liveMinute":  null,
+                         "liveMinuteAt":  null,
+                         "endedAt":  null,
+                         "endedReason":  "node_agent_detected_server_ready"
+                     }
+                 ],
+    "prepare":  {
+                    "matchId":  "lg_2de345eca9424c0ea8071889e0258044",
+                    "state":  "warm",
+                    "allocatedNodeId":  "league-01",
+                    "nodeId":  "league-01",
+                    "serverIp":  "89.167.122.255",
+                    "serverPort":  21001,
+                    "expiresAt":  "2026-03-06T17:26:28.186Z"
+                }
+}

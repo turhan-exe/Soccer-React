@@ -25,7 +25,8 @@ export function useCollection<T = DocumentData>(path: string, mapper?: Collectio
       return;
     }
     setLoading(true);
-    const colRef = collection(db, ...segments);
+    const [firstSegment, ...restSegments] = segments;
+    const colRef = collection(db, firstSegment, ...restSegments);
     const unsubscribe = onSnapshot(
       colRef,
       (snapshot) => {

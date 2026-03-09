@@ -1,0 +1,15 @@
+﻿{
+    "ok":  true,
+    "day":  "2026-03-01",
+    "mode":  "kickoff",
+    "result":  {
+                   "day":  "2026-03-01",
+                   "started":  40,
+                   "skipped":  0,
+                   "failed":  0,
+                   "total":  40,
+                   "targets":  [
+                                   "2026-03-01T16:00:00.000Z"
+                               ]
+               }
+}

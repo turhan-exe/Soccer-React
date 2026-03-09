@@ -1,0 +1,19 @@
+{
+  "mode": "kickoff",
+  "firestoreMode": "admin",
+  "kickoffHourTR": 15,
+  "kickoffAt": "2026-03-05T12:00:00.000Z",
+  "summary": {
+    "total": 0,
+    "scheduled": 0,
+    "running": 0,
+    "played": 0,
+    "failed": 0,
+    "withLiveMatchId": 0,
+    "liveStates": {},
+    "missingVideo": 0,
+    "missingScore": 0
+  },
+  "sampleStatuses": [],
+  "failures": []
+}

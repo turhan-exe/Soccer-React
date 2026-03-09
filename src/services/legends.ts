@@ -1,6 +1,6 @@
-import { collection, deleteDoc, doc, getDocs, setDoc, Timestamp } from 'firebase/firestore';
+import { collection, deleteDoc, doc, getDocs, runTransaction, Timestamp } from 'firebase/firestore';
 import { db } from './firebase';
-import { addPlayerToTeam, getTeam, saveTeamPlayers } from './team';
+import { getTeam, saveTeamPlayers } from './team';
 import type { LegendPlayer } from '@/features/legends/players';
 import type { Player } from '@/types';
 import { getRoles } from '@/lib/player';
@@ -24,6 +24,7 @@ function legendToPlayer(id: string, legend: LegendPlayer): Player {
     reaction: rating,
     ballControl: rating,
   };
+
   return {
     id,
     name: legend.name,
@@ -60,18 +61,38 @@ export function getLegendIdFromPlayer(player: Player): number | null {
   return null;
 }
 
+const parseLegendExpiration = (value: unknown): Date | null => {
+  if (value instanceof Timestamp) {
+    return value.toDate();
+  }
+
+  if (typeof value === 'string' || typeof value === 'number') {
+    const parsed = new Date(value);
+    if (!Number.isNaN(parsed.getTime())) {
+      return parsed;
+    }
+  }
+
+  return null;
+};
+
+export type RentLegendResult = {
+  player: Player;
+  expiresAt: Date;
+  status: 'created' | 'repaired' | 'existing';
+};
+
 export async function rentLegend(
   uid: string,
   legend: LegendPlayer,
   expiresAt: Date,
-): Promise<Player> {
+): Promise<RentLegendResult> {
   const playerId = `legend-${legend.id}-${Date.now()}`;
   const player = legendToPlayer(playerId, legend);
-  const contractExpiresAt = expiresAt.toISOString();
   const rentalPlayer: Player = {
     ...player,
     contract: {
-      expiresAt: contractExpiresAt,
+      expiresAt: expiresAt.toISOString(),
       status: 'active',
       salary: 0,
       extensions: 0,
@@ -84,25 +105,60 @@ export async function rentLegend(
       lockReason: 'legend-pack',
     },
   };
-  const team = await getTeam(uid);
-  if (!team) {
-    throw new Error('Takım bulunamadı');
-  }
+  const teamRef = doc(db, 'teams', uid);
 
-  const hasLegend = Array.isArray(team.players)
-    ? team.players.some(existing => getLegendIdFromPlayer(existing) === legend.id)
-    : false;
+  return runTransaction(db, async (tx) => {
+    const teamSnap = await tx.get(teamRef);
+    if (!teamSnap.exists()) {
+      throw new Error('Takim bulunamadi');
+    }
 
-  if (hasLegend) {
-    throw new Error('Bu yıldız oyuncu zaten takımında');
-  }
+    const teamData = teamSnap.data() as { players?: Player[] } | undefined;
+    const currentPlayers = Array.isArray(teamData?.players) ? teamData.players : [];
+    const existingLegendPlayer =
+      currentPlayers.find(existing => getLegendIdFromPlayer(existing) === legend.id) ?? null;
 
-  await addPlayerToTeam(uid, rentalPlayer);
-  await setDoc(
-    doc(db, 'users', uid, 'rentedLegends', playerId),
-    { legendId: legend.id, playerId, expiresAt: Timestamp.fromDate(expiresAt) },
-  );
-  return rentalPlayer;
+    if (existingLegendPlayer) {
+      const rentalRef = doc(db, 'users', uid, 'rentedLegends', existingLegendPlayer.id);
+      const rentalSnap = await tx.get(rentalRef);
+      const existingExpiresAt =
+        parseLegendExpiration((rentalSnap.data() as { expiresAt?: unknown } | undefined)?.expiresAt) ??
+        parseLegendExpiration(existingLegendPlayer.contract?.expiresAt) ??
+        expiresAt;
+
+      if (!rentalSnap.exists()) {
+        tx.set(rentalRef, {
+          legendId: legend.id,
+          playerId: existingLegendPlayer.id,
+          expiresAt: Timestamp.fromDate(existingExpiresAt),
+        });
+        return {
+          player: existingLegendPlayer,
+          expiresAt: existingExpiresAt,
+          status: 'repaired' as const,
+        };
+      }
+
+      return {
+        player: existingLegendPlayer,
+        expiresAt: existingExpiresAt,
+        status: 'existing' as const,
+      };
+    }
+
+    tx.set(teamRef, { players: [...currentPlayers, rentalPlayer] }, { merge: true });
+    tx.set(doc(db, 'users', uid, 'rentedLegends', playerId), {
+      legendId: legend.id,
+      playerId,
+      expiresAt: Timestamp.fromDate(expiresAt),
+    });
+
+    return {
+      player: rentalPlayer,
+      expiresAt,
+      status: 'created' as const,
+    };
+  });
 }
 
 export type RentedLegendRecord = {
@@ -124,18 +180,7 @@ export async function getRentedLegends(uid: string): Promise<RentedLegendRecord[
       return;
     }
 
-    let expiresAt: Date | null = null;
-    const rawExpiresAt = data.expiresAt;
-
-    if (rawExpiresAt instanceof Timestamp) {
-      expiresAt = rawExpiresAt.toDate();
-    } else if (typeof rawExpiresAt === 'string' || typeof rawExpiresAt === 'number') {
-      const parsed = new Date(rawExpiresAt);
-      if (!Number.isNaN(parsed.getTime())) {
-        expiresAt = parsed;
-      }
-    }
-
+    const expiresAt = parseLegendExpiration(data.expiresAt);
     if (!expiresAt) {
       return;
     }
@@ -185,4 +230,3 @@ export async function completeLegendRental(
 
   return filteredPlayers;
 }
-

@@ -67,7 +67,14 @@ export async function createTransferListing(params: {
   const playerPath = `teams/${sellerId}/players/${playerId}`;
 
   const fn = httpsCallable<
-    { teamId: string; playerId: string; playerPath: string; price: number },
+    {
+      teamId: string;
+      playerId: string;
+      playerPath: string;
+      price: number;
+      pos?: TransferListing['pos'];
+      overall?: number;
+    },
     { ok?: boolean; listingId?: string; message?: string }
   >(functions, 'marketCreateListing');
 

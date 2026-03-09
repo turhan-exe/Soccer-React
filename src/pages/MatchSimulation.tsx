@@ -145,14 +145,6 @@ export default function MatchSimulation() {
     setUnityDisplayReady(true);
   }, []);
 
-  useEffect(() => {
-    if (!fixture || !homeRuntime || !awayRuntime) return;
-    const timer = window.setTimeout(() => {
-      startSimulation();
-    }, 11000);
-    return () => window.clearTimeout(timer);
-  }, [fixture?.id, homeRuntime, awayRuntime, startSimulation]);
-
   const startSimulation = useCallback(() => {
     if (!fixture || !homeRuntime || !awayRuntime) return;
     const token = createRequestToken();
@@ -175,6 +167,14 @@ export default function MatchSimulation() {
     };
     setAutoMatchPayload(payload);
   }, [fixture, homeRuntime, awayRuntime, userSide, autoPublishPayload, useGoalTimeline, homeGoalMinutes, awayGoalMinutes]);
+
+  useEffect(() => {
+    if (!fixture || !homeRuntime || !awayRuntime) return;
+    const timer = window.setTimeout(() => {
+      startSimulation();
+    }, 11000);
+    return () => window.clearTimeout(timer);
+  }, [fixture?.id, homeRuntime, awayRuntime, startSimulation]);
 
   const homeName = homeRuntime?.name || homeTeam?.name || fixture?.homeTeamId || 'Ev Sahibi';
   const awayName = awayRuntime?.name || awayTeam?.name || fixture?.awayTeamId || 'Deplasman';

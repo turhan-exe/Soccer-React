@@ -1,0 +1,30 @@
+version: '3.9'
+
+services:
+  match-control-api:
+    image: node:20-alpine
+    working_dir: /app
+    command: sh -c "npm install && npm start"
+    restart: unless-stopped
+    env_file:
+      - ./match-control-api/.env
+    volumes:
+      - ./match-control-api:/app
+    ports:
+      - "8080:8080"
+
+  node-agent-a:
+    image: node:20-alpine
+    working_dir: /app
+    command: sh -c "npm install && npm start"
+    restart: unless-stopped
+    env_file:
+      - ./node-agent/.env
+    volumes:
+      - ./node-agent:/app
+      - /opt/fhs-server:/app/unity
+    ports:
+      - "9090:9090"
+      - "21001:21001/udp"
+      - "21002:21002/udp"
+      - "21003:21003/udp"

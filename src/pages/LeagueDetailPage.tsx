@@ -110,7 +110,7 @@ export default function LeagueDetailPage() {
             </thead>
             <tbody className="divide-y divide-white/5">
               {rows.map((r, idx) => (
-                <tr key={r.teamId} data-testid={`standings-row-${r.teamId}`} className="hover:bg-white/5 transition-colors group">
+                <tr key={r.id} data-testid={`standings-row-${r.teamId}`} className="hover:bg-white/5 transition-colors group">
                   <td className="px-6 py-4 font-medium text-slate-500 group-hover:text-slate-300">{idx + 1}</td>
                   <td className="px-6 py-4 font-bold text-white flex items-center gap-3">
                     <div className="w-8 h-8 rounded-md bg-slate-800 flex items-center justify-center shrink-0 border border-white/5">

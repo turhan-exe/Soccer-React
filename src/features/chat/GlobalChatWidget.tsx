@@ -1,11 +1,13 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Loader2, MessageCircle, Send, X } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useInventory } from '@/contexts/InventoryContext';
 import { sendGlobalChatMessage, subscribeToGlobalChat } from '@/services/chat';
 import type { GlobalChatMessage } from '@/types';
 
 const MAX_MESSAGE_LENGTH = 320;
+const CHAT_ADMIN_REDIRECT_EMAIL = 'ops.lead@mgx.gg';
 
 const formatTime = (value: Date) =>
   value.toLocaleTimeString('tr-TR', {
@@ -15,6 +17,7 @@ const formatTime = (value: Date) =>
 
 const GlobalChatWidget: React.FC = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const { vipActive } = useInventory();
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<GlobalChatMessage[]>([]);
@@ -25,6 +28,8 @@ const GlobalChatWidget: React.FC = () => {
   const scrollAreaRef = useRef<HTMLDivElement | null>(null);
   const [gradientStart, setGradientStart] = useState('#0ea5e9');
   const [gradientEnd, setGradientEnd] = useState('#9333ea');
+  const shouldRedirectToAdmin =
+    user?.email?.toLowerCase().trim() === CHAT_ADMIN_REDIRECT_EMAIL;
 
   useEffect(() => {
     if (!isOpen) {
@@ -113,6 +118,15 @@ const GlobalChatWidget: React.FC = () => {
     ? 'Mesajlar en fazla 24 saat boyunca tutulur.'
     : 'Lig menajerleriyle sohbet et.';
 
+  const handleToggle = useCallback(() => {
+    if (shouldRedirectToAdmin) {
+      navigate('/admin/chat-moderation');
+      return;
+    }
+
+    setIsOpen(prev => !prev);
+  }, [navigate, shouldRedirectToAdmin]);
+
   const renderedMessages = useMemo(() => {
     if (!messages.length) {
       return (
@@ -148,12 +162,19 @@ const GlobalChatWidget: React.FC = () => {
     });
   }, [messages]);
 
+  const widgetPositionStyle = {
+    position: 'fixed' as const,
+    right: 'max(env(safe-area-inset-right, 0px), clamp(0.45rem, 3vw, 0.9rem))',
+    left: 'auto',
+    bottom: 'max(env(safe-area-inset-bottom, 0px), clamp(0.45rem, 3vh, 1rem))',
+  };
+
   return (
-    <div className="nostalgia-chat-widget !z-[100]" aria-live="polite">
+    <div className="nostalgia-chat-widget !z-[100]" style={widgetPositionStyle} aria-live="polite">
       <button
         type="button"
         className={`nostalgia-chat-button${isOpen ? ' nostalgia-chat-button--active' : ''}`}
-        onClick={() => setIsOpen(prev => !prev)}
+        onClick={handleToggle}
         aria-expanded={isOpen}
         aria-controls="global-chat-panel"
       >

@@ -72,17 +72,19 @@ const ensureChatPermission = async (userId: string): Promise<void> => {
       return;
     }
 
+    const blockedPayload = payload as Exclude<ChatSanctionStatus, { allowed: true }>;
+
     const remainingMs =
-      typeof payload.expiresAt === 'number' && payload.expiresAt > Date.now()
-        ? payload.expiresAt - Date.now()
+      typeof blockedPayload.expiresAt === 'number' && blockedPayload.expiresAt > Date.now()
+        ? blockedPayload.expiresAt - Date.now()
         : null;
     const remainingMinutes = remainingMs ? Math.max(1, Math.ceil(remainingMs / 60000)) : null;
 
-    if (payload.type === 'ban') {
-      throw new Error(payload.reason ?? 'Bu hesap kalici olarak banlandi.');
+    if (blockedPayload.type === 'ban') {
+      throw new Error(blockedPayload.reason ?? 'Bu hesap kalici olarak banlandi.');
     }
 
-    const baseMessage = payload.reason ?? 'Bu hesap icin timeout aktif.';
+    const baseMessage = blockedPayload.reason ?? 'Bu hesap icin timeout aktif.';
     const durationInfo = remainingMinutes ? ` Kalan sure: ${remainingMinutes} dk.` : '';
     throw new Error(`${baseMessage}${durationInfo}`);
   } catch (error) {

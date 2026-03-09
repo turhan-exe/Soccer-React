@@ -30,7 +30,6 @@ import {
   SheetTrigger,
 } from '@/components/ui/sheet';
 import { BackButton } from '@/components/ui/back-button';
-import InfoPopupButton from '@/components/ui/info-popup-button';
 import { trainings } from '@/lib/data';
 import { calculateSessionDurationMinutes } from '@/lib/trainingDuration';
 import { runTrainingSimulation } from '@/lib/trainingSession';
@@ -39,6 +38,7 @@ import { Player, Training } from '@/types';
 import { formatRatingLabel } from '@/lib/player';
 import { useAuth } from '@/contexts/AuthContext';
 import { useDiamonds } from '@/contexts/DiamondContext';
+import { useTheme } from '@/contexts/ThemeContext';
 import { getTeam, saveTeamPlayers } from '@/services/team';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { PlayerStatusCard } from '@/components/ui/player-status-card';
@@ -84,6 +84,8 @@ export default function TrainingPage() {
   const { user } = useAuth();
   const { balance, spend } = useDiamonds();
   const { vipDurationMultiplier } = useInventory();
+  const { theme } = useTheme();
+  const isDark = theme === 'dark';
 
   const [players, setPlayers] = useState<Player[]>([]);
   const [selectedPlayers, setSelectedPlayers] = useState<Player[]>([]);
@@ -752,9 +754,73 @@ export default function TrainingPage() {
     [isTraining, squadRoleSelections],
   );
 
+  const shellClass = isDark
+    ? 'relative flex h-screen flex-col overflow-hidden bg-slate-950 text-slate-100'
+    : 'relative flex h-screen flex-col overflow-hidden bg-[#eef6ff] text-slate-950';
+  const headerClass = isDark
+    ? 'border-b border-white/10 bg-slate-900/75 text-slate-100 backdrop-blur-xl shadow-[0_20px_50px_rgba(2,6,23,0.35)]'
+    : 'border-b border-[#b8d8ec] bg-white/78 text-slate-950 backdrop-blur-xl shadow-[0_18px_40px_rgba(37,99,235,0.12)]';
+  const toolbarButtonClass = isDark
+    ? 'border-white/10 bg-white/5 text-slate-100 hover:bg-white/10'
+    : 'border-[#c4dbee] bg-[#eef4fb] text-slate-800 hover:bg-white';
+  const historyButtonClass = isDark
+    ? 'border-white/10 bg-slate-950/60 text-slate-100 hover:bg-slate-900'
+    : 'border-[#bfd6e8] bg-white/92 text-slate-800 hover:bg-white';
+  const panelClass = isDark
+    ? 'border border-white/10 bg-slate-900/72 text-slate-100 shadow-[0_18px_50px_rgba(2,6,23,0.28)] backdrop-blur-xl'
+    : 'border border-[#b8d7ea] bg-white/84 text-slate-950 shadow-[0_18px_40px_rgba(15,23,42,0.08)] backdrop-blur-xl';
+  const mutedTextClass = isDark ? 'text-slate-400' : 'text-slate-600';
+  const searchInputClass = isDark
+    ? 'border-white/10 bg-slate-950/60 pl-9 text-slate-100 placeholder:text-slate-500 focus-visible:ring-cyan-400/30'
+    : 'border-[#bfd6e8] bg-white/92 pl-9 text-slate-900 placeholder:text-slate-400 focus-visible:ring-[#0ea5a8]/30';
+  const listItemClass = isDark
+    ? 'cursor-pointer select-none border-white/10 bg-white/[0.03] transition hover:border-cyan-400/50 hover:bg-cyan-500/10'
+    : 'cursor-pointer select-none border-[#c2daea] bg-white/92 transition hover:border-[#22a3c4] hover:bg-[#effbff]';
+  const listItemDisabledClass = isDark ? 'pointer-events-none opacity-50' : 'pointer-events-none opacity-60';
+  const listItemExpandedClass = isDark
+    ? 'border-cyan-400/60 ring-2 ring-cyan-400/20'
+    : 'border-[#0ea5a8] ring-2 ring-[#0ea5a8]/15 bg-[#f0fdfa]';
+  const dropZoneClass = isDark
+    ? 'border-2 border-dashed border-white/10 bg-slate-900/62'
+    : 'border-2 border-dashed border-[#c7dcec] bg-white/86';
+  const selectedPlayerClass = isDark
+    ? 'border border-cyan-400/20 bg-cyan-500/10'
+    : 'border border-[#b8dcec] bg-[#f3fbff]';
+  const selectedTrainingClass = isDark
+    ? 'border border-emerald-400/20 bg-emerald-500/10'
+    : 'border border-[#bde4d7] bg-[#f0fdf7]';
+  const metricCardClass = isDark
+    ? 'rounded-xl border border-white/8 bg-white/[0.04] p-3'
+    : 'rounded-xl border border-[#c9ddeb] bg-[#f8fbff] p-3';
+  const summaryCardClass = isDark
+    ? 'border border-white/10 bg-gradient-to-r from-cyan-500/10 via-slate-900/80 to-emerald-500/10'
+    : 'border border-[#b8d7ea] bg-gradient-to-r from-white via-[#edf8ff] to-[#eefcf6]';
+  const primaryButtonClass = isDark
+    ? 'h-12 w-full border border-cyan-400/30 bg-gradient-to-r from-cyan-500 to-emerald-500 font-semibold text-slate-950 shadow-[0_14px_30px_rgba(16,185,129,0.18)] hover:from-cyan-400 hover:to-emerald-400 disabled:border-white/10 disabled:bg-slate-900 disabled:text-slate-500'
+    : 'h-12 w-full border border-[#22a3c4]/30 bg-gradient-to-r from-[#0ea5a8] to-[#2563eb] font-semibold text-white shadow-[0_14px_30px_rgba(37,99,235,0.16)] hover:from-[#0891b2] hover:to-[#1d4ed8] disabled:border-[#d5e2ec] disabled:bg-[#e8eef5] disabled:text-slate-400';
+  const secondaryActionClass = isDark
+    ? 'w-full border-white/10 bg-slate-950/70 text-slate-100 hover:bg-slate-900'
+    : 'w-full border-[#bfd6e8] bg-white/92 text-slate-800 hover:bg-white';
+  const trainingCardClass = isDark
+    ? 'cursor-grab select-none border-white/10 bg-white/[0.03] transition hover:border-emerald-400/50 hover:bg-emerald-500/10'
+    : 'cursor-grab select-none border-[#c2daea] bg-white/92 transition hover:border-[#10b981] hover:bg-[#effcf6]';
+  const trainingCardDisabledClass = isDark ? 'pointer-events-none opacity-50' : 'pointer-events-none opacity-60';
+  const sheetContentClass = isDark
+    ? 'flex flex-col gap-4 border-l border-white/10 bg-slate-950/96 text-slate-100 sm:max-w-md'
+    : 'flex flex-col gap-4 border-l border-[#c6dceb] bg-[#f7fbff] text-slate-950 sm:max-w-md';
+
   return (
-    <div className="h-screen flex flex-col bg-gradient-to-br from-green-50 via-emerald-50 to-teal-50 dark:from-green-950 dark:via-emerald-950 dark:to-teal-950 overflow-hidden">
-      <div className="bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm border-b p-2 shrink-0">
+    <div className={shellClass}>
+      <div
+        aria-hidden="true"
+        className={cn(
+          'pointer-events-none absolute inset-0',
+          isDark
+            ? 'bg-[radial-gradient(circle_at_top,_rgba(34,197,94,0.14),_transparent_24%),radial-gradient(circle_at_right,_rgba(59,130,246,0.16),_transparent_24%),linear-gradient(135deg,rgba(15,23,42,0.2),rgba(2,6,23,0))]'
+            : 'bg-[radial-gradient(circle_at_top,_rgba(37,99,235,0.14),_transparent_26%),radial-gradient(circle_at_right,_rgba(16,185,129,0.12),_transparent_24%),linear-gradient(135deg,rgba(255,255,255,0.55),rgba(255,255,255,0))]',
+        )}
+      />
+      <div className={cn('relative shrink-0 p-2', headerClass)}>
         <div className="flex flex-wrap items-center justify-between gap-y-2">
           <div className="flex items-center gap-3">
             <BackButton />
@@ -765,6 +831,7 @@ export default function TrainingPage() {
               <Button
                 variant="secondary"
                 size="sm"
+                className={toolbarButtonClass}
                 disabled={isTraining || squadRoleSelections.starters.length === 0}
                 onClick={() => handleSquadSelection('starters')}
               >
@@ -773,6 +840,7 @@ export default function TrainingPage() {
               <Button
                 variant="secondary"
                 size="sm"
+                className={toolbarButtonClass}
                 disabled={isTraining || squadRoleSelections.bench.length === 0}
                 onClick={() => handleSquadSelection('bench')}
               >
@@ -781,6 +849,7 @@ export default function TrainingPage() {
               <Button
                 variant="secondary"
                 size="sm"
+                className={toolbarButtonClass}
                 disabled={isTraining || squadRoleSelections.reserves.length === 0}
                 onClick={() => handleSquadSelection('reserves')}
               >
@@ -790,18 +859,18 @@ export default function TrainingPage() {
 
             <Sheet>
               <SheetTrigger asChild>
-                <Button variant="outline" size="sm" className="gap-2">
+                <Button variant="outline" size="sm" className={cn('gap-2', historyButtonClass)}>
                   <History className="h-4 w-4" />
                   Geçmiş
                 </Button>
               </SheetTrigger>
-              <SheetContent className="flex flex-col gap-4 sm:max-w-md">
+              <SheetContent className={sheetContentClass}>
                 <SheetHeader>
                   <SheetTitle>Antrenman Geçmişi</SheetTitle>
                 </SheetHeader>
                 <div className="flex-1 overflow-y-auto pr-2">
                   {filteredHistory.length === 0 ? (
-                    <p className="py-8 text-center text-muted-foreground">
+                    <p className={cn('py-8 text-center', mutedTextClass)}>
                       Henüz antrenman kaydı bulunmuyor.
                     </p>
                   ) : (
@@ -809,7 +878,6 @@ export default function TrainingPage() {
                       {filteredHistory.map((record) => {
                         const player = players.find(p => p.id === record.playerId);
                         const training = trainings.find(t => t.id === record.trainingId);
-                        const isSuccess = record.result === 'success';
 
                         return (
                           <div
@@ -817,15 +885,21 @@ export default function TrainingPage() {
                             className={cn(
                               "rounded-lg border p-3 text-sm shadow-sm transition-colors",
                               record.result === 'success'
-                                ? "bg-emerald-50/50 border-emerald-100 dark:bg-emerald-900/20 dark:border-emerald-800"
+                                ? isDark
+                                  ? "bg-emerald-500/10 border-emerald-400/20"
+                                  : "bg-emerald-50 border-emerald-100"
                                 : record.result === 'fail'
-                                  ? "bg-red-50/50 border-red-100 dark:bg-red-900/20 dark:border-red-800"
-                                  : "bg-amber-50/50 border-amber-100 dark:bg-amber-900/20 dark:border-amber-800"
+                                  ? isDark
+                                    ? "bg-red-500/10 border-red-400/20"
+                                    : "bg-red-50 border-red-100"
+                                  : isDark
+                                    ? "bg-amber-500/10 border-amber-400/20"
+                                    : "bg-amber-50 border-amber-100"
                             )}
                           >
                             <div className="flex items-center justify-between mb-2">
                               <span className="font-semibold">{player?.name || 'Bilinmeyen Oyuncu'}</span>
-                              <span className="text-xs text-muted-foreground">
+                              <span className={cn('text-xs', mutedTextClass)}>
                                 {record.completedAt?.toDate().toLocaleDateString('tr-TR', {
                                   day: 'numeric',
                                   month: 'short',
@@ -836,11 +910,11 @@ export default function TrainingPage() {
                             </div>
                             <div className="flex items-center justify-between gap-2">
                               <div className="flex flex-col">
-                                <span className="text-muted-foreground truncate">
+                                <span className={cn('truncate', mutedTextClass)}>
                                   {training?.name || 'Bilinmeyen Antrenman'}
                                 </span>
                                 {record.gain > 0 && (
-                                  <span className="text-xs font-medium text-emerald-600 dark:text-emerald-400">
+                                  <span className={cn('text-xs font-medium', isDark ? 'text-emerald-300' : 'text-emerald-700')}>
                                     {training?.type ? (
                                       <>
                                         {training.type.charAt(0).toUpperCase() + training.type.slice(1)}: +{(record.gain * 100).toFixed(1)}
@@ -854,10 +928,16 @@ export default function TrainingPage() {
                               <span className={cn(
                                 "text-xs px-2 py-0.5 rounded-full font-medium min-w-[60px] text-center",
                                 record.result === 'success'
-                                  ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300"
+                                  ? isDark
+                                    ? "bg-emerald-500/15 text-emerald-300"
+                                    : "bg-emerald-100 text-emerald-700"
                                   : record.result === 'fail'
-                                    ? "bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300"
-                                    : "bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300"
+                                    ? isDark
+                                      ? "bg-red-500/15 text-red-300"
+                                      : "bg-red-100 text-red-700"
+                                    : isDark
+                                      ? "bg-amber-500/15 text-amber-300"
+                                      : "bg-amber-100 text-amber-700"
                               )}>
                                 {record.result === 'success' ? 'Başarılı' : record.result === 'fail' ? 'Başarısız' : 'Normal'}
                               </span>
@@ -874,28 +954,28 @@ export default function TrainingPage() {
         </div>
       </div>
 
-      <div className="flex-1 p-2 min-h-0 overflow-y-auto">
+      <div className="relative z-10 flex-1 min-h-0 overflow-y-auto p-2">
         <div className="grid gap-2 grid-cols-[25%_50%_25%] relative">
           {/* Players list */}
           <div className="relative h-full">
-            <Card className="absolute inset-0 border-emerald-200/70 bg-white/70 dark:border-emerald-900/60 dark:bg-emerald-950/50 flex flex-col overflow-hidden">
+            <Card className={cn('absolute inset-0 flex flex-col overflow-hidden', panelClass)}>
               <CardHeader className="space-y-3">
-                <CardTitle className="flex items-center gap-2 text-lg">
+                <CardTitle className={cn('flex items-center gap-2 text-lg', isDark ? 'text-cyan-100' : 'text-slate-900')}>
                   <Users className="h-5 w-5" /> Oyuncular
                 </CardTitle>
                 <div className="relative">
-                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Search className={cn('absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2', mutedTextClass)} />
                   <Input
                     value={playerSearch}
                     onChange={event => setPlayerSearch(event.target.value)}
                     placeholder="Oyuncu ara"
-                    className="pl-9"
+                    className={searchInputClass}
                   />
                 </div>
               </CardHeader>
               <CardContent className="space-y-3 flex-1 overflow-y-auto pr-2">
                 {filteredPlayers.length === 0 && (
-                  <p className="text-sm text-muted-foreground">
+                  <p className={cn('text-sm', mutedTextClass)}>
                     Eşleşen oyuncu bulunamadı.
                   </p>
                 )}
@@ -932,20 +1012,20 @@ export default function TrainingPage() {
                         setPlayerDetail(null);
                       }}
                       className={cn(
-                        'cursor-pointer select-none border-emerald-100 transition hover:border-emerald-300 dark:border-emerald-900/50 dark:hover:border-emerald-700',
-                        isTraining && 'pointer-events-none opacity-60',
-                        isExpanded && 'border-emerald-300 ring-2 ring-emerald-200/70 dark:border-emerald-700',
+                        listItemClass,
+                        isTraining && listItemDisabledClass,
+                        isExpanded && listItemExpandedClass,
                       )}
                     >
                       <CardContent className="flex items-center justify-between gap-3 p-4">
                         <div>
                           <p className="font-semibold">{player.name}</p>
-                          <p className="text-xs text-muted-foreground">
+                          <p className={cn('text-xs', mutedTextClass)}>
                             {player.position} • Genel {formatRatingLabel(player.overall)}
                           </p>
                         </div>
                         <div className="text-right">
-                          <p className="text-xs text-muted-foreground">Motivasyon</p>
+                          <p className={cn('text-xs', mutedTextClass)}>Motivasyon</p>
                           <p className="font-semibold">{Math.round(player.motivation * 100)}%</p>
                         </div>
                       </CardContent>
@@ -963,39 +1043,42 @@ export default function TrainingPage() {
                 onDragOver={event => handleDragOver(event, 'player')}
                 onDrop={event => handleDrop(event, 'player')}
                 className={cn(
-                  'min-h-[220px] border-2 border-dashed bg-white/80 transition dark:bg-emerald-950/40',
+                  'min-h-[220px] transition',
+                  dropZoneClass,
                   draggingType === 'player'
-                    ? 'border-emerald-400 shadow-lg'
-                    : 'border-emerald-200/60 dark:border-emerald-900/50',
+                    ? isDark
+                      ? 'border-cyan-400 shadow-[0_18px_45px_rgba(34,211,238,0.14)]'
+                      : 'border-[#0ea5a8] shadow-[0_18px_40px_rgba(14,165,168,0.14)]'
+                    : '',
                   isTraining && 'opacity-70',
                 )}
               >
                 <CardHeader className="pb-2">
-                  <CardTitle className="flex items-center gap-2 text-base">
+                  <CardTitle className={cn('flex items-center gap-2 text-base', isDark ? 'text-cyan-100' : 'text-slate-900')}>
                     <Users className="h-5 w-5" /> Seçilen Oyuncular
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-2">
                   {selectedPlayers.length === 0 && (
-                    <p className="text-sm text-muted-foreground">
+                    <p className={cn('text-sm', mutedTextClass)}>
                       Oyuncuları sürükleyip bırakın veya çift tıklayın.
                     </p>
                   )}
                   {selectedPlayers.map(player => (
                     <div
                       key={player.id}
-                      className="flex items-center justify-between rounded-md border border-emerald-100 bg-emerald-50/60 px-3 py-2 text-sm dark:border-emerald-900/60 dark:bg-emerald-900/40"
+                      className={cn('flex items-center justify-between rounded-md px-3 py-2 text-sm', selectedPlayerClass)}
                     >
                       <div>
                         <p className="font-medium">{player.name}</p>
-                        <p className="text-xs text-muted-foreground">
+                        <p className={cn('text-xs', mutedTextClass)}>
                           {player.position} • {formatRatingLabel(player.overall)}
                         </p>
                       </div>
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-7 w-7 text-muted-foreground"
+                        className={cn('h-7 w-7', mutedTextClass)}
                         onClick={() => removeSelectedPlayer(player.id)}
                       >
                         <X className="h-4 w-4" />
@@ -1009,39 +1092,42 @@ export default function TrainingPage() {
                 onDragOver={event => handleDragOver(event, 'training')}
                 onDrop={event => handleDrop(event, 'training')}
                 className={cn(
-                  'min-h-[220px] border-2 border-dashed bg-white/80 transition dark:bg-emerald-950/40',
+                  'min-h-[220px] transition',
+                  dropZoneClass,
                   draggingType === 'training'
-                    ? 'border-teal-400 shadow-lg'
-                    : 'border-teal-200/60 dark:border-emerald-900/50',
+                    ? isDark
+                      ? 'border-emerald-400 shadow-[0_18px_45px_rgba(16,185,129,0.14)]'
+                      : 'border-[#10b981] shadow-[0_18px_40px_rgba(16,185,129,0.14)]'
+                    : '',
                   isTraining && 'opacity-70',
                 )}
               >
                 <CardHeader className="pb-2">
-                  <CardTitle className="flex items-center gap-2 text-base">
+                  <CardTitle className={cn('flex items-center gap-2 text-base', isDark ? 'text-emerald-100' : 'text-slate-900')}>
                     <Dumbbell className="h-5 w-5" /> Seçilen Antrenmanlar
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-2">
                   {selectedTrainings.length === 0 && (
-                    <p className="text-sm text-muted-foreground">
+                    <p className={cn('text-sm', mutedTextClass)}>
                       Antrenman kartlarını bu alana bırakın.
                     </p>
                   )}
                   {selectedTrainings.map(training => (
                     <div
                       key={training.id}
-                      className="flex items-center justify-between rounded-md border border-teal-100 bg-teal-50/60 px-3 py-2 text-sm dark:border-emerald-900/60 dark:bg-emerald-900/30"
+                      className={cn('flex items-center justify-between rounded-md px-3 py-2 text-sm', selectedTrainingClass)}
                     >
                       <div>
                         <p className="font-medium">{training.name}</p>
-                        <p className="text-xs text-muted-foreground">
+                        <p className={cn('text-xs', mutedTextClass)}>
                           {training.type} • {training.duration} dk
                         </p>
                       </div>
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-7 w-7 text-muted-foreground"
+                        className={cn('h-7 w-7', mutedTextClass)}
                         onClick={() => removeSelectedTraining(training.id)}
                       >
                         <X className="h-4 w-4" />
@@ -1052,37 +1138,37 @@ export default function TrainingPage() {
               </Card>
             </div>
 
-            <Card className="border-emerald-200/80 bg-white/80 dark:border-emerald-900/50 dark:bg-emerald-950/40">
+            <Card className={panelClass}>
               <CardHeader className="pb-2">
-                <CardTitle className="flex items-center gap-2 text-lg">
+                <CardTitle className={cn('flex items-center gap-2 text-lg', isDark ? 'text-cyan-100' : 'text-slate-900')}>
                   <ClipboardList className="h-5 w-5" /> Antrenman Kontrolü
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="grid grid-cols-2 gap-2 text-sm">
-                  <div className="rounded-md bg-emerald-50/80 p-2 dark:bg-emerald-900/40">
-                    <p className="text-muted-foreground">Oyuncu Sayısı</p>
+                  <div className={metricCardClass}>
+                    <p className={mutedTextClass}>Oyuncu Sayısı</p>
                     <p className="text-lg font-semibold">{selectedPlayers.length}</p>
                   </div>
-                  <div className="rounded-md bg-teal-50/80 p-2 dark:bg-emerald-900/40">
-                    <p className="text-muted-foreground">Antrenman Sayısı</p>
+                  <div className={metricCardClass}>
+                    <p className={mutedTextClass}>Antrenman Sayısı</p>
                     <p className="text-lg font-semibold">{selectedTrainings.length}</p>
                   </div>
-                  <div className="rounded-md bg-emerald-50/80 p-2 dark:bg-emerald-900/40">
-                    <p className="text-muted-foreground">Toplam Kombinasyon</p>
+                  <div className={metricCardClass}>
+                    <p className={mutedTextClass}>Toplam Kombinasyon</p>
                     <p className="text-lg font-semibold">{totalAssignments}</p>
                   </div>
-                  <div className="rounded-md bg-teal-50/80 p-2 dark:bg-emerald-900/40">
-                    <p className="text-muted-foreground">Beklenen Süre</p>
+                  <div className={metricCardClass}>
+                    <p className={mutedTextClass}>Beklenen Süre</p>
                     <p className="text-lg font-semibold">
                       {sessionDurationMinutes} dk
                     </p>
                   </div>
                 </div>
 
-                <div className="rounded-lg border border-emerald-100 bg-gradient-to-r from-emerald-50 to-teal-50 p-4 text-sm dark:border-emerald-900/60 dark:from-emerald-950 dark:to-teal-950">
+                <div className={cn('rounded-lg p-4 text-sm', summaryCardClass)}>
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2 text-muted-foreground">
+                    <div className={cn('flex items-center gap-2', mutedTextClass)}>
                       <Clock className="h-4 w-4" />
                       <span>Süre</span>
                     </div>
@@ -1091,7 +1177,7 @@ export default function TrainingPage() {
                     </span>
                   </div>
                   <div className="mt-2 flex items-center justify-between">
-                    <div className="flex items-center gap-2 text-muted-foreground">
+                    <div className={cn('flex items-center gap-2', mutedTextClass)}>
                       <Diamond className="h-4 w-4" />
                       <span>Elmas Maliyeti</span>
                     </div>
@@ -1099,7 +1185,7 @@ export default function TrainingPage() {
                   </div>
                   {isTraining && (
                     <div className="mt-2 flex items-center justify-between">
-                      <div className="flex items-center gap-2 text-muted-foreground">
+                      <div className={cn('flex items-center gap-2', mutedTextClass)}>
                         <Diamond className="h-4 w-4" />
                         <span>Erken Bitirme Ücreti</span>
                       </div>
@@ -1107,7 +1193,7 @@ export default function TrainingPage() {
                     </div>
                   )}
                   {diamondCost === 0 && (
-                    <p className="mt-2 text-xs text-muted-foreground">
+                    <p className={cn('mt-2 text-xs', mutedTextClass)}>
                       Bir oyuncu + bir antrenman kombinasyonu ücretsizdir.
                     </p>
                   )}
@@ -1116,7 +1202,7 @@ export default function TrainingPage() {
                 <Button
                   onClick={handleStartTraining}
                   disabled={!canStart}
-                  className="h-12 w-full"
+                  className={primaryButtonClass}
                 >
                   {isTraining ? formatTime(timeLeft) : 'Antrenmanı Başlat'}
                 </Button>
@@ -1127,7 +1213,7 @@ export default function TrainingPage() {
                         <Button
                           onClick={handleFinishWithDiamonds}
                           variant="outline"
-                          className="w-full"
+                          className={secondaryActionClass}
                           disabled={isFinishingWithDiamonds}
                         >
                           <Diamond className="mr-2 h-4 w-4" /> Elmasla Bitir ({finishDiamondCost})
@@ -1135,14 +1221,14 @@ export default function TrainingPage() {
                         <Button
                           onClick={handleWatchAd}
                           variant="secondary"
-                          className="w-full"
+                          className={secondaryActionClass}
                           disabled={isWatchingAd}
                         >
                           <Clapperboard className="mr-2 h-4 w-4" /> {isWatchingAd ? 'Video Yükleniyor...' : 'Reklam İzle (Hemen Bitir)'}
                         </Button>
                       </>
                     )}
-                    <p className="text-center text-xs text-muted-foreground">
+                    <p className={cn('text-center text-xs', mutedTextClass)}>
                       Antrenman devam ederken seçimler kilitlenir.
                     </p>
                   </div>
@@ -1153,24 +1239,24 @@ export default function TrainingPage() {
 
           {/* Trainings list */}
           <div className="relative h-full">
-            <Card className="absolute inset-0 border-teal-200/70 bg-white/70 dark:border-emerald-900/60 dark:bg-emerald-950/50 flex flex-col overflow-hidden">
+            <Card className={cn('absolute inset-0 flex flex-col overflow-hidden', panelClass)}>
               <CardHeader className="space-y-3">
-                <CardTitle className="flex items-center gap-2 text-lg">
+                <CardTitle className={cn('flex items-center gap-2 text-lg', isDark ? 'text-emerald-100' : 'text-slate-900')}>
                   <Dumbbell className="h-5 w-5" /> Antrenmanlar
                 </CardTitle>
                 <div className="relative">
-                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Search className={cn('absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2', mutedTextClass)} />
                   <Input
                     value={trainingSearch}
                     onChange={event => setTrainingSearch(event.target.value)}
                     placeholder="Antrenman ara"
-                    className="pl-9"
+                    className={searchInputClass}
                   />
                 </div>
               </CardHeader>
               <CardContent className="space-y-3 flex-1 overflow-y-auto pr-2">
                 {filteredTrainings.length === 0 && (
-                  <p className="text-sm text-muted-foreground">
+                  <p className={cn('text-sm', mutedTextClass)}>
                     Uygun antrenman bulunamadı.
                   </p>
                 )}
@@ -1190,21 +1276,21 @@ export default function TrainingPage() {
                       }
                     }}
                     className={cn(
-                      'cursor-grab select-none border-teal-100 transition hover:border-teal-300 dark:border-emerald-900/50 dark:hover:border-emerald-700',
-                      isTraining && 'pointer-events-none opacity-60',
+                      trainingCardClass,
+                      isTraining && trainingCardDisabledClass,
                     )}
                   >
                     <CardContent className="flex items-center justify-between gap-3 p-4">
                       <div>
                         <p className="font-semibold">{training.name}</p>
-                        <p className="text-xs text-muted-foreground">
+                        <p className={cn('text-xs', mutedTextClass)}>
                           {training.description}
                         </p>
                       </div>
                       <div className="text-right">
-                        <p className="text-xs text-muted-foreground">Hedef</p>
+                        <p className={cn('text-xs', mutedTextClass)}>Hedef</p>
                         <p className="font-semibold truncate max-w-[80px]" title={training.type}>{training.type}</p>
-                        <p className="text-xs text-muted-foreground mt-1">{training.duration} dk</p>
+                        <p className={cn('mt-1 text-xs', mutedTextClass)}>{training.duration} dk</p>
                       </div>
                     </CardContent>
                   </Card>

@@ -750,7 +750,7 @@ function deriveTeamKitColors(team: ClubTeam | null, teamKey: string, preferAwayK
 
 function findTeamKitSource(team: ClubTeam | null, preferAwayKit: boolean): Record<string, unknown> | undefined {
   if (!team) return undefined;
-  const lookup = team as Record<string, unknown>;
+  const lookup = team as unknown as Record<string, unknown>;
   const suffix = preferAwayKit ? 'away' : 'home';
   const targetedPaths = [`${suffix}KitColors`, `${suffix}Kit`, `${suffix}KitSpec`];
 

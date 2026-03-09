@@ -1,0 +1,19 @@
+{
+  "total": 40,
+  "kickedOff": true,
+  "cleanedUp": true,
+  "prepare": {
+    "minMs": 79,
+    "p50Ms": 88,
+    "p95Ms": 270,
+    "p99Ms": 271,
+    "maxMs": 271
+  },
+  "kickoff": {
+    "minMs": 75,
+    "p50Ms": 85,
+    "p95Ms": 144,
+    "p99Ms": 144,
+    "maxMs": 144
+  }
+}

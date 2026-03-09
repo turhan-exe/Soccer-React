@@ -204,6 +204,35 @@ export interface MatchTimeline {
   date?: string | null;
 }
 
+export type FixtureLiveStatus =
+  | 'warm'
+  | 'starting'
+  | 'server_started'
+  | 'running'
+  | 'ended'
+  | 'failed'
+  | 'prepare_failed'
+  | 'kickoff_failed'
+  | string;
+
+export interface FixtureLive {
+  matchId?: string;
+  nodeId?: string | null;
+  serverIp?: string | null;
+  serverPort?: number | null;
+  state?: FixtureLiveStatus;
+  prewarmedAt?: FirestoreTimestamp;
+  kickoffAttemptedAt?: FirestoreTimestamp;
+  startedAt?: FirestoreTimestamp;
+  endedAt?: FirestoreTimestamp;
+  lastLifecycleAt?: FirestoreTimestamp;
+  homeUserId?: string | null;
+  awayUserId?: string | null;
+  retryCount?: number;
+  resultMissing?: boolean;
+  reason?: string;
+}
+
 export interface Team {
   name: string;
   logo: string;
@@ -232,7 +261,7 @@ export interface League {
   // When fixtures start; stored as Firestore Timestamp
   startDate?: FirestoreTimestamp;
   // Metadata
-  rounds: number; // total rounds (22 teams => 42)
+  rounds: number; // total rounds (16 teams => 30 in monthly leagues)
   teamCount?: number;
   // Optional mirror array for quick reads (not authoritative)
   teams?: { id: string; name: string }[];
@@ -257,6 +286,7 @@ export interface Fixture {
   videoMissing?: boolean;
   videoError?: string;
   goalTimeline?: MatchGoalEvent[];
+  live?: FixtureLive | null;
 }
 
 export interface Standing {
@@ -339,7 +369,7 @@ export interface GlobalChatMessage {
 export type { FirebaseTimestamp } from './common';
 export type { LeagueDoc, LeagueState } from './league';
 export type { TeamDoc, Lineup } from './team';
-export type { FixtureDoc, FixtureStatus } from './fixture';
+export type { FixtureDoc, FixtureStatus, FixtureLiveDoc } from './fixture';
 export type { MatchPlanDoc } from './matchPlan';
 export type {
   TournamentParticipant,

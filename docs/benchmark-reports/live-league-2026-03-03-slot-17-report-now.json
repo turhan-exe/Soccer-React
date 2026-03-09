@@ -1,0 +1,84 @@
+{
+  "mode": "report",
+  "firestoreMode": "admin",
+  "kickoffHourTR": 17,
+  "kickoffAt": "2026-03-03T14:00:00.000Z",
+  "summary": {
+    "total": 32,
+    "scheduled": 11,
+    "running": 0,
+    "played": 21,
+    "failed": 0,
+    "withLiveMatchId": 21,
+    "liveStates": {
+      "running": 20,
+      "ended": 1,
+      "prepare_failed": 11
+    },
+    "missingVideo": 21,
+    "missingScore": 0
+  },
+  "sampleStatuses": [
+    {
+      "fixtureId": "48y3mM0ZuUQYAUkodkdm",
+      "matchId": "48y3mM0ZuUQYAUkodkdm",
+      "firestoreState": "running",
+      "matchControlState": "ended"
+    },
+    {
+      "fixtureId": "KimTBKzlFrGvZN814Hsa",
+      "matchId": "KimTBKzlFrGvZN814Hsa",
+      "firestoreState": "running",
+      "matchControlState": "ended"
+    },
+    {
+      "fixtureId": "M2yMZLJvuchilvgl0Iqo",
+      "matchId": "M2yMZLJvuchilvgl0Iqo",
+      "firestoreState": "running",
+      "matchControlState": "ended"
+    },
+    {
+      "fixtureId": "UFlWGlF1xLTEdsAyTc2m",
+      "matchId": "UFlWGlF1xLTEdsAyTc2m",
+      "firestoreState": "running",
+      "matchControlState": "ended"
+    },
+    {
+      "fixtureId": "UsGOtsF7GZ5Co1fwmDll",
+      "matchId": "UsGOtsF7GZ5Co1fwmDll",
+      "firestoreState": "running",
+      "matchControlState": "ended"
+    },
+    {
+      "fixtureId": "fYa1fOQsdVkzyPcuKXBG",
+      "matchId": "fYa1fOQsdVkzyPcuKXBG",
+      "firestoreState": "running",
+      "matchControlState": "ended"
+    },
+    {
+      "fixtureId": "pt9kqnD5KWhneefLPtrR",
+      "matchId": "pt9kqnD5KWhneefLPtrR",
+      "firestoreState": "running",
+      "matchControlState": "ended"
+    },
+    {
+      "fixtureId": "q5tpDB01gJG8RMrUh4iU",
+      "matchId": "q5tpDB01gJG8RMrUh4iU",
+      "firestoreState": "running",
+      "matchControlState": "ended"
+    },
+    {
+      "fixtureId": "3ZBejDkdZJVMUIx6vuJw",
+      "matchId": "3ZBejDkdZJVMUIx6vuJw",
+      "firestoreState": "ended",
+      "matchControlState": "ended"
+    },
+    {
+      "fixtureId": "LxplUYwpgPMa2xO12HBT",
+      "matchId": "LxplUYwpgPMa2xO12HBT",
+      "firestoreState": "running",
+      "matchControlState": "ended"
+    }
+  ],
+  "failures": []
+}

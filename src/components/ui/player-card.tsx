@@ -22,6 +22,7 @@ import { formatContractCountdown } from '@/lib/contracts';
 interface PlayerCardProps {
   player: Player;
   onMoveToStarting?: () => void;
+  moveToStartingLabel?: string;
   onMoveToBench?: () => void;
   onMoveToReserve?: () => void;
   onPromoteToTeam?: () => void;
@@ -61,6 +62,7 @@ const POSITION_COLOR: Record<string, string> = {
 export const PlayerCard: React.FC<PlayerCardProps> = ({
   player,
   onMoveToStarting,
+  moveToStartingLabel,
   onMoveToBench,
   onMoveToReserve,
   onPromoteToTeam,
@@ -311,7 +313,9 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({
                       {collapsed ? 'Kartı Genişlet' : 'Kartı Küçült'}
                     </DropdownMenuItem>
                     {player.squadRole !== 'starting' && onMoveToStarting && (
-                      <DropdownMenuItem onClick={onMoveToStarting}>İlk 11'e Al</DropdownMenuItem>
+                      <DropdownMenuItem onClick={onMoveToStarting}>
+                        {moveToStartingLabel || "İlk 11'e Al"}
+                      </DropdownMenuItem>
                     )}
                     {player.squadRole !== 'bench' && onMoveToBench && (
                       <DropdownMenuItem onClick={onMoveToBench}>Yedek Kulübesine Al</DropdownMenuItem>

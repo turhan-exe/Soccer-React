@@ -36,7 +36,6 @@ const MAX_RENAME_LENGTH = 32;
 
 export default function SettingsPage() {
   const [isCleaningLeagues, setIsCleaningLeagues] = useState(false);
-
   const handleCleanLeagues = async () => {
     if (!confirm('Liglerdeki fazlalık botlar silinecek. Emin misiniz?')) return;
 
@@ -49,9 +48,9 @@ export default function SettingsPage() {
       } else {
         toast.info('Tüm ligler kapasite sınırları içinde. Silinecek bot bulunamadı.');
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error(error);
-      toast.error(`Hata: ${error.message || 'Temizlik sırasında hata oluştu.'}`);
+      toast.error(`Hata: ${error instanceof Error ? error.message : 'Temizlik sırasında hata oluştu.'}`);
     } finally {
       setIsCleaningLeagues(false);
     }
@@ -356,6 +355,8 @@ export default function SettingsPage() {
   };
 
   const cardBaseClass = 'border-white/10 bg-slate-900/60 text-slate-100 backdrop-blur-lg';
+  const showLeagueBotCleanup = false;
+  const isAdmin = user?.role === 'admin';
 
   return (
     <>
@@ -510,6 +511,7 @@ export default function SettingsPage() {
                     placeholder="+90 555 000 00 00"
                     inputMode="tel"
                     disabled={!user || isSavingContact}
+                    className="border-white/10 bg-slate-950/70 text-slate-100 placeholder:text-slate-500 focus-visible:ring-emerald-500/40"
                   />
                   <p className="text-xs text-slate-400">
                     Numarani uluslararasi formatta yazabilirsin. Kaydettiginde yalnizca kulubun resmi iletisim kanalindan paylasilir.
@@ -527,6 +529,7 @@ export default function SettingsPage() {
                     onChange={event => setContactCrypto(event.target.value)}
                     placeholder="USDT (TRC20) cuzdan adresi"
                     disabled={!user || isSavingContact}
+                    className="border-white/10 bg-slate-950/70 text-slate-100 placeholder:text-slate-500 focus-visible:ring-emerald-500/40"
                   />
                   <p className="text-xs text-slate-400">
                     Kripto odemeleri icin tercih ettigin cuzdan adresini veya borsa hesap bilgisini ekleyebilirsin.
@@ -749,10 +752,10 @@ export default function SettingsPage() {
                 <div className="space-y-2">
                   <Label>Grafik Kalitesi</Label>
                   <Select defaultValue="high">
-                    <SelectTrigger>
+                    <SelectTrigger className="border-white/10 bg-slate-950/70 text-slate-100 focus:ring-emerald-500/40">
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className="border-white/10 bg-slate-950 text-slate-100">
                       <SelectItem value="low">Düşük</SelectItem>
                       <SelectItem value="medium">Orta</SelectItem>
                       <SelectItem value="high">Yüksek</SelectItem>
@@ -772,10 +775,10 @@ export default function SettingsPage() {
                 <div className="space-y-2">
                   <Label>Dil</Label>
                   <Select defaultValue="tr">
-                    <SelectTrigger>
+                    <SelectTrigger className="border-white/10 bg-slate-950/70 text-slate-100 focus:ring-emerald-500/40">
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className="border-white/10 bg-slate-950 text-slate-100">
                       <SelectItem value="tr">Türkçe</SelectItem>
                       <SelectItem value="en">English</SelectItem>
                       <SelectItem value="de">Deutsch</SelectItem>
@@ -787,10 +790,10 @@ export default function SettingsPage() {
                 <div className="space-y-2">
                   <Label>Para Birimi</Label>
                   <Select defaultValue="try">
-                    <SelectTrigger>
+                    <SelectTrigger className="border-white/10 bg-slate-950/70 text-slate-100 focus:ring-emerald-500/40">
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className="border-white/10 bg-slate-950 text-slate-100">
                       <SelectItem value="try">Türk Lirası (₺)</SelectItem>
                       <SelectItem value="eur">Euro (€)</SelectItem>
                       <SelectItem value="usd">US Dollar ($)</SelectItem>
@@ -828,7 +831,21 @@ export default function SettingsPage() {
                     Önbelleği Temizle
                   </Button>
 
-                  <div className="pt-4 border-t border-white/10">
+                  {isAdmin ? (
+                    <div className="border-t border-white/10 pt-4">
+                      <p className="mb-2 text-xs text-slate-400">Yonetici Islemleri</p>
+                      <Button
+                        variant="outline"
+                        className="w-full justify-start border-cyan-500/20 bg-cyan-500/10 text-cyan-100 hover:bg-cyan-500/20"
+                        onClick={() => navigate('/admin/live-league')}
+                      >
+                        <Settings className="mr-2 h-4 w-4" />
+                        Canli Lig Operasyon Paneli
+                      </Button>
+                    </div>
+                  ) : null}
+
+                  {showLeagueBotCleanup && <div className="pt-4 border-t border-white/10">
                     <p className="mb-2 text-xs text-slate-400">Yönetici İşlemleri</p>
                     <Button
                       variant="destructive"
@@ -843,7 +860,7 @@ export default function SettingsPage() {
                       )}
                       Lig Botlarını Temizle (Kapasite Düzelt)
                     </Button>
-                  </div>
+                  </div>}
                 </div>
 
                 <div className="border-t border-white/10 pt-4">
@@ -982,3 +999,5 @@ export default function SettingsPage() {
     </>
   );
 }
+
+

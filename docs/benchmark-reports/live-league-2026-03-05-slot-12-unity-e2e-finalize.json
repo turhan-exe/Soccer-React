@@ -1,0 +1,430 @@
+{
+  "date": "2026-03-05",
+  "kickoffHourTR": 12,
+  "kickoffAt": "2026-03-05T09:00:00.000Z",
+  "timeoutMinutes": 12,
+  "intervalSeconds": 20,
+  "prepareResponse": {
+    "ok": true,
+    "day": "2026-03-05",
+    "mode": "prepare",
+    "result": {
+      "day": "2026-03-05",
+      "prepared": 24,
+      "reused": 0,
+      "skipped": 0,
+      "failed": 0,
+      "total": 24,
+      "targets": [
+        "2026-03-05T09:00:00.000Z"
+      ]
+    }
+  },
+  "kickoffResponse": {
+    "ok": true,
+    "day": "2026-03-05",
+    "mode": "kickoff",
+    "result": {
+      "day": "2026-03-05",
+      "started": 24,
+      "skipped": 0,
+      "failed": 0,
+      "total": 24,
+      "targets": [
+        "2026-03-05T09:00:00.000Z"
+      ]
+    }
+  },
+  "success": false,
+  "finalSummary": {
+    "total": 24,
+    "scheduled": 24,
+    "running": 0,
+    "played": 0,
+    "failed": 0,
+    "withLiveMatchId": 24,
+    "liveStates": {
+      "starting": 24
+    }
+  },
+  "timeline": [
+    {
+      "at": "2026-03-06T02:51:00.351Z",
+      "summary": {
+        "total": 24,
+        "scheduled": 24,
+        "running": 0,
+        "played": 0,
+        "failed": 0,
+        "withLiveMatchId": 24,
+        "liveStates": {
+          "starting": 24
+        }
+      }
+    },
+    {
+      "at": "2026-03-06T02:51:32.082Z",
+      "summary": {
+        "total": 24,
+        "scheduled": 24,
+        "running": 0,
+        "played": 0,
+        "failed": 0,
+        "withLiveMatchId": 24,
+        "liveStates": {
+          "starting": 24
+        }
+      }
+    },
+    {
+      "at": "2026-03-06T02:52:04.260Z",
+      "summary": {
+        "total": 24,
+        "scheduled": 24,
+        "running": 0,
+        "played": 0,
+        "failed": 0,
+        "withLiveMatchId": 24,
+        "liveStates": {
+          "starting": 24
+        }
+      }
+    },
+    {
+      "at": "2026-03-06T02:52:33.950Z",
+      "summary": {
+        "total": 24,
+        "scheduled": 24,
+        "running": 0,
+        "played": 0,
+        "failed": 0,
+        "withLiveMatchId": 24,
+        "liveStates": {
+          "starting": 24
+        }
+      }
+    },
+    {
+      "at": "2026-03-06T02:52:59.420Z",
+      "summary": {
+        "total": 24,
+        "scheduled": 24,
+        "running": 0,
+        "played": 0,
+        "failed": 0,
+        "withLiveMatchId": 24,
+        "liveStates": {
+          "starting": 24
+        }
+      }
+    },
+    {
+      "at": "2026-03-06T02:53:25.125Z",
+      "summary": {
+        "total": 24,
+        "scheduled": 24,
+        "running": 0,
+        "played": 0,
+        "failed": 0,
+        "withLiveMatchId": 24,
+        "liveStates": {
+          "starting": 24
+        }
+      }
+    },
+    {
+      "at": "2026-03-06T02:53:50.686Z",
+      "summary": {
+        "total": 24,
+        "scheduled": 24,
+        "running": 0,
+        "played": 0,
+        "failed": 0,
+        "withLiveMatchId": 24,
+        "liveStates": {
+          "starting": 24
+        }
+      }
+    },
+    {
+      "at": "2026-03-06T02:54:15.729Z",
+      "summary": {
+        "total": 24,
+        "scheduled": 24,
+        "running": 0,
+        "played": 0,
+        "failed": 0,
+        "withLiveMatchId": 24,
+        "liveStates": {
+          "starting": 24
+        }
+      }
+    },
+    {
+      "at": "2026-03-06T02:54:40.739Z",
+      "summary": {
+        "total": 24,
+        "scheduled": 24,
+        "running": 0,
+        "played": 0,
+        "failed": 0,
+        "withLiveMatchId": 24,
+        "liveStates": {
+          "starting": 24
+        }
+      }
+    },
+    {
+      "at": "2026-03-06T02:55:05.666Z",
+      "summary": {
+        "total": 24,
+        "scheduled": 24,
+        "running": 0,
+        "played": 0,
+        "failed": 0,
+        "withLiveMatchId": 24,
+        "liveStates": {
+          "starting": 24
+        }
+      }
+    },
+    {
+      "at": "2026-03-06T02:55:30.679Z",
+      "summary": {
+        "total": 24,
+        "scheduled": 24,
+        "running": 0,
+        "played": 0,
+        "failed": 0,
+        "withLiveMatchId": 24,
+        "liveStates": {
+          "starting": 24
+        }
+      }
+    },
+    {
+      "at": "2026-03-06T02:55:55.599Z",
+      "summary": {
+        "total": 24,
+        "scheduled": 24,
+        "running": 0,
+        "played": 0,
+        "failed": 0,
+        "withLiveMatchId": 24,
+        "liveStates": {
+          "starting": 24
+        }
+      }
+    },
+    {
+      "at": "2026-03-06T02:56:20.687Z",
+      "summary": {
+        "total": 24,
+        "scheduled": 24,
+        "running": 0,
+        "played": 0,
+        "failed": 0,
+        "withLiveMatchId": 24,
+        "liveStates": {
+          "starting": 24
+        }
+      }
+    },
+    {
+      "at": "2026-03-06T02:56:49.877Z",
+      "summary": {
+        "total": 24,
+        "scheduled": 24,
+        "running": 0,
+        "played": 0,
+        "failed": 0,
+        "withLiveMatchId": 24,
+        "liveStates": {
+          "starting": 24
+        }
+      }
+    },
+    {
+      "at": "2026-03-06T02:57:21.719Z",
+      "summary": {
+        "total": 24,
+        "scheduled": 24,
+        "running": 0,
+        "played": 0,
+        "failed": 0,
+        "withLiveMatchId": 24,
+        "liveStates": {
+          "starting": 24
+        }
+      }
+    },
+    {
+      "at": "2026-03-06T02:57:53.646Z",
+      "summary": {
+        "total": 24,
+        "scheduled": 24,
+        "running": 0,
+        "played": 0,
+        "failed": 0,
+        "withLiveMatchId": 24,
+        "liveStates": {
+          "starting": 24
+        }
+      }
+    },
+    {
+      "at": "2026-03-06T02:58:25.318Z",
+      "summary": {
+        "total": 24,
+        "scheduled": 24,
+        "running": 0,
+        "played": 0,
+        "failed": 0,
+        "withLiveMatchId": 24,
+        "liveStates": {
+          "starting": 24
+        }
+      }
+    },
+    {
+      "at": "2026-03-06T02:58:51.438Z",
+      "summary": {
+        "total": 24,
+        "scheduled": 24,
+        "running": 0,
+        "played": 0,
+        "failed": 0,
+        "withLiveMatchId": 24,
+        "liveStates": {
+          "starting": 24
+        }
+      }
+    },
+    {
+      "at": "2026-03-06T02:59:16.910Z",
+      "summary": {
+        "total": 24,
+        "scheduled": 24,
+        "running": 0,
+        "played": 0,
+        "failed": 0,
+        "withLiveMatchId": 24,
+        "liveStates": {
+          "starting": 24
+        }
+      }
+    },
+    {
+      "at": "2026-03-06T02:59:42.347Z",
+      "summary": {
+        "total": 24,
+        "scheduled": 24,
+        "running": 0,
+        "played": 0,
+        "failed": 0,
+        "withLiveMatchId": 24,
+        "liveStates": {
+          "starting": 24
+        }
+      }
+    },
+    {
+      "at": "2026-03-06T03:00:07.635Z",
+      "summary": {
+        "total": 24,
+        "scheduled": 24,
+        "running": 0,
+        "played": 0,
+        "failed": 0,
+        "withLiveMatchId": 24,
+        "liveStates": {
+          "starting": 24
+        }
+      }
+    },
+    {
+      "at": "2026-03-06T03:00:33.181Z",
+      "summary": {
+        "total": 24,
+        "scheduled": 24,
+        "running": 0,
+        "played": 0,
+        "failed": 0,
+        "withLiveMatchId": 24,
+        "liveStates": {
+          "starting": 24
+        }
+      }
+    },
+    {
+      "at": "2026-03-06T03:00:59.199Z",
+      "summary": {
+        "total": 24,
+        "scheduled": 24,
+        "running": 0,
+        "played": 0,
+        "failed": 0,
+        "withLiveMatchId": 24,
+        "liveStates": {
+          "starting": 24
+        }
+      }
+    },
+    {
+      "at": "2026-03-06T03:01:24.904Z",
+      "summary": {
+        "total": 24,
+        "scheduled": 24,
+        "running": 0,
+        "played": 0,
+        "failed": 0,
+        "withLiveMatchId": 24,
+        "liveStates": {
+          "starting": 24
+        }
+      }
+    },
+    {
+      "at": "2026-03-06T03:01:50.285Z",
+      "summary": {
+        "total": 24,
+        "scheduled": 24,
+        "running": 0,
+        "played": 0,
+        "failed": 0,
+        "withLiveMatchId": 24,
+        "liveStates": {
+          "starting": 24
+        }
+      }
+    },
+    {
+      "at": "2026-03-06T03:02:15.797Z",
+      "summary": {
+        "total": 24,
+        "scheduled": 24,
+        "running": 0,
+        "played": 0,
+        "failed": 0,
+        "withLiveMatchId": 24,
+        "liveStates": {
+          "starting": 24
+        }
+      }
+    },
+    {
+      "at": "2026-03-06T03:02:41.462Z",
+      "summary": {
+        "total": 24,
+        "scheduled": 24,
+        "running": 0,
+        "played": 0,
+        "failed": 0,
+        "withLiveMatchId": 24,
+        "liveStates": {
+          "starting": 24
+        }
+      }
+    }
+  ]
+}

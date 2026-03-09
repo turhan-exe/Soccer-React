@@ -1,0 +1,82 @@
+{
+  "mode": "report",
+  "firestoreMode": "admin",
+  "kickoffHourTR": 12,
+  "kickoffAt": "2026-03-03T09:00:00.000Z",
+  "summary": {
+    "total": 24,
+    "scheduled": 0,
+    "running": 0,
+    "played": 24,
+    "failed": 0,
+    "withLiveMatchId": 24,
+    "liveStates": {
+      "running": 24
+    },
+    "missingVideo": 24,
+    "missingScore": 0
+  },
+  "sampleStatuses": [
+    {
+      "fixtureId": "9uin8shHjQ75NZX43Y4Z",
+      "matchId": "9uin8shHjQ75NZX43Y4Z",
+      "firestoreState": "running",
+      "matchControlState": "ended"
+    },
+    {
+      "fixtureId": "GJehrlPUJAlST0ECUU8u",
+      "matchId": "GJehrlPUJAlST0ECUU8u",
+      "firestoreState": "running",
+      "matchControlState": "ended"
+    },
+    {
+      "fixtureId": "WLb1OI4Ub2QVUWmR8bwm",
+      "matchId": "WLb1OI4Ub2QVUWmR8bwm",
+      "firestoreState": "running",
+      "matchControlState": "ended"
+    },
+    {
+      "fixtureId": "ZeY76QGli0sTLj73A8Bb",
+      "matchId": "ZeY76QGli0sTLj73A8Bb",
+      "firestoreState": "running",
+      "matchControlState": "ended"
+    },
+    {
+      "fixtureId": "dcta45eGmqb2IwP9bTzB",
+      "matchId": "dcta45eGmqb2IwP9bTzB",
+      "firestoreState": "running",
+      "matchControlState": "ended"
+    },
+    {
+      "fixtureId": "vSURylgzNxBYOrqNPwYy",
+      "matchId": "vSURylgzNxBYOrqNPwYy",
+      "firestoreState": "running",
+      "matchControlState": "ended"
+    },
+    {
+      "fixtureId": "xaV7gdd4QqPTD5SJkE9w",
+      "matchId": "xaV7gdd4QqPTD5SJkE9w",
+      "firestoreState": "running",
+      "matchControlState": "ended"
+    },
+    {
+      "fixtureId": "yEdZdu5gxyVJbz7KO3oi",
+      "matchId": "yEdZdu5gxyVJbz7KO3oi",
+      "firestoreState": "running",
+      "matchControlState": "ended"
+    },
+    {
+      "fixtureId": "5ijSCxmKQzCj3NzdoNTu",
+      "matchId": "5ijSCxmKQzCj3NzdoNTu",
+      "firestoreState": "running",
+      "matchControlState": "ended"
+    },
+    {
+      "fixtureId": "LK16zCr9HOU7nFabmmz8",
+      "matchId": "LK16zCr9HOU7nFabmmz8",
+      "firestoreState": "running",
+      "matchControlState": "ended"
+    }
+  ],
+  "failures": []
+}

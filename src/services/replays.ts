@@ -34,6 +34,7 @@ const mapFixture = (snap: any): MatchListItem => {
     video: data.video ?? null,
     videoMissing: data.videoMissing,
     videoError: data.videoError,
+    live: data.live ?? null,
     kickoffDate,
   };
 };

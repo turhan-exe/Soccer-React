@@ -1,0 +1,82 @@
+{
+  "mode": "report",
+  "firestoreMode": "admin",
+  "kickoffHourTR": 12,
+  "kickoffAt": "2026-03-02T09:00:00.000Z",
+  "summary": {
+    "total": 24,
+    "scheduled": 0,
+    "running": 0,
+    "played": 24,
+    "failed": 0,
+    "withLiveMatchId": 24,
+    "liveStates": {
+      "running": 24
+    },
+    "missingVideo": 24,
+    "missingScore": 0
+  },
+  "sampleStatuses": [
+    {
+      "fixtureId": "0Fv0g06rJPztxLLWZRmS",
+      "matchId": "0Fv0g06rJPztxLLWZRmS",
+      "firestoreState": "running",
+      "matchControlState": "ended"
+    },
+    {
+      "fixtureId": "74PFPbpuSunj9EnC9buI",
+      "matchId": "74PFPbpuSunj9EnC9buI",
+      "firestoreState": "running",
+      "matchControlState": "ended"
+    },
+    {
+      "fixtureId": "KvvEiyJw2EExRRADAfjW",
+      "matchId": "KvvEiyJw2EExRRADAfjW",
+      "firestoreState": "running",
+      "matchControlState": "ended"
+    },
+    {
+      "fixtureId": "RiizDKC4mXYExqZoGy8o",
+      "matchId": "RiizDKC4mXYExqZoGy8o",
+      "firestoreState": "running",
+      "matchControlState": "ended"
+    },
+    {
+      "fixtureId": "S7gEpVuws5YRmVJtj0zh",
+      "matchId": "S7gEpVuws5YRmVJtj0zh",
+      "firestoreState": "running",
+      "matchControlState": "ended"
+    },
+    {
+      "fixtureId": "h3aTSe3sTFnrHnqWqU1K",
+      "matchId": "h3aTSe3sTFnrHnqWqU1K",
+      "firestoreState": "running",
+      "matchControlState": "ended"
+    },
+    {
+      "fixtureId": "tgN0FD9ADdhfhpesEH2s",
+      "matchId": "tgN0FD9ADdhfhpesEH2s",
+      "firestoreState": "running",
+      "matchControlState": "ended"
+    },
+    {
+      "fixtureId": "y0NyZbDFOSoQ1wTvHXoE",
+      "matchId": "y0NyZbDFOSoQ1wTvHXoE",
+      "firestoreState": "running",
+      "matchControlState": "ended"
+    },
+    {
+      "fixtureId": "7TFIZcnZIQxjH63zx2U1",
+      "matchId": "7TFIZcnZIQxjH63zx2U1",
+      "firestoreState": "running",
+      "matchControlState": "ended"
+    },
+    {
+      "fixtureId": "DHUv6owsWSgyNWzYuBzB",
+      "matchId": "DHUv6owsWSgyNWzYuBzB",
+      "firestoreState": "running",
+      "matchControlState": "ended"
+    }
+  ],
+  "failures": []
+}

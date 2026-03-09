@@ -1,0 +1,78 @@
+﻿{
+    "matchId":  "lg_44d6191dde4d4312a027f5ebb7ab15c7",
+    "timeline":  [
+                     {
+                         "at":  "2026-03-06T20:33:06.1839560+03:00",
+                         "step":  1,
+                         "mcState":  "starting",
+                         "mcMinute":  null,
+                         "naState":  "starting",
+                         "naMinute":  null,
+                         "naMinuteAt":  null
+                     },
+                     {
+                         "at":  "2026-03-06T20:33:21.3469315+03:00",
+                         "step":  2,
+                         "mcState":  "server_started",
+                         "mcMinute":  null,
+                         "naState":  "running",
+                         "naMinute":  null,
+                         "naMinuteAt":  null
+                     },
+                     {
+                         "at":  "2026-03-06T20:33:36.4920739+03:00",
+                         "step":  3,
+                         "mcState":  "server_started",
+                         "mcMinute":  null,
+                         "naState":  "running",
+                         "naMinute":  null,
+                         "naMinuteAt":  null
+                     },
+                     {
+                         "at":  "2026-03-06T20:33:51.6428015+03:00",
+                         "step":  4,
+                         "mcState":  "server_started",
+                         "mcMinute":  null,
+                         "naState":  "running",
+                         "naMinute":  null,
+                         "naMinuteAt":  null
+                     },
+                     {
+                         "at":  "2026-03-06T20:34:06.7865509+03:00",
+                         "step":  5,
+                         "mcState":  "server_started",
+                         "mcMinute":  null,
+                         "naState":  "running",
+                         "naMinute":  null,
+                         "naMinuteAt":  null
+                     },
+                     {
+                         "at":  "2026-03-06T20:34:21.9315047+03:00",
+                         "step":  6,
+                         "mcState":  "server_started",
+                         "mcMinute":  null,
+                         "naState":  "running",
+                         "naMinute":  null,
+                         "naMinuteAt":  null
+                     },
+                     {
+                         "at":  "2026-03-06T20:34:37.0897355+03:00",
+                         "step":  7,
+                         "mcState":  "server_started",
+                         "mcMinute":  null,
+                         "naState":  "running",
+                         "naMinute":  null,
+                         "naMinuteAt":  null
+                     },
+                     {
+                         "at":  "2026-03-06T20:34:52.2397485+03:00",
+                         "step":  8,
+                         "mcState":  "server_started",
+                         "mcMinute":  null,
+                         "naState":  "running",
+                         "naMinute":  null,
+                         "naMinuteAt":  null
+                     }
+                 ],
+    "nodeIp":  "89.167.117.176"
+}
