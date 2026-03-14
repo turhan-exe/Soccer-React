@@ -762,28 +762,60 @@ export async function listLeagues(): Promise<League[]> {
     const slotsSnap = await getDocs(collection(d.ref, 'slots'));
     let teams: { id: string; name: string }[] = [];
     let teamCount = 0;
+
+    const standingsById = new Map<string, { id: string; name: string }>();
     if (!standingsSnap.empty) {
-      // Prefer standings for friendly names (works for human + bots)
-      const rows = standingsSnap.docs.map((s) => s.data() as any);
-      teams = rows.map((r) => ({ id: r.teamId || `slot-${r.slotIndex}`, name: r.name || r.teamId || `Slot ${r.slotIndex}` }));
-      teamCount = rows.length;
+      for (const standingDoc of standingsSnap.docs) {
+        const row = standingDoc.data() as any;
+        const stableId = row.teamId || `slot-${row.slotIndex}`;
+        if (!stableId || standingsById.has(stableId)) continue;
+        standingsById.set(stableId, {
+          id: stableId,
+          name: row.name || row.teamId || `Slot ${row.slotIndex}`,
+        });
+      }
+      teams = Array.from(standingsById.values());
+      teamCount = teams.length;
     }
 
     if (!slotsSnap.empty) {
-      const slotTeams = slotsSnap.docs.map((s) => {
-        const sd = s.data() as any;
-        return { id: sd.teamId || `slot-${sd.slotIndex}`, name: sd.teamId || `Bot ${sd.botId || sd.slotIndex}` };
-      });
-      teams = await mergeTeamsWithSlots(d.id, teams.length > 0 ? teams : slotTeams);
-      teamCount = Math.max(teamCount, slotsSnap.size);
+      const slotTeamsByIndex = new Map<number, { id: string; name: string }>();
+      for (const slotDoc of slotsSnap.docs) {
+        const slotData = slotDoc.data() as any;
+        const slotIndex =
+          typeof slotData.slotIndex === 'number' ? slotData.slotIndex : Number(slotDoc.id) || 0;
+        if (slotIndex <= 0 || slotTeamsByIndex.has(slotIndex)) continue;
+
+        const stableId = slotData.teamId || `slot-${slotIndex}`;
+        slotTeamsByIndex.set(slotIndex, {
+          id: stableId,
+          name:
+            standingsById.get(stableId)?.name ||
+            slotData.name ||
+            slotData.teamId ||
+            `Bot ${slotData.botId || slotIndex}`,
+        });
+      }
+
+      teams = Array.from(slotTeamsByIndex.values());
+      teamCount = slotTeamsByIndex.size;
     } else if (teams.length === 0) {
       const teamsSnap = await getDocs(collection(d.ref, 'teams'));
-      teamCount = teamsSnap.size;
-      teams = teamsSnap.docs.map((t) => {
-        const td = t.data() as any;
-        return { id: t.id, name: td.name || t.id };
-      });
+      const legacyTeamsById = new Map<string, { id: string; name: string }>();
+      for (const teamDoc of teamsSnap.docs) {
+        const teamData = teamDoc.data() as any;
+        if (legacyTeamsById.has(teamDoc.id)) continue;
+        legacyTeamsById.set(teamDoc.id, { id: teamDoc.id, name: teamData.name || teamDoc.id });
+      }
+      teams = Array.from(legacyTeamsById.values());
+      teamCount = teams.length;
     }
+
+    const capacity = Number(data.capacity) || 0;
+    if (capacity > 0) {
+      teamCount = Math.min(teamCount, capacity);
+    }
+
     leagues.push({
       id: d.id,
       name: data.name,

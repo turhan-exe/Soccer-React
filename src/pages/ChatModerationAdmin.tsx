@@ -337,6 +337,13 @@ const actionIcons: Record<ModerationActionType, JSX.Element> = {
   ban: <Ban className="h-4 w-4 text-rose-400" />,
 };
 
+const timeoutDurationPresets = [
+  { label: '15 dk', minutes: 15 },
+  { label: '1 Saat', minutes: 60 },
+  { label: '1 Gun', minutes: 1440 },
+  { label: '1 Ay', minutes: 43200 },
+] as const;
+
 const ChatModerationAdmin = () => {
   const navigate = useNavigate();
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -353,7 +360,7 @@ const ChatModerationAdmin = () => {
   const [moderatedUsers, setModeratedUsers] = useState<ModeratedUser[]>([]);
   const [actionLog, setActionLog] = useState<ActionLogEntry[]>([]);
   const [actionFeedback, setActionFeedback] = useState<string | null>(null);
-  const [actionForm, setActionForm] = useState({ reason: '', duration: 15, notifyPlayer: true });
+  const [actionForm, setActionForm] = useState({ reason: '', duration: 60, notifyPlayer: true });
   const [actionError, setActionError] = useState<string | null>(null);
   const [isApplyingAction, setIsApplyingAction] = useState(false);
 
@@ -415,23 +422,30 @@ const ChatModerationAdmin = () => {
 
   useEffect(() => {
     const sanctionsQuery = query(collection(db, SANCTIONS_COLLECTION), orderBy('startedAt', 'desc'));
-    const unsubscribe = onSnapshot(sanctionsQuery, (snapshot) => {
-      const records: ModeratedUser[] = snapshot.docs.map((docSnapshot) => {
-        const data = docSnapshot.data();
-        const type: ModeratedUser['type'] = data.type === 'ban' ? 'ban' : 'timeout';
-        const expiresAt = type === 'ban' ? null : toMillis(data.expiresAt);
-        return {
-          userName: data.userName ?? data.username ?? 'Bilinmeyen',
-          userTag: data.userTag ?? data.userId ?? docSnapshot.id,
-          userId: data.userId ?? null,
-          type,
-          reason: data.reason ?? 'Belirtilmedi',
-          startedAt: toMillis(data.startedAt) ?? Date.now(),
-          expiresAt,
-        };
-      });
-      setModeratedUsers(records);
-    });
+    const unsubscribe = onSnapshot(
+      sanctionsQuery,
+      (snapshot) => {
+        const records: ModeratedUser[] = snapshot.docs.map((docSnapshot) => {
+          const data = docSnapshot.data();
+          const type: ModeratedUser['type'] = data.type === 'ban' ? 'ban' : 'timeout';
+          const expiresAt = type === 'ban' ? null : toMillis(data.expiresAt);
+          return {
+            userName: data.userName ?? data.username ?? 'Bilinmeyen',
+            userTag: data.userTag ?? data.userId ?? docSnapshot.id,
+            userId: data.userId ?? null,
+            type,
+            reason: data.reason ?? 'Belirtilmedi',
+            startedAt: toMillis(data.startedAt) ?? Date.now(),
+            expiresAt,
+          };
+        });
+        setModeratedUsers(records);
+      },
+      (error) => {
+        console.error('[chat] sanctions listener failed', error);
+        setActionError('Yaptirim verisine erisim izni yok. Firestore kurallarini guncelleyin.');
+      },
+    );
 
     return () => unsubscribe();
   }, []);
@@ -634,7 +648,8 @@ const ChatModerationAdmin = () => {
       });
     } catch (error) {
       console.error('[chat-moderation] perform action failed', error);
-      setActionError('Moderasyon islemi tamamlanamadi. Lutfen tekrar deneyin.');
+      const message = error instanceof Error ? error.message : 'Moderasyon islemi tamamlanamadi. Lutfen tekrar deneyin.';
+      setActionError(message);
     } finally {
       setIsApplyingAction(false);
     }
@@ -716,8 +731,8 @@ const ChatModerationAdmin = () => {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 px-4 py-10 text-slate-100">
-      <div className="mx-auto flex max-w-7xl flex-col gap-6">
+    <div className="min-h-screen overflow-x-hidden bg-slate-950 px-3 py-6 text-slate-100 sm:px-4 sm:py-7">
+      <div className="mx-auto flex min-w-0 w-full max-w-[1280px] flex-col gap-4 lg:gap-5">
         <header className="flex flex-wrap items-start justify-between gap-4">
           <div className="flex items-start gap-3">
             <BackButton
@@ -726,13 +741,13 @@ const ChatModerationAdmin = () => {
             />
             <div>
               <p className="text-sm uppercase tracking-[0.3em] text-slate-500">Game Ops</p>
-              <h1 className="text-3xl font-semibold text-white">Chat Moderation Admin Panel</h1>
-              <p className="mt-1 text-sm text-slate-400">
+              <h1 className="text-2xl font-semibold text-white md:text-[28px]">Chat Moderation Admin Panel</h1>
+              <p className="mt-1 text-xs text-slate-400 md:text-sm">
                 Gercek zamanli mesaj akis, hizli aksiyon butonlari ve yaptirim kayitlari tek ekranda.
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-4 rounded-2xl border border-slate-800 bg-slate-900/70 p-3">
+          <div className="flex items-center gap-4 rounded-2xl border border-slate-800 bg-slate-900/70 px-3 py-2.5">
             <div>
               <p className="text-xs text-slate-500">Aktif Operator</p>
               <p className="font-semibold text-white">{sessionUser.name}</p>
@@ -742,44 +757,44 @@ const ChatModerationAdmin = () => {
         </header>
 
         {dataError ? (
-          <div className="rounded-2xl border border-rose-500/40 bg-rose-500/10 p-3 text-sm text-rose-200">{dataError}</div>
+          <div className="rounded-2xl border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-sm text-rose-200">{dataError}</div>
         ) : null}
 
-        <section className="grid gap-4 md:grid-cols-3">
+        <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           <Card className="border-slate-800 bg-slate-900/70">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 px-4 pb-1 pt-4">
               <CardTitle className="text-sm font-medium text-slate-400">Aktif Mesaj</CardTitle>
               <MessageSquare className="h-4 w-4 text-slate-500" />
             </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-semibold text-white">{isLoadingMessages ? '...' : totalActiveMessages}</div>
+            <CardContent className="px-4 pb-4 pt-0">
+              <div className="text-2xl font-semibold text-white">{isLoadingMessages ? '...' : totalActiveMessages}</div>
               <p className="text-xs text-slate-500">son 30 mesaj icinde</p>
             </CardContent>
           </Card>
           <Card className="border-slate-800 bg-slate-900/70">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 px-4 pb-1 pt-4">
               <CardTitle className="text-sm font-medium text-slate-400">Isaretlenen Icerik</CardTitle>
               <AlertTriangle className="h-4 w-4 text-amber-300" />
             </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-semibold text-amber-200">{isLoadingMessages ? '...' : flaggedCount}</div>
+            <CardContent className="px-4 pb-4 pt-0">
+              <div className="text-2xl font-semibold text-amber-200">{isLoadingMessages ? '...' : flaggedCount}</div>
               <p className="text-xs text-slate-500">otomatik filtre + manuel flag</p>
             </CardContent>
           </Card>
           <Card className="border-slate-800 bg-slate-900/70">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 px-4 pb-1 pt-4">
               <CardTitle className="text-sm font-medium text-slate-400">Aktif Yaptirim</CardTitle>
               <ShieldAlert className="h-4 w-4 text-sky-300" />
             </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-semibold text-sky-100">{activeSanctions.length}</div>
+            <CardContent className="px-4 pb-4 pt-0">
+              <div className="text-2xl font-semibold text-sky-100">{activeSanctions.length}</div>
               <p className="text-xs text-slate-500">mute + kalici ban toplami</p>
             </CardContent>
           </Card>
         </section>
 
         {actionFeedback ? (
-          <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm text-emerald-200">
+          <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-200">
             <div className="flex items-center gap-2">
               <CheckCircle2 className="h-4 w-4" />
               <span>{actionFeedback}</span>
@@ -787,9 +802,9 @@ const ChatModerationAdmin = () => {
           </div>
         ) : null}
 
-        <div className="grid gap-6 lg:grid-cols-[1.3fr_1fr]">
-          <Card className="border-slate-800 bg-slate-900/70">
-            <CardHeader>
+        <div className="grid grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)] gap-3 md:gap-4 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)] xl:grid-cols-[minmax(0,1.25fr)_minmax(0,0.75fr)]">
+          <Card className="min-w-0 border-slate-800 bg-slate-900/70">
+            <CardHeader className="pb-3">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <CardTitle>Gercek Zamanli Sohbet Akisi</CardTitle>
@@ -800,39 +815,40 @@ const ChatModerationAdmin = () => {
                 </Badge>
               </div>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex flex-wrap gap-3">
-                <div className="flex-1 min-w-[200px]">
-                  <Input
-                    placeholder="Oyuncu veya mesaj ara"
-                    value={searchTerm}
-                    onChange={(event) => setSearchTerm(event.target.value)}
-                  />
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {(['all', 'low', 'medium', 'high'] as const).map((filterValue) => (
-                    <Button
-                      key={filterValue}
-                      variant={severityFilter === filterValue ? 'default' : 'outline'}
-                      className={cn(
-                        'text-xs font-medium',
-                        severityFilter === filterValue ? 'bg-slate-100 text-slate-900' : 'border-slate-700 text-slate-300',
-                      )}
-                      onClick={() => setSeverityFilter(filterValue)}
-                    >
-                      {filterValue === 'all' ? 'Tumu' : severityConfig[filterValue].label}
-                    </Button>
-                  ))}
-                </div>
-                <div className="flex items-center gap-2 rounded-xl border border-slate-800 px-3 py-1.5">
-                  <Switch checked={flaggedOnly} onCheckedChange={setFlaggedOnly} id="flag-switch" />
-                  <Label htmlFor="flag-switch" className="text-xs text-slate-400">
-                    Sadece Flaglenenler
-                  </Label>
+            <CardContent className="space-y-3 pt-0">
+              <div className="space-y-2">
+                <Input
+                  className="h-9 w-full"
+                  placeholder="Oyuncu veya mesaj ara"
+                  value={searchTerm}
+                  onChange={(event) => setSearchTerm(event.target.value)}
+                />
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    {(['all', 'low', 'medium', 'high'] as const).map((filterValue) => (
+                      <Button
+                        key={filterValue}
+                        variant={severityFilter === filterValue ? 'default' : 'outline'}
+                        className={cn(
+                          'h-8 px-2.5 text-xs font-medium',
+                          severityFilter === filterValue ? 'bg-slate-100 text-slate-900' : 'border-slate-700 text-slate-300',
+                        )}
+                        onClick={() => setSeverityFilter(filterValue)}
+                      >
+                        {filterValue === 'all' ? 'Tumu' : severityConfig[filterValue].label}
+                      </Button>
+                    ))}
+                  </div>
+                  <div className="flex h-8 shrink-0 items-center gap-2 rounded-xl border border-slate-800 px-2.5">
+                    <Switch checked={flaggedOnly} onCheckedChange={setFlaggedOnly} id="flag-switch" />
+                    <Label htmlFor="flag-switch" className="text-xs text-slate-400">
+                      Sadece Flaglenenler
+                    </Label>
+                  </div>
                 </div>
               </div>
 
-              <ScrollArea className="h-[520px] pr-4">
+              <ScrollArea className="h-[calc(100vh-280px)] min-h-[460px] pr-3">
                 <div className="space-y-3">
                   {isLoadingMessages ? (
                     <div className="rounded-2xl border border-dashed border-slate-800 p-6 text-center text-sm text-slate-500">
@@ -849,13 +865,13 @@ const ChatModerationAdmin = () => {
                         type="button"
                         onClick={() => setSelectedMessageId(message.id)}
                         className={cn(
-                          'group flex w-full items-start gap-3 rounded-2xl border px-4 py-3 text-left transition-all hover:border-slate-500/50 hover:bg-slate-800/40',
+                          'group flex w-full items-start gap-2.5 rounded-xl border px-3 py-2.5 text-left transition-all hover:border-slate-500/50 hover:bg-slate-800/40',
                           message.id === selectedMessageId
                             ? 'border-emerald-500/30 bg-emerald-500/5 shadow-[0_0_15px_-3px_rgba(16,185,129,0.1)]'
                             : 'border-slate-800 bg-slate-900/40',
                         )}
                       >
-                        <Avatar className="mt-0.5 h-8 w-8 border border-white/10 transition-colors group-hover:border-white/20">
+                        <Avatar className="mt-0.5 h-7 w-7 border border-white/10 transition-colors group-hover:border-white/20">
                           <AvatarFallback className="bg-slate-800/80 text-[10px] font-medium text-slate-300">
                             {getInitials(message.playerName)}
                           </AvatarFallback>
@@ -904,24 +920,24 @@ const ChatModerationAdmin = () => {
             </CardContent>
           </Card>
 
-          <div className="space-y-4">
-            <Tabs defaultValue="actions" className="space-y-4">
-              <TabsList className="grid w-full grid-cols-2 bg-slate-900/70">
-                <TabsTrigger value="actions">Moderasyon</TabsTrigger>
-                <TabsTrigger value="watchlist">Takip Listesi</TabsTrigger>
+          <div className="min-w-0 space-y-3 lg:sticky lg:top-4 lg:self-start">
+            <Tabs defaultValue="actions" className="space-y-3">
+              <TabsList className="grid h-9 w-full grid-cols-2 bg-slate-900/70">
+                <TabsTrigger value="actions" className="text-xs">Moderasyon</TabsTrigger>
+                <TabsTrigger value="watchlist" className="text-xs">Takip Listesi</TabsTrigger>
               </TabsList>
 
               <TabsContent value="actions">
                 <Card className="border-slate-800 bg-slate-900/70">
-                  <CardHeader>
+                  <CardHeader className="pb-3">
                     <CardTitle>Hizli Aksiyon</CardTitle>
                     <CardDescription>Secili mesaj icin uygulanacak islem ve nedeni belirle.</CardDescription>
                   </CardHeader>
-                  <CardContent className="space-y-4">
+                  <CardContent className="space-y-3 pt-0">
                     {selectedMessage ? (
-                      <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-4">
-                        <div className="flex items-center gap-3">
-                          <Avatar className="h-10 w-10">
+                      <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-3">
+                        <div className="flex items-center gap-2.5">
+                          <Avatar className="h-9 w-9">
                             <AvatarFallback className="bg-slate-800 text-slate-200">
                               {getInitials(selectedMessage.playerName)}
                             </AvatarFallback>
@@ -936,8 +952,8 @@ const ChatModerationAdmin = () => {
                             </p>
                           </div>
                         </div>
-                        <p className="mt-3 text-sm text-slate-300">"{selectedMessage.text}"</p>
-                        <div className="mt-3 flex flex-wrap gap-2 text-xs">
+                        <p className="mt-2 text-sm text-slate-300">"{selectedMessage.text}"</p>
+                        <div className="mt-2 flex flex-wrap gap-2 text-xs">
                           <Badge variant="outline" className={cn('border text-xs', severityConfig[selectedMessage.severity].badgeClass)}>
                             {severityConfig[selectedMessage.severity].label}
                           </Badge>
@@ -958,25 +974,46 @@ const ChatModerationAdmin = () => {
                         placeholder="Kisa ve net bir aciklama yazin"
                         value={actionForm.reason}
                         onChange={(event) => setActionForm((prev) => ({ ...prev, reason: event.target.value }))}
-                        className="min-h-[80px]"
+                        className="min-h-[72px]"
                       />
                     </div>
 
-                    <div className="flex items-center justify-between rounded-2xl border border-slate-800 px-4 py-2.5">
-                      <div>
-                        <p className="text-sm font-medium text-white">Timeout Suresi</p>
-                        <p className="text-xs text-slate-500">Ban disindaki yaptirimlar icin (dk)</p>
+                    <div className="rounded-2xl border border-slate-800 px-3 py-2.5">
+                      <div className="flex items-center justify-between gap-2">
+                        <div>
+                          <p className="text-sm font-medium text-white">Timeout Suresi</p>
+                          <p className="text-xs text-slate-500">1 saat / 1 gun / 1 ay hazir secimler</p>
+                        </div>
+                        <Input
+                          type="number"
+                          min={5}
+                          max={43200}
+                          className="h-9 w-24"
+                          value={actionForm.duration}
+                          onChange={(event) =>
+                            setActionForm((prev) => ({ ...prev, duration: Number(event.target.value) || prev.duration }))
+                          }
+                        />
                       </div>
-                      <Input
-                        type="number"
-                        min={5}
-                        max={1440}
-                        className="w-24"
-                        value={actionForm.duration}
-                        onChange={(event) =>
-                          setActionForm((prev) => ({ ...prev, duration: Number(event.target.value) || prev.duration }))
-                        }
-                      />
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {timeoutDurationPresets.map((preset) => (
+                          <Button
+                            key={preset.minutes}
+                            type="button"
+                            size="sm"
+                            variant={actionForm.duration === preset.minutes ? 'default' : 'outline'}
+                            className={cn(
+                              'h-8 text-xs',
+                              actionForm.duration === preset.minutes
+                                ? 'bg-slate-100 text-slate-900'
+                                : 'border-slate-700 text-slate-300',
+                            )}
+                            onClick={() => setActionForm((prev) => ({ ...prev, duration: preset.minutes }))}
+                          >
+                            {preset.label}
+                          </Button>
+                        ))}
+                      </div>
                     </div>
 
                     <div className="flex items-center gap-3 rounded-2xl border border-slate-800 px-3 py-2">
@@ -998,6 +1035,7 @@ const ChatModerationAdmin = () => {
                         variant="destructive"
                         disabled={!selectedMessage || isApplyingAction}
                         onClick={() => void performModeration('delete')}
+                        className="h-9 text-sm"
                       >
                         Mesaji Sil
                       </Button>
@@ -1006,11 +1044,12 @@ const ChatModerationAdmin = () => {
                           variant="secondary"
                           disabled={!selectedMessage || isApplyingAction}
                           onClick={() => void performModeration('timeout')}
+                          className="h-9 text-sm"
                         >
                           Timeout / Mute
                         </Button>
                         <Button
-                          className="bg-rose-600 hover:bg-rose-500"
+                          className="h-9 bg-rose-600 text-sm hover:bg-rose-500"
                           disabled={!selectedMessage || isApplyingAction}
                           onClick={() => void performModeration('ban')}
                         >
@@ -1025,17 +1064,18 @@ const ChatModerationAdmin = () => {
 
               <TabsContent value="watchlist">
                 <Card className="border-slate-800 bg-slate-900/70">
-                  <CardHeader>
+                  <CardHeader className="pb-3">
                     <CardTitle>Aktif Yaptirimlar</CardTitle>
                     <CardDescription>Mute ve ban uygulanan oyuncular.</CardDescription>
                   </CardHeader>
-                  <CardContent>
-                    <div className="space-y-3">
+                  <CardContent className="pt-0">
+                    <ScrollArea className="h-[220px] pr-2">
+                      <div className="space-y-2.5">
                       {activeSanctions.length === 0 ? (
                         <p className="text-sm text-slate-500">Aktif yaptirim bulunmuyor.</p>
                       ) : (
                         activeSanctions.map((record) => (
-                          <div key={record.userTag} className="rounded-2xl border border-slate-800 p-3">
+                          <div key={record.userTag} className="rounded-xl border border-slate-800 p-2.5">
                             <div className="flex items-center justify-between">
                               <div>
                                 <p className="font-semibold text-white">
@@ -1053,18 +1093,19 @@ const ChatModerationAdmin = () => {
                           </div>
                         ))
                       )}
-                    </div>
+                      </div>
+                    </ScrollArea>
                   </CardContent>
                 </Card>
               </TabsContent>
             </Tabs>
 
             <Card className="border-slate-800 bg-slate-900/70">
-              <CardHeader>
+              <CardHeader className="pb-3">
                 <CardTitle>Canli Oyuncu Listesi</CardTitle>
                 <CardDescription>Son sohbet mesajlarina gore anlik katilimcilar.</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-3">
+              <CardContent className="pt-0">
                 {playersError ? (
                   <p className="text-sm text-rose-400">{playersError}</p>
                 ) : isLoadingPlayers ? (
@@ -1072,18 +1113,22 @@ const ChatModerationAdmin = () => {
                 ) : playerSummaries.length === 0 ? (
                   <p className="text-sm text-slate-500">Henuz sohbet verisi yok.</p>
                 ) : (
-                  playerSummaries.map((player) => (
-                    <div key={player.id} className="flex items-center justify-between rounded-xl border border-slate-800 px-3 py-2">
-                      <div>
-                        <p className="text-sm font-semibold text-white">{player.username}</p>
-                        <p className="text-xs text-slate-500">#{player.teamLabel}</p>
-                      </div>
-                      <div className="text-right text-xs text-slate-400">
-                        <p>{formatTimeDistance(player.lastSeen)}</p>
-                        <p className="max-w-[150px] truncate italic text-slate-500">{player.lastMessage}</p>
-                      </div>
+                  <ScrollArea className="h-[220px] pr-2">
+                    <div className="space-y-2.5">
+                      {playerSummaries.map((player) => (
+                        <div key={player.id} className="flex items-center justify-between rounded-xl border border-slate-800 px-3 py-2">
+                          <div>
+                            <p className="text-sm font-semibold text-white">{player.username}</p>
+                            <p className="text-xs text-slate-500">#{player.teamLabel}</p>
+                          </div>
+                          <div className="text-right text-xs text-slate-400">
+                            <p>{formatTimeDistance(player.lastSeen)}</p>
+                            <p className="max-w-[150px] truncate italic text-slate-500">{player.lastMessage}</p>
+                          </div>
+                        </div>
+                      ))}
                     </div>
-                  ))
+                  </ScrollArea>
                 )}
               </CardContent>
             </Card>
@@ -1091,53 +1136,55 @@ const ChatModerationAdmin = () => {
         </div>
 
         <Card className="border-slate-800 bg-slate-900/70">
-          <CardHeader>
+          <CardHeader className="pb-3">
             <CardTitle>Moderasyon Gunlugu</CardTitle>
             <CardDescription>Son 20 islem otomatik olarak kaydedilir.</CardDescription>
           </CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow className="border-slate-800">
-                    <TableHead>Kullanici</TableHead>
-                    <TableHead>Islem</TableHead>
-                    <TableHead>Aciklama</TableHead>
-                    <TableHead>Moderasyon</TableHead>
-                    <TableHead>Zaman</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {actionLog.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={5} className="text-center text-sm text-slate-500">
-                        Henuz islem yapilmadi.
-                      </TableCell>
+          <CardContent className="pt-0">
+            <ScrollArea className="h-[260px] pr-2">
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="border-slate-800">
+                      <TableHead>Kullanici</TableHead>
+                      <TableHead>Islem</TableHead>
+                      <TableHead>Aciklama</TableHead>
+                      <TableHead>Moderasyon</TableHead>
+                      <TableHead>Zaman</TableHead>
                     </TableRow>
-                  ) : (
-                    actionLog.map((entry) => (
-                      <TableRow key={entry.id} className="border-slate-900">
-                        <TableCell>
-                          <div className="font-medium text-white">
-                            {entry.userName}
-                            <span className="ml-1 text-xs text-slate-500">#{entry.userTag}</span>
-                          </div>
+                  </TableHeader>
+                  <TableBody>
+                    {actionLog.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={5} className="text-center text-sm text-slate-500">
+                          Henuz islem yapilmadi.
                         </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            {actionIcons[entry.action]}
-                            <span>{actionLabels[entry.action]}</span>
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-sm text-slate-400">{entry.detail}</TableCell>
-                        <TableCell className="text-sm text-slate-400">{entry.moderator}</TableCell>
-                        <TableCell className="text-sm text-slate-400">{formatTimeDistance(entry.timestamp)}</TableCell>
                       </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </div>
+                    ) : (
+                      actionLog.map((entry) => (
+                        <TableRow key={entry.id} className="border-slate-900">
+                          <TableCell>
+                            <div className="font-medium text-white">
+                              {entry.userName}
+                              <span className="ml-1 text-xs text-slate-500">#{entry.userTag}</span>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              {actionIcons[entry.action]}
+                              <span>{actionLabels[entry.action]}</span>
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-sm text-slate-400">{entry.detail}</TableCell>
+                          <TableCell className="text-sm text-slate-400">{entry.moderator}</TableCell>
+                          <TableCell className="text-sm text-slate-400">{formatTimeDistance(entry.timestamp)}</TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </ScrollArea>
           </CardContent>
         </Card>
       </div>

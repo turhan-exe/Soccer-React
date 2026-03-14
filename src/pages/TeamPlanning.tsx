@@ -98,6 +98,15 @@ type SelectedSlotMeta = {
   position: Player['position'];
 };
 
+type AutoFillAssignment = {
+  playerId: string;
+  slotIndex: number;
+  zoneId: ZoneId;
+  position: Player['position'];
+  x: number;
+  y: number;
+};
+
 function TeamPlanningContent() {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -1415,6 +1424,73 @@ function TeamPlanningContent() {
       };
     });
   }, [currentFormation, manualFormation, displayPlayers, manualSlotPositions]);
+  const emptyFormationSlots = useMemo(
+    () => formationPositions.filter(slot => !slot.player),
+    [formationPositions],
+  );
+  const autoFillAssignments = useMemo<AutoFillAssignment[]>(() => {
+    if (emptyFormationSlots.length === 0) {
+      return [];
+    }
+
+    const eligiblePlayers = displayPlayers.filter(player => {
+      if (player.squadRole !== 'bench' && player.squadRole !== 'reserve') {
+        return false;
+      }
+      if (player.injuryStatus === 'injured') {
+        return false;
+      }
+      if (player.contract?.status === 'released') {
+        return false;
+      }
+      if (isContractExpired(player)) {
+        return false;
+      }
+      return true;
+    });
+
+    if (eligiblePlayers.length === 0) {
+      return [];
+    }
+
+    const slotCandidates = emptyFormationSlots
+      .map(slot => {
+        const zoneId = resolveZoneId(slot);
+        const candidates = recommendPlayers(zoneId, eligiblePlayers, {
+          limit: eligiblePlayers.length,
+        });
+        return { slot, zoneId, candidates };
+      })
+      .sort((left, right) => {
+        const countDelta = left.candidates.length - right.candidates.length;
+        if (countDelta !== 0) {
+          return countDelta;
+        }
+        return left.slot.slotIndex - right.slot.slotIndex;
+      });
+
+    const usedPlayerIds = new Set<string>();
+    const assignments: AutoFillAssignment[] = [];
+
+    slotCandidates.forEach(({ slot, zoneId, candidates }) => {
+      const candidate = candidates.find(player => !usedPlayerIds.has(player.id));
+      if (!candidate) {
+        return;
+      }
+
+      usedPlayerIds.add(candidate.id);
+      assignments.push({
+        playerId: candidate.id,
+        slotIndex: slot.slotIndex,
+        zoneId,
+        position: slot.position,
+        x: slot.x,
+        y: slot.y,
+      });
+    });
+
+    return assignments;
+  }, [displayPlayers, emptyFormationSlots]);
   const findNearestSlot = useCallback(
     (coords: { x: number; y: number }): PitchSlot | null => {
       if (!formationPositions.length) return null;
@@ -1811,6 +1887,62 @@ function TeamPlanningContent() {
     [syncManualSlotsForFormation],
   );
 
+  const handleAutoFill = useCallback(() => {
+    if (emptyFormationSlots.length === 0) {
+      toast.info('Boş pozisyon yok.');
+      return;
+    }
+
+    if (autoFillAssignments.length === 0) {
+      toast.warning('Uygun oyuncu bulunamadı', {
+        description: 'Boş pozisyonlar için uygun yedek veya rezerv oyuncu yok.',
+      });
+      return;
+    }
+
+    let nextPlayers = players;
+    const appliedAssignments: AutoFillAssignment[] = [];
+
+    autoFillAssignments.forEach(assignment => {
+      const result = promotePlayerToStartingRoster(
+        nextPlayers,
+        assignment.playerId,
+        assignment.position,
+      );
+      if (result.error || !result.updated) {
+        return;
+      }
+      nextPlayers = result.players;
+      appliedAssignments.push(assignment);
+    });
+
+    if (appliedAssignments.length === 0) {
+      toast.warning('Boş alanlar doldurulamadı.');
+      return;
+    }
+
+    setPlayers(nextPlayers);
+    appliedAssignments.forEach(assignment => {
+      applyManualPosition(assignment.playerId, {
+        x: assignment.x,
+        y: assignment.y,
+        position: assignment.position,
+      });
+    });
+
+    setActiveTab('starting');
+
+    const remainingSlots = Math.max(0, emptyFormationSlots.length - appliedAssignments.length);
+    if (remainingSlots > 0) {
+      toast.success(`${appliedAssignments.length} boş pozisyon dolduruldu`, {
+        description: `${remainingSlots} pozisyon için uygun oyuncu bulunamadı.`,
+      });
+      return;
+    }
+
+    toast.success('Boş pozisyonlar dolduruldu.');
+  }, [applyManualPosition, autoFillAssignments, emptyFormationSlots.length, players]);
+
   const handlePositionDrop = (
     e: React.DragEvent<HTMLDivElement>,
     slot: PitchSlot,
@@ -2115,6 +2247,17 @@ function TeamPlanningContent() {
                 </SelectContent>
               </Select>
             </div>
+            {emptyFormationSlots.length > 0 && (
+              <Button
+                size="sm"
+                type="button"
+                onClick={handleAutoFill}
+                disabled={autoFillAssignments.length === 0}
+                className="tp-topbar-button h-9 border border-white/15 bg-white/10 px-3 text-xs text-white shadow-lg transition hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-50 sm:text-sm"
+              >
+                Doldur
+              </Button>
+            )}
             <Button
               size="sm"
               onClick={handleSave}

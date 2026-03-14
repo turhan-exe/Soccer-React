@@ -51,7 +51,7 @@ Name:
 Inbound rules:
 - TCP `22` source: your office/home public IP
 - TCP `9090` source: `10.0.0.0/16`
-- UDP `21001-21200` source: `0.0.0.0/0`
+- TCP `21001-21200` source: `0.0.0.0/0`
 
 Attach to:
 - Every match node host

@@ -1,0 +1,83 @@
+{
+  "mode": "report",
+  "firestoreMode": "admin",
+  "kickoffHourTR": 17,
+  "kickoffAt": "2026-03-10T14:00:00.000Z",
+  "summary": {
+    "total": 32,
+    "scheduled": 0,
+    "running": 32,
+    "played": 0,
+    "failed": 0,
+    "withLiveMatchId": 32,
+    "liveStates": {
+      "running": 6,
+      "server_started": 26
+    },
+    "missingVideo": 32,
+    "missingScore": 0
+  },
+  "sampleStatuses": [
+    {
+      "fixtureId": "4xtpFQeYlTGC97dimllp",
+      "matchId": "4xtpFQeYlTGC97dimllp",
+      "firestoreState": "running",
+      "matchControlState": "running"
+    },
+    {
+      "fixtureId": "MTKCIxxIZ8nyhurQlvoH",
+      "matchId": "MTKCIxxIZ8nyhurQlvoH",
+      "firestoreState": "running",
+      "matchControlState": "running"
+    },
+    {
+      "fixtureId": "SowymxnoLJtiwjHagzGY",
+      "matchId": "SowymxnoLJtiwjHagzGY",
+      "firestoreState": "server_started",
+      "matchControlState": "running"
+    },
+    {
+      "fixtureId": "oqSYfWSPx7LgrlkSDqxG",
+      "matchId": "oqSYfWSPx7LgrlkSDqxG",
+      "firestoreState": "server_started",
+      "matchControlState": "server_started"
+    },
+    {
+      "fixtureId": "pc16VM9490YMmXtJKIva",
+      "matchId": "pc16VM9490YMmXtJKIva",
+      "firestoreState": "server_started",
+      "matchControlState": "running"
+    },
+    {
+      "fixtureId": "t6QTPV4U01tBhGjYaFZE",
+      "matchId": "t6QTPV4U01tBhGjYaFZE",
+      "firestoreState": "server_started",
+      "matchControlState": "running"
+    },
+    {
+      "fixtureId": "u9Mj32CguZHTyG4Azolr",
+      "matchId": "u9Mj32CguZHTyG4Azolr",
+      "firestoreState": "server_started",
+      "matchControlState": "server_started"
+    },
+    {
+      "fixtureId": "yR4lhyvZw2tjzfUmpWqQ",
+      "matchId": "yR4lhyvZw2tjzfUmpWqQ",
+      "firestoreState": "server_started",
+      "matchControlState": "server_started"
+    },
+    {
+      "fixtureId": "1P3JwGjClhcar95yODnG",
+      "matchId": "1P3JwGjClhcar95yODnG",
+      "firestoreState": "server_started",
+      "matchControlState": "server_started"
+    },
+    {
+      "fixtureId": "AxEYLPzywgAd0cgxssoc",
+      "matchId": "AxEYLPzywgAd0cgxssoc",
+      "firestoreState": "running",
+      "matchControlState": "running"
+    }
+  ],
+  "failures": []
+}

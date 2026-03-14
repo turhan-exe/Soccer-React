@@ -1,0 +1,82 @@
+{
+  "mode": "report",
+  "firestoreMode": "admin",
+  "kickoffHourTR": 17,
+  "kickoffAt": "2026-03-10T14:00:00.000Z",
+  "summary": {
+    "total": 32,
+    "scheduled": 0,
+    "running": 0,
+    "played": 32,
+    "failed": 0,
+    "withLiveMatchId": 32,
+    "liveStates": {
+      "ended": 32
+    },
+    "missingVideo": 32,
+    "missingScore": 0
+  },
+  "sampleStatuses": [
+    {
+      "fixtureId": "4xtpFQeYlTGC97dimllp",
+      "matchId": "4xtpFQeYlTGC97dimllp",
+      "firestoreState": "ended",
+      "matchControlState": "ended"
+    },
+    {
+      "fixtureId": "MTKCIxxIZ8nyhurQlvoH",
+      "matchId": "MTKCIxxIZ8nyhurQlvoH",
+      "firestoreState": "ended",
+      "matchControlState": "ended"
+    },
+    {
+      "fixtureId": "SowymxnoLJtiwjHagzGY",
+      "matchId": "SowymxnoLJtiwjHagzGY",
+      "firestoreState": "ended",
+      "matchControlState": "ended"
+    },
+    {
+      "fixtureId": "oqSYfWSPx7LgrlkSDqxG",
+      "matchId": "oqSYfWSPx7LgrlkSDqxG",
+      "firestoreState": "ended",
+      "matchControlState": "ended"
+    },
+    {
+      "fixtureId": "pc16VM9490YMmXtJKIva",
+      "matchId": "pc16VM9490YMmXtJKIva",
+      "firestoreState": "ended",
+      "matchControlState": "ended"
+    },
+    {
+      "fixtureId": "t6QTPV4U01tBhGjYaFZE",
+      "matchId": "t6QTPV4U01tBhGjYaFZE",
+      "firestoreState": "ended",
+      "matchControlState": "ended"
+    },
+    {
+      "fixtureId": "u9Mj32CguZHTyG4Azolr",
+      "matchId": "u9Mj32CguZHTyG4Azolr",
+      "firestoreState": "ended",
+      "matchControlState": "ended"
+    },
+    {
+      "fixtureId": "yR4lhyvZw2tjzfUmpWqQ",
+      "matchId": "yR4lhyvZw2tjzfUmpWqQ",
+      "firestoreState": "ended",
+      "matchControlState": "ended"
+    },
+    {
+      "fixtureId": "1P3JwGjClhcar95yODnG",
+      "matchId": "1P3JwGjClhcar95yODnG",
+      "firestoreState": "ended",
+      "matchControlState": "ended"
+    },
+    {
+      "fixtureId": "AxEYLPzywgAd0cgxssoc",
+      "matchId": "AxEYLPzywgAd0cgxssoc",
+      "firestoreState": "ended",
+      "matchControlState": "ended"
+    }
+  ],
+  "failures": []
+}

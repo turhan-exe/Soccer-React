@@ -46,6 +46,10 @@ npm start
 - `NODE_AGENTS`: shared JSON list of agents (legacy, both modes use same pool)
 - `NODE_AGENTS_FRIENDLY`: optional dedicated pool for friendly endpoints
 - `NODE_AGENTS_LEAGUE`: optional dedicated pool for league endpoints
+- `FRIENDLY_NO_FREE_SLOT_RECLAIM_LIMIT`: `no_free_slot` sonrasında temizlenecek stale friendly allocation aday limiti
+- `FRIENDLY_STALE_STARTING_RECLAIM_SEC`: `starting` durumda bu süreyi aşan friendly maçları stale kabul etme eşiği
+- `FRIENDLY_STALE_RUNNING_RECLAIM_SEC`: `running/server_started` durumda bu süreyi aşan friendly maçları stale kabul etme eşiği
+- `FRIENDLY_STATE_CLEANUP_INTERVAL_MS`: eski `pending/accepted` friendly request kayıtlarını periyodik temizleme aralığı
 
 Example:
 
@@ -70,7 +74,7 @@ Important:
 
 - `NODE_AGENT_SECRET`: bearer token for internal agent endpoints
 - `UNITY_SERVER_BINARY`: path to headless Unity server binary
-- `ALLOCATABLE_PORTS`: comma-separated UDP ports (for example `21001,21002,21003`)
+- `ALLOCATABLE_PORTS`: comma-separated public match ports (current live-watch runtime uses TCP, for example `21001,21002,21003,21004,21005,21006,21007`)
 - `UNITY_MATCH_ROLE`: runtime role passed to Unity (`server`/`host`/`client`, default `server`)
 - `MATCH_CONTROL_CALLBACK_BASE_URL`: same API base URL
 - `MATCH_CONTROL_CALLBACK_TOKEN`: callback bearer token
@@ -139,10 +143,10 @@ Daily concurrent league matches:
 
 - `25 * (16 / 2) = 200`
 
-If one node exposes 3 allocatable ports (`ALLOCATABLE_PORTS=21001,21002,21003`):
+If one node exposes 7 allocatable ports (`ALLOCATABLE_PORTS=21001,21002,21003,21004,21005,21006,21007`):
 
-- minimum league nodes: `ceil(200 / 3) = 67`
-- with 20% hot spare: `81` league nodes
+- minimum league nodes: `ceil(200 / 7) = 29`
+- with 20% hot spare: `35` league nodes
 
 To avoid breaking friendly mode while scaling:
 

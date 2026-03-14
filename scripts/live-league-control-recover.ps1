@@ -12,6 +12,7 @@ $ErrorActionPreference = "Stop"
 $apiSrc = Join-Path $RepoRoot "services/match-control-api/src/index.js"
 $apiPkg = Join-Path $RepoRoot "services/match-control-api/package.json"
 $apiLock = Join-Path $RepoRoot "services/match-control-api/package-lock.json"
+$apiService = Join-Path $RepoRoot "services/systemd/match-control-api.service"
 $recoverSh = Join-Path $RepoRoot "scripts/live-league-control-recover.sh"
 
 if (!(Test-Path $apiSrc)) {
@@ -22,6 +23,9 @@ if (!(Test-Path $apiPkg)) {
 }
 if (!(Test-Path $apiLock)) {
   throw "missing file: $apiLock"
+}
+if (!(Test-Path $apiService)) {
+  throw "missing file: $apiService"
 }
 if (!(Test-Path $recoverSh)) {
   throw "missing file: $recoverSh"
@@ -41,6 +45,8 @@ if ($LASTEXITCODE -ne 0) { throw "scp index.js failed with exit code $LASTEXITCO
 if ($LASTEXITCODE -ne 0) { throw "scp package.json failed with exit code $LASTEXITCODE" }
 & scp @scpArgs $apiLock "$RemoteHost`:/opt/football-manager-ui/services/match-control-api/package-lock.json"
 if ($LASTEXITCODE -ne 0) { throw "scp package-lock.json failed with exit code $LASTEXITCODE" }
+& scp @scpArgs $apiService "$RemoteHost`:/tmp/match-control-api.service"
+if ($LASTEXITCODE -ne 0) { throw "scp match-control-api.service failed with exit code $LASTEXITCODE" }
 & scp @scpArgs $recoverSh "$RemoteHost`:/tmp/live-league-control-recover.sh"
 if ($LASTEXITCODE -ne 0) { throw "scp recover.sh failed with exit code $LASTEXITCODE" }
 

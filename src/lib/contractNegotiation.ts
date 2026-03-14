@@ -1,6 +1,7 @@
 import type { Player } from '@/types';
 import { clampPerformanceGauge } from '@/components/ui/performance-gauge';
 import { normalizeRatingTo100 } from '@/lib/player';
+import { resolvePlayerSalary } from '@/lib/salary';
 
 export type SalaryNegotiationProfile = {
   baseSalary: number;
@@ -35,7 +36,7 @@ export const buildSalaryNegotiationProfile = (
 ): SalaryNegotiationProfile => {
   const fallbackGauge = options?.gaugeFallback ?? 0.75;
   const baseSalary = clampNumber(
-    Math.round(player.contract?.salary ?? 1800),
+    resolvePlayerSalary(player),
     0,
     Number.MAX_SAFE_INTEGER,
   );

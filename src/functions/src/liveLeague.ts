@@ -6,6 +6,7 @@ import { formatInTimeZone } from 'date-fns-tz';
 import { createHmac, randomUUID } from 'crypto';
 import { trAt, dayKeyTR } from './utils/schedule.js';
 import { ensureBotTeamDoc } from './utils/bots.js';
+import { buildUnityRuntimeTeamPayload, type UnityRuntimeTeamPayload } from './utils/unityRuntimePayload.js';
 import { enqueueRenderJob } from './replay/renderJob.js';
 
 const REGION = 'europe-west1';
@@ -108,36 +109,7 @@ function resolveLifecycleSecrets(): string[] {
   return Array.from(new Set(candidates.map((item) => String(item || '').trim()).filter(Boolean)));
 }
 
-type TeamPayload = {
-  id: string;
-  teamId: string;
-  name?: string;
-  clubName?: string;
-  manager?: string;
-  isBot?: boolean;
-  botId?: string;
-  kitHome?: unknown;
-  kitAway?: unknown;
-  kit?: unknown;
-  kitAssets?: unknown;
-  badge?: unknown;
-  logo?: unknown;
-  players?: any[];
-  lineup?: {
-    formation?: string;
-    tactics?: Record<string, any>;
-    starters?: string[];
-    subs?: string[];
-    reserves?: string[];
-  };
-  plan?: {
-    formation?: string;
-    tactics?: Record<string, any>;
-    starters?: string[];
-    subs?: string[];
-    reserves?: string[];
-  };
-};
+type TeamPayload = UnityRuntimeTeamPayload;
 
 type TeamBundle = {
   teamId: string;
@@ -475,39 +447,8 @@ function buildRequestToken(matchId: string, seasonId: string) {
   return `${issuedAtMs}.${sig}`;
 }
 
-function normalizeLineup(raw: any) {
-  if (!raw || typeof raw !== 'object') return undefined;
-  const payload: Record<string, any> = {};
-  if (typeof raw.formation === 'string') payload.formation = raw.formation;
-  if (raw.tactics && typeof raw.tactics === 'object') payload.tactics = raw.tactics;
-  if (Array.isArray(raw.starters)) payload.starters = raw.starters.map((id: any) => String(id));
-  if (Array.isArray(raw.subs)) payload.subs = raw.subs.map((id: any) => String(id));
-  if (Array.isArray(raw.reserves)) payload.reserves = raw.reserves.map((id: any) => String(id));
-  return Object.keys(payload).length > 0 ? payload : undefined;
-}
-
 function buildTeamPayload(teamId: string, data: any): TeamPayload {
-  const payload: TeamPayload = {
-    id: teamId,
-    teamId,
-    name: data?.name || data?.clubName || teamId,
-    clubName: data?.clubName || data?.name || teamId,
-    manager: data?.manager,
-    isBot: data?.isBot,
-    botId: data?.botId,
-    kitHome: data?.kitHome,
-    kitAway: data?.kitAway,
-    kit: data?.kit,
-    kitAssets: data?.kitAssets,
-    badge: data?.badge,
-    logo: data?.logo ?? null,
-  };
-  if (Array.isArray(data?.players)) payload.players = data.players;
-  const lineup = normalizeLineup(data?.lineup);
-  if (lineup) payload.lineup = lineup as TeamPayload['lineup'];
-  const plan = normalizeLineup(data?.plan);
-  if (plan) payload.plan = plan as TeamPayload['plan'];
-  return payload;
+  return buildUnityRuntimeTeamPayload(teamId, data);
 }
 
 function normalizeTeamId(value: unknown): string | null {

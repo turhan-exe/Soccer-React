@@ -4,6 +4,7 @@ import process from "node:process";
 import { spawn, spawnSync } from "node:child_process";
 import {
   accessSync,
+  chmodSync,
   constants as fsConstants,
   copyFileSync,
   createReadStream,
@@ -628,6 +629,10 @@ function nowIso() {
   return new Date().toISOString();
 }
 
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, Math.max(0, Number(ms) || 0)));
+}
+
 function ensureRecordingsDir() {
   mkdirSync(config.recordingsDir, { recursive: true });
 }
@@ -761,9 +766,152 @@ function getReservedPorts() {
   return result;
 }
 
+function getSystemListeningPorts() {
+  const ports = new Set();
+
+  try {
+    const result = spawnSync("ss", ["-ltnH"], {
+      encoding: "utf8",
+      timeout: 2000,
+    });
+
+    if (result.status !== 0) {
+      return ports;
+    }
+
+    const allocatablePortSet = new Set(config.allocatablePorts);
+    for (const line of String(result.stdout || "").split(/\r?\n/)) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+
+      const columns = trimmed.split(/\s+/);
+      if (columns.length < 4) continue;
+
+      const localAddress = columns[3];
+      const match = localAddress.match(/:(\d+)$/);
+      if (!match) continue;
+
+      const port = Number(match[1]);
+      if (allocatablePortSet.has(port)) {
+        ports.add(port);
+      }
+    }
+  } catch {}
+
+  return ports;
+}
+
+function listManagedUnityProcesses() {
+  const entries = [];
+  const expectedBinary = path.resolve(config.unityBinaryPath);
+  const expectedBinaryName = path.basename(expectedBinary);
+
+  try {
+    const result = spawnSync("ps", ["-eo", "pid=,args="], {
+      encoding: "utf8",
+      timeout: 3000,
+    });
+
+    if (result.status !== 0) {
+      return entries;
+    }
+
+    for (const line of String(result.stdout || "").split(/\r?\n/)) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+
+      const match = trimmed.match(/^(\d+)\s+(.+)$/);
+      if (!match) continue;
+
+      const pid = Number(match[1]);
+      const args = match[2] || "";
+      if (!Number.isInteger(pid) || pid <= 0) continue;
+
+      if (
+        args.includes(expectedBinary) ||
+        args.includes(`/${expectedBinaryName}`) ||
+        args.includes(`\\${expectedBinaryName}`)
+      ) {
+        entries.push({ pid, args });
+      }
+    }
+  } catch {}
+
+  return entries;
+}
+
+async function cleanupOrphanedUnityProcesses(source = "unknown") {
+  const trackedPids = new Set(
+    Array.from(allocations.values())
+      .map((allocation) => Number(allocation?.pid || 0))
+      .filter((pid) => Number.isInteger(pid) && pid > 0),
+  );
+
+  const orphaned = listManagedUnityProcesses().filter(
+    (entry) => !trackedPids.has(entry.pid),
+  );
+
+  if (!orphaned.length) {
+    fastify.log.info({ source }, "orphan_unity_cleanup_noop");
+    return 0;
+  }
+
+  fastify.log.warn(
+    {
+      source,
+      count: orphaned.length,
+      pids: orphaned.map((entry) => entry.pid),
+    },
+    "orphan_unity_cleanup_started",
+  );
+
+  for (const entry of orphaned) {
+    try {
+      process.kill(entry.pid, "SIGTERM");
+    } catch {}
+  }
+
+  await sleep(1500);
+
+  const orphanedPidSet = new Set(orphaned.map((entry) => entry.pid));
+  const remaining = listManagedUnityProcesses().filter(
+    (entry) => orphanedPidSet.has(entry.pid) && !trackedPids.has(entry.pid),
+  );
+
+  for (const entry of remaining) {
+    try {
+      process.kill(entry.pid, "SIGKILL");
+    } catch {}
+  }
+
+  if (remaining.length) {
+    await sleep(500);
+  }
+
+  const survivors = listManagedUnityProcesses().filter(
+    (entry) => orphanedPidSet.has(entry.pid) && !trackedPids.has(entry.pid),
+  );
+
+  fastify.log.warn(
+    {
+      source,
+      terminated: orphaned.length - survivors.length,
+      survivorPids: survivors.map((entry) => entry.pid),
+    },
+    "orphan_unity_cleanup_finished",
+  );
+
+  return orphaned.length - survivors.length;
+}
+
 function pickFreePort() {
   const reserved = getReservedPorts();
-  return config.allocatablePorts.find((port) => !reserved.has(port)) || null;
+  const listening = getSystemListeningPorts();
+  return (
+    config.allocatablePorts.find(
+      (port) => !reserved.has(port) && !listening.has(port),
+    ) || null
+  );
 }
 
 function safePublicIp() {
@@ -1018,7 +1166,22 @@ function finalizeRecordedVideo(allocation) {
 }
 
 function validateUnityBinaryPath() {
-  accessSync(config.unityBinaryPath, fsConstants.X_OK);
+  try {
+    accessSync(config.unityBinaryPath, fsConstants.X_OK);
+  } catch (error) {
+    if (error?.code === "EACCES" && existsSync(config.unityBinaryPath)) {
+      // Windows-produced runtime archives can lose the execute bit on Linux.
+      // Self-heal once before failing the allocation start.
+      chmodSync(config.unityBinaryPath, 0o755);
+      accessSync(config.unityBinaryPath, fsConstants.X_OK);
+      fastify.log.warn(
+        { unityBinaryPath: config.unityBinaryPath },
+        "unity_binary_execute_bit_restored",
+      );
+      return;
+    }
+    throw error;
+  }
 }
 
 async function stopProcess(allocation, reason = "released") {
@@ -1521,9 +1684,18 @@ fastify.post("/agent/v1/allocations", async (request, reply) => {
       return reply.code(400).send({ error: "matchId required" });
     }
     if (error.message === "no_free_slot") {
-      return reply.code(409).send({ error: "no_free_slot" });
+      await cleanupOrphanedUnityProcesses("allocation_no_free_slot_retry");
+      try {
+        allocation = createAllocation(body);
+      } catch (retryError) {
+        if (retryError.message === "no_free_slot") {
+          return reply.code(409).send({ error: "no_free_slot" });
+        }
+        throw retryError;
+      }
+    } else {
+      throw error;
     }
-    throw error;
   }
 
   if (toBool(body.autoStart, false)) {
@@ -1650,6 +1822,8 @@ async function start() {
   if (!config.allocatablePorts.length) {
     throw new Error("ALLOCATABLE_PORTS must contain at least one valid port");
   }
+
+  await cleanupOrphanedUnityProcesses("startup");
 
   await fastify.listen({ host: config.host, port: config.port });
   fastify.log.info(

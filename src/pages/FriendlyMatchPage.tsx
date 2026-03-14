@@ -12,6 +12,7 @@ import {
   buildUnityRuntimeTeamPayload,
   createFriendlyRequest,
   getMatchStatus,
+  getFriendlyMatchReadyStates,
   isMatchControlConfigured,
   listFriendlyMatchHistory,
   listFriendlyRequests,
@@ -394,8 +395,9 @@ export default function FriendlyMatchPage() {
         role: 'player',
       });
       const readyMatch = await waitForMatchReady(ticket.matchId, {
-        timeoutMs: 35000,
+        timeoutMs: 60000,
         pollMs: 700,
+        readyStates: getFriendlyMatchReadyStates(),
       });
 
       setMatchId(readyMatch.matchId);
@@ -430,8 +432,9 @@ export default function FriendlyMatchPage() {
         role: 'player',
       });
       const readyMatch = await waitForMatchReady(accepted.matchId, {
-        timeoutMs: 35000,
+        timeoutMs: 60000,
         pollMs: 700,
+        readyStates: getFriendlyMatchReadyStates(),
       });
       setRequestId(targetRequestId.trim());
       setMatchId(readyMatch.matchId);

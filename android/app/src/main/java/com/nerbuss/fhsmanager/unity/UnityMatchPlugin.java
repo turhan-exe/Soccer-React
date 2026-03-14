@@ -43,6 +43,7 @@ public class UnityMatchPlugin extends Plugin {
     }
 
     Intent intent = new Intent(getActivity(), UnityHostActivity.class);
+    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
     intent.putExtra(UnityBridgeState.EXTRA_SERVER_IP, serverIp);
     intent.putExtra(UnityBridgeState.EXTRA_SERVER_PORT, port);
     putExtraIfPresent(intent, UnityBridgeState.EXTRA_MATCH_ID, call.getString("matchId"));

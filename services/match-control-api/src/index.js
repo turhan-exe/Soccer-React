@@ -1,5 +1,6 @@
 import "dotenv/config";
 import crypto from "node:crypto";
+import net from "node:net";
 import process from "node:process";
 import Fastify from "fastify";
 import cors from "@fastify/cors";
@@ -126,7 +127,22 @@ const config = {
   leagueJoinTicketTtlSec: Number(process.env.LEAGUE_JOIN_TICKET_TTL_SEC || 900),
   defaultFriendlyMaxClients: Number(process.env.FRIENDLY_MAX_CLIENTS || 2),
   defaultLeagueMaxClients: Number(process.env.LEAGUE_MAX_CLIENTS || 2),
+  nodeAgentRequestTimeoutMs: Number(process.env.NODE_AGENT_REQUEST_TIMEOUT_MS || 3000),
+  matchPortReadyTimeoutMs: Number(process.env.MATCH_PORT_READY_TIMEOUT_MS || 15000),
+  matchPortReadyPollMs: Number(process.env.MATCH_PORT_READY_POLL_MS || 500),
   matchEndReleaseDelayMs: Number(process.env.MATCH_END_RELEASE_DELAY_MS || 90000),
+  friendlyNoFreeSlotReclaimLimit: Number(
+    process.env.FRIENDLY_NO_FREE_SLOT_RECLAIM_LIMIT || 24,
+  ),
+  friendlyStaleStartingReclaimSec: Number(
+    process.env.FRIENDLY_STALE_STARTING_RECLAIM_SEC || 1800,
+  ),
+  friendlyStaleRunningReclaimSec: Number(
+    process.env.FRIENDLY_STALE_RUNNING_RECLAIM_SEC || 1800,
+  ),
+  friendlyStateCleanupIntervalMs: Number(
+    process.env.FRIENDLY_STATE_CLEANUP_INTERVAL_MS || 60_000,
+  ),
   lifecycleCallbackBaseUrl: process.env.MATCH_CONTROL_CALLBACK_BASE_URL || "",
   firebaseLifecycleUrl: process.env.FIREBASE_LIFECYCLE_URL || "",
   firebaseLifecycleToken: process.env.FIREBASE_LIFECYCLE_TOKEN || "",
@@ -582,8 +598,26 @@ function buildNodeHeaders(node) {
   return node?.token ? { Authorization: `Bearer ${node.token}` } : {};
 }
 
+async function fetchNodeJson(url, init = {}, timeoutMs = config.nodeAgentRequestTimeoutMs) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), Math.max(500, Number(timeoutMs) || 3000));
+  try {
+    return await fetch(url, {
+      ...init,
+      signal: controller.signal,
+    });
+  } catch (error) {
+    if (error?.name === "AbortError") {
+      throw new Error("node_request_timeout");
+    }
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function fetchNodeCapacity(node) {
-  const response = await fetch(`${node.url}/agent/v1/capacity`, {
+  const response = await fetchNodeJson(`${node.url}/agent/v1/capacity`, {
     method: "GET",
     headers: {
       "Content-Type": "application/json",
@@ -599,7 +633,7 @@ async function fetchNodeCapacity(node) {
 }
 
 async function allocateOnNode(node, allocation) {
-  const response = await fetch(`${node.url}/agent/v1/allocations`, {
+  const response = await fetchNodeJson(`${node.url}/agent/v1/allocations`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -617,7 +651,7 @@ async function allocateOnNode(node, allocation) {
 }
 
 async function startOnNode(node, matchId) {
-  const response = await fetch(
+  const response = await fetchNodeJson(
     `${node.url}/agent/v1/allocations/${encodeURIComponent(matchId)}/start`,
     {
       method: "POST",
@@ -638,7 +672,7 @@ async function startOnNode(node, matchId) {
 }
 
 async function releaseOnNode(node, matchId) {
-  const response = await fetch(
+  const response = await fetchNodeJson(
     `${node.url}/agent/v1/allocations/${encodeURIComponent(matchId)}`,
     {
       method: "DELETE",
@@ -661,6 +695,68 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, Math.max(0, Number(ms) || 0)));
 }
 
+async function probeMatchTcpPort(host, port, timeoutMs = 1500) {
+  const normalizedHost = String(host || "").trim();
+  const normalizedPort = Number(port);
+  if (!normalizedHost || !Number.isInteger(normalizedPort) || normalizedPort <= 0) {
+    return false;
+  }
+
+  return new Promise((resolve) => {
+    const socket = new net.Socket();
+    let settled = false;
+
+    const finalize = (value) => {
+      if (settled) return;
+      settled = true;
+      try {
+        socket.destroy();
+      } catch {
+        // noop
+      }
+      resolve(value);
+    };
+
+    socket.setTimeout(Math.max(250, Number(timeoutMs) || 1500));
+    socket.once("connect", () => finalize(true));
+    socket.once("timeout", () => finalize(false));
+    socket.once("error", () => finalize(false));
+
+    try {
+      socket.connect(normalizedPort, normalizedHost);
+    } catch {
+      finalize(false);
+    }
+  });
+}
+
+async function waitForMatchPortReady(host, port, options = {}) {
+  const timeoutMs = Math.max(
+    1000,
+    Number(options.timeoutMs ?? config.matchPortReadyTimeoutMs) || 15000,
+  );
+  const pollMs = Math.max(
+    100,
+    Number(options.pollMs ?? config.matchPortReadyPollMs) || 500,
+  );
+  const connectTimeoutMs = Math.max(
+    250,
+    Number(options.connectTimeoutMs ?? 1500) || 1500,
+  );
+  const deadline = Date.now() + timeoutMs;
+
+  while (Date.now() < deadline) {
+    if (await probeMatchTcpPort(host, port, connectTimeoutMs)) {
+      return true;
+    }
+    await sleep(pollMs);
+  }
+
+  const error = new Error("match_transport_unavailable");
+  error.code = "match_transport_unavailable";
+  throw error;
+}
+
 function isMatchReadyForClient(match) {
   const state = String(match?.status || "").trim().toLowerCase();
   return state === "server_started" || state === "running";
@@ -669,6 +765,109 @@ function isMatchReadyForClient(match) {
 function isTerminalMatchState(match) {
   const state = String(match?.status || "").trim().toLowerCase();
   return state === "failed" || state === "ended" || state === "released";
+}
+
+function parseTimeMs(value) {
+  if (!value) return 0;
+  const parsed = new Date(value).getTime();
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function resolveMatchFreshnessTimestampMs(match) {
+  return Math.max(
+    parseTimeMs(match?.liveMinuteAt),
+    parseTimeMs(match?.updatedAt),
+    parseTimeMs(match?.createdAt),
+  );
+}
+
+function normalizePositiveInt(value, fallback, { min = 1, max = 1000 } = {}) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.max(min, Math.min(max, Math.trunc(parsed)));
+}
+
+function findNodeById(nodeId) {
+  const normalizedNodeId = String(nodeId || "").trim();
+  if (!normalizedNodeId) return null;
+  return (
+    (config.nodeAgents || []).find(
+      (node) => normalizeNodeId(node) === normalizedNodeId,
+    ) || null
+  );
+}
+
+function classifyFriendlyReclaimCandidate(match, nowMs = Date.now(), options = {}) {
+  const state = String(match?.status || "").trim().toLowerCase();
+  if (!state) {
+    return { reclaimable: false, reason: "missing_state" };
+  }
+
+  if (state === "failed" || state === "ended" || state === "released") {
+    return { reclaimable: true, reason: `terminal_${state}` };
+  }
+
+  const ageMs = Math.max(0, nowMs - resolveMatchFreshnessTimestampMs(match));
+  const staleStartingSec =
+    options?.staleStartingSec ?? config.friendlyStaleStartingReclaimSec;
+  const staleRunningSec =
+    options?.staleRunningSec ?? config.friendlyStaleRunningReclaimSec;
+  const staleStartingMs =
+    normalizePositiveInt(staleStartingSec, 1800, {
+      min: 10,
+      max: 86400,
+    }) * 1000;
+  const staleRunningMs =
+    normalizePositiveInt(staleRunningSec, 1800, {
+      min: 60,
+      max: 604800,
+    }) * 1000;
+
+  if (state === "starting" && ageMs >= staleStartingMs) {
+    return { reclaimable: true, reason: "stale_starting" };
+  }
+
+  if ((state === "server_started" || state === "running") && ageMs >= staleRunningMs) {
+    return { reclaimable: true, reason: `stale_${state}` };
+  }
+
+  return { reclaimable: false, reason: "not_stale" };
+}
+
+function friendlyReclaimReasonPriority(reason) {
+  if (reason === "stale_starting") return 0;
+  if (reason === "stale_server_started") return 1;
+  if (reason === "stale_running") return 2;
+  if (reason === "terminal_failed") return 3;
+  if (reason === "terminal_ended") return 4;
+  if (reason === "terminal_released") return 5;
+  return 6;
+}
+
+function buildFriendlyServersBusyPayload({
+  details = [],
+  reclaim = null,
+} = {}) {
+  return {
+    error: "friendly_servers_busy",
+    message: "Dostluk maci icin sunucu dolu, lutfen bekleyin.",
+    details: Array.isArray(details) ? details : [],
+    reclaim,
+  };
+}
+
+function buildFriendlyServerUnavailablePayload({
+  details = [],
+} = {}) {
+  return {
+    error: "friendly_server_unavailable",
+    message: "Dostluk maci sunucusuna ulasilamiyor, lutfen tekrar deneyin.",
+    details: Array.isArray(details) ? details : [],
+  };
+}
+
+function resolveFriendlyRequestCreatedAtMs(requestItem) {
+  return parseTimeMs(requestItem?.createdAt) || parseTimeMs(requestItem?.expiresAt) || 0;
 }
 
 async function waitForMatchReady(matchId, options = {}) {
@@ -730,10 +929,14 @@ function isNoFreeSlotAllocationError(error) {
   return message.includes("no_free_slot") || message.includes("allocation_409");
 }
 
-async function rankNodesByCapacity(mode = "default") {
-  const pool = resolveNodePool(mode);
+async function rankNodesByCapacity(modeOrPool = "default") {
+  const pool = Array.isArray(modeOrPool)
+    ? modeOrPool
+    : resolveNodePool(modeOrPool);
   if (!pool.length) {
-    throw new Error(`no_node_agents_configured_for_${mode}`);
+    throw new Error(
+      `no_node_agents_configured_for_${Array.isArray(modeOrPool) ? "custom" : modeOrPool}`,
+    );
   }
 
   const capacities = await Promise.allSettled(
@@ -791,25 +994,33 @@ async function allocateAcrossNodePool(mode, allocationPayload) {
   }
 
   const errors = [];
+  let sawCapacityError = false;
+  let sawNonCapacityError = false;
   for (const node of candidates) {
     try {
       const allocation = await allocateOnNode(node, allocationPayload);
       return { node, allocation };
     } catch (error) {
       const message = String(error?.message || "allocation_failed");
+      const isCapacityError = isNoFreeSlotAllocationError(error);
       errors.push({
         nodeId: normalizeNodeId(node),
         message,
+        errorType: isCapacityError ? "capacity" : "allocation_failed",
       });
-      if (isNoFreeSlotAllocationError(error)) {
+      if (isCapacityError) {
+        sawCapacityError = true;
         continue;
       }
+      sawNonCapacityError = true;
       continue;
     }
   }
 
-  const error = new Error("no_free_slot");
+  const error = new Error(sawNonCapacityError ? "allocation_failed" : "no_free_slot");
   error.details = errors;
+  error.code = error.message;
+  error.isCapacityError = sawCapacityError && !sawNonCapacityError;
   throw error;
 }
 
@@ -1093,19 +1304,43 @@ async function getFriendlyRequestById(id) {
   return mapped;
 }
 
-async function listFriendlyRequestsByUser(userId) {
-  const normalizedUserId = String(userId || "").trim();
-  if (!normalizedUserId) {
-    return [];
-  }
+async function listFriendlyRequestsInternal({
+  userId = null,
+  statuses = null,
+  limit = 50,
+} = {}) {
+  const normalizedUserId = String(userId || "").trim() || null;
+  const normalizedStatuses = Array.from(
+    new Set(
+      (Array.isArray(statuses) ? statuses : [])
+        .map((item) => String(item || "").trim().toLowerCase())
+        .filter(Boolean),
+    ),
+  );
+  const normalizedLimit = normalizePositiveInt(limit, 50, { min: 1, max: 500 });
 
   if (pool && pgReady) {
+    const clauses = [];
+    const params = [];
+
+    if (normalizedUserId) {
+      params.push(normalizedUserId);
+      clauses.push(`(requester_user_id = $${params.length} OR opponent_user_id = $${params.length})`);
+    }
+
+    if (normalizedStatuses.length > 0) {
+      params.push(normalizedStatuses);
+      clauses.push(`LOWER(status) = ANY($${params.length}::text[])`);
+    }
+
+    params.push(normalizedLimit);
+    const whereClause = clauses.length ? `WHERE ${clauses.join(" AND ")}` : "";
     const result = await pool.query(
       `SELECT * FROM friendly_requests
-       WHERE requester_user_id = $1 OR opponent_user_id = $1
+       ${whereClause}
        ORDER BY created_at DESC
-       LIMIT 50`,
-      [normalizedUserId],
+       LIMIT $${params.length}`,
+      params,
     );
 
     return result.rows
@@ -1114,9 +1349,33 @@ async function listFriendlyRequestsByUser(userId) {
   }
 
   return Array.from(memoryStore.friendlyRequests.values())
-    .filter((item) => item.requesterUserId === normalizedUserId || item.opponentUserId === normalizedUserId)
+    .filter((item) => {
+      if (normalizedUserId) {
+        const isUserMatch =
+          item.requesterUserId === normalizedUserId ||
+          item.opponentUserId === normalizedUserId;
+        if (!isUserMatch) {
+          return false;
+        }
+      }
+
+      if (normalizedStatuses.length > 0) {
+        return normalizedStatuses.includes(String(item.status || "").trim().toLowerCase());
+      }
+
+      return true;
+    })
     .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())
-    .slice(0, 50);
+    .slice(0, normalizedLimit);
+}
+
+async function listFriendlyRequestsByUser(userId) {
+  const normalizedUserId = String(userId || "").trim();
+  if (!normalizedUserId) {
+    return [];
+  }
+
+  return listFriendlyRequestsInternal({ userId: normalizedUserId, limit: 50 });
 }
 
 async function getMatchById(matchId) {
@@ -1236,6 +1495,385 @@ async function listFriendlyHistory({ userId, opponentUserId = null, limit = 20 }
     .slice(0, normalizedLimit);
 }
 
+async function listMatchesByModeAndStatuses({
+  mode,
+  statuses,
+  limit = 100,
+}) {
+  const normalizedMode = String(mode || "").trim().toLowerCase();
+  const normalizedStatuses = Array.from(
+    new Set(
+      (Array.isArray(statuses) ? statuses : [])
+        .map((item) => String(item || "").trim().toLowerCase())
+        .filter(Boolean),
+    ),
+  );
+  const normalizedLimit = normalizePositiveInt(limit, 100, { min: 1, max: 500 });
+
+  if (!normalizedMode || normalizedStatuses.length === 0) {
+    return [];
+  }
+
+  if (pool && pgReady) {
+    const result = await pool.query(
+      `SELECT *
+         FROM matches
+        WHERE LOWER(mode) = $1
+          AND LOWER(status) = ANY($2::text[])
+        ORDER BY COALESCE(updated_at, created_at) ASC NULLS FIRST
+        LIMIT $3`,
+      [normalizedMode, normalizedStatuses, normalizedLimit],
+    );
+
+    return result.rows.map((row) => sanitizeMatch(row)).filter(Boolean);
+  }
+
+  return Array.from(memoryStore.matches.values())
+    .filter(
+      (item) =>
+        String(item?.mode || "").trim().toLowerCase() === normalizedMode &&
+        normalizedStatuses.includes(String(item?.status || "").trim().toLowerCase()),
+    )
+    .sort(
+      (a, b) =>
+        resolveMatchFreshnessTimestampMs(a) - resolveMatchFreshnessTimestampMs(b),
+    )
+    .slice(0, normalizedLimit);
+}
+
+async function reclaimFriendlySlotsAfterNoFreeSlot(options = {}) {
+  const staleStartingSec = normalizePositiveInt(
+    options?.staleStartingSec ?? config.friendlyStaleStartingReclaimSec,
+    1800,
+    {
+      min: 10,
+      max: 86400,
+    },
+  );
+  const staleRunningSec = normalizePositiveInt(
+    options?.staleRunningSec ?? config.friendlyStaleRunningReclaimSec,
+    1800,
+    {
+      min: 60,
+      max: 604800,
+    },
+  );
+  const reclaimLimit = normalizePositiveInt(
+    options?.limit ?? config.friendlyNoFreeSlotReclaimLimit,
+    24,
+    {
+      min: 1,
+      max: 200,
+    },
+  );
+  const nowMs = Date.now();
+  const candidateStatuses = [
+    "failed",
+    "ended",
+    "starting",
+    "server_started",
+    "running",
+  ];
+
+  const rawCandidates = await listMatchesByModeAndStatuses({
+    mode: "friendly",
+    statuses: candidateStatuses,
+    limit: reclaimLimit * 4,
+  });
+
+  const seenMatchIds = new Set();
+  const reclaimCandidates = [];
+  for (const match of rawCandidates) {
+    if (!match?.id || seenMatchIds.has(match.id)) {
+      continue;
+    }
+    seenMatchIds.add(match.id);
+
+    const classification = classifyFriendlyReclaimCandidate(match, nowMs, {
+      staleStartingSec,
+      staleRunningSec,
+    });
+    if (!classification.reclaimable) {
+      continue;
+    }
+
+    reclaimCandidates.push({
+      match,
+      reason: classification.reason,
+    });
+  }
+  reclaimCandidates.sort((a, b) => {
+    const priorityDelta =
+      friendlyReclaimReasonPriority(a.reason) -
+      friendlyReclaimReasonPriority(b.reason);
+    if (priorityDelta !== 0) {
+      return priorityDelta;
+    }
+    return (
+      resolveMatchFreshnessTimestampMs(a.match) -
+      resolveMatchFreshnessTimestampMs(b.match)
+    );
+  });
+  const selectedCandidates = reclaimCandidates.slice(0, reclaimLimit);
+
+  const report = {
+    selected: selectedCandidates.length,
+    attempted: 0,
+    released: 0,
+    skipped: 0,
+    staleStartingSec,
+    staleRunningSec,
+    releasedMatchIds: [],
+    errors: [],
+  };
+
+  for (const candidate of selectedCandidates) {
+    const match = candidate.match;
+    const node = findNodeById(match.nodeId);
+    if (!node) {
+      report.skipped += 1;
+      report.errors.push({
+        matchId: match.id,
+        nodeId: match.nodeId || null,
+        reason: candidate.reason,
+        message: "node_not_found",
+      });
+      continue;
+    }
+
+    report.attempted += 1;
+    try {
+      await releaseOnNode(node, match.id);
+      report.released += 1;
+      report.releasedMatchIds.push(match.id);
+    } catch (error) {
+      report.errors.push({
+        matchId: match.id,
+        nodeId: match.nodeId || null,
+        reason: candidate.reason,
+        message: String(error?.message || "release_failed"),
+      });
+      continue;
+    }
+
+    const stored = {
+      ...match,
+      status: "released",
+      endedReason: match.endedReason || "reclaimed_after_no_free_slot",
+      endedAt: match.endedAt || nowIso(),
+      updatedAt: nowIso(),
+    };
+
+    try {
+      await storeMatch(stored);
+    } catch (error) {
+      report.errors.push({
+        matchId: match.id,
+        nodeId: match.nodeId || null,
+        reason: candidate.reason,
+        message: `store_failed:${String(error?.message || "unknown")}`,
+      });
+    }
+  }
+
+  if (report.released > 0) {
+    fastify.log.warn(
+      {
+        released: report.released,
+        attempted: report.attempted,
+        selected: report.selected,
+        releasedMatchIds: report.releasedMatchIds,
+      },
+      "friendly_no_free_slot_reclaim_completed",
+    );
+  } else {
+    fastify.log.warn(
+      {
+        selected: report.selected,
+        attempted: report.attempted,
+        errors: report.errors,
+      },
+      "friendly_no_free_slot_reclaim_noop",
+    );
+  }
+
+  return report;
+}
+
+async function cleanupStaleFriendlyRequests(options = {}) {
+  const olderThanSec = normalizePositiveInt(
+    options?.olderThanSec ?? config.friendlyStaleRunningReclaimSec,
+    1800,
+    {
+      min: 60,
+      max: 604800,
+    },
+  );
+  const limit = normalizePositiveInt(
+    options?.limit ?? config.friendlyNoFreeSlotReclaimLimit,
+    config.friendlyNoFreeSlotReclaimLimit,
+    {
+      min: 1,
+      max: 500,
+    },
+  );
+  const nowMs = Date.now();
+  const now = nowIso();
+  const requests = await listFriendlyRequestsInternal({
+    statuses: ["pending", "accepted"],
+    limit,
+  });
+
+  const report = {
+    scanned: requests.length,
+    cleanedRequests: 0,
+    releasedMatches: 0,
+    expiredPending: 0,
+    expiredAccepted: 0,
+    cleanedRequestIds: [],
+    errors: [],
+  };
+
+  for (const requestItem of requests) {
+    const requestStatus = String(requestItem?.status || "").trim().toLowerCase();
+    const createdAtMs = resolveFriendlyRequestCreatedAtMs(requestItem);
+    const ageMs = Math.max(0, nowMs - createdAtMs);
+    const expiredAtMs = parseTimeMs(requestItem?.expiresAt);
+    let match = requestItem?.matchId ? await getMatchById(requestItem.matchId) : null;
+    let shouldCleanup = false;
+    let cleanupReason = "";
+
+    if (requestStatus === "pending") {
+      if ((expiredAtMs && expiredAtMs <= nowMs) || ageMs >= olderThanSec * 1000) {
+        shouldCleanup = true;
+        cleanupReason = expiredAtMs && expiredAtMs <= nowMs ? "pending_expired" : "pending_stale";
+      }
+    } else if (requestStatus === "accepted") {
+      if (!requestItem.matchId) {
+        shouldCleanup = true;
+        cleanupReason = "accepted_without_match";
+      } else if (!match) {
+        shouldCleanup = true;
+        cleanupReason = "accepted_missing_match";
+      } else if (isTerminalMatchState(match)) {
+        shouldCleanup = true;
+        cleanupReason = `accepted_${String(match.status || "").trim().toLowerCase()}`;
+      } else {
+        const classification = classifyFriendlyReclaimCandidate(match, nowMs, {
+          staleStartingSec: olderThanSec,
+          staleRunningSec: olderThanSec,
+        });
+        if (classification.reclaimable) {
+          shouldCleanup = true;
+          cleanupReason = `accepted_${classification.reason}`;
+        }
+      }
+    }
+
+    if (!shouldCleanup) {
+      continue;
+    }
+
+    if (requestStatus === "accepted" && match && !isTerminalMatchState(match)) {
+      const node = findNodeById(match.nodeId);
+      if (node) {
+        try {
+          await releaseOnNode(node, match.id);
+          report.releasedMatches += 1;
+        } catch (error) {
+          report.errors.push({
+            type: "release_match_failed",
+            requestId: requestItem.id,
+            matchId: match.id,
+            message: String(error?.message || "release_failed"),
+          });
+        }
+      }
+
+      match = {
+        ...match,
+        status: "released",
+        endedReason: cleanupReason || "friendly_request_cleanup",
+        endedAt: match.endedAt || now,
+        updatedAt: now,
+      };
+
+      try {
+        await storeMatch(match);
+      } catch (error) {
+        report.errors.push({
+          type: "store_match_failed",
+          requestId: requestItem.id,
+          matchId: match.id,
+          message: String(error?.message || "store_match_failed"),
+        });
+      }
+    }
+
+    const nextRequest = {
+      ...requestItem,
+      status: "expired",
+      expiresAt: expiredAtMs && expiredAtMs <= nowMs ? requestItem.expiresAt : now,
+    };
+
+    try {
+      await storeFriendlyRequest(nextRequest);
+      report.cleanedRequests += 1;
+      report.cleanedRequestIds.push(requestItem.id);
+      if (requestStatus === "pending") {
+        report.expiredPending += 1;
+      } else if (requestStatus === "accepted") {
+        report.expiredAccepted += 1;
+      }
+    } catch (error) {
+      report.errors.push({
+        type: "store_request_failed",
+        requestId: requestItem.id,
+        matchId: requestItem.matchId || null,
+        message: String(error?.message || "store_request_failed"),
+      });
+    }
+  }
+
+  return report;
+}
+
+async function runFriendlyStateCleanupJob(trigger = "manual", options = {}) {
+  const report = await cleanupStaleFriendlyRequests(options);
+  if (report.cleanedRequests > 0 || report.releasedMatches > 0 || report.errors.length > 0) {
+    fastify.log.warn(
+      {
+        trigger,
+        cleanedRequests: report.cleanedRequests,
+        releasedMatches: report.releasedMatches,
+        expiredPending: report.expiredPending,
+        expiredAccepted: report.expiredAccepted,
+        errors: report.errors,
+      },
+      "friendly_state_cleanup_completed",
+    );
+  }
+  return report;
+}
+
+function scheduleFriendlyStateCleanupJob() {
+  const intervalMs = Math.max(
+    10_000,
+    Number(config.friendlyStateCleanupIntervalMs || 60_000),
+  );
+  const timer = setInterval(() => {
+    void runFriendlyStateCleanupJob("interval").catch((error) => {
+      fastify.log.error({ err: error }, "friendly_state_cleanup_interval_failed");
+    });
+  }, intervalMs);
+
+  if (typeof timer.unref === "function") {
+    timer.unref();
+  }
+
+  fastify.log.info({ intervalMs }, "friendly_state_cleanup_interval_started");
+}
+
 async function storeMatch(match) {
   memoryStore.matches.set(match.id, match);
   if (!pool || !pgReady) return;
@@ -1311,6 +1949,68 @@ async function storeMatch(match) {
       match.videoWatchUrl || null,
     ],
   );
+}
+
+async function markMatchTransportUnavailable(match, reason = "match_transport_unavailable") {
+  if (!match?.id) {
+    return match;
+  }
+
+  const updated = {
+    ...match,
+    status: "failed",
+    endedReason: reason,
+    endedAt: match.endedAt || nowIso(),
+    updatedAt: nowIso(),
+  };
+
+  await storeMatch(updated);
+
+  const node = findNodeById(updated.nodeId);
+  if (node) {
+    try {
+      await releaseOnNode(node, updated.id);
+    } catch (error) {
+      fastify.log.warn(
+        { err: error, matchId: updated.id, nodeId: updated.nodeId, reason },
+        "match_transport_unavailable_release_failed",
+      );
+    }
+  }
+
+  fastify.log.warn(
+    {
+      matchId: updated.id,
+      mode: updated.mode,
+      nodeId: updated.nodeId || null,
+      serverIp: updated.serverIp || null,
+      serverPort: updated.serverPort || null,
+      reason,
+    },
+    "match_transport_marked_unavailable",
+  );
+
+  return updated;
+}
+
+async function ensureFriendlyMatchTransportReady(match, options = {}) {
+  if (!match || String(match.mode || "").trim().toLowerCase() !== "friendly") {
+    return match;
+  }
+
+  if (isTerminalMatchState(match)) {
+    return match;
+  }
+
+  try {
+    await waitForMatchPortReady(match.serverIp, match.serverPort, options);
+    return match;
+  } catch (error) {
+    return markMatchTransportUnavailable(
+      match,
+      String(error?.code || "match_transport_unavailable"),
+    );
+  }
 }
 
 async function forwardLeagueLifecycle(match, payload) {
@@ -1695,34 +2395,27 @@ fastify.post("/v1/friendly/requests/:requestId/accept", async (request, reply) =
       return reply.code(409).send({ error: "accepted_match_missing" });
     }
 
-    let readyMatch = existingMatch;
-    try {
-      readyMatch = isMatchReadyForClient(existingMatch)
-        ? existingMatch
-        : await waitForMatchReady(existingMatch.id);
-    } catch (error) {
-      fastify.log.warn(
-        { err: error, matchId: existingMatch.id },
-        "friendly_accept_existing_match_not_ready",
-      );
-      return reply.code(503).send({ error: error.code || "match_not_ready" });
+    if (isTerminalMatchState(existingMatch)) {
+      return reply.code(503).send({
+        error: existingMatch.endedReason || `match_${existingMatch.status || "unavailable"}`,
+      });
     }
 
     const joinTicket = issueJoinTicket({
-      matchId: readyMatch.id,
+      matchId: existingMatch.id,
       userId: acceptingUserId,
       role: acceptedRole,
-      teamSide: resolveTeamSide(readyMatch, acceptingUserId, acceptedRole),
+      teamSide: resolveTeamSide(existingMatch, acceptingUserId, acceptedRole),
       ttlSec: config.joinTicketTtlSec,
-      secret: readyMatch.sessionSecret,
+      secret: existingMatch.sessionSecret,
     });
 
     return reply.send({
       requestId,
-      matchId: readyMatch.id,
-      state: readyMatch.status,
-      serverIp: readyMatch.serverIp,
-      serverPort: readyMatch.serverPort,
+      matchId: existingMatch.id,
+      state: existingMatch.status,
+      serverIp: existingMatch.serverIp,
+      serverPort: existingMatch.serverPort,
       joinTicket,
       expiresAt: new Date(Date.now() + config.joinTicketTtlSec * 1000).toISOString(),
       reused: true,
@@ -1746,7 +2439,7 @@ fastify.post("/v1/friendly/requests/:requestId/accept", async (request, reply) =
   const matchId = makeId("m");
   const sessionSecret = crypto.randomBytes(24).toString("hex");
   const callbackUrl = buildLifecycleCallbackUrl(matchId);
-  const allocationResult = await allocateAcrossNodePool("friendly", {
+  const allocationPayload = {
     matchId,
     mode: "friendly",
     maxClients: Number(body.maxClients || config.defaultFriendlyMaxClients),
@@ -1758,7 +2451,62 @@ fastify.post("/v1/friendly/requests/:requestId/accept", async (request, reply) =
     autoStart: false,
     callbackUrl,
     callbackToken: config.callbackToken,
-  });
+  };
+  let allocationResult;
+
+  try {
+    allocationResult = await allocateAcrossNodePool("friendly", allocationPayload);
+  } catch (allocationError) {
+    if (!isNoFreeSlotAllocationError(allocationError)) {
+      return reply.code(503).send(buildFriendlyServerUnavailablePayload({
+        details: allocationError?.details || [],
+      }));
+    }
+
+    let reclaimReport;
+    try {
+      reclaimReport = await reclaimFriendlySlotsAfterNoFreeSlot();
+    } catch (reclaimError) {
+      fastify.log.error(
+        { err: reclaimError },
+        "friendly_no_free_slot_reclaim_failed",
+      );
+      reclaimReport = {
+        selected: 0,
+        attempted: 0,
+        released: 0,
+        skipped: 0,
+        releasedMatchIds: [],
+        errors: [
+          {
+            message: String(reclaimError?.message || "reclaim_failed"),
+          },
+        ],
+      };
+    }
+    if (reclaimReport.released > 0) {
+      try {
+        allocationResult = await allocateAcrossNodePool("friendly", allocationPayload);
+      } catch (retryError) {
+        if (!isNoFreeSlotAllocationError(retryError)) {
+          return reply.code(503).send(buildFriendlyServerUnavailablePayload({
+            details: retryError?.details || [],
+          }));
+        }
+
+        return reply.code(409).send(buildFriendlyServersBusyPayload({
+          details: retryError.details || allocationError.details || [],
+          reclaim: reclaimReport,
+        }));
+      }
+    } else {
+      return reply.code(409).send(buildFriendlyServersBusyPayload({
+        details: allocationError.details || [],
+        reclaim: reclaimReport,
+      }));
+    }
+  }
+
   const node = allocationResult.node;
   const allocation = allocationResult.allocation;
 
@@ -1787,8 +2535,27 @@ fastify.post("/v1/friendly/requests/:requestId/accept", async (request, reply) =
 
   try {
     await startOnNode(node, matchId);
-    const readyMatch = await waitForMatchReady(matchId);
-    match.status = readyMatch.status || "server_started";
+    try {
+      await waitForMatchPortReady(match.serverIp, match.serverPort);
+      match.status = "server_started";
+    } catch (transportError) {
+      match = await markMatchTransportUnavailable(
+        match,
+        String(transportError?.code || "match_transport_unavailable"),
+      );
+      return reply.code(503).send(
+        buildFriendlyServerUnavailablePayload({
+          details: [
+            {
+              nodeId: normalizeNodeId(node),
+              serverIp: match.serverIp || null,
+              serverPort: match.serverPort || null,
+              message: match.endedReason || "match_transport_unavailable",
+            },
+          ],
+        }),
+      );
+    }
     match.updatedAt = nowIso();
     await storeMatch(match);
   } catch (error) {
@@ -1806,8 +2573,8 @@ fastify.post("/v1/friendly/requests/:requestId/accept", async (request, reply) =
       );
     }
 
-    fastify.log.warn({ err: error, matchId }, "friendly_accept_match_not_ready");
-    return reply.code(503).send({ error: error.code || "match_not_ready" });
+    fastify.log.warn({ err: error, matchId }, "friendly_accept_match_start_failed");
+    return reply.code(503).send({ error: error.code || "match_start_failed" });
   }
 
   pending.status = "accepted";
@@ -1887,36 +2654,41 @@ fastify.post("/v1/matches/:matchId/join-ticket", async (request, reply) => {
     }
   }
 
-  let readyMatch = match;
-  try {
-    readyMatch = isMatchReadyForClient(match)
-      ? match
-      : await waitForMatchReady(matchId);
-  } catch (error) {
-    fastify.log.warn({ err: error, matchId }, "join_ticket_match_not_ready");
-    return reply.code(503).send({ error: error.code || "match_not_ready" });
+  const effectiveMatch = await ensureFriendlyMatchTransportReady(match);
+
+  if (isTerminalMatchState(effectiveMatch)) {
+    fastify.log.warn(
+      { matchId, state: effectiveMatch.status },
+      "join_ticket_match_terminal",
+    );
+    return reply.code(503).send({
+      error:
+        effectiveMatch.endedReason ||
+        `match_${effectiveMatch.status || "unavailable"}`,
+    });
   }
 
   const ttlSec =
-    readyMatch.mode === "league"
+    match.mode === "league"
       ? config.leagueJoinTicketTtlSec
       : config.joinTicketTtlSec;
-  const effectiveRole = readyMatch.mode === "league" ? "player" : role;
+  const effectiveRole = match.mode === "league" ? "player" : role;
 
   const joinTicket = issueJoinTicket({
     matchId,
     userId,
     role: effectiveRole,
-    teamSide: resolveTeamSide(readyMatch, userId, effectiveRole),
+    teamSide: resolveTeamSide(effectiveMatch, userId, effectiveRole),
     ttlSec,
-    secret: readyMatch.sessionSecret,
+    secret: effectiveMatch.sessionSecret,
   });
 
   return reply.send({
     matchId,
+    state: effectiveMatch.status,
     joinTicket,
-    serverIp: readyMatch.serverIp,
-    serverPort: readyMatch.serverPort,
+    serverIp: effectiveMatch.serverIp,
+    serverPort: effectiveMatch.serverPort,
     expiresAt: new Date(Date.now() + ttlSec * 1000).toISOString(),
   });
 });
@@ -1934,12 +2706,14 @@ fastify.get("/v1/matches/:matchId/status", async (request, reply) => {
     return;
   }
 
+  const effectiveMatch = await ensureFriendlyMatchTransportReady(match);
+
   return reply.send({
-    matchId: match.id,
-    state: match.status,
-    serverIp: match.serverIp,
-    serverPort: match.serverPort,
-    updatedAt: match.updatedAt || nowIso(),
+    matchId: effectiveMatch.id,
+    state: effectiveMatch.status,
+    serverIp: effectiveMatch.serverIp,
+    serverPort: effectiveMatch.serverPort,
+    updatedAt: effectiveMatch.updatedAt || nowIso(),
   });
 });
 
@@ -1953,6 +2727,74 @@ fastify.get("/v1/internal/matches/:matchId", async (request, reply) => {
   }
 
   return reply.send({ match: sanitizeInternalMatch(match) });
+});
+
+fastify.post("/v1/internal/friendly/reclaim-stale-slots", async (request, reply) => {
+  if (!ensureApiAuth(request, reply)) return;
+
+  const body = request.body || {};
+  const olderThanSec = normalizePositiveInt(
+    body.olderThanSec ?? 1800,
+    1800,
+    {
+      min: 60,
+      max: 604800,
+    },
+  );
+  const limit = normalizePositiveInt(
+    body.limit ?? config.friendlyNoFreeSlotReclaimLimit,
+    config.friendlyNoFreeSlotReclaimLimit,
+    {
+      min: 1,
+      max: 200,
+    },
+  );
+
+  const report = await reclaimFriendlySlotsAfterNoFreeSlot({
+    staleStartingSec: olderThanSec,
+    staleRunningSec: olderThanSec,
+    limit,
+  });
+
+  return reply.send({
+    ok: true,
+    olderThanSec,
+    limit,
+    report,
+  });
+});
+
+fastify.post("/v1/internal/friendly/cleanup-stale-state", async (request, reply) => {
+  if (!ensureApiAuth(request, reply)) return;
+
+  const body = request.body || {};
+  const olderThanSec = normalizePositiveInt(
+    body.olderThanSec ?? 1800,
+    1800,
+    {
+      min: 60,
+      max: 604800,
+    },
+  );
+  const limit = normalizePositiveInt(
+    body.limit ?? 200,
+    200,
+    {
+      min: 1,
+      max: 500,
+    },
+  );
+  const report = await runFriendlyStateCleanupJob("api", {
+    olderThanSec,
+    limit,
+  });
+
+  return reply.send({
+    ok: true,
+    olderThanSec,
+    limit,
+    report,
+  });
 });
 
 fastify.post("/v1/league/prepare-slot", async (request, reply) => {
@@ -2236,6 +3078,13 @@ async function start() {
       "Redis init failed. Continuing without distributed lock.",
     );
   }
+
+  try {
+    await runFriendlyStateCleanupJob("startup", { limit: 500 });
+  } catch (error) {
+    fastify.log.error({ err: error }, "friendly_state_cleanup_startup_failed");
+  }
+  scheduleFriendlyStateCleanupJob();
 
   await fastify.listen({ port: config.port, host: config.host });
   fastify.log.info({ port: config.port, host: config.host }, "match-control-api started");

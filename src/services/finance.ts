@@ -12,6 +12,7 @@ import {
 } from 'firebase/firestore';
 import { db } from './firebase';
 import type { Player } from '@/types';
+import { resolvePlayerSalary, shouldRefreshLegacySalary } from '@/lib/salary';
 
 export type FinanceHistoryCategory = 'match' | 'sponsor' | 'loan' | 'salary' | 'stadium' | 'transfer';
 
@@ -118,14 +119,7 @@ const randomId = () =>
     ? crypto.randomUUID()
     : Math.random().toString(36).slice(2, 10);
 
-export const getSalaryForOverall = (overall: number): number => {
-  if (overall >= 90) return 25_000;
-  if (overall >= 80) return 18_000;
-  if (overall >= 70) return 12_000;
-  if (overall >= 60) return 8_000;
-  if (overall >= 50) return 5_000;
-  return 3_500;
-};
+export { getSalaryForOverall } from '@/lib/salary';
 
 async function addFinanceHistoryEntry(
   uid: string,
@@ -170,18 +164,43 @@ export async function ensureFinanceProfile(teamId: string): Promise<void> {
   await Promise.all([ensureFinanceDoc(teamId), ensureStadiumDoc(teamId)]);
 }
 
-const buildSalaryRecords = (players: Player[]): TeamSalaryRecord[] =>
-  players.map((player) => {
+const buildSalaryState = (
+  players: Player[],
+): { records: TeamSalaryRecord[]; normalizedPlayers: Player[]; changed: boolean } => {
+  let changed = false;
+
+  const normalizedPlayers = players.map((player) => {
     const overall = typeof player.overall === 'number' ? player.overall : 0;
-    const salary = getSalaryForOverall(overall);
+    const resolvedSalary = resolvePlayerSalary(player);
+    const shouldPersistSalary =
+      !!player.contract &&
+      (typeof player.contract?.salary !== 'number' ||
+        shouldRefreshLegacySalary(player.contract?.salary, overall));
+
+    if (!shouldPersistSalary) {
+      return player;
+    }
+
+    changed = true;
     return {
-      playerId: String(player.id),
-      name: player.name,
-      position: player.position,
-      overall,
-      salary,
+      ...player,
+      contract: {
+        ...player.contract,
+        salary: resolvedSalary,
+      },
     };
   });
+
+  const records = normalizedPlayers.map((player) => ({
+    playerId: String(player.id),
+    name: player.name,
+    position: player.position,
+    overall: typeof player.overall === 'number' ? player.overall : 0,
+    salary: resolvePlayerSalary(player),
+  }));
+
+  return { records, normalizedPlayers, changed };
+};
 
 export async function syncTeamSalaries(teamId: string): Promise<TeamSalariesDoc> {
   const teamSnap = await getDoc(teamDoc(teamId));
@@ -189,8 +208,18 @@ export async function syncTeamSalaries(teamId: string): Promise<TeamSalariesDoc>
     throw new Error('Takim bulunamadi.');
   }
   const team = teamSnap.data() as { players?: Player[] };
-  const players = buildSalaryRecords(team.players ?? []);
+  const salaryState = buildSalaryState(team.players ?? []);
+  const players = salaryState.records;
   const total = players.reduce((sum, record) => sum + record.salary, 0);
+  if (salaryState.changed) {
+    await setDoc(
+      teamDoc(teamId),
+      {
+        players: salaryState.normalizedPlayers,
+      },
+      { merge: true },
+    );
+  }
   await setDoc(
     teamSalariesDoc(teamId),
     {
@@ -228,9 +257,12 @@ export async function ensureMonthlySalaryCharge(teamId: string): Promise<number 
     }
 
     const teamData = teamSnap.data() as { players?: Player[]; budget?: number; transferBudget?: number } | undefined;
-    const salaryRecords = salariesSnap.exists()
-      ? ((salariesSnap.data() as TeamSalariesDoc).players ?? [])
-      : buildSalaryRecords(teamData?.players ?? []);
+    const computedSalaryState = buildSalaryState(teamData?.players ?? []);
+    const salaryRecords = computedSalaryState.records.length
+      ? computedSalaryState.records
+      : (salariesSnap.exists()
+          ? ((salariesSnap.data() as TeamSalariesDoc).players ?? [])
+          : []);
     const total = salaryRecords.reduce((sum, record) => sum + record.salary, 0);
     if (total <= 0) {
       chargedAmount = null;
@@ -256,6 +288,15 @@ export async function ensureMonthlySalaryCharge(teamId: string): Promise<number 
       },
       { merge: true },
     );
+    if (computedSalaryState.changed) {
+      tx.set(
+        teamRef,
+        {
+          players: computedSalaryState.normalizedPlayers,
+        },
+        { merge: true },
+      );
+    }
     const nextBalance = balance - total;
     tx.update(financeRef, {
       balance: nextBalance,

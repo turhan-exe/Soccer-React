@@ -1,14 +1,17 @@
 package com.nerbuss.fhsmanager.unity;
 
 import android.app.Activity;
+import android.content.Intent;
 import android.os.Handler;
 import android.os.Looper;
+import android.util.Log;
 import com.getcapacitor.JSObject;
 import java.lang.ref.WeakReference;
 import java.util.ArrayDeque;
 import java.util.Queue;
 
 public final class UnityBridgeState {
+  private static final String TAG = "UnityBridgeState";
   static final String EXTRA_SERVER_IP = "fhs_server_ip";
   static final String EXTRA_SERVER_PORT = "fhs_server_port";
   static final String EXTRA_MATCH_ID = "fhs_match_id";
@@ -23,6 +26,7 @@ public final class UnityBridgeState {
   private static WeakReference<UnityMatchPlugin> pluginRef = new WeakReference<>(null);
   private static WeakReference<Activity> activeUnityHostRef = new WeakReference<>(null);
   private static final Queue<JSObject> pendingEvents = new ArrayDeque<>();
+  private static boolean pendingShellReturn;
 
   private UnityBridgeState() {}
 
@@ -70,6 +74,7 @@ public final class UnityBridgeState {
     MAIN.post(
         () -> {
           try {
+            Log.d(TAG, "requestCloseActiveUnityHost: finishing active unity host.");
             activity.finish();
           } catch (Throwable ignored) {
             // no-op
@@ -77,6 +82,118 @@ public final class UnityBridgeState {
         });
 
     return true;
+  }
+
+  public static boolean requestReturnToMainShell(
+      String reason, String matchId, String serverIp, int serverPort) {
+    return requestReturnToMainShellInternal(reason, matchId, serverIp, Integer.valueOf(serverPort));
+  }
+
+  public static boolean requestReturnToMainShell(
+      String reason, String matchId, String serverIp, Integer serverPort) {
+    return requestReturnToMainShellInternal(reason, matchId, serverIp, serverPort);
+  }
+
+  private static boolean requestReturnToMainShellInternal(
+      String reason, String matchId, String serverIp, Integer serverPort) {
+    final Activity hostActivity;
+    synchronized (LOCK) {
+      hostActivity = activeUnityHostRef.get();
+      pendingShellReturn = true;
+    }
+
+    final Activity currentUnityActivity = resolveCurrentUnityActivity();
+    if (currentUnityActivity == null && hostActivity == null) {
+      return false;
+    }
+
+    MAIN.post(
+        () -> {
+          emit(
+              "closed",
+              reason == null || reason.isEmpty() ? "Unity requested return to shell." : reason,
+              matchId,
+              serverIp,
+              serverPort);
+
+          try {
+            if (currentUnityActivity != null) {
+              if (invokeEmbeddedUnityShellReturn(currentUnityActivity)) {
+                Log.d(TAG, "requestReturnToMainShell: unloading embedded Unity activity for shell return.");
+              } else {
+                Log.d(TAG, "requestReturnToMainShell: finishing current Unity activity for shell return.");
+                try {
+                  currentUnityActivity.setResult(Activity.RESULT_OK);
+                } catch (Throwable ignored) {
+                  // no-op
+                }
+                currentUnityActivity.finish();
+              }
+            }
+          } catch (Throwable ignored) {
+            // no-op
+          }
+
+          try {
+            if (currentUnityActivity == null && hostActivity != null) {
+              Log.d(TAG, "requestReturnToMainShell: no child activity, finishing Unity host activity.");
+              try {
+                hostActivity.setResult(Activity.RESULT_OK);
+              } catch (Throwable ignored) {
+                // no-op
+              }
+              hostActivity.finish();
+            }
+          } catch (Throwable ignored) {
+            // no-op
+          }
+        });
+
+    return true;
+  }
+
+  private static Activity resolveCurrentUnityActivity() {
+    try {
+      Class<?> unityPlayerClass = Class.forName("com.unity3d.player.UnityPlayer");
+      Object currentActivity = unityPlayerClass.getField("currentActivity").get(null);
+      if (currentActivity instanceof Activity) {
+        return (Activity) currentActivity;
+      }
+    } catch (Throwable ignored) {
+      // no-op
+    }
+
+    return null;
+  }
+
+  private static boolean invokeEmbeddedUnityShellReturn(Activity activity) {
+    if (activity == null) {
+      return false;
+    }
+
+    try {
+      Class<?> embeddedClass = Class.forName("com.unity3d.player.EmbeddedUnityPlayerActivity");
+      if (!embeddedClass.isInstance(activity)) {
+        return false;
+      }
+
+      embeddedClass.getMethod("requestReturnToShell").invoke(activity);
+      return true;
+    } catch (Throwable t) {
+      Log.w(TAG, "invokeEmbeddedUnityShellReturn: reflection fallback failed.", t);
+      return false;
+    }
+  }
+
+  public static boolean consumePendingShellReturn() {
+    synchronized (LOCK) {
+      if (!pendingShellReturn) {
+        return false;
+      }
+
+      pendingShellReturn = false;
+      return true;
+    }
   }
 
   static void emit(String type) {

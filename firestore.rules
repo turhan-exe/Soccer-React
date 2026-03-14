@@ -35,6 +35,9 @@ service cloud.firestore {
       match /trainingHistory/{recordId} {
         allow read, write: if isOwner(uid);
       }
+      match /sponsorships/{sponsorId} {
+        allow read, write: if isOwner(uid);
+      }
     }
 
     // --- LEAGUES & STANDINGS (Admin Repair Fix) ---
@@ -67,11 +70,39 @@ service cloud.firestore {
       allow write: if isOwner(get(/databases/$(database)/documents/teams/$(teamId)).data.ownerUid);
     }
 
+    match /teams/{teamId}/salaries/{documentId} {
+      allow read, write: if isOwner(get(/databases/$(database)/documents/teams/$(teamId)).data.ownerUid);
+    }
+
+    // --- FINANCE ---
+    match /finance/{uid} {
+      allow read, write: if isOwner(uid);
+    }
+
+    match /finance/history/{uid}/{entryId} {
+      allow read, write: if isOwner(uid);
+    }
+
+    match /finance/credits/{uid}/{entryId} {
+      allow read, write: if isOwner(uid);
+    }
+
     // --- SOCIAL ---
     // Global Chat
     match /globalChatMessages/{messageId} {
       allow read: if isSignedIn();
       allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+    }
+
+    // Chat moderation state (read-only for authenticated users, write-only by server/admin SDK)
+    match /chatSanctions/{sanctionId} {
+      allow read: if isSignedIn();
+      allow write: if false;
+    }
+
+    match /chatModerationLogs/{logId} {
+      allow read: if isSignedIn();
+      allow write: if false;
     }
 
     // Friend Requests

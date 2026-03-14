@@ -10,6 +10,7 @@ import { ThemeProvider } from '@/contexts/ThemeContext';
 import { DiamondProvider } from '@/contexts/DiamondContext';
 import { router } from '@/routes/router';
 import { InventoryProvider } from '@/contexts/InventoryContext';
+import { unityBridge } from '@/services/unityBridge';
 
 const queryClient = new QueryClient();
 
@@ -52,6 +53,49 @@ const App = () => {
     return () => {
       window.removeEventListener('resize', handleResize);
       window.removeEventListener('orientationchange', handleResize);
+    };
+  }, []);
+
+  useEffect(() => {
+    let disposed = false;
+    let removeUnityListener: (() => Promise<void>) | null = null;
+
+    const navigateShellHome = () => {
+      if (disposed) {
+        return;
+      }
+
+      void router.navigate('/', { replace: true });
+    };
+
+    const handleNativeShellReturn = () => {
+      navigateShellHome();
+    };
+
+    window.addEventListener('nativeUnityShellReturn', handleNativeShellReturn as EventListener);
+
+    if (Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'android') {
+      void unityBridge
+        .onUnityEvent((event) => {
+          const type = String(event?.type || '').trim().toLowerCase();
+          if (type === 'closed' || type === 'connection_failed' || type === 'error') {
+            navigateShellHome();
+          }
+        })
+        .then((remove) => {
+          removeUnityListener = remove;
+        })
+        .catch((error) => {
+          console.warn('[App] Unity global listener registration failed', error);
+        });
+    }
+
+    return () => {
+      disposed = true;
+      window.removeEventListener('nativeUnityShellReturn', handleNativeShellReturn as EventListener);
+      if (removeUnityListener) {
+        void removeUnityListener();
+      }
     };
   }, []);
 

@@ -8,6 +8,7 @@ import { formatInTimeZone, fromZonedTime } from 'date-fns-tz';
 import { createHmac } from 'crypto';
 import { ensureBotTeamDoc } from '../utils/bots.js';
 import { ensureLeagueTeamDocs, TeamLookupResult } from '../utils/leagueTeams.js';
+import { buildUnityRuntimeTeamPayload, type UnityRuntimeTeamPayload } from '../utils/unityRuntimePayload.js';
 
 
 const db = getFirestore();
@@ -51,78 +52,12 @@ function isSlotTeamId(teamId: string) {
   return teamId.startsWith('slot-');
 }
 
-type LineupPayload = {
-  formation?: string;
-  tactics?: Record<string, any>;
-  starters?: string[];
-  subs?: string[];
-  reserves?: string[];
-};
-
-type TeamPayload = {
-  id: string;
-  teamId?: string;
-  name?: string;
-  clubName?: string;
-  manager?: string;
-  isBot?: boolean;
-  botId?: string;
-  kitHome?: unknown;
-  kitAway?: unknown;
-  kit?: unknown;
-  kitAssets?: unknown;
-  badge?: unknown;
-  logo?: unknown;
-  players?: any[];
-  lineup?: LineupPayload;
-  plan?: LineupPayload;
-};
+type TeamPayload = UnityRuntimeTeamPayload;
 
 type TeamData = TeamLookupResult & { payload?: TeamPayload };
 
-function normalizeLineup(raw: any): LineupPayload | undefined {
-  if (!raw || typeof raw !== 'object') return undefined;
-  const payload: LineupPayload = {};
-  if (typeof raw.formation === 'string') payload.formation = raw.formation;
-  if (raw.tactics && typeof raw.tactics === 'object') payload.tactics = raw.tactics;
-  if (Array.isArray(raw.starters)) payload.starters = raw.starters.map((id: any) => String(id));
-  if (Array.isArray(raw.subs)) payload.subs = raw.subs.map((id: any) => String(id));
-  if (Array.isArray(raw.reserves)) payload.reserves = raw.reserves.map((id: any) => String(id));
-  if (!payload.formation && !payload.tactics && !payload.starters && !payload.subs && !payload.reserves) {
-    return undefined;
-  }
-  return payload;
-}
-
 function buildTeamPayload(teamId: string, data: any): TeamPayload {
-  const name = data?.name || data?.clubName || teamId;
-  const payload: TeamPayload = {
-    id: teamId,
-    teamId,
-    name,
-    clubName: data?.clubName || data?.name,
-    manager: data?.manager,
-    isBot: data?.isBot,
-    botId: data?.botId,
-    kitHome: data?.kitHome,
-    kitAway: data?.kitAway,
-    kit: data?.kit,
-    kitAssets: data?.kitAssets,
-    badge: data?.badge,
-    logo: data?.logo ?? null,
-  };
-
-  if (Array.isArray(data?.players)) {
-    payload.players = data.players;
-  }
-
-  const lineup = normalizeLineup(data?.lineup);
-  if (lineup) payload.lineup = lineup;
-
-  const plan = normalizeLineup(data?.plan);
-  if (plan) payload.plan = plan;
-
-  return payload;
+  return buildUnityRuntimeTeamPayload(teamId, data);
 }
 
 async function getSignedUrlSafe(

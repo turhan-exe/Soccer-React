@@ -6,20 +6,21 @@ import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.View;
 import android.view.Window;
 import androidx.annotation.Nullable;
 import androidx.core.view.WindowCompat;
 import androidx.core.view.WindowInsetsCompat;
 import androidx.core.view.WindowInsetsControllerCompat;
-
 public class UnityHostActivity extends Activity {
+  private static final String TAG = "UnityHostActivity";
   private static final int REQ_UNITY = 4107;
   private static final String UNITY_ACTIVITY_META = "com.nerbuss.fhsmanager.UNITY_ACTIVITY_CLASS";
   private static final int APP_BACKGROUND_COLOR = Color.parseColor("#020617");
-
   private boolean launchedChild;
   private boolean waitingChildResult;
+  private boolean shellReturnRequested;
   private String matchId;
   private String serverIp;
   private int serverPort;
@@ -46,8 +47,8 @@ public class UnityHostActivity extends Activity {
 
     // When Unity activity closes and this host comes back to foreground, complete flow.
     if (launchedChild && !waitingChildResult) {
-      UnityBridgeState.emit("closed", "Unity activity closed.", matchId, serverIp, serverPort);
-      finish();
+      Log.d(TAG, "onResume: child already closed, returning to shell and finishing host.");
+      returnToShellAndFinish("Unity activity closed.");
     }
   }
 
@@ -73,12 +74,26 @@ public class UnityHostActivity extends Activity {
     }
 
     waitingChildResult = false;
-    UnityBridgeState.emit(
-        "closed",
-        "Unity activity returned. resultCode=" + resultCode,
-        matchId,
-        serverIp,
-        serverPort);
+    Log.d(TAG, "onActivityResult: Unity child returned. resultCode=" + resultCode);
+    returnToShellAndFinish("Unity activity returned. resultCode=" + resultCode);
+  }
+
+  private void returnToShellAndFinish(String message) {
+    if (shellReturnRequested) {
+      finish();
+      return;
+    }
+
+    shellReturnRequested = true;
+    UnityBridgeState.emit("closed", message, matchId, serverIp, serverPort);
+
+    try {
+      setResult(Activity.RESULT_OK);
+    } catch (Throwable ignored) {
+      // no-op
+    }
+
+    Log.d(TAG, "returnToShellAndFinish: finishing host to reveal existing MainActivity.");
     finish();
   }
 
@@ -99,41 +114,29 @@ public class UnityHostActivity extends Activity {
     try {
       unityActivityClass = Class.forName(unityActivityClassName);
     } catch (ClassNotFoundException e) {
+      final Class<?> fallbackUnityActivityClass = tryResolveFallbackUnityActivityClass();
+      if (fallbackUnityActivityClass == null) {
+        UnityBridgeState.emit(
+            "error",
+            "Unity activity class not found: " + unityActivityClassName + ". unityLibrary import edilmemis olabilir.",
+            matchId,
+            serverIp,
+            serverPort);
+        finish();
+        return;
+      }
+
       UnityBridgeState.emit(
           "error",
-          "Unity activity class not found: " + unityActivityClassName + ". unityLibrary import edilmemis olabilir.",
+          "Unity activity class missing, fallback kullaniliyor: " + unityActivityClassName,
           matchId,
           serverIp,
           serverPort);
-      finish();
+      launchUnityActivity(fallbackUnityActivityClass);
       return;
     }
 
-    try {
-      Intent source = getIntent();
-      Intent unityIntent = new Intent(this, unityActivityClass);
-      if (source != null && source.getExtras() != null) {
-        unityIntent.putExtras(source.getExtras());
-      }
-      waitingChildResult = true;
-      launchedChild = true;
-      startActivityForResult(unityIntent, REQ_UNITY);
-      UnityBridgeState.emit(
-          "connected",
-          "Unity activity launch requested.",
-          matchId,
-          serverIp,
-          serverPort);
-    } catch (Throwable t) {
-      waitingChildResult = false;
-      UnityBridgeState.emit(
-          "error",
-          "Unity activity baslatilamadi: " + t.getClass().getSimpleName() + " " + t.getMessage(),
-          matchId,
-          serverIp,
-          serverPort);
-      finish();
-    }
+    launchUnityActivity(unityActivityClass);
   }
 
   @Nullable
@@ -153,6 +156,44 @@ public class UnityHostActivity extends Activity {
       return value.trim();
     } catch (Throwable ignored) {
       return "com.unity3d.player.UnityPlayerActivity";
+    }
+  }
+
+  @Nullable
+  private Class<?> tryResolveFallbackUnityActivityClass() {
+    try {
+      return Class.forName("com.unity3d.player.UnityPlayerActivity");
+    } catch (Throwable ignored) {
+      return null;
+    }
+  }
+
+  private void launchUnityActivity(Class<?> unityActivityClass) {
+    try {
+      Intent source = getIntent();
+      Intent unityIntent = new Intent(this, unityActivityClass);
+      if (source != null && source.getExtras() != null) {
+        unityIntent.putExtras(source.getExtras());
+      }
+      waitingChildResult = true;
+      launchedChild = true;
+      startActivityForResult(unityIntent, REQ_UNITY);
+      Log.d(TAG, "launchUnityActivity: child launch requested.");
+      UnityBridgeState.emit(
+          "connected",
+          "Unity activity launch requested.",
+          matchId,
+          serverIp,
+          serverPort);
+    } catch (Throwable t) {
+      waitingChildResult = false;
+      UnityBridgeState.emit(
+          "error",
+          "Unity activity baslatilamadi: " + t.getClass().getSimpleName() + " " + t.getMessage(),
+          matchId,
+          serverIp,
+          serverPort);
+      finish();
     }
   }
 

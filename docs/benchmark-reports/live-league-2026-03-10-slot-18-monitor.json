@@ -1,0 +1,82 @@
+{
+  "mode": "report",
+  "firestoreMode": "admin",
+  "kickoffHourTR": 18,
+  "kickoffAt": "2026-03-10T15:00:00.000Z",
+  "summary": {
+    "total": 40,
+    "scheduled": 0,
+    "running": 0,
+    "played": 40,
+    "failed": 0,
+    "withLiveMatchId": 40,
+    "liveStates": {
+      "ended": 40
+    },
+    "missingVideo": 40,
+    "missingScore": 3
+  },
+  "sampleStatuses": [
+    {
+      "fixtureId": "13hoqRXc2N5375GH3v10",
+      "matchId": "13hoqRXc2N5375GH3v10",
+      "firestoreState": "ended",
+      "matchControlState": "ended"
+    },
+    {
+      "fixtureId": "Pf8Sf85NCzAuSCOVUrae",
+      "matchId": "Pf8Sf85NCzAuSCOVUrae",
+      "firestoreState": "ended",
+      "matchControlState": "ended"
+    },
+    {
+      "fixtureId": "SAdK5I3e6mad10buIsKf",
+      "matchId": "SAdK5I3e6mad10buIsKf",
+      "firestoreState": "ended",
+      "matchControlState": "ended"
+    },
+    {
+      "fixtureId": "TB3MVtZfsJbLeiHxfkRZ",
+      "matchId": "TB3MVtZfsJbLeiHxfkRZ",
+      "firestoreState": "ended",
+      "matchControlState": "ended"
+    },
+    {
+      "fixtureId": "YIAhRuzLPXIacWNllxbb",
+      "matchId": "YIAhRuzLPXIacWNllxbb",
+      "firestoreState": "ended",
+      "matchControlState": "ended"
+    },
+    {
+      "fixtureId": "aY8auRmtt3Nxjstu7hKR",
+      "matchId": "aY8auRmtt3Nxjstu7hKR",
+      "firestoreState": "ended",
+      "matchControlState": "running"
+    },
+    {
+      "fixtureId": "efditFqzjmZR3aGDuIlZ",
+      "matchId": "efditFqzjmZR3aGDuIlZ",
+      "firestoreState": "ended",
+      "matchControlState": "running"
+    },
+    {
+      "fixtureId": "hIRDPzFT3WUTLlqerRkX",
+      "matchId": "hIRDPzFT3WUTLlqerRkX",
+      "firestoreState": "ended",
+      "matchControlState": "ended"
+    },
+    {
+      "fixtureId": "4jrg0tqZzdfWxTHiAusb",
+      "matchId": "4jrg0tqZzdfWxTHiAusb",
+      "firestoreState": "ended",
+      "matchControlState": "ended"
+    },
+    {
+      "fixtureId": "YgO03p35yDkmI4HEKW9g",
+      "matchId": "YgO03p35yDkmI4HEKW9g",
+      "firestoreState": "ended",
+      "matchControlState": "ended"
+    }
+  ],
+  "failures": []
+}

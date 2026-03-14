@@ -8,8 +8,7 @@ dependencies {
 
 android {
     namespace 'com.unity3d.player'
-    ndkPath "C:/Program Files/Unity/Hub/Editor/2022.3.27f1/Editor/Data/PlaybackEngines/AndroidPlayer/NDK"
-    ndkVersion "23.1.7779620"
+    ndkVersion "27.1.12297006"
 
     compileSdkVersion 34
     buildToolsVersion '32.0.0'
@@ -104,6 +103,5 @@ android {
         }
     }
 }
-
 
 

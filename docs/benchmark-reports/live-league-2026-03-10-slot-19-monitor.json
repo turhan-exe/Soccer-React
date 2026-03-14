@@ -1,0 +1,82 @@
+{
+  "mode": "report",
+  "firestoreMode": "admin",
+  "kickoffHourTR": 19,
+  "kickoffAt": "2026-03-10T16:00:00.000Z",
+  "summary": {
+    "total": 40,
+    "scheduled": 0,
+    "running": 0,
+    "played": 40,
+    "failed": 0,
+    "withLiveMatchId": 40,
+    "liveStates": {
+      "ended": 40
+    },
+    "missingVideo": 40,
+    "missingScore": 15
+  },
+  "sampleStatuses": [
+    {
+      "fixtureId": "4IuFzvN3H33fRG47CYw6",
+      "matchId": "4IuFzvN3H33fRG47CYw6",
+      "firestoreState": "ended",
+      "matchControlState": "ended"
+    },
+    {
+      "fixtureId": "H4Ul6idMMh02Xw06sSzU",
+      "matchId": "H4Ul6idMMh02Xw06sSzU",
+      "firestoreState": "ended",
+      "matchControlState": "ended"
+    },
+    {
+      "fixtureId": "IsfFmIxg6PRgTUyOE7sn",
+      "matchId": "IsfFmIxg6PRgTUyOE7sn",
+      "firestoreState": "ended",
+      "matchControlState": "ended"
+    },
+    {
+      "fixtureId": "VLnro9BzmK0E6mgqH85c",
+      "matchId": "VLnro9BzmK0E6mgqH85c",
+      "firestoreState": "ended",
+      "matchControlState": "running"
+    },
+    {
+      "fixtureId": "W2M0eQ3GksVuTLaw7K5D",
+      "matchId": "W2M0eQ3GksVuTLaw7K5D",
+      "firestoreState": "ended",
+      "matchControlState": "ended"
+    },
+    {
+      "fixtureId": "gpqoo3synUv0KdtiqZSu",
+      "matchId": "gpqoo3synUv0KdtiqZSu",
+      "firestoreState": "ended",
+      "matchControlState": "ended"
+    },
+    {
+      "fixtureId": "tegrCsfd2qPANYSbTT5Z",
+      "matchId": "tegrCsfd2qPANYSbTT5Z",
+      "firestoreState": "ended",
+      "matchControlState": "ended"
+    },
+    {
+      "fixtureId": "uVv0qizgKjT0r0Nk38Zq",
+      "matchId": "uVv0qizgKjT0r0Nk38Zq",
+      "firestoreState": "ended",
+      "matchControlState": "ended"
+    },
+    {
+      "fixtureId": "6S28Z3SzuraVWyyGbmG4",
+      "matchId": "6S28Z3SzuraVWyyGbmG4",
+      "firestoreState": "ended",
+      "matchControlState": "ended"
+    },
+    {
+      "fixtureId": "8Wm0tzn4ouHHMx5depjo",
+      "matchId": "8Wm0tzn4ouHHMx5depjo",
+      "firestoreState": "ended",
+      "matchControlState": "ended"
+    }
+  ],
+  "failures": []
+}

@@ -15,7 +15,7 @@ This document covers the manual steps that cannot be fully automated from this r
 1. Export Unity Android client as **Unity as Library**
 2. Import `unityLibrary` into `football-manager-ui/android`
 3. Build and run Android app on device
-4. Configure Hetzner public API and match node UDP ports
+4. Configure Hetzner public API and match node match ports
 
 ---
 
@@ -109,7 +109,7 @@ For mobile users outside your PC:
 - `VITE_MATCH_CONTROL_BASE_URL` must be a public HTTPS URL
 - `match-control-api` must be reachable on `443`
 - `node-agent` stays private/internal
-- Match node UDP port pool must be publicly reachable (e.g. `21001-21003`)
+- Match node TCP port pool must be publicly reachable (e.g. `21001-21003`)
 - `NODE_PUBLIC_IP` on each node must be the actual public IP
 
 ### Firewall checklist
@@ -117,7 +117,7 @@ For mobile users outside your PC:
 - API node:
   - TCP 443 open
 - Match nodes:
-  - UDP 21001-21003 (or your allocated range) open
+  - TCP 21001-21003 (or your allocated range) open
 - Node agent:
   - internal/private only
 
@@ -143,4 +143,3 @@ If Unity does not open:
 - It does **not** yet emit true in-match events (`match_ended`, real connection telemetry) from Unity runtime.
 - Browser still uses mock fallback (by design).
 - Spectator role is the first target; gameplay control/match intervention is future work.
-

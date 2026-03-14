@@ -8,19 +8,20 @@ import { generateRandomName } from '@/lib/names';
 import { calculateOverall, getRoles } from '@/lib/player';
 import { addGameYears, applyGameAgingToPlayers } from '@/lib/gameTime';
 import { formations } from '@/lib/formations';
+import { getSalaryForOverall } from '@/lib/salary';
 
 const positions: Player['position'][] = ['GK','CB','LB','RB','CM','LM','RM','CAM','LW','RW','ST'];
 
 const CONTRACT_MIN_YEARS = 2;
 const CONTRACT_MAX_YEARS = 4;
 
-const createInitialContract = (): NonNullable<Player['contract']> => {
+const createInitialContract = (overall: number): NonNullable<Player['contract']> => {
   const years = Math.floor(Math.random() * (CONTRACT_MAX_YEARS - CONTRACT_MIN_YEARS + 1)) + CONTRACT_MIN_YEARS;
   const expiresAt = addGameYears(new Date(), years).toISOString();
   return {
     expiresAt,
     status: 'active',
-    salary: Math.floor(1500 + Math.random() * 3500),
+    salary: getSalaryForOverall(overall),
     extensions: 0,
   };
 };
@@ -84,7 +85,7 @@ const generatePlayer = (
     condition: randomGauge(),
     motivation: randomGauge(),
     injuryStatus: 'healthy',
-    contract: createInitialContract(),
+    contract: createInitialContract(overall),
     rename: createInitialRenameState(),
   };
 };

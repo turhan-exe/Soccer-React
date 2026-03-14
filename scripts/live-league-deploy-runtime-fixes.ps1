@@ -28,8 +28,36 @@ function Test-BinaryContainsMarker {
     [Parameter(Mandatory = $true)][string]$Marker
   )
 
-  & rg -a -q --fixed-strings -- $Marker $FilePath 2>$null
-  return ($LASTEXITCODE -eq 0)
+  if (!(Test-Path $FilePath)) {
+    return $false
+  }
+
+  $bytes = [System.IO.File]::ReadAllBytes($FilePath)
+  $needleUtf8 = [System.Text.Encoding]::UTF8.GetBytes($Marker)
+  $needleUtf16 = [System.Text.Encoding]::Unicode.GetBytes($Marker)
+
+  function Test-Needle([byte[]]$Haystack, [byte[]]$Needle) {
+    if ($Needle.Length -eq 0 -or $Haystack.Length -lt $Needle.Length) {
+      return $false
+    }
+
+    for ($i = 0; $i -le $Haystack.Length - $Needle.Length; $i++) {
+      $matched = $true
+      for ($j = 0; $j -lt $Needle.Length; $j++) {
+        if ($Haystack[$i + $j] -ne $Needle[$j]) {
+          $matched = $false
+          break
+        }
+      }
+      if ($matched) {
+        return $true
+      }
+    }
+
+    return $false
+  }
+
+  return (Test-Needle $bytes $needleUtf8) -or (Test-Needle $bytes $needleUtf16)
 }
 
 function Test-TextContainsMarker {
@@ -89,7 +117,12 @@ function Invoke-SafeSsh {
 }
 
 $mcIndex = Join-Path $RepoRoot "services/match-control-api/src/index.js"
+$mcService = Join-Path $RepoRoot "services/systemd/match-control-api.service"
 $naIndex = Join-Path $RepoRoot "services/node-agent/src/index.js"
+$naService = Join-Path $RepoRoot "services/systemd/node-agent.service"
+$unityBuildDir = Join-Path $RepoRoot $UnityBuildRoot
+$unityRuntimeStagingDir = [System.IO.Path]::GetFullPath((Join-Path $RepoRoot ".tmp/unity-linux-runtime"))
+$unityRuntimeArchive = [System.IO.Path]::GetFullPath((Join-Path $RepoRoot ".tmp/unity-linux-runtime.tar"))
 $unityBinary = Join-Path $RepoRoot "$UnityBuildRoot/FHS.x86_64"
 $unityGameAssembly = Join-Path $RepoRoot "$UnityBuildRoot/GameAssembly.so"
 $unityPlayer = Join-Path $RepoRoot "$UnityBuildRoot/UnityPlayer.so"
@@ -121,6 +154,9 @@ if (-not $SkipUnityBuildGuard) {
   if (-not (Test-BinaryContainsMarker -FilePath $assemblyPath -Marker "ShouldBypassRemoteStartGateForDedicatedServer")) {
     $missingMarkers += "ShouldBypassRemoteStartGateForDedicatedServer (MatchNetworkManager dedicated remote-gate bypass marker missing in Assembly-CSharp.dll)"
   }
+  if (-not (Test-BinaryContainsMarker -FilePath $assemblyPath -Marker "Preferred reliable transport selected")) {
+    $missingMarkers += "Preferred reliable transport selected (MatchNetworkManager reliable watch transport marker missing in Assembly-CSharp.dll)"
+  }
 
   if (-not (Test-TextContainsMarker -FilePath $runtimeInitPath -Marker 'OnlineMatchStartGate')) {
     $missingMarkers += "RuntimeInitializeOnLoads: OnlineMatchStartGate not registered"
@@ -140,42 +176,89 @@ if (-not $SkipUnityBuildGuard) {
 if (!(Test-Path $mcIndex)) {
   throw "missing file: $mcIndex"
 }
+if (!(Test-Path $mcService)) {
+  throw "missing file: $mcService"
+}
 if (!(Test-Path $naIndex)) {
   throw "missing file: $naIndex"
 }
+if (!(Test-Path $naService)) {
+  throw "missing file: $naService"
+}
 if (-not $SkipUnityRuntimeSync) {
   $unityRequired = @(
+    $unityBuildDir,
     $unityBinary,
     $unityGameAssembly,
     $unityPlayer,
     $unityRuntimeInit,
     $unityMetadata,
-    $unityManagedAssembly
+    $unityManagedAssembly,
+    (Join-Path $RepoRoot "$UnityBuildRoot/FHS_Data/globalgamemanagers"),
+    (Join-Path $RepoRoot "$UnityBuildRoot/FHS_Data/level0"),
+    (Join-Path $RepoRoot "$UnityBuildRoot/FHS_Data/level1"),
+    (Join-Path $RepoRoot "$UnityBuildRoot/FHS_Data/level2")
   )
   foreach ($p in $unityRequired) {
     if (!(Test-Path $p)) {
       throw "missing unity runtime artifact: $p"
     }
   }
+
+  $unityRuntimeArchiveDir = Split-Path -Parent $unityRuntimeArchive
+  if (!(Test-Path $unityRuntimeArchiveDir)) {
+    New-Item -ItemType Directory -Force -Path $unityRuntimeArchiveDir | Out-Null
+  }
+  if (Test-Path $unityRuntimeStagingDir) {
+    Remove-Item -Recurse -Force $unityRuntimeStagingDir
+  }
+  New-Item -ItemType Directory -Force -Path $unityRuntimeStagingDir | Out-Null
+  if (Test-Path $unityRuntimeArchive) {
+    Remove-Item -Force $unityRuntimeArchive
+  }
+
+  Copy-Item -Force $unityBinary (Join-Path $unityRuntimeStagingDir "FHS.x86_64")
+  Copy-Item -Force $unityGameAssembly (Join-Path $unityRuntimeStagingDir "GameAssembly.so")
+  Copy-Item -Force $unityPlayer (Join-Path $unityRuntimeStagingDir "UnityPlayer.so")
+  Copy-Item -Recurse -Force (Join-Path $unityBuildDir "FHS_Data") (Join-Path $unityRuntimeStagingDir "FHS_Data")
+  $stagedManagedDir = Join-Path $unityRuntimeStagingDir "FHS_BackUpThisFolder_ButDontShipItWithYourGame/Managed"
+  New-Item -ItemType Directory -Force -Path $stagedManagedDir | Out-Null
+  Copy-Item -Force $unityManagedAssembly (Join-Path $stagedManagedDir "Assembly-CSharp.dll")
+
+  Push-Location $unityRuntimeStagingDir
+  try {
+    & tar -cf $unityRuntimeArchive .
+    if ($LASTEXITCODE -ne 0 -or !(Test-Path $unityRuntimeArchive)) {
+      throw "failed to create unity runtime archive: $unityRuntimeArchive"
+    }
+  } finally {
+    Pop-Location
+  }
 }
 
 if (-not $SkipControl) {
   Write-Host "== Deploy match-control-api to $ControlHost =="
   Invoke-SafeScp $mcIndex "$ControlHost`:/opt/football-manager-ui/services/match-control-api/src/index.js"
+  Invoke-SafeScp $mcService "$ControlHost`:/tmp/match-control-api.service"
 
   $controlRemote = @'
 set -euo pipefail
 APP=/opt/football-manager-ui/services/match-control-api
 LOG=/var/log/match-control-api.log
+UNIT=/etc/systemd/system/match-control-api.service
 
 test -f "$APP/src/index.js"
+test -f /tmp/match-control-api.service
 
+install -m 644 /tmp/match-control-api.service "$UNIT"
+systemctl daemon-reload
+systemctl enable match-control-api.service >/dev/null 2>&1 || true
 fuser -k 8080/tcp >/dev/null 2>&1 || true
-cd "$APP"
-nohup node src/index.js >"$LOG" 2>&1 &
-sleep 2
+systemctl restart match-control-api.service
+sleep 3
 
-ss -ltnp | grep ':8080' || { tail -n 80 "$LOG"; exit 1; }
+systemctl is-active --quiet match-control-api.service || { systemctl status match-control-api.service --no-pager; tail -n 80 "$LOG"; exit 1; }
+ss -ltnp | grep ':8080' || { systemctl status match-control-api.service --no-pager; tail -n 80 "$LOG"; exit 1; }
 curl -fsS http://127.0.0.1:8080/health
 '@
 
@@ -190,37 +273,54 @@ if (-not $SkipNodes) {
       if (-not $SkipUnityRuntimeSync) {
         Invoke-SafeSsh -TargetHost $nodeHost -RemoteScript @'
 set -euo pipefail
-mkdir -p /opt/fhs-server/FHS_BackUpThisFolder_ButDontShipItWithYourGame/Managed
-mkdir -p /opt/fhs-server/FHS_Data/il2cpp_data/Metadata
+rm -rf /tmp/fhs-runtime-sync
+mkdir -p /tmp/fhs-runtime-sync
 '@
-        Invoke-SafeScp $unityBinary "$($nodeHost):/opt/fhs-server/FHS.x86_64"
-        Invoke-SafeScp $unityGameAssembly "$($nodeHost):/opt/fhs-server/GameAssembly.so"
-        Invoke-SafeScp $unityPlayer "$($nodeHost):/opt/fhs-server/UnityPlayer.so"
-        Invoke-SafeScp $unityRuntimeInit "$($nodeHost):/opt/fhs-server/FHS_Data/RuntimeInitializeOnLoads.json"
-        Invoke-SafeScp $unityMetadata "$($nodeHost):/opt/fhs-server/FHS_Data/il2cpp_data/Metadata/global-metadata.dat"
-        Invoke-SafeScp $unityManagedAssembly "$($nodeHost):/opt/fhs-server/FHS_BackUpThisFolder_ButDontShipItWithYourGame/Managed/Assembly-CSharp.dll"
+        Invoke-SafeScp $unityRuntimeArchive "$($nodeHost):/tmp/unity-linux-runtime.tar"
       }
       Invoke-SafeScp $naIndex "$($nodeHost):/opt/football-manager-ui/services/node-agent/src/index.js"
+      Invoke-SafeScp $naService "$($nodeHost):/tmp/node-agent.service"
 
       $nodeRemote = @'
 set -euo pipefail
 APP=/opt/football-manager-ui/services/node-agent
 LOG=/var/log/node-agent.log
+UNIT=/etc/systemd/system/node-agent.service
 
 test -f "$APP/src/index.js"
 test -f "$APP/.env"
+test -f /tmp/node-agent.service
+if [ -f /tmp/unity-linux-runtime.tar ]; then
+  rm -rf /tmp/fhs-runtime-sync
+  mkdir -p /tmp/fhs-runtime-sync
+  tar -xf /tmp/unity-linux-runtime.tar -C /tmp/fhs-runtime-sync
+  test -f /tmp/fhs-runtime-sync/FHS.x86_64
+  test -f /tmp/fhs-runtime-sync/FHS_Data/level0
+  test -f /tmp/fhs-runtime-sync/FHS_Data/globalgamemanagers
+  test -f /tmp/fhs-runtime-sync/FHS_BackUpThisFolder_ButDontShipItWithYourGame/Managed/Assembly-CSharp.dll
+
+  rm -rf /opt/fhs-server
+  mkdir -p /opt/fhs-server
+  cp -a /tmp/fhs-runtime-sync/. /opt/fhs-server/
+  chmod +x /opt/fhs-server/FHS.x86_64
+  rm -rf /tmp/fhs-runtime-sync /tmp/unity-linux-runtime.tar
+fi
 test -f /opt/fhs-server/FHS.x86_64
-chmod +x /opt/fhs-server/FHS.x86_64
+test -f /opt/fhs-server/FHS_Data/level0
+test -f /opt/fhs-server/FHS_Data/globalgamemanagers
 
 fuser -k 9090/tcp >/dev/null 2>&1 || true
 pkill -f "/opt/fhs-server" || true
 pkill -f "Unity" || true
 
-cd "$APP"
-nohup node src/index.js >"$LOG" 2>&1 &
-sleep 2
+install -m 644 /tmp/node-agent.service "$UNIT"
+systemctl daemon-reload
+systemctl enable node-agent.service >/dev/null 2>&1 || true
+systemctl restart node-agent.service
+sleep 3
 
-ss -ltnp | grep ':9090' || { tail -n 80 "$LOG"; exit 1; }
+systemctl is-active --quiet node-agent.service || { systemctl status node-agent.service --no-pager; tail -n 80 "$LOG"; exit 1; }
+ss -ltnp | grep ':9090' || { systemctl status node-agent.service --no-pager; tail -n 80 "$LOG"; exit 1; }
 '@
       Invoke-SafeSsh -TargetHost $nodeHost -RemoteScript $nodeRemote
 

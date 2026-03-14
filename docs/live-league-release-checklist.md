@@ -113,7 +113,7 @@ API node inbound:
 Match node inbound:
 - TCP `22` from your admin IP
 - TCP `9090` from control-plane private network only
-- UDP match ports from players, for example `21001-21200`
+- TCP match ports from players, for example `21001-21200`
 
 Network values:
 - Attach every API and match node to the same private network

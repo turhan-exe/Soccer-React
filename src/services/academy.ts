@@ -20,7 +20,7 @@ import { addPlayerToTeam, updatePlayerSalary } from './team';
 import type { Player } from '@/types';
 import { calculateOverall, getRoles } from '@/lib/player';
 import { addGameYears } from '@/lib/gameTime';
-import { getSalaryForOverall } from './finance';
+import { getSalaryForOverall } from '@/lib/salary';
 
 export const ACADEMY_COOLDOWN_MS = 2 * 60 * 60 * 1000; // 2 saat
 

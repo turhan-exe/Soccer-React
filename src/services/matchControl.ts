@@ -110,6 +110,7 @@ export type MatchStatusResponse = {
 
 const MATCH_READY_STATES = new Set(['server_started', 'running']);
 const MATCH_TERMINAL_STATES = new Set(['failed', 'ended', 'released']);
+const FRIENDLY_MATCH_READY_STATES = new Set(['running']);
 
 export type FriendlyMatchHistoryItem = {
   matchId: string;
@@ -175,7 +176,11 @@ async function resolveAuthHeaderWithRefresh(): Promise<string | null> {
   }
 }
 
-async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
+type MatchControlRequestInit = RequestInit & {
+  timeoutMs?: number;
+};
+
+async function requestJson<T>(path: string, init?: MatchControlRequestInit): Promise<T> {
   if (!BASE_URL) {
     throw new Error('VITE_MATCH_CONTROL_BASE_URL is not configured.');
   }
@@ -192,7 +197,8 @@ async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
   };
 
   const controller = new AbortController();
-  const timeout = window.setTimeout(() => controller.abort(), 10000);
+  const timeoutMs = Math.max(1000, Number(init?.timeoutMs || 10000));
+  const timeout = window.setTimeout(() => controller.abort(), timeoutMs);
 
   let response: Response;
   let authHeader = await resolveAuthHeader();
@@ -217,7 +223,7 @@ async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
     }
   } catch (error: unknown) {
     if (error instanceof DOMException && error.name === 'AbortError') {
-      throw new Error('Match Control API timeout (10s).');
+      throw new Error(`Match Control API timeout (${Math.round(timeoutMs / 1000)}s).`);
     }
     throw new Error(`Match Control API ulasilamiyor: ${BASE_URL}`);
   } finally {
@@ -226,7 +232,32 @@ async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
 
   if (!response.ok) {
     const text = await response.text().catch(() => '');
-    throw new Error(text || `Request failed (${response.status})`);
+    let parsed: Record<string, unknown> | null = null;
+    if (text) {
+      try {
+        const candidate = JSON.parse(text);
+        if (candidate && typeof candidate === 'object' && !Array.isArray(candidate)) {
+          parsed = candidate as Record<string, unknown>;
+        }
+      } catch {
+        // keep plain-text fallback below
+      }
+    }
+
+    const errorCode = typeof parsed?.error === 'string' ? parsed.error.trim() : '';
+    if (errorCode === 'friendly_servers_busy' || errorCode === 'no_free_slot') {
+      throw new Error('Dostluk maci icin sunucu dolu, lutfen bekleyin.');
+    }
+    if (errorCode === 'friendly_server_unavailable' || errorCode === 'allocation_failed') {
+      throw new Error('Dostluk maci sunucusuna ulasilamiyor, lutfen tekrar deneyin.');
+    }
+
+    if (errorCode) {
+      throw new Error(errorCode);
+    }
+
+    const message = typeof parsed?.message === 'string' ? parsed.message.trim() : '';
+    throw new Error(message || text || `Request failed (${response.status})`);
   }
 
   return (await response.json()) as T;
@@ -243,6 +274,7 @@ export async function createFriendlyRequest(payload: {
   return requestJson<FriendlyRequestResponse>('/v1/friendly/requests', {
     method: 'POST',
     body: JSON.stringify(payload),
+    timeoutMs: 20000,
   });
 }
 
@@ -719,6 +751,7 @@ export async function acceptFriendlyRequest(
     {
       method: 'POST',
       body: JSON.stringify(payload),
+      timeoutMs: 20000,
     },
   );
 }
@@ -734,6 +767,7 @@ export async function requestJoinTicket(payload: {
       userId: payload.userId,
       role: payload.role || 'player',
     }),
+    timeoutMs: 20000,
   });
 }
 
@@ -745,10 +779,19 @@ export async function getMatchStatus(matchId: string): Promise<MatchStatusRespon
 
 export async function waitForMatchReady(
   matchId: string,
-  options?: { timeoutMs?: number; pollMs?: number },
+  options?: {
+    timeoutMs?: number;
+    pollMs?: number;
+    readyStates?: Iterable<string>;
+  },
 ): Promise<MatchStatusResponse> {
   const timeoutMs = Math.max(1000, Number(options?.timeoutMs || 35000));
   const pollMs = Math.max(200, Number(options?.pollMs || 600));
+  const readyStates = new Set(
+    Array.from(options?.readyStates || MATCH_READY_STATES, (state) =>
+      String(state || '').trim().toLowerCase(),
+    ).filter(Boolean),
+  );
   const deadline = Date.now() + timeoutMs;
   let lastStatus: MatchStatusResponse | null = null;
 
@@ -757,7 +800,7 @@ export async function waitForMatchReady(
     lastStatus = status;
     const normalizedState = String(status.state || '').trim().toLowerCase();
 
-    if (MATCH_READY_STATES.has(normalizedState)) {
+    if (readyStates.has(normalizedState)) {
       return status;
     }
 
@@ -771,4 +814,8 @@ export async function waitForMatchReady(
   throw new Error(
     `Match hazir olmadi. Son durum: ${lastStatus?.state || 'unknown'}.`,
   );
+}
+
+export function getFriendlyMatchReadyStates(): Set<string> {
+  return new Set(FRIENDLY_MATCH_READY_STATES);
 }

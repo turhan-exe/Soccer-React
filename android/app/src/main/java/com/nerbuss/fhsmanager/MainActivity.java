@@ -1,5 +1,6 @@
 package com.nerbuss.fhsmanager;
 
+import android.content.Intent;
 import android.graphics.Color;
 import android.os.Bundle;
 import android.view.View;
@@ -9,10 +10,14 @@ import androidx.core.view.WindowCompat;
 import androidx.core.view.WindowInsetsCompat;
 import androidx.core.view.WindowInsetsControllerCompat;
 import com.getcapacitor.BridgeActivity;
+import com.nerbuss.fhsmanager.unity.UnityBridgeState;
 import com.nerbuss.fhsmanager.unity.UnityMatchPlugin;
 
 public class MainActivity extends BridgeActivity {
   private static final int APP_BACKGROUND_COLOR = Color.parseColor("#020617");
+  private static final String EXTRA_FORCE_SHELL_RETURN = "unity_force_shell_return";
+  private static final String SHELL_RETURN_EVENT =
+      "window.dispatchEvent(new CustomEvent('nativeUnityShellReturn', { detail: { reason: 'unity-intent' } }));";
 
   @Override
   protected void onCreate(Bundle savedInstanceState) {
@@ -20,6 +25,16 @@ public class MainActivity extends BridgeActivity {
     super.onCreate(savedInstanceState);
     allowHttpApiRequestsFromWebView();
     enableImmersiveMode();
+    dispatchPendingUnityShellReturn(getIntent());
+    dispatchPendingUnityShellReturnFromBridgeState();
+  }
+
+  @Override
+  protected void onNewIntent(Intent intent) {
+    super.onNewIntent(intent);
+    setIntent(intent);
+    dispatchPendingUnityShellReturn(intent);
+    dispatchPendingUnityShellReturnFromBridgeState();
   }
 
   @Override
@@ -34,6 +49,42 @@ public class MainActivity extends BridgeActivity {
   public void onResume() {
     super.onResume();
     enableImmersiveMode();
+    dispatchPendingUnityShellReturn(getIntent());
+    dispatchPendingUnityShellReturnFromBridgeState();
+  }
+
+  private void dispatchPendingUnityShellReturn(Intent intent) {
+    if (intent == null || !intent.getBooleanExtra(EXTRA_FORCE_SHELL_RETURN, false)) {
+      return;
+    }
+
+    intent.removeExtra(EXTRA_FORCE_SHELL_RETURN);
+    dispatchShellReturnEvent();
+  }
+
+  private void dispatchPendingUnityShellReturnFromBridgeState() {
+    if (!UnityBridgeState.consumePendingShellReturn()) {
+      return;
+    }
+
+    dispatchShellReturnEvent();
+  }
+
+  private void dispatchShellReturnEvent() {
+    if (getBridge() == null || getBridge().getWebView() == null) {
+      return;
+    }
+
+    getBridge()
+        .getWebView()
+        .post(
+            () -> {
+              if (getBridge() == null || getBridge().getWebView() == null) {
+                return;
+              }
+
+              getBridge().getWebView().evaluateJavascript(SHELL_RETURN_EVENT, null);
+            });
   }
 
   private void enableImmersiveMode() {

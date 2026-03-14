@@ -33,26 +33,23 @@ export default function LeagueDetailPage() {
           })),
         );
       } else {
-        // Filter out header row if it exists or any duplicates by teamId
-        const uniqueRows = sRows.filter((row, index, self) =>
-          index === self.findIndex((t) => t.teamId === row.teamId)
+        const uniqueRows = sRows.filter(
+          (row, index, self) => index === self.findIndex((item) => item.teamId === row.teamId),
         );
         setRows(uniqueRows);
 
-        // Identify rows that update/fetch names
         uniqueRows.forEach(async (r) => {
           const rawName = r.name || r.teamId;
-          // Check if name is exactly the ID (implies missing name)
           if (rawName === r.teamId && r.teamId.length > 15 && !r.teamId.startsWith('slot-')) {
             try {
               const snap = await getDoc(doc(db, 'teams', r.teamId));
               if (snap.exists()) {
-                const d = snap.data();
-                if (d?.name) {
-                  setResolvedNames(prev => ({ ...prev, [r.teamId]: d.name }));
+                const data = snap.data();
+                if (data?.name) {
+                  setResolvedNames((prev) => ({ ...prev, [r.teamId]: data.name }));
                 }
               }
-            } catch (e) {
+            } catch {
               console.warn('Failed to resolve team name', r.teamId);
             }
           }
@@ -63,69 +60,82 @@ export default function LeagueDetailPage() {
   }, [leagueId]);
 
   const formatName = (row: Standing) => {
-    // 1. If we have a resolved name, use it
     if (resolvedNames[row.teamId]) return resolvedNames[row.teamId];
 
     const raw = row.name || row.teamId;
-
-    // 2. Bot logic: "Bot [LongID]" -> "Bot [ShortID]"
     if (raw.toLowerCase().startsWith('bot ')) {
       const parts = raw.split(' ');
       if (parts.length > 1) {
-        const idPart = parts[1];
-        // Take last 3 digits to mimic "124" style or just first 3 chars
-        // User example "bot 124". Let's try 3 chars of ID.
-        return `Bot ${idPart.slice(0, 3).toUpperCase()}`;
+        return `Bot ${parts[1].slice(0, 3).toUpperCase()}`;
       }
     }
 
-    // 3. Fallback: if it looks like an ID, return it (or maybe truncated?)
     return raw;
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 p-4 md:p-6 lg:p-8 font-sans text-slate-100 flex flex-col gap-6">
-      <PagesHeader title="Lig Detayı" description="Puan durumu ve istatistikler.." />
+    <div className="flex min-h-screen flex-col gap-4 overflow-x-hidden bg-slate-950 p-3 font-sans text-slate-100 sm:p-4 md:gap-6 md:p-6 lg:p-8">
+      <PagesHeader title="Lig Detay\u0131" description="Puan durumu ve istatistikler.." />
 
-      <div className="bg-[#13111c]/90 border border-white/5 rounded-[32px] p-6 md:p-8 flex-1 relative shadow-2xl backdrop-blur-sm overflow-hidden">
-        <div className="mb-6">
-          <h2 className="text-2xl font-bold text-purple-200 tracking-wide">Puan Durumu</h2>
+      <div className="relative flex-1 overflow-hidden rounded-[24px] border border-white/5 bg-[#13111c]/90 p-3 shadow-2xl backdrop-blur-sm sm:p-4 md:rounded-[32px] md:p-8">
+        <div className="mb-4 md:mb-6">
+          <h2 className="text-xl font-bold tracking-wide text-purple-200 md:text-2xl">Puan Durumu</h2>
         </div>
 
-        <div className="overflow-x-auto rounded-xl border border-white/5">
-          <table className="w-full text-sm text-left">
-            <thead className="text-xs text-slate-500 uppercase bg-[#1a1725]/50 border-b border-white/5">
+        <div className="overflow-hidden rounded-xl border border-white/5">
+          <table className="w-full table-fixed text-left text-xs sm:text-sm">
+            <colgroup>
+              <col className="w-[10%] sm:w-[8%]" />
+              <col className="w-[34%] sm:w-[30%] md:w-[32%]" />
+              <col className="w-[9%] sm:w-[8%]" />
+              <col className="w-[9%] sm:w-[8%]" />
+              <col className="w-[9%] sm:w-[8%]" />
+              <col className="w-[9%] sm:w-[8%]" />
+              <col className="hidden md:table-column md:w-[8%]" />
+              <col className="hidden md:table-column md:w-[8%]" />
+              <col className="hidden sm:table-column sm:w-[8%]" />
+              <col className="w-[11%] sm:w-[8%]" />
+            </colgroup>
+            <thead className="border-b border-white/5 bg-[#1a1725]/50 text-[10px] uppercase text-slate-500 sm:text-xs">
               <tr>
-                <th className="px-6 py-4 font-bold tracking-wider">S</th>
-                <th className="px-6 py-4 font-bold tracking-wider">Takım</th>
-                <th className="px-6 py-4 text-center font-bold tracking-wider">O</th>
-                <th className="px-6 py-4 text-center font-bold tracking-wider">G</th>
-                <th className="px-6 py-4 text-center font-bold tracking-wider">B</th>
-                <th className="px-6 py-4 text-center font-bold tracking-wider">M</th>
-                <th className="px-6 py-4 text-center hidden md:table-cell font-bold tracking-wider">AG</th>
-                <th className="px-6 py-4 text-center hidden md:table-cell font-bold tracking-wider">YG</th>
-                <th className="px-6 py-4 text-center font-bold tracking-wider">AV</th>
-                <th className="px-6 py-4 text-center font-black text-white tracking-wider bg-white/5 border-l border-white/5">P</th>
+                <th className="px-2 py-3 text-center font-bold tracking-wider sm:px-3 md:px-4">S</th>
+                <th className="px-2 py-3 font-bold tracking-wider sm:px-3 md:px-4">{'Tak\u0131m'}</th>
+                <th className="px-1 py-3 text-center font-bold tracking-wider sm:px-2 md:px-3">O</th>
+                <th className="px-1 py-3 text-center font-bold tracking-wider sm:px-2 md:px-3">G</th>
+                <th className="px-1 py-3 text-center font-bold tracking-wider sm:px-2 md:px-3">B</th>
+                <th className="px-1 py-3 text-center font-bold tracking-wider sm:px-2 md:px-3">M</th>
+                <th className="hidden px-2 py-3 text-center font-bold tracking-wider md:table-cell md:px-3">AG</th>
+                <th className="hidden px-2 py-3 text-center font-bold tracking-wider md:table-cell md:px-3">YG</th>
+                <th className="hidden px-2 py-3 text-center font-bold tracking-wider sm:table-cell sm:px-3">AV</th>
+                <th className="border-l border-white/5 bg-white/5 px-1 py-3 text-center font-black tracking-wider text-white sm:px-2 md:px-3">P</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-white/5">
               {rows.map((r, idx) => (
-                <tr key={r.id} data-testid={`standings-row-${r.teamId}`} className="hover:bg-white/5 transition-colors group">
-                  <td className="px-6 py-4 font-medium text-slate-500 group-hover:text-slate-300">{idx + 1}</td>
-                  <td className="px-6 py-4 font-bold text-white flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-md bg-slate-800 flex items-center justify-center shrink-0 border border-white/5">
-                      <Shield className="w-4 h-4 text-purple-400 opacity-80" />
-                    </div>
-                    <span className="truncate max-w-[120px] md:max-w-none">{formatName(r)}</span>
+                <tr
+                  key={r.id}
+                  data-testid={`standings-row-${r.teamId}`}
+                  className="group transition-colors hover:bg-white/5"
+                >
+                  <td className="px-2 py-3 text-center font-medium text-slate-500 group-hover:text-slate-300 sm:px-3 md:px-4">
+                    {idx + 1}
                   </td>
-                  <td className="px-6 py-4 text-center text-slate-300 group-hover:text-white font-medium">{r.P}</td>
-                  <td className="px-6 py-4 text-center text-slate-300 group-hover:text-white font-medium">{r.W}</td>
-                  <td className="px-6 py-4 text-center text-slate-300 group-hover:text-white font-medium">{r.D}</td>
-                  <td className="px-6 py-4 text-center text-slate-300 group-hover:text-white font-medium">{r.L}</td>
-                  <td className="px-6 py-4 text-center text-slate-500 hidden md:table-cell">{r.GF}</td>
-                  <td className="px-6 py-4 text-center text-slate-500 hidden md:table-cell">{r.GA}</td>
-                  <td className="px-6 py-4 text-center text-slate-300 font-medium">{r.GD}</td>
-                  <td className="px-6 py-4 text-center font-black text-green-400 text-base md:text-lg bg-white/5 border-l border-white/5 shadow-[inset_0_0_20px_rgba(74,222,128,0.05)]">
+                  <td className="px-2 py-3 font-bold text-white sm:px-3 md:px-4">
+                    <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+                      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-white/5 bg-slate-800 sm:h-8 sm:w-8">
+                        <Shield className="h-3.5 w-3.5 text-purple-400 opacity-80 sm:h-4 sm:w-4" />
+                      </div>
+                      <span className="block truncate">{formatName(r)}</span>
+                    </div>
+                  </td>
+                  <td className="px-1 py-3 text-center font-medium text-slate-300 group-hover:text-white sm:px-2 md:px-3">{r.P}</td>
+                  <td className="px-1 py-3 text-center font-medium text-slate-300 group-hover:text-white sm:px-2 md:px-3">{r.W}</td>
+                  <td className="px-1 py-3 text-center font-medium text-slate-300 group-hover:text-white sm:px-2 md:px-3">{r.D}</td>
+                  <td className="px-1 py-3 text-center font-medium text-slate-300 group-hover:text-white sm:px-2 md:px-3">{r.L}</td>
+                  <td className="hidden px-2 py-3 text-center text-slate-500 md:table-cell md:px-3">{r.GF}</td>
+                  <td className="hidden px-2 py-3 text-center text-slate-500 md:table-cell md:px-3">{r.GA}</td>
+                  <td className="hidden px-2 py-3 text-center font-medium text-slate-300 sm:table-cell sm:px-3">{r.GD}</td>
+                  <td className="border-l border-white/5 bg-white/5 px-1 py-3 text-center text-sm font-black text-green-400 shadow-[inset_0_0_20px_rgba(74,222,128,0.05)] sm:px-2 sm:text-base md:px-3 md:text-lg">
                     {r.Pts}
                   </td>
                 </tr>
@@ -137,3 +147,4 @@ export default function LeagueDetailPage() {
     </div>
   );
 }
+

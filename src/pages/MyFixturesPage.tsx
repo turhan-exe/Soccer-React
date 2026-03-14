@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Capacitor } from '@capacitor/core';
 import { Shield, Loader2, Radio } from 'lucide-react';
@@ -92,12 +92,48 @@ export default function MyFixturesPage() {
   const [fixtures, setFixtures] = useState<DisplayFixture[]>([]);
   const [loading, setLoading] = useState(true);
   const [joiningFixtureId, setJoiningFixtureId] = useState<string | null>(null);
+  const leagueUnitySessionActiveRef = useRef(false);
 
   const matchControlReady = useMemo(() => isMatchControlConfigured(), []);
   const canLaunchNativeLeagueMatch = useMemo(
     () => Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'android',
     [],
   );
+
+  useEffect(() => {
+    let removeListener: (() => Promise<void>) | null = null;
+    let disposed = false;
+
+    if (!canLaunchNativeLeagueMatch) {
+      return () => {};
+    }
+
+    void unityBridge
+      .onUnityEvent((event) => {
+        if (disposed || !leagueUnitySessionActiveRef.current) {
+          return;
+        }
+
+        const type = String(event?.type || '').trim().toLowerCase();
+        if (type === 'closed' || type === 'connection_failed' || type === 'error') {
+          leagueUnitySessionActiveRef.current = false;
+          navigate('/');
+        }
+      })
+      .then((remove) => {
+        removeListener = remove;
+      })
+      .catch((error) => {
+        console.warn('[MyFixturesPage] Unity event listener registration failed', error);
+      });
+
+    return () => {
+      disposed = true;
+      if (removeListener) {
+        void removeListener();
+      }
+    };
+  }, [canLaunchNativeLeagueMatch, navigate]);
 
   useEffect(() => {
     let alive = true;
@@ -239,6 +275,7 @@ export default function MyFixturesPage() {
         pollMs: 700,
       });
 
+      leagueUnitySessionActiveRef.current = true;
       await unityBridge.launchMatchActivity(readyMatch.serverIp, readyMatch.serverPort, {
         matchId: readyMatch.matchId,
         joinTicket: ticket.joinTicket,
@@ -250,6 +287,7 @@ export default function MyFixturesPage() {
 
       toast.success('Canlı maç bağlantısı başlatıldı.');
     } catch (error) {
+      leagueUnitySessionActiveRef.current = false;
       console.error('[MyFixturesPage] Live league join failed.', error);
       toast.error(getErrorMessage(error, 'Canlı maça bağlanılamadı.'));
     } finally {

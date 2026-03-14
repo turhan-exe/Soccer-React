@@ -11,6 +11,8 @@ API_DIR="/opt/football-manager-ui/services/match-control-api"
 API_ENV="$API_DIR/.env"
 API_SRC="$API_DIR/src/index.js"
 API_LOG="/var/log/match-control-api.log"
+API_UNIT_SRC="/tmp/match-control-api.service"
+API_UNIT_DST="/etc/systemd/system/match-control-api.service"
 
 if [[ ! -f "$API_ENV" ]]; then
   echo "ERROR: $API_ENV not found"
@@ -19,6 +21,11 @@ fi
 
 if [[ ! -f "$API_SRC" ]]; then
   echo "ERROR: $API_SRC not found"
+  exit 1
+fi
+
+if [[ ! -f "$API_UNIT_SRC" ]]; then
+  echo "ERROR: $API_UNIT_SRC not found"
   exit 1
 fi
 
@@ -69,13 +76,24 @@ else
 fi
 
 echo "---- restart ----"
+sudo install -m 644 "$API_UNIT_SRC" "$API_UNIT_DST"
+sudo systemctl daemon-reload
+sudo systemctl enable match-control-api.service >/dev/null 2>&1 || true
 sudo fuser -k 8080/tcp || true
-nohup node src/index.js >"$API_LOG" 2>&1 &
-sleep 2
+sudo systemctl restart match-control-api.service
+sleep 3
 
 echo "---- process check ----"
+sudo systemctl is-active --quiet match-control-api.service || {
+  echo "ERROR: match-control-api.service is not active"
+  sudo systemctl status match-control-api.service --no-pager || true
+  tail -n 60 "$API_LOG" || true
+  exit 1
+}
+
 ss -ltnp | grep ':8080' || {
   echo "ERROR: nothing is listening on :8080"
+  sudo systemctl status match-control-api.service --no-pager || true
   tail -n 60 "$API_LOG" || true
   exit 1
 }
