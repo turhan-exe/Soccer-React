@@ -1,0 +1,18 @@
+[Unit]
+Description=MGX Match Control API
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/football-manager-ui/services/match-control-api
+EnvironmentFile=/opt/football-manager-ui/services/match-control-api/.env
+ExecStart=/usr/bin/env node src/index.js
+Restart=always
+RestartSec=3
+User=root
+StandardOutput=append:/var/log/match-control-api.log
+StandardError=append:/var/log/match-control-api.log
+
+[Install]
+WantedBy=multi-user.target

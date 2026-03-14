@@ -1,0 +1,64 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+*.local
+.env
+.env.*
+!.env.example
+!**/.env.example
+live-league-secrets.txt
+*firebase-adminsdk*.json
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+*.json text eol=lf working-tree-encoding=UTF-8
+
+
+# Keystore files
+android/keystore.properties
+android/*.keystore
+*.keystore
+
+# Unity WebGL Exports (Large files)
+public/Unity/**/*.wasm
+public/Unity/**/*.data
+public/Unity/**/*.bundle
+public/Unity/**/*.framework.js
+public/Unity/**/*.loader.js
+public/Unity/**/Builds.loader.js
+public/Unity/**/*.zip
+*.dwlt
+
+# Android Build Artifacts
+*.apk
+*.aab
+android/app/build/
+
+# Unity Shared Libraries
+**/GameAssembly.so
+
+# Certificates and Keys (Security)
+*.p12
+*.mobileprovision
+*.csr
+*.key
+*.cer
+*.pem
+*.keystore

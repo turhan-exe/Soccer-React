@@ -1,0 +1,7 @@
+{
+  "projects": {
+    "default": "osm-react",
+    "staging": "osm-react",
+    "prod": "osm-react"
+  }
+}

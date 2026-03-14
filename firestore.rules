@@ -1,0 +1,146 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    // --- USERS ---
+    match /users/{uid} {
+      allow read: if isSignedIn();
+      allow write: if isOwner(uid);
+      
+      // Subcollections
+      match /youthCandidates/{candidateId} {
+        allow read, write: if isOwner(uid);
+      }
+      match /notifications/{notificationId} {
+        allow read, write: if isOwner(uid);
+      }
+      match /friends/{friendId} {
+        allow read: if isSignedIn();
+        allow write: if isSignedIn() && (isOwner(uid) || request.auth.uid == friendId);
+      }
+      match /rentedLegends/{rentalId} {
+        allow read, write: if isOwner(uid);
+      }
+      match /training/{documentId} {
+        allow read, write: if isOwner(uid);
+      }
+      match /trainingHistory/{recordId} {
+        allow read, write: if isOwner(uid);
+      }
+      match /sponsorships/{sponsorId} {
+        allow read, write: if isOwner(uid);
+      }
+    }
+
+    // --- LEAGUES & STANDINGS (Admin Repair Fix) ---
+    // Allow authenticated users to manage leagues and standings for repair tool
+    match /leagues/{leagueId} {
+      allow read: if true;
+      allow write: if isSignedIn();
+
+      match /{document=**} {
+        allow read: if true;
+        allow write: if isSignedIn();
+      }
+    }
+
+    // Allow standings at root level if accessed directly
+    match /standings/{teamId} {
+       allow read: if true;
+       allow write: if isSignedIn();
+    }
+
+    // --- TEAMS ---
+    match /teams/{teamId} {
+      allow read: if true;
+      allow create: if isSignedIn() && request.resource.data.ownerUid == request.auth.uid;
+      allow update, delete: if isOwner(resource.data.ownerUid);
+    }
+    
+    match /teams/{teamId}/stadium/{documentId} {
+      allow read: if true;
+      allow write: if isOwner(get(/databases/$(database)/documents/teams/$(teamId)).data.ownerUid);
+    }
+
+    match /teams/{teamId}/salaries/{documentId} {
+      allow read, write: if isOwner(get(/databases/$(database)/documents/teams/$(teamId)).data.ownerUid);
+    }
+
+    // --- FINANCE ---
+    match /finance/{uid} {
+      allow read, write: if isOwner(uid);
+    }
+
+    match /finance/history/{uid}/{entryId} {
+      allow read, write: if isOwner(uid);
+    }
+
+    match /finance/credits/{uid}/{entryId} {
+      allow read, write: if isOwner(uid);
+    }
+
+    // --- SOCIAL ---
+    // Global Chat
+    match /globalChatMessages/{messageId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+    }
+
+    // Chat moderation state (read-only for authenticated users, write-only by server/admin SDK)
+    match /chatSanctions/{sanctionId} {
+      allow read: if isSignedIn();
+      allow write: if false;
+    }
+
+    match /chatModerationLogs/{logId} {
+      allow read: if isSignedIn();
+      allow write: if false;
+    }
+
+    // Friend Requests
+    match /friend_requests/{requestId} {
+      allow read, write: if isSignedIn();
+    }
+
+    // Private Chats
+    match /private_chats/{chatId} {
+      allow read: if isSignedIn(); 
+      allow write: if isSignedIn();
+
+      match /messages/{messageId} {
+        allow read, write: if isSignedIn();
+      }
+    }
+
+    // --- MARKETPLACE & OTHERS ---
+    match /sponsorship_catalog/{entryId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    match /transferListings/{listingId} {
+      allow read: if isSignedIn();
+      allow write: if false; 
+    }
+
+    // Match Plans (Server Only Writes)
+    match /matchPlans/{matchId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // Fixtures (Defensive)
+    match /fixtures/{id} { 
+      allow read: if true; 
+      allow write: if false; 
+    }
+  }
+}

@@ -1,0 +1,18 @@
+[Unit]
+Description=MGX Node Agent
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/football-manager-ui/services/node-agent
+EnvironmentFile=/opt/football-manager-ui/services/node-agent/.env
+ExecStart=/usr/bin/env node src/index.js
+Restart=always
+RestartSec=3
+User=root
+StandardOutput=append:/var/log/node-agent.log
+StandardError=append:/var/log/node-agent.log
+
+[Install]
+WantedBy=multi-user.target

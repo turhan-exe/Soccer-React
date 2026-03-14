@@ -1,0 +1,190 @@
+.legend-card-wrapper {
+  width: min(280px, 75vw);
+  aspect-ratio: 2 / 3;
+  margin: 0 auto;
+  perspective: 1200px;
+  display: flex;
+  align-items: stretch;
+}
+
+.legend-card {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  border-radius: 20px;
+  overflow: hidden;
+  transform-style: preserve-3d;
+  transition: transform 1s ease, box-shadow 1s ease;
+  box-shadow: 0 24px 60px rgba(4, 9, 24, 0.45);
+  background: #0f172a;
+  color: #f8fafc;
+}
+
+.legend-card.reveal {
+  transform: rotateY(180deg);
+  box-shadow: 0 0 50px rgba(255, 215, 0, 0.65);
+}
+
+.legend-card.show {
+  transform: rotateY(0deg);
+}
+
+.legend-card-bg {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  transform: scale(1.03);
+  transition: transform 0.8s ease, filter 0.5s ease;
+  filter: saturate(1.05) contrast(1.05);
+}
+
+.legend-card.show .legend-card-bg {
+  transform: scale(1);
+}
+
+.legend-card:hover .legend-card-bg {
+  transform: scale(1.08);
+  filter: saturate(1.2) contrast(1.1);
+}
+
+.legend-card-content {
+  position: relative;
+  z-index: 1;
+  height: 100%;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 2.75rem;
+}
+
+.legend-card-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  margin-top: 0.75rem;
+}
+
+.legend-card-tag,
+.legend-card-rarity {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.45rem 0.9rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-weight: 600;
+  background: rgba(6, 11, 25, 0.6);
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 12px 30px rgba(3, 8, 20, 0.35);
+}
+
+.legend-card-rarity.legend {
+  color: #ffe082;
+  border-color: rgba(255, 215, 0, 0.6);
+}
+
+.legend-card-rarity.rare {
+  color: #c9b6ff;
+  border-color: rgba(196, 181, 253, 0.5);
+}
+
+.legend-card-rarity.common {
+  color: #d1d9e6;
+  border-color: rgba(226, 232, 240, 0.45);
+}
+
+
+.legend-card-bottom {
+  margin-top: auto;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.25rem;
+  padding-bottom: 0.5rem;
+}
+
+.legend-card-role {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.45rem 1rem;
+  border-radius: 14px;
+  background: rgba(6, 11, 25, 0.62);
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  box-shadow: 0 14px 32px rgba(4, 7, 18, 0.4);
+  font-size: 0.82rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(248, 250, 252, 0.92);
+}
+
+.legend-card-actions {
+  width: 100%;
+  display: flex;
+  gap: 0.75rem;
+  padding: 0.85rem 1rem;
+  border-radius: 999px;
+  background: rgba(7, 12, 30, 0.58);
+  backdrop-filter: blur(16px);
+  box-shadow: 0 18px 40px rgba(5, 8, 20, 0.45);
+}
+
+.legend-card-actions button {
+  flex: 1 1 auto;
+  min-width: 0;
+  backdrop-filter: none;
+}
+
+.legend-card-accept {
+  background: linear-gradient(135deg, rgba(236, 72, 153, 0.95), rgba(59, 130, 246, 0.95)) !important;
+  color: #0b1225 !important;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  box-shadow: 0 18px 40px rgba(236, 72, 153, 0.4);
+  border: none !important;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, filter 0.2s ease;
+}
+
+.legend-card-accept:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 22px 48px rgba(59, 130, 246, 0.45);
+  filter: saturate(1.12);
+}
+
+.legend-card-release {
+  background: rgba(15, 23, 42, 0.68) !important;
+  border: 1px solid rgba(148, 163, 184, 0.45) !important;
+  color: rgba(226, 232, 240, 0.9) !important;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  transition: background 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+}
+
+.legend-card-release:hover {
+  background: rgba(30, 41, 59, 0.8) !important;
+  border-color: rgba(148, 163, 184, 0.7) !important;
+  transform: translateY(-1px);
+}
+
+@media (min-width: 640px) {
+  .legend-card-wrapper {
+    width: 300px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .legend-card-wrapper {
+    width: 320px;
+  }
+}

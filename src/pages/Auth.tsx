@@ -1,0 +1,517 @@
+import React, { useState } from 'react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import AppLogo from '@/components/AppLogo';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Separator } from '@/components/ui/separator';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { useAuth } from '@/contexts/AuthContext';
+import { toast } from 'sonner';
+import { Loader2, Chrome, Apple } from 'lucide-react';
+import { FirebaseError } from 'firebase/app';
+
+const getRegisterErrorMessage = (error: unknown): string => {
+  if (error instanceof FirebaseError) {
+    const map: Record<string, string> = {
+      'auth/email-already-in-use': 'Bu e-posta adresi zaten kullanımda.',
+      'auth/invalid-email': 'Geçerli bir e-posta adresi girin.',
+      'auth/weak-password': 'Şifreniz en az 6 karakter olmalı.',
+      'auth/operation-not-allowed': 'Kayıt işlemi devre dışı. Lütfen daha sonra tekrar deneyin.',
+      'permission-denied': 'Takım oluşturulamadı. Lütfen tekrar deneyin.',
+    };
+    const friendly = map[error.code];
+    if (friendly) {
+      return friendly;
+    }
+    if (error.message) {
+      return error.message;
+    }
+  }
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+  return 'Kayıt başarısız';
+};
+
+const getSocialAuthErrorMessage = (provider: 'google' | 'apple', error: unknown): string => {
+  const normalizeMessage = (err: unknown) => {
+    if (err && typeof err === 'object' && 'message' in err) {
+      return String((err as { message?: string }).message ?? '');
+    }
+    if (typeof err === 'string') {
+      return err;
+    }
+    return '';
+  };
+
+  const message = normalizeMessage(error).trim();
+  if (provider === 'google') {
+    if (/^10:?/.test(message)) {
+      return 'Google oturumu başlatılamadı. Firebase projenize Android SHA-1/SHA-256 imzalarını ekleyip yeni google-services.json dosyasını indirin ve projeye kopyalayın.';
+    }
+  }
+
+  if (error instanceof FirebaseError) {
+    const codeMap: Record<string, string> = {
+      'auth/popup-blocked': 'Tarayici acilir pencere engellemesini kaldirin ve tekrar deneyin.',
+      'auth/popup-closed-by-user': 'Oturum penceresini kapattiniz. Lutfen tekrar deneyin.',
+      'auth/cancelled-popup-request': 'Baska bir oturum istegi zaten isleniyor. Lutfen tekrar deneyin.',
+      'auth/unauthorized-domain': 'Bu alan Google girisi icin yetkilendirilmemis. Lutfen yonetici ile iletisime gecin.',
+    };
+    const friendly = codeMap[error.code];
+    if (friendly) {
+      return friendly;
+    }
+    if (error.message) {
+      return error.message;
+    }
+  }
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+  if (message) {
+    return message;
+  }
+  return provider === 'google' ? 'Google ile giris basarisiz' : 'Apple ile giris basarisiz';
+};
+
+const getPasswordResetErrorMessage = (error: unknown): string => {
+  if (error instanceof FirebaseError) {
+    const map: Record<string, string> = {
+      'auth/invalid-email': 'Ge��erli bir e-posta adresi girin.',
+      'auth/user-not-found': 'Bu e-posta ile kay��tl�� kullan��c�� bulunamad��.',
+      'auth/too-many-requests': 'Çok fazla deneme yap��ld��. Lütfen daha sonra tekrar deneyin.',
+    };
+    const friendly = map[error.code];
+    if (friendly) {
+      return friendly;
+    }
+    if (error.message) {
+      return error.message;
+    }
+  }
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+  return '�?ifre s��f��rlama ba��lant��s�� g��nderilemedi';
+};
+
+export default function Auth() {
+  const {
+    login,
+    register,
+    loginWithGoogle,
+    loginWithApple,
+    registerWithGoogle,
+    registerWithApple,
+    resetPassword,
+    isLoading,
+  } = useAuth();
+  const [loginForm, setLoginForm] = useState({ email: '', password: '' });
+  const [registerForm, setRegisterForm] = useState({ email: '', password: '', teamName: '' });
+  const [socialTeamName, setSocialTeamName] = useState('');
+  const [socialProvider, setSocialProvider] = useState<'google' | 'apple' | null>(null);
+  const [isSocialDialogOpen, setIsSocialDialogOpen] = useState(false);
+  const [isResetDialogOpen, setIsResetDialogOpen] = useState(false);
+  const [resetEmail, setResetEmail] = useState('');
+  const [isSendingReset, setIsSendingReset] = useState(false);
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!loginForm.email || !loginForm.password) {
+      toast.error('Lütfen tüm alanları doldurun');
+      return;
+    }
+    try {
+      await login(loginForm.email, loginForm.password);
+      
+      toast.success('Başarıyla giriş yapıldı!');
+       console.log("login ok:", loginForm.email);
+    } catch (error) {
+      toast.error('Giriş başarısız');
+      console.error("login error:", error);
+    }
+  };
+
+  const handlePasswordReset = async (event: React.FormEvent) => {
+    event.preventDefault();
+    const email = (resetEmail || loginForm.email).trim();
+    if (!email) {
+      toast.error('Lütfen e-posta adresinizi girin');
+      return;
+    }
+    setIsSendingReset(true);
+    try {
+      await resetPassword(email);
+      toast.success('�?ifre s��f��rlama ba��lant��s�� e-postan��za g��nderildi.');
+      setIsResetDialogOpen(false);
+    } catch (error) {
+      toast.error(getPasswordResetErrorMessage(error));
+    } finally {
+      setIsSendingReset(false);
+    }
+  };
+
+  const handleRegister = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmedTeamName = registerForm.teamName.trim();
+    if (!registerForm.email || !registerForm.password || !trimmedTeamName) {
+      toast.error('Lütfen tüm alanları doldurun');
+      return;
+    }
+    try {
+      await register(registerForm.email, registerForm.password, trimmedTeamName);
+      toast.success('Hesap başarıyla oluşturuldu!');
+    } catch (error) {
+      console.error('register error:', error);
+      toast.error(getRegisterErrorMessage(error));
+    }
+  };
+
+  const handleGoogleAuth = async () => {
+    try {
+      await loginWithGoogle();
+      toast.success('Başarıyla giriş yapıldı!');
+    } catch (error) {
+      toast.error(getSocialAuthErrorMessage('google', error));
+      console.error('google login error:', error);
+    }
+  };
+
+  const handleAppleAuth = async () => {
+    try {
+      await loginWithApple();
+      toast.success('Başarıyla giriş yapıldı!');
+    } catch (error) {
+      toast.error(getSocialAuthErrorMessage('apple', error));
+      console.error('apple login error:', error);
+    }
+  };
+
+  const openSocialRegister = (provider: 'google' | 'apple') => {
+    setSocialProvider(provider);
+    setSocialTeamName('');
+    setIsSocialDialogOpen(true);
+  };
+
+  const handleSocialRegister = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!socialProvider) return;
+
+    const trimmedName = socialTeamName.trim();
+    if (!trimmedName) {
+      toast.error('Lütfen takım adınızı girin');
+      return;
+    }
+
+    try {
+      if (socialProvider === 'google') {
+        await registerWithGoogle(trimmedName);
+      } else {
+        await registerWithApple(trimmedName);
+      }
+      toast.success('Hesap başarıyla oluşturuldu!');
+      setIsSocialDialogOpen(false);
+      setSocialProvider(null);
+      setSocialTeamName('');
+    } catch (error) {
+      toast.error('Sosyal kayıt başarısız');
+      console.error('social register error:', error);
+    }
+  };
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-green-50 via-emerald-50 to-teal-50 dark:from-green-950 dark:via-emerald-950 dark:to-teal-950 p-4">
+      <Card className="w-full max-w-md">
+        <CardHeader className="space-y-3 text-center">
+          <AppLogo size="md" className="mx-auto" />
+          <CardTitle className="text-2xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
+            FHS FUTBOL MENEJERLİK
+          </CardTitle>
+          <CardDescription>
+            Takımınızı yönetin ve şampiyonluğa ulaşın
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Tabs defaultValue="login" className="space-y-4">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="login">Giriş Yap</TabsTrigger>
+              <TabsTrigger value="register">Kayıt Ol</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="login" className="space-y-4">
+              <form onSubmit={handleLogin} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="login-email">E-posta</Label>
+                  <Input
+                    id="login-email"
+                    type="email"
+                    placeholder="ornek@email.com"
+                    value={loginForm.email}
+                    onChange={(e) => setLoginForm(prev => ({ ...prev, email: e.target.value }))}
+                    disabled={isLoading}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="login-password">Şifre</Label>
+                  <Input
+                    id="login-password"
+                    type="password"
+                    placeholder="••••••••"
+                    value={loginForm.password}
+                    onChange={(e) => setLoginForm(prev => ({ ...prev, password: e.target.value }))}
+                    disabled={isLoading}
+                  />
+                </div>
+                <div className="flex justify-end">
+                  <Button
+                    type="button"
+                    variant="link"
+                    className="px-0 text-xs"
+                    onClick={() => {
+                      setResetEmail(loginForm.email);
+                      setIsResetDialogOpen(true);
+                    }}
+                    disabled={isLoading}
+                  >
+                    Şifremi Unuttum
+                  </Button>
+                </div>
+                <Button type="submit" className="w-full" disabled={isLoading}>
+                  {isLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                  Giriş Yap
+                </Button>
+              </form>
+
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                  <Separator />
+                </div>
+                <div className="relative flex justify-center text-xs uppercase">
+                  <span className="bg-background px-2 text-muted-foreground">veya</span>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={handleGoogleAuth}
+                  disabled={isLoading}
+                >
+                  <Chrome className="w-4 h-4 mr-2" />
+                  Google ile Giriş
+                </Button>
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={handleAppleAuth}
+                  disabled={isLoading}
+                >
+                  <Apple className="w-4 h-4 mr-2" />
+                  Apple ile Giriş
+                </Button>
+              </div>
+            </TabsContent>
+
+            <TabsContent value="register" className="space-y-4">
+              <form onSubmit={handleRegister} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="register-email">E-posta</Label>
+                  <Input
+                    id="register-email"
+                    type="email"
+                    placeholder="ornek@email.com"
+                    value={registerForm.email}
+                    onChange={(e) => setRegisterForm(prev => ({ ...prev, email: e.target.value }))}
+                    disabled={isLoading}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="register-password">Şifre</Label>
+                  <Input
+                    id="register-password"
+                    type="password"
+                    placeholder="••••••••"
+                    value={registerForm.password}
+                    onChange={(e) => setRegisterForm(prev => ({ ...prev, password: e.target.value }))}
+                    disabled={isLoading}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="team-name">Takım Adı</Label>
+                  <Input
+                    id="team-name"
+                    placeholder="Takım adınızı girin"
+                    value={registerForm.teamName}
+                    onChange={(e) => setRegisterForm(prev => ({ ...prev, teamName: e.target.value }))}
+                    disabled={isLoading}
+                  />
+                </div>
+                <Button type="submit" className="w-full" disabled={isLoading}>
+                  {isLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                  Hesap Oluştur
+                </Button>
+              </form>
+
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                  <Separator />
+                </div>
+                <div className="relative flex justify-center text-xs uppercase">
+                  <span className="bg-background px-2 text-muted-foreground">veya</span>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => openSocialRegister('google')}
+                  disabled={isLoading}
+                >
+                  <Chrome className="w-4 h-4 mr-2" />
+                  Google ile Kayıt
+                </Button>
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => openSocialRegister('apple')}
+                  disabled={isLoading}
+                >
+                  <Apple className="w-4 h-4 mr-2" />
+                  Apple ile Kayıt
+                </Button>
+              </div>
+            </TabsContent>
+          </Tabs>
+
+          <div className="mt-6 text-center text-xs text-muted-foreground">
+            Kayıt olarak{' '}
+            <a href="#" className="underline underline-offset-4 hover:text-primary">
+              Gizlilik Politikası
+            </a>{' '}
+            ve{' '}
+            <a href="#" className="underline underline-offset-4 hover:text-primary">
+              Kullanım Şartları
+            </a>
+            'nı kabul etmiş olursunuz.
+          </div>
+        </CardContent>
+      </Card>
+      <Dialog
+        open={isResetDialogOpen}
+        onOpenChange={(open) => {
+          setIsResetDialogOpen(open);
+          if (!open) {
+            setResetEmail('');
+          }
+        }}
+      >
+        <DialogContent>
+          <form onSubmit={handlePasswordReset} className="space-y-4">
+            <DialogHeader>
+              <DialogTitle>�?ifreyi S��f��rla</DialogTitle>
+              <DialogDescription>
+                Kay��tl�� e-posta adresine s��f��rlama ba��lant��s�� g��nderece�Yiz.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-2">
+              <Label htmlFor="reset-email">E-posta</Label>
+              <Input
+                id="reset-email"
+                type="email"
+                placeholder="ornek@email.com"
+                value={resetEmail}
+                onChange={(event) => setResetEmail(event.target.value)}
+                disabled={isSendingReset || isLoading}
+              />
+            </div>
+            <DialogFooter className="gap-2 sm:gap-0">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setIsResetDialogOpen(false);
+                  setResetEmail('');
+                }}
+                disabled={isSendingReset}
+              >
+                Vazge��
+              </Button>
+              <Button type="submit" disabled={isSendingReset || isLoading}>
+                {isSendingReset ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                Ba��lant�� G��nder
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+      <Dialog
+        open={isSocialDialogOpen}
+        onOpenChange={(open) => {
+          setIsSocialDialogOpen(open);
+          if (!open) {
+            setSocialProvider(null);
+            setSocialTeamName('');
+          }
+        }}
+      >
+        <DialogContent>
+          <form onSubmit={handleSocialRegister} className="space-y-4">
+            <DialogHeader>
+              <DialogTitle>
+                {socialProvider === 'google'
+                  ? 'Google ile Kayıt'
+                  : socialProvider === 'apple'
+                    ? 'Apple ile Kayıt'
+                    : 'Sosyal Kayıt'}
+              </DialogTitle>
+              <DialogDescription>
+                Takımınız için özel bir isim belirleyin.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-2">
+              <Label htmlFor="social-team-name">Takım Adı</Label>
+              <Input
+                id="social-team-name"
+                value={socialTeamName}
+                onChange={(event) => setSocialTeamName(event.target.value)}
+                placeholder="Takım adınızı girin"
+                disabled={isLoading}
+              />
+            </div>
+
+            <DialogFooter className="gap-2 sm:gap-0">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setIsSocialDialogOpen(false);
+                  setSocialProvider(null);
+                  setSocialTeamName('');
+                }}
+              >
+                Vazgeç
+              </Button>
+              <Button type="submit" disabled={isLoading}>
+                {isLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                Kayıt Ol
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
