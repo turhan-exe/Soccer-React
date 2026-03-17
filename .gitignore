@@ -1,15 +1,16 @@
-# Logs
-logs
-*.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-lerna-debug.log*
+# Dependencies
+node_modules/
+src/functions/node_modules/
+services/*/node_modules/
 
-node_modules
-dist
-dist-ssr
+# Build outputs
+dist/
+dist-ssr/
+coverage/
+src/functions/lib/
+*.tsbuildinfo
+
+# Environment and local config
 *.local
 .env
 .env.*
@@ -18,43 +19,100 @@ dist-ssr
 live-league-secrets.txt
 *firebase-adminsdk*.json
 
-# Editor directories and files
+# Temp and caches
+.tmp/
+tmp-build/
+.firebase/
+.cache/
+.parcel-cache/
+
+# Logs and debug dumps
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+firebase-debug.log
+friendly_*.txt
+unity_*.txt
+logcat_*.txt
+tmp-*.log
+.tmp-*.log
+render-test.mp4
+docs/benchmark-reports/*.txt
+
+# Editor and OS files
 .vscode/*
 !.vscode/extensions.json
-.idea
+.idea/
 .DS_Store
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
 *.sw?
-*.json text eol=lf working-tree-encoding=UTF-8
 
-
-# Keystore files
-android/keystore.properties
-android/*.keystore
-*.keystore
-
-# Unity WebGL Exports (Large files)
-public/Unity/**/*.wasm
-public/Unity/**/*.data
-public/Unity/**/*.bundle
-public/Unity/**/*.framework.js
-public/Unity/**/*.loader.js
-public/Unity/**/Builds.loader.js
-public/Unity/**/*.zip
+# Archives and large generated artifacts
+*.apk
+*.ap_
+*.aab
+*.aar
+*.dex
+*.class
+*.tar
+*.tar.gz
+*.traceevents
+*.dbg.so
+*.sym.so
 *.dwlt
 
-# Android Build Artifacts
-*.apk
-*.aab
+# Android
+android/.gradle/
+android/build/
 android/app/build/
+android/_unity_patch_backup/
+android/*.keystore
+android/keystore.properties
+android/captures/
+android/.idea/
+android/local.properties
+android/app/src/main/assets/public/
+android/app/src/main/assets/capacitor.config.json
+android/app/src/main/assets/capacitor.plugins.json
+android/app/src/main/res/xml/config.xml
+android/unityLibrary/build/
+android/unityLibrary/symbols/
+android/unityLibrary/src/main/Il2CppOutputProject/
+android/unityLibrary/src/main/jniLibs/
+android/unityLibrary/src/main/jniStaticLibs/
+android/unityLibrary/src/main/assets/aa/
+android/unityLibrary/src/main/assets/bin/
 
-# Unity Shared Libraries
+# iOS / Capacitor
+ios/App/build/
+ios/App/Pods/
+ios/App/output/
+ios/App/App/public/
+ios/DerivedData/
+ios/xcuserdata/
+ios/capacitor-cordova-ios-plugins/
+ios/App/App/capacitor.config.json
+ios/App/App/config.xml
+
+# Unity
 **/GameAssembly.so
+Unity/Headless/Build/**
+!Unity/Headless/Build/Dockerfile
+Unity/Render/Build/**
+!Unity/Render/Build/Dockerfile
+!Unity/Render/Build/entrypoint.sh
+!Unity/Render/Build/entrypoint_setup.sh
+Unity/LinuxBuild/
+public/Unity/
 
-# Certificates and Keys (Security)
+# Certificates and keys
 *.p12
 *.mobileprovision
 *.csr

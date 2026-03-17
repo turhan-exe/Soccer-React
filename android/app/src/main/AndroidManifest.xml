@@ -39,9 +39,6 @@
         <activity
             android:name=".unity.UnityHostActivity"
             android:exported="false"
-            android:taskAffinity="com.nerbuss.fhsmanager.unity"
-            android:launchMode="singleTask"
-            android:excludeFromRecents="true"
             android:screenOrientation="sensorLandscape"
             android:resizeableActivity="false"
             android:theme="@style/AppTheme.NoActionBarLaunch" />
@@ -52,8 +49,6 @@
             android:exported="false"
             android:hardwareAccelerated="true"
             android:label="@string/app_name"
-            android:taskAffinity="com.nerbuss.fhsmanager.unity"
-            android:excludeFromRecents="true"
             android:resizeableActivity="false"
             android:screenOrientation="userLandscape"
             android:theme="@style/UnityThemeSelector">
