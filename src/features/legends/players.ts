@@ -10,7 +10,7 @@ export type LegendPlayer = {
   position: Player['position'];
 };
 
-export const LEGEND_PLAYERS: LegendPlayer[] = [
+const LEGEND_PLAYERS_RAW: LegendPlayer[] = [
   {
     id: 1,
     name: 'Pelé',
@@ -512,3 +512,8 @@ export const LEGEND_PLAYERS: LegendPlayer[] = [
     position: 'CM',
   },
 ];
+
+export const LEGEND_PLAYERS: LegendPlayer[] = LEGEND_PLAYERS_RAW.map((player) => ({
+  ...player,
+  image: player.image.replace(/\.png$/i, '.webp'),
+}));

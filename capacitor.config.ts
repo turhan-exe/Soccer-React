@@ -18,10 +18,6 @@ const config: CapacitorConfig = {
       providers: ['google.com', 'apple.com'],
     },
   },
-  server: {
-    // Domainsiz/HTTP API ile Android testinde WebView mixed-content blokunu önler.
-    androidScheme: 'http',
-  },
 };
 
 export default config;

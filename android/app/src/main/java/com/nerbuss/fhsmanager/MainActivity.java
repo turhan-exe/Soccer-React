@@ -23,7 +23,7 @@ public class MainActivity extends BridgeActivity {
   protected void onCreate(Bundle savedInstanceState) {
     registerPlugin(UnityMatchPlugin.class);
     super.onCreate(savedInstanceState);
-    allowHttpApiRequestsFromWebView();
+    hardenWebViewNetworkPolicy();
     enableImmersiveMode();
     dispatchPendingUnityShellReturn(getIntent());
     dispatchPendingUnityShellReturnFromBridgeState();
@@ -125,7 +125,7 @@ public class MainActivity extends BridgeActivity {
                     | WindowInsetsCompat.Type.navigationBars()));
   }
 
-  private void allowHttpApiRequestsFromWebView() {
+  private void hardenWebViewNetworkPolicy() {
     if (getBridge() == null || getBridge().getWebView() == null) {
       return;
     }
@@ -135,8 +135,7 @@ public class MainActivity extends BridgeActivity {
       return;
     }
 
-    // Domainsiz Hetzner testinde Capacitor WebView -> http://IP:8080 çağrılarını bloklamasın.
-    settings.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
+    settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
     getBridge().getWebView().setBackgroundColor(APP_BACKGROUND_COLOR);
   }
 }

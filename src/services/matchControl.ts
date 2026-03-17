@@ -1,7 +1,27 @@
 import { auth } from '@/services/firebase';
 import type { ClubTeam, Player as ClubPlayer } from '@/types';
 
-const BASE_URL = (import.meta.env.VITE_MATCH_CONTROL_BASE_URL || '').trim();
+function resolveMatchControlBaseUrl(): string {
+  const raw = (import.meta.env.VITE_MATCH_CONTROL_BASE_URL || '').trim();
+  if (!raw) return '';
+
+  try {
+    const parsed = new URL(raw);
+    const isLocalhost = ['localhost', '127.0.0.1'].includes(parsed.hostname);
+    if (import.meta.env.DEV || isLocalhost) {
+      return raw.replace(/\/$/, '');
+    }
+    if (parsed.protocol === 'https:') {
+      return raw.replace(/\/$/, '');
+    }
+  } catch {
+    return '';
+  }
+
+  return '';
+}
+
+const BASE_URL = resolveMatchControlBaseUrl();
 const STATIC_BEARER = (import.meta.env.VITE_MATCH_CONTROL_BEARER || '').trim();
 
 export type FriendlyRequestResponse = {
@@ -182,7 +202,7 @@ type MatchControlRequestInit = RequestInit & {
 
 async function requestJson<T>(path: string, init?: MatchControlRequestInit): Promise<T> {
   if (!BASE_URL) {
-    throw new Error('VITE_MATCH_CONTROL_BASE_URL is not configured.');
+    throw new Error('Match Control API production icin HTTPS uzerinden tanimlanmali.');
   }
 
   const buildHeaders = (authHeader: string | null): Record<string, string> => {
@@ -225,7 +245,7 @@ async function requestJson<T>(path: string, init?: MatchControlRequestInit): Pro
     if (error instanceof DOMException && error.name === 'AbortError') {
       throw new Error(`Match Control API timeout (${Math.round(timeoutMs / 1000)}s).`);
     }
-    throw new Error(`Match Control API ulasilamiyor: ${BASE_URL}`);
+      throw new Error(`Match Control API ulasilamiyor: ${BASE_URL}`);
   } finally {
     window.clearTimeout(timeout);
   }

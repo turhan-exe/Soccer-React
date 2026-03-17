@@ -1,5 +1,16 @@
 apply plugin: 'com.android.library'
 
+def allUnityAbis = ['armeabi-v7a', 'arm64-v8a', 'x86_64']
+def releaseUnityAbis = ['arm64-v8a']
+def debugUnityAbis = allUnityAbis
+def requestedTasks = gradle.startParameter.taskNames*.toLowerCase()
+def isReleaseBuild = requestedTasks.any { it.contains('release') }
+def selectedUnityAbis = isReleaseBuild ? releaseUnityAbis : debugUnityAbis
+def il2cppArchitectures = [
+    'armeabi-v7a': 'armv7',
+    'arm64-v8a' : 'arm64',
+    'x86_64'    : 'x64',
+]
 
 dependencies {
     implementation fileTree(dir: 'libs', include: ['*.jar'])
@@ -23,7 +34,7 @@ android {
         minSdkVersion 24
         targetSdkVersion 34
         ndk {
-            abiFilters 'armeabi-v7a', 'arm64-v8a', 'x86_64'
+            abiFilters(*selectedUnityAbis)
         }
         versionCode 131
         versionName '1.0.0'
@@ -40,9 +51,9 @@ android {
     }
 
     packagingOptions {
-        doNotStrip '*/armeabi-v7a/*.so'
-        doNotStrip '*/arm64-v8a/*.so'
-        doNotStrip '*/x86_64/*.so'
+        selectedUnityAbis.each { abi ->
+            doNotStrip "*/${abi}/*.so"
+        }
     }
 }
 
@@ -89,9 +100,14 @@ def BuildIl2Cpp(String workingDir, String configuration, String architecture, St
 android {
     task BuildIl2CppTask {
         doLast {
-              BuildIl2Cpp(projectDir.toString().replaceAll('\\\\', '/'), 'Release', 'armv7', 'armeabi-v7a', [  ] as String[]);
-              BuildIl2Cpp(projectDir.toString().replaceAll('\\\\', '/'), 'Release', 'arm64', 'arm64-v8a', [  ] as String[]);
-              BuildIl2Cpp(projectDir.toString().replaceAll('\\\\', '/'), 'Release', 'x64', 'x86_64', [  ] as String[]);
+              def normalizedProjectDir = projectDir.toString().replaceAll('\\\\', '/')
+              (allUnityAbis - selectedUnityAbis).each { abi ->
+                  delete "${normalizedProjectDir}/src/main/jniLibs/${abi}"
+                  delete "${normalizedProjectDir}/symbols/${abi}"
+              }
+              selectedUnityAbis.each { abi ->
+                  BuildIl2Cpp(normalizedProjectDir, 'Release', il2cppArchitectures[abi], abi, [  ] as String[]);
+              }
         }
     }
     afterEvaluate {
