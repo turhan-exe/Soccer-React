@@ -3,14 +3,11 @@ package com.unity3d.player;
 import android.app.Activity;
 import android.content.Intent;
 import android.content.res.Configuration;
-import android.graphics.PixelFormat;
+import android.os.Build;
 import android.os.Bundle;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
-import android.view.View;
 import android.view.Window;
-import android.view.WindowManager;
-import android.os.Process;
 
 public class UnityPlayerActivity extends Activity implements IUnityPlayerLifecycleEvents
 {
@@ -25,7 +22,23 @@ public class UnityPlayerActivity extends Activity implements IUnityPlayerLifecyc
     // @return the modified command line string or null
     protected String updateUnityCommandLineArguments(String cmdLine)
     {
+        if (isProbablyEmulator())
+        {
+            String safeCmdLine = cmdLine == null ? "" : cmdLine.trim();
+            if (!safeCmdLine.contains("-force-gles30"))
+            {
+                safeCmdLine = safeCmdLine.isEmpty() ? "-force-gles30" : safeCmdLine + " -force-gles30";
+            }
+
+            return safeCmdLine;
+        }
+
         return cmdLine;
+    }
+
+    protected boolean shouldDestroyUnityPlayerOnDestroy()
+    {
+        return true;
     }
 
     // Setup activity layout
@@ -64,7 +77,10 @@ public class UnityPlayerActivity extends Activity implements IUnityPlayerLifecyc
     // Quit Unity
     @Override protected void onDestroy ()
     {
-        mUnityPlayer.destroy();
+        if (mUnityPlayer != null && shouldDestroyUnityPlayerOnDestroy())
+        {
+            mUnityPlayer.destroy();
+        }
         super.onDestroy();
     }
 
@@ -143,4 +159,16 @@ public class UnityPlayerActivity extends Activity implements IUnityPlayerLifecyc
     @Override public boolean onKeyDown(int keyCode, KeyEvent event)   { return mUnityPlayer.onKeyDown(keyCode, event); }
     @Override public boolean onTouchEvent(MotionEvent event)          { return mUnityPlayer.onTouchEvent(event); }
     @Override public boolean onGenericMotionEvent(MotionEvent event)  { return mUnityPlayer.onGenericMotionEvent(event); }
+
+    private boolean isProbablyEmulator()
+    {
+        return Build.FINGERPRINT.startsWith("generic")
+            || Build.FINGERPRINT.startsWith("unknown")
+            || Build.MODEL.contains("google_sdk")
+            || Build.MODEL.contains("Emulator")
+            || Build.MODEL.contains("Android SDK built for x86")
+            || Build.MANUFACTURER.contains("Genymotion")
+            || (Build.BRAND.startsWith("generic") && Build.DEVICE.startsWith("generic"))
+            || "google_sdk".equals(Build.PRODUCT);
+    }
 }

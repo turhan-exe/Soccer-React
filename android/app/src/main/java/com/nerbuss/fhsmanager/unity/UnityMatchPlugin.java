@@ -42,6 +42,16 @@ public class UnityMatchPlugin extends Plugin {
       return;
     }
 
+    if (!UnityBridgeState.tryBeginUnityLaunch()) {
+      JSObject out = new JSObject();
+      out.put("ok", true);
+      out.put("nativeLaunch", false);
+      out.put("alreadyActive", true);
+      out.put("bridgeMode", "android-capacitor-plugin");
+      call.resolve(out);
+      return;
+    }
+
     Intent intent = new Intent(getActivity(), UnityHostActivity.class);
     intent.putExtra(UnityBridgeState.EXTRA_SERVER_IP, serverIp);
     intent.putExtra(UnityBridgeState.EXTRA_SERVER_PORT, port);
@@ -61,6 +71,7 @@ public class UnityMatchPlugin extends Plugin {
       out.put("bridgeMode", "android-capacitor-plugin");
       call.resolve(out);
     } catch (Throwable t) {
+      UnityBridgeState.markUnityLaunchFailed();
       if (t instanceof Exception) {
         call.reject("unity_host_launch_failed", (Exception) t);
       } else {

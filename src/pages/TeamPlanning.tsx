@@ -1149,8 +1149,16 @@ function TeamPlanningContent() {
           ? (team as { leagueId?: string | null }).leagueId
           : null;
 
+      const rawStartingCount = team.players.filter(player => player.squadRole === 'starting').length;
       const normalized = normalizePlayers(team.players);
+      const normalizedStartingCount = normalized.filter(player => player.squadRole === 'starting').length;
       setPlayers(normalized);
+
+      if (rawStartingCount > normalizedStartingCount) {
+        toast.warning(`\u0130lk 11 d\u00fczenlendi`, {
+          description: `Fazla oyuncular otomatik olarak yede\u011fe al\u0131nd\u0131. Kaydetmeyi unutmay\u0131n.`,
+        });
+      }
 
       const remoteFormation =
         team.plan?.formation || team.lineup?.formation || formations[0].name;

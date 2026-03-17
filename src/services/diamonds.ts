@@ -5,7 +5,6 @@ import {
   onSnapshot,
   Unsubscribe,
   runTransaction,
-  increment,
   collection,
   serverTimestamp,
 } from 'firebase/firestore';
@@ -39,7 +38,17 @@ export async function mockPurchaseDiamonds(
   const purchases = collection(userRef, 'diamondPurchases');
   try {
     await runTransaction(db, async (tx) => {
-      tx.update(userRef, { diamondBalance: increment(amount) });
+      const userSnap = await tx.get(userRef);
+      const currentBalance = userSnap.exists() ? Number(userSnap.data()?.diamondBalance ?? 0) : 0;
+      const nextBalance = Math.max(0, Math.round(currentBalance + amount));
+
+      tx.set(
+        userRef,
+        {
+          diamondBalance: nextBalance,
+        },
+        { merge: true },
+      );
       const purchaseRef = doc(purchases);
       tx.set(purchaseRef, {
         packId,
@@ -63,11 +72,15 @@ export async function spendDiamonds(uid: string, amount: number): Promise<void> 
   try {
     await runTransaction(db, async (tx) => {
       const snap = await tx.get(userRef);
-      const balance = (snap.data()?.diamondBalance ?? 0) as number;
+      const balance = Number(snap.data()?.diamondBalance ?? 0);
       if (balance < amount) {
         throw new Error('Yeterli elmas yok');
       }
-      tx.update(userRef, { diamondBalance: balance - amount });
+      tx.set(
+        userRef,
+        { diamondBalance: Math.max(0, Math.round(balance - amount)) },
+        { merge: true },
+      );
     });
   } catch (err) {
     console.warn(err);

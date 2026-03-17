@@ -217,18 +217,12 @@ export default function FinanceSummaryScreen() {
   }, [history, dateFormatter]);
 
   const expectedRevenue = useMemo(
-    () => getExpectedRevenue(stadium, userSponsors),
-    [stadium, userSponsors],
+    () => getExpectedRevenue(stadium, userSponsors, players),
+    [stadium, userSponsors, players],
   );
 
-  const matchEntries = useMemo(
-    () => history.filter((entry) => entry.type === 'income' && entry.category === 'match'),
-    [history],
-  );
-  const averageMatchIncome = matchEntries.length
-    ? matchEntries.reduce((sum, entry) => sum + entry.amount, 0) / matchEntries.length
-    : 0;
-  const dailyIncomeEstimate = totals.totalIncome / 30;
+  const averageMatchIncome = expectedRevenue.matchEstimate;
+  const dailyIncomeEstimate = expectedRevenue.projectedDailyIncome;
 
   if (!user) {
     return (
@@ -348,6 +342,9 @@ export default function FinanceSummaryScreen() {
                 config={stadiumConfig}
                 level={stadiumLevel}
                 nextConfig={nextLevelConfig}
+                estimatedMatchIncome={expectedRevenue.matchEstimate}
+                attendanceRate={expectedRevenue.attendanceRate}
+                occupiedSeats={expectedRevenue.occupiedSeats}
                 balance={balance}
                 upgrading={upgrading}
                 onUpgrade={handleUpgrade}

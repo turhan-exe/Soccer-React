@@ -29,6 +29,9 @@ service cloud.firestore {
       match /rentedLegends/{rentalId} {
         allow read, write: if isOwner(uid);
       }
+      match /diamondPurchases/{purchaseId} {
+        allow read, write: if isOwner(uid);
+      }
       match /training/{documentId} {
         allow read, write: if isOwner(uid);
       }

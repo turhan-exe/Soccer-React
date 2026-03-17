@@ -39,6 +39,7 @@
         <activity
             android:name=".unity.UnityHostActivity"
             android:exported="false"
+            android:launchMode="singleTask"
             android:screenOrientation="sensorLandscape"
             android:resizeableActivity="false"
             android:theme="@style/AppTheme.NoActionBarLaunch" />

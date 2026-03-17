@@ -187,6 +187,7 @@ public class UnityHostActivity extends Activity {
           serverPort);
     } catch (Throwable t) {
       waitingChildResult = false;
+      UnityBridgeState.markUnityLaunchFailed();
       UnityBridgeState.emit(
           "error",
           "Unity activity baslatilamadi: " + t.getClass().getSimpleName() + " " + t.getMessage(),

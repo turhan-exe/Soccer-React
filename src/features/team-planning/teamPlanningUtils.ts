@@ -555,7 +555,25 @@ export function normalizePlayer(player: Player): Player {
 }
 
 export function normalizePlayers(list: Player[]): Player[] {
-  return list.map(normalizePlayer);
+  let startingCount = 0;
+
+  return list.map(player => {
+    const normalizedPlayer = normalizePlayer(player);
+    if (normalizedPlayer.squadRole !== 'starting') {
+      return normalizedPlayer;
+    }
+
+    startingCount += 1;
+    if (startingCount <= 11) {
+      return normalizedPlayer;
+    }
+
+    // Defensive guard: corrupted roster data must never keep more than 11 starters.
+    return {
+      ...normalizedPlayer,
+      squadRole: 'bench',
+    };
+  });
 }
 
 export type PromoteToStartingResult = {

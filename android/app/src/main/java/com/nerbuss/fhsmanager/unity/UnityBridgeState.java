@@ -27,6 +27,7 @@ public final class UnityBridgeState {
   private static WeakReference<Activity> activeUnityHostRef = new WeakReference<>(null);
   private static final Queue<JSObject> pendingEvents = new ArrayDeque<>();
   private static boolean pendingShellReturn;
+  private static boolean unityLaunchInFlight;
 
   private UnityBridgeState() {}
 
@@ -48,6 +49,7 @@ public final class UnityBridgeState {
 
   static void setActiveUnityHost(Activity activity) {
     synchronized (LOCK) {
+      unityLaunchInFlight = false;
       activeUnityHostRef = new WeakReference<>(activity);
     }
   }
@@ -58,6 +60,39 @@ public final class UnityBridgeState {
       if (current == activity) {
         activeUnityHostRef = new WeakReference<>(null);
       }
+
+      unityLaunchInFlight = false;
+    }
+  }
+
+  static boolean isUnityLaunchActiveOrInFlight() {
+    synchronized (LOCK) {
+      Activity activeHost = activeUnityHostRef.get();
+      if (unityLaunchInFlight || activeHost != null) {
+        return true;
+      }
+    }
+
+    return isUnityActivity(resolveCurrentUnityActivity());
+  }
+
+  static boolean tryBeginUnityLaunch() {
+    Activity currentUnityActivity = resolveCurrentUnityActivity();
+
+    synchronized (LOCK) {
+      Activity activeHost = activeUnityHostRef.get();
+      if (unityLaunchInFlight || activeHost != null || isUnityActivity(currentUnityActivity)) {
+        return false;
+      }
+
+      unityLaunchInFlight = true;
+      return true;
+    }
+  }
+
+  static void markUnityLaunchFailed() {
+    synchronized (LOCK) {
+      unityLaunchInFlight = false;
     }
   }
 
@@ -164,6 +199,15 @@ public final class UnityBridgeState {
     }
 
     return null;
+  }
+
+  private static boolean isUnityActivity(Activity activity) {
+    if (activity == null) {
+      return false;
+    }
+
+    String className = activity.getClass().getName();
+    return className != null && className.startsWith("com.unity3d.player.");
   }
 
   private static boolean invokeEmbeddedUnityShellReturn(Activity activity) {

@@ -36,6 +36,12 @@ export default function FriendlyMatchPage() {
   const [matchId, setMatchId] = useState('');
   const [requestState, setRequestState] = useState<'idle' | 'pending' | 'accepted' | 'expired' | 'running'>('idle');
   const [loadingAction, setLoadingAction] = useState<string | null>(null);
+  const [unityLaunchOverlay, setUnityLaunchOverlay] = useState<{
+    title: string;
+    detail: string;
+    startedAt: number;
+  } | null>(null);
+  const [unityLaunchElapsedSeconds, setUnityLaunchElapsedSeconds] = useState(0);
   const [apiConnectionState, setApiConnectionState] = useState<'unknown' | 'online' | 'offline'>('unknown');
   const [apiConnectionError, setApiConnectionError] = useState('');
 
@@ -133,6 +139,34 @@ export default function FriendlyMatchPage() {
     return fallback;
   };
 
+  const showUnityLaunchOverlay = useCallback((title: string, detail: string) => {
+    setUnityLaunchOverlay((current) => ({
+      title,
+      detail,
+      startedAt: current?.startedAt ?? Date.now(),
+    }));
+  }, []);
+
+  const hideUnityLaunchOverlay = useCallback(() => {
+    setUnityLaunchOverlay(null);
+    setUnityLaunchElapsedSeconds(0);
+  }, []);
+
+  useEffect(() => {
+    if (!unityLaunchOverlay) {
+      return;
+    }
+
+    setUnityLaunchElapsedSeconds(Math.max(0, Math.floor((Date.now() - unityLaunchOverlay.startedAt) / 1000)));
+    const timer = window.setInterval(() => {
+      setUnityLaunchElapsedSeconds(Math.max(0, Math.floor((Date.now() - unityLaunchOverlay.startedAt) / 1000)));
+    }, 1000);
+
+    return () => {
+      window.clearInterval(timer);
+    };
+  }, [unityLaunchOverlay]);
+
   const launchUnity = async (serverIp: string, serverPort: number, joinTicket?: string, activeMatchId?: string) => {
     await unityBridge.launchMatchActivity(serverIp, serverPort, {
       homeId,
@@ -221,11 +255,13 @@ export default function FriendlyMatchPage() {
 
       const type = String(event?.type || '').toLowerCase();
       if (type === 'error' || type === 'connection_failed') {
+        hideUnityLaunchOverlay();
         toast.error(event?.message || 'Unity baglanti hatasi.');
         return;
       }
 
       if (type === 'match_ended') {
+        hideUnityLaunchOverlay();
         toast.info('Mac sona erdi.');
         void refreshHistory();
         scheduleDelayedHistoryRefreshes();
@@ -233,6 +269,7 @@ export default function FriendlyMatchPage() {
       }
 
       if (type === 'closed') {
+        hideUnityLaunchOverlay();
         toast.info('Unity ekrani kapatildi.');
         void syncLists();
         void refreshHistory();
@@ -252,12 +289,15 @@ export default function FriendlyMatchPage() {
       delayedHistoryRefreshTimersRef.current.forEach((timerId) => window.clearTimeout(timerId));
       delayedHistoryRefreshTimersRef.current = [];
     };
-  }, [refreshHistory, scheduleDelayedHistoryRefreshes, syncLists]);
+  }, [hideUnityLaunchOverlay, refreshHistory, scheduleDelayedHistoryRefreshes, syncLists]);
 
   useEffect(() => {
     const handleVisibilityOrFocus = () => {
       if (document.visibilityState === 'hidden') {
         return;
+      }
+      if (!loadingAction) {
+        hideUnityLaunchOverlay();
       }
       void syncLists();
       void refreshHistory();
@@ -271,7 +311,7 @@ export default function FriendlyMatchPage() {
       window.removeEventListener('focus', handleVisibilityOrFocus);
       document.removeEventListener('visibilitychange', handleVisibilityOrFocus);
     };
-  }, [refreshHistory, scheduleDelayedHistoryRefreshes, syncLists]);
+  }, [hideUnityLaunchOverlay, loadingAction, refreshHistory, scheduleDelayedHistoryRefreshes, syncLists]);
 
   useEffect(() => {
     if (!canRunApiFlow || !user?.id) {
@@ -389,11 +429,13 @@ export default function FriendlyMatchPage() {
 
     setLoadingAction('join');
     try {
+      showUnityLaunchOverlay('Mac baglantisi hazirlaniyor', 'Join ticket aliniyor ve mac sunucusunun hazir olmasi bekleniyor.');
       const ticket = await requestJoinTicket({
         matchId: targetMatchId.trim(),
         userId: user.id,
         role: 'player',
       });
+      showUnityLaunchOverlay('Mac sunucusu hazirlaniyor', 'Sunucu running durumuna gelene kadar bekleniyor. Bu adim bazen 10-20 saniye surebilir.');
       const readyMatch = await waitForMatchReady(ticket.matchId, {
         timeoutMs: 60000,
         pollMs: 700,
@@ -404,9 +446,11 @@ export default function FriendlyMatchPage() {
       setIp(readyMatch.serverIp);
       setPort(String(readyMatch.serverPort));
 
+      showUnityLaunchOverlay('Unity aciliyor', 'Unity ekrani acilana kadar bu sayfada kal. Uygulama birazdan Unity alanina gececek.');
       await launchUnity(readyMatch.serverIp, readyMatch.serverPort, ticket.joinTicket, readyMatch.matchId);
       toast.success('Unity client baglantisi baslatildi.');
     } catch (error: unknown) {
+      hideUnityLaunchOverlay();
       console.error(error);
       toast.error(getErrorMessage(error, 'Join ticket alinamadi.'));
     } finally {
@@ -427,21 +471,25 @@ export default function FriendlyMatchPage() {
 
     setLoadingAction(`accept:${targetRequestId}`);
     try {
+      showUnityLaunchOverlay('Istek kabul ediliyor', 'Dostluk maci istegi kabul edildi. Dedicated sunucu hazirlaniyor.');
       const accepted = await acceptFriendlyRequest(targetRequestId.trim(), {
         acceptingUserId: user.id,
         role: 'player',
       });
+      setRequestId(targetRequestId.trim());
+      setMatchId(accepted.matchId);
+      setRequestState('accepted');
+      showUnityLaunchOverlay('Mac sunucusu hazirlaniyor', 'Mac durumu running olana kadar bekleniyor. Unity birazdan acilacak.');
       const readyMatch = await waitForMatchReady(accepted.matchId, {
         timeoutMs: 60000,
         pollMs: 700,
         readyStates: getFriendlyMatchReadyStates(),
       });
-      setRequestId(targetRequestId.trim());
       setMatchId(readyMatch.matchId);
-      setRequestState('accepted');
       setIp(readyMatch.serverIp);
       setPort(String(readyMatch.serverPort));
 
+      showUnityLaunchOverlay('Unity aciliyor', 'Unity alani acilana kadar bu ekranda kal. Ekran degisimi genelde 10-20 saniye icinde olur.');
       await launchUnity(
         readyMatch.serverIp,
         readyMatch.serverPort,
@@ -452,6 +500,7 @@ export default function FriendlyMatchPage() {
       await syncLists();
       await refreshHistory();
     } catch (error: unknown) {
+      hideUnityLaunchOverlay();
       console.error(error);
       toast.error(getErrorMessage(error, 'Istek kabul edilemedi.'));
     } finally {
@@ -499,6 +548,26 @@ export default function FriendlyMatchPage() {
 
   return (
     <div className="min-h-screen bg-slate-950 text-white p-4 flex flex-col items-center justify-center">
+      {unityLaunchOverlay ? (
+        <div className="fixed inset-0 z-50 bg-slate-950/92 backdrop-blur-sm flex items-center justify-center p-6">
+          <div className="w-full max-w-md rounded-2xl border border-slate-800 bg-slate-900 shadow-2xl p-6 space-y-5">
+            <div className="flex items-center gap-3 text-emerald-400">
+              <Loader2 className="h-6 w-6 animate-spin" />
+              <div className="text-lg font-semibold">{unityLaunchOverlay.title}</div>
+            </div>
+            <div className="space-y-2">
+              <p className="text-sm text-slate-200 leading-6">{unityLaunchOverlay.detail}</p>
+              <p className="text-xs text-slate-400">Bekleme suresi: {unityLaunchElapsedSeconds} sn</p>
+            </div>
+            <div className="h-2 overflow-hidden rounded-full bg-slate-800">
+              <div className="h-full w-1/2 animate-pulse rounded-full bg-emerald-500" />
+            </div>
+            <div className="rounded-lg border border-slate-800 bg-slate-950/70 px-3 py-2 text-xs text-slate-400">
+              Buton kaybolsa bile islem devam ediyor. Unity ekrani acilana kadar burada bekle.
+            </div>
+          </div>
+        </div>
+      ) : null}
       <div className="absolute top-4 left-4">
         <Button variant="ghost" onClick={() => navigate(-1)} className="text-slate-400 hover:text-white">
           <ArrowLeft className="mr-2 h-4 w-4" /> Geri
@@ -639,26 +708,8 @@ export default function FriendlyMatchPage() {
                       <div className="text-sm font-medium text-white">
                         {item.homeTeamName} {item.homeScore} - {item.awayScore} {item.awayTeamName}
                       </div>
-                      <div className="flex items-center justify-between gap-3 text-xs text-slate-400">
+                      <div className="text-xs text-slate-400">
                         <div>MatchId: {item.matchId}</div>
-                        <div className="flex items-center gap-2">
-                          {item.videoAvailable && item.videoWatchUrl ? (
-                            <Button
-                              size="sm"
-                              type="button"
-                              onClick={() => window.open(item.videoWatchUrl || '', '_blank', 'noopener,noreferrer')}
-                              className="bg-blue-600 hover:bg-blue-500"
-                            >
-                              Videoyu Izle
-                            </Button>
-                          ) : item.videoStatus === 'processing' ? (
-                            <span className="text-blue-300">Video Hazirlaniyor</span>
-                          ) : item.videoStatus === 'failed' ? (
-                            <span className="text-rose-300">Video hazirlanamadi</span>
-                          ) : (
-                            <span className="text-slate-500">Video yok</span>
-                          )}
-                        </div>
                       </div>
                     </div>
                   );

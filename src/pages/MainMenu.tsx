@@ -1,5 +1,6 @@
 
-import React, { useEffect, useState, useMemo, useRef } from 'react';
+import React, { useCallback, useEffect, useState, useMemo, useRef } from 'react';
+import { Capacitor } from '@capacitor/core';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -12,6 +13,16 @@ import {
   listLeagueStandings
 } from '@/services/leagues';
 import { getTeam } from '@/services/team';
+import {
+  getFriendlyMatchReadyStates,
+  getMatchStatus,
+  isMatchControlConfigured,
+  listFriendlyRequests,
+  requestJoinTicket,
+  waitForMatchReady,
+  type FriendlyRequestListItem,
+} from '@/services/matchControl';
+import { unityBridge } from '@/services/unityBridge';
 import {
   getUnviewedTrainingCount,
   getActiveTraining
@@ -37,7 +48,8 @@ import {
   HeartPulse,
   UserPlus,
   Dumbbell,
-  Star
+  Star,
+  Loader2
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -95,6 +107,20 @@ type MatchHighlight = {
   opponent: MatchHighlightClub;
 };
 
+type ActionableMatchTile = {
+  kind: 'friendly_pending' | 'friendly_live' | 'league_live';
+  matchTypeLabel: 'DOSTLUK' | 'LIG';
+  statusLabel: string;
+  title: string;
+  subtitle: string;
+  actionLabel: string;
+  fallbackRoute: string;
+  matchId?: string;
+  requestId?: string;
+  homeId?: string;
+  awayId?: string;
+};
+
 // --- Helpers ---
 const computeForm = (fixtures: Fixture[], teamId: string): FormBadge[] => {
   const played = fixtures.filter(fixture => fixture.status === 'played' && fixture.score).sort((a, b) => a.date.getTime() - b.date.getTime());
@@ -126,6 +152,29 @@ const getValidLogo = (value?: string | null) => {
     return trimmed;
   }
   return null;
+};
+
+const LIVE_JOINABLE_STATES = new Set(['server_started', 'running']);
+const FRIENDLY_ACTIVE_STATES = new Set(['warm', 'starting', 'server_started', 'running']);
+
+const normalizeStatus = (value: unknown) => String(value || '').trim().toLowerCase();
+
+const resolveLeagueLiveState = (fixture: Fixture): string => {
+  const fixtureStatus = normalizeStatus(fixture.status);
+  const liveState = normalizeStatus(fixture.live?.state);
+  if (fixtureStatus === 'played') return 'ended';
+  if (fixtureStatus === 'failed' && LIVE_JOINABLE_STATES.has(liveState)) return 'failed';
+  return liveState;
+};
+
+const isLeagueLiveJoinable = (fixture: Fixture): boolean => {
+  const matchId = String(fixture.live?.matchId || '').trim();
+  const fixtureStatus = normalizeStatus(fixture.status);
+  const liveState = resolveLeagueLiveState(fixture);
+  if (!matchId) return false;
+  if (fixtureStatus !== 'running') return false;
+  if (fixtureStatus === 'played' || fixtureStatus === 'failed') return false;
+  return LIVE_JOINABLE_STATES.has(liveState);
 };
 
 // --- Components ---
@@ -182,6 +231,13 @@ export default function MainMenu() {
 
   const [matchHighlight, setMatchHighlight] = useState<MatchHighlight | null>(null);
   const [currentRank, setCurrentRank] = useState<number | null>(null);
+  const [actionableMatchTile, setActionableMatchTile] = useState<ActionableMatchTile | null>(null);
+  const [actionableMatchLoading, setActionableMatchLoading] = useState(false);
+  const matchControlReady = useMemo(() => isMatchControlConfigured(), []);
+  const canLaunchNativeMatch = useMemo(
+    () => Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'android',
+    [],
+  );
 
   // Notification & TopBar Logic State
   const [hasUnseenTrainingResults, setHasUnseenTrainingResults] = useState(false);
@@ -304,6 +360,258 @@ export default function MainMenu() {
     navigate(path);
   };
 
+  const buildFriendlyTile = useCallback((items: FriendlyRequestListItem[]): ActionableMatchTile | null => {
+    if (!user?.id) return null;
+
+    const relevant = items
+      .filter((item) => item.requesterUserId === user.id || item.opponentUserId === user.id)
+      .sort((a, b) => {
+        const left = new Date(b.createdAt || b.expiresAt || 0).getTime();
+        const right = new Date(a.createdAt || a.expiresAt || 0).getTime();
+        return left - right;
+      });
+
+    const liveOrAccepted = relevant.find((item) => {
+      const requestState = normalizeStatus(item.status);
+      const matchState = normalizeStatus(item.match?.state);
+      const hasMatch = Boolean(item.match?.matchId || item.matchId);
+      if (!hasMatch) return false;
+      if (matchState === 'ended' || matchState === 'failed' || matchState === 'released' || requestState === 'expired') {
+        return false;
+      }
+      if (FRIENDLY_ACTIVE_STATES.has(matchState)) {
+        return true;
+      }
+      return requestState === 'accepted' && !!matchState;
+    });
+
+    if (liveOrAccepted) {
+      const homeName = String(liveOrAccepted.homeTeamId || user.teamName || 'Takimim').trim();
+      const awayName = String(liveOrAccepted.awayTeamId || 'Rakip').trim();
+      const state = normalizeStatus(liveOrAccepted.match?.state || liveOrAccepted.status);
+      return {
+        kind: 'friendly_live',
+        matchTypeLabel: 'DOSTLUK',
+        statusLabel: state === 'running' ? 'CANLI' : 'HAZIR',
+        title: 'Dostluk Maci',
+        subtitle: `${homeName} vs ${awayName}`,
+        actionLabel: 'IZLE',
+        fallbackRoute: '/friendly-match',
+        matchId: liveOrAccepted.match?.matchId || liveOrAccepted.matchId || undefined,
+        requestId: liveOrAccepted.requestId,
+        homeId: homeName,
+        awayId: awayName,
+      };
+    }
+
+    const pending = relevant.find((item) => normalizeStatus(item.status) === 'pending');
+    if (!pending) return null;
+
+    const homeName = String(pending.homeTeamId || user.teamName || 'Takimim').trim();
+    const awayName = String(pending.awayTeamId || 'Rakip').trim();
+    const isIncoming = pending.opponentUserId === user.id && pending.requesterUserId !== user.id;
+    return {
+      kind: 'friendly_pending',
+      matchTypeLabel: 'DOSTLUK',
+      statusLabel: isIncoming ? 'ISTEK' : 'BEKLIYOR',
+      title: isIncoming ? 'Dostluk Istegi' : 'Dostluk Bekliyor',
+      subtitle: `${homeName} vs ${awayName}`,
+      actionLabel: isIncoming ? 'AC' : 'GIT',
+      fallbackRoute: '/friendly-match',
+      requestId: pending.requestId,
+      homeId: homeName,
+      awayId: awayName,
+    };
+  }, [user?.id, user?.teamName]);
+
+  const loadActionableMatchTile = useCallback(async () => {
+    if (!user?.id) {
+      setActionableMatchTile(null);
+      return;
+    }
+
+    let friendlyTile: ActionableMatchTile | null = null;
+    let leagueTile: ActionableMatchTile | null = null;
+
+    if (matchControlReady) {
+      try {
+        const friendlyRequests = await listFriendlyRequests(user.id);
+        friendlyTile = buildFriendlyTile(friendlyRequests);
+      } catch (error) {
+        console.warn('[MainMenu] friendly tile load failed', error);
+      }
+    }
+
+    try {
+      const leagueId = await getMyLeagueId(user.id);
+      if (leagueId) {
+        const [fixtures, teams] = await Promise.all([
+          getFixturesForTeam(leagueId, user.id),
+          getLeagueTeams(leagueId).catch(() => []),
+        ]);
+
+        const liveFixture = fixtures
+          .filter((fixture) => isLeagueLiveJoinable(fixture))
+          .sort((a, b) => a.date.getTime() - b.date.getTime())[0];
+
+        if (liveFixture) {
+          const home = liveFixture.homeTeamId === user.id;
+          const opponentId = home ? liveFixture.awayTeamId : liveFixture.homeTeamId;
+          const opponentTeam = teams.find((team: { id: string; name: string }) => team.id === opponentId);
+          leagueTile = {
+            kind: 'league_live',
+            matchTypeLabel: 'LIG',
+            statusLabel: 'CANLI',
+            title: 'Lig Maci',
+            subtitle: `${user.teamName || 'Takimim'} vs ${opponentTeam?.name || 'Rakip'}`,
+            actionLabel: 'IZLE',
+            fallbackRoute: '/fixtures',
+            matchId: liveFixture.live?.matchId,
+            homeId: liveFixture.homeTeamId,
+            awayId: liveFixture.awayTeamId,
+          };
+        }
+      }
+    } catch (error) {
+      console.warn('[MainMenu] league tile load failed', error);
+    }
+
+    if (friendlyTile?.kind === 'friendly_live') {
+      setActionableMatchTile(friendlyTile);
+      return;
+    }
+
+    if (leagueTile) {
+      setActionableMatchTile(leagueTile);
+      return;
+    }
+
+    setActionableMatchTile(friendlyTile);
+  }, [buildFriendlyTile, matchControlReady, user?.id, user?.teamName]);
+
+  const handleActionableMatchClick = useCallback(async () => {
+    if (!actionableMatchTile) return;
+
+    if (actionableMatchTile.kind === 'friendly_pending' || !user?.id || !matchControlReady) {
+      navigate(actionableMatchTile.fallbackRoute);
+      return;
+    }
+
+    if (!actionableMatchTile.matchId) {
+      navigate(actionableMatchTile.fallbackRoute);
+      return;
+    }
+
+    if (!canLaunchNativeMatch) {
+      navigate(actionableMatchTile.fallbackRoute);
+      return;
+    }
+
+    setActionableMatchLoading(true);
+    try {
+      if (actionableMatchTile.kind === 'friendly_live') {
+        const ticket = await requestJoinTicket({
+          matchId: actionableMatchTile.matchId,
+          userId: user.id,
+          role: 'player',
+        });
+        const readyMatch = await waitForMatchReady(ticket.matchId, {
+          timeoutMs: 60000,
+          pollMs: 700,
+          readyStates: getFriendlyMatchReadyStates(),
+        });
+        await unityBridge.launchMatchActivity(readyMatch.serverIp, readyMatch.serverPort, {
+          matchId: readyMatch.matchId,
+          joinTicket: ticket.joinTicket,
+          homeId: actionableMatchTile.homeId || 'HOME',
+          awayId: actionableMatchTile.awayId || 'AWAY',
+          mode: 'friendly',
+          role: 'player',
+        });
+        return;
+      }
+
+      const latestMatch = await getMatchStatus(actionableMatchTile.matchId);
+      const latestState = normalizeStatus(latestMatch.state);
+      if (!LIVE_JOINABLE_STATES.has(latestState)) {
+        toast.error('Bu lig maci artik canli izlemeye acik degil.');
+        void loadActionableMatchTile();
+        return;
+      }
+
+      const ticket = await requestJoinTicket({
+        matchId: actionableMatchTile.matchId,
+        userId: user.id,
+        role: 'player',
+      });
+      const readyMatch = await waitForMatchReady(ticket.matchId, {
+        timeoutMs: 35000,
+        pollMs: 700,
+      });
+      await unityBridge.launchMatchActivity(readyMatch.serverIp, readyMatch.serverPort, {
+        matchId: readyMatch.matchId,
+        joinTicket: ticket.joinTicket,
+        homeId: actionableMatchTile.homeId || 'HOME',
+        awayId: actionableMatchTile.awayId || 'AWAY',
+        mode: 'league',
+        role: 'player',
+      });
+    } catch (error) {
+      console.error('[MainMenu] actionable match launch failed', error);
+      toast.error('Mac baglantisi baslatilamadi.');
+    } finally {
+      setActionableMatchLoading(false);
+    }
+  }, [
+    actionableMatchTile,
+    canLaunchNativeMatch,
+    loadActionableMatchTile,
+    matchControlReady,
+    navigate,
+    user?.id,
+  ]);
+
+  useEffect(() => {
+    void loadActionableMatchTile();
+  }, [loadActionableMatchTile]);
+
+  useEffect(() => {
+    if (!user?.id) return;
+
+    let timerId: number | undefined;
+    let disposed = false;
+
+    const refresh = async () => {
+      if (disposed) return;
+      await loadActionableMatchTile();
+      if (!disposed) {
+        timerId = window.setTimeout(() => {
+          void refresh();
+        }, 15000);
+      }
+    };
+
+    const handleFocus = () => {
+      if (document.visibilityState === 'hidden') return;
+      void loadActionableMatchTile();
+    };
+
+    timerId = window.setTimeout(() => {
+      void refresh();
+    }, 15000);
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleFocus);
+
+    return () => {
+      disposed = true;
+      if (timerId) {
+        window.clearTimeout(timerId);
+      }
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleFocus);
+    };
+  }, [loadActionableMatchTile, user?.id]);
+
   // --- Existing Logic (Quick Stats / Match Highlight) ---
   useEffect(() => {
     const loadQuickStats = async () => {
@@ -413,6 +721,14 @@ export default function MainMenu() {
 
   const headerTextClass = isDark ? "text-white" : "text-white";
   const headerSubTextClass = isDark ? "text-slate-300" : "text-blue-200";
+  const cardHomeName = actionableMatchTile?.homeId || matchHighlight?.team?.name || user?.teamName || 'TAKIM';
+  const cardAwayName = actionableMatchTile?.awayId || matchHighlight?.opponent?.name || 'RAKIP';
+  const actionableButtonLabel =
+    actionableMatchTile?.kind === 'friendly_pending'
+      ? actionableMatchTile.actionLabel
+      : actionableMatchTile
+        ? 'IZLE'
+        : null;
 
   return (
     <div className={`fixed inset-0 z-50 w-full h-full font-sans select-none transition-colors duration-500 overflow-hidden ${isDark ? 'bg-slate-950 text-white' : 'bg-slate-100 text-slate-900'}`}>
@@ -561,7 +877,20 @@ export default function MainMenu() {
         <div className="flex-1 w-full max-w-[1400px] mx-auto p-4 sm:p-6 grid grid-cols-6 grid-rows-3 gap-4 min-h-0">
 
           {/* Match Card (Starts Col 0, Spans 3 Cols, Spans 2 Rows) [Indices: 0,0 - 2,1] */}
-          <div className={`col-span-3 row-span-2 group relative rounded-xl overflow-hidden shadow-2xl transition-transform hover:scale-[1.01] duration-300 border ${isDark ? 'border-white/10' : 'border-white/40'}`}>
+          <button
+            type="button"
+            onClick={() => {
+              if (actionableMatchTile) {
+                void handleActionableMatchClick();
+                return;
+              }
+              navigate('/match-preview');
+            }}
+            disabled={actionableMatchLoading}
+            className={`col-span-3 row-span-2 group relative overflow-hidden rounded-xl border text-left shadow-2xl transition-transform duration-300 hover:scale-[1.01] ${
+              isDark ? 'border-white/10' : 'border-white/40'
+            } ${actionableMatchLoading ? 'pointer-events-none opacity-90' : ''}`}
+          >
             <div className="absolute inset-0 z-0">
               <div className="absolute inset-0 bg-gradient-to-r from-yellow-500 via-white to-red-500 opacity-90" />
               <img src={matchCardBg} alt="Match Bg" className="absolute inset-0 w-full h-full object-cover mix-blend-overlay opacity-50" />
@@ -571,9 +900,13 @@ export default function MainMenu() {
             {/* Sabitlenmiş Sol Üst Badge */}
             <div className="absolute top-0 left-0 z-20">
               <div className="bg-slate-900 text-white text-[10px] font-bold px-3 py-1 rounded-br-xl border-r border-b border-white/20 uppercase tracking-wider shadow-lg">
-                {matchHighlight?.competition || 'LİG MAÇI'}
+                {actionableMatchTile?.matchTypeLabel || matchHighlight?.competition || 'LIG MACI'}
               </div>
             </div>
+
+            {actionableMatchTile ? (
+              <div className="absolute inset-0 z-[1] bg-[radial-gradient(circle_at_bottom_center,rgba(34,211,238,0.14),transparent_28%)]" />
+            ) : null}
 
             <div className="relative z-10 w-full h-full flex flex-col items-center justify-center p-4">
               <div className="flex items-center justify-center w-full gap-2 sm:gap-6 lg:gap-8">
@@ -583,7 +916,7 @@ export default function MainMenu() {
                     {renderLogo(matchHighlight?.team?.logo, 'Home', 'w-full h-full')}
                   </div>
                   <span className="text-white font-bold text-shadow-sm text-xs sm:text-base text-center leading-tight line-clamp-2 w-full">
-                    {matchHighlight?.team?.name}
+                    {cardHomeName}
                   </span>
                 </div>
 
@@ -598,20 +931,34 @@ export default function MainMenu() {
                     {renderLogo(matchHighlight?.opponent?.logo, 'Away', 'w-full h-full')}
                   </div>
                   <span className="text-white font-bold text-shadow-sm text-xs sm:text-base text-center leading-tight line-clamp-2 w-full">
-                    {matchHighlight?.opponent?.name}
+                    {cardAwayName}
                   </span>
                 </div>
               </div>
             </div>
 
-            {/* Tarih / Saat - Kompakt */}
-            <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-20">
-              <div className="bg-slate-800/90 backdrop-blur-md border border-white/20 px-4 py-1 rounded-lg shadow-xl text-center min-w-[100px]">
-                <div className="text-gray-300 text-[9px] uppercase font-bold tracking-widest leading-none mb-0.5">{matchHighlight?.dateText || 'BUGUN'}</div>
-                <div className="text-white text-lg font-black tracking-wider leading-none">{matchHighlight?.timeText || '21:00'}</div>
-              </div>
+            {/* Bottom CTA / Date */}
+            <div className="absolute bottom-3 left-1/2 z-20 -translate-x-1/2">
+              {actionableMatchTile ? (
+                <div className="min-w-[220px] rounded-xl border border-white/15 bg-slate-950/58 p-[2px] shadow-2xl backdrop-blur-md">
+                  <div className="rounded-[10px] bg-gradient-to-r from-cyan-500 via-emerald-400 to-sky-500 bg-[length:200%_200%] px-5 py-2 text-center text-slate-950 animate-pulse">
+                    <div className="text-[10px] font-black uppercase tracking-[0.22em]">
+                      {actionableMatchTile.matchTypeLabel} {actionableMatchTile.kind === 'friendly_pending' ? 'ISTEGI' : 'MACI'}
+                    </div>
+                    <div className="flex items-center justify-center gap-2">
+                      {actionableMatchLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                      <span className="text-3xl font-black tracking-[0.18em]">{actionableButtonLabel}</span>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="bg-slate-800/90 backdrop-blur-md border border-white/20 px-4 py-1 rounded-lg shadow-xl text-center min-w-[100px]">
+                  <div className="text-gray-300 text-[9px] uppercase font-bold tracking-widest leading-none mb-0.5">{matchHighlight?.dateText || 'BUGUN'}</div>
+                  <div className="text-white text-lg font-black tracking-wider leading-none">{matchHighlight?.timeText || '21:00'}</div>
+                </div>
+              )}
             </div>
-          </div>
+          </button>
 
           {/* Altyapi (Col 3 [Index 3], Row 0) */}
           <MenuButton
@@ -643,7 +990,7 @@ export default function MainMenu() {
             bgClass={isDark ? "bg-slate-900" : "bg-gradient-to-br from-[#1e4b8a] to-[#2563eb]"}
           />
 
-          {/* NEW: Match Preview (Col 4, Row 1) */}
+          {/* Match Preview (Col 4, Row 1) */}
           <MenuButton
             label="MAC ONIZLEME" icon={iconMatchPreview} onClick={() => navigate('/match-preview')}
             className={`col-span-1 ${isDark ? 'border-white/10' : 'border-white/60 shadow-blue-900/10'}`}

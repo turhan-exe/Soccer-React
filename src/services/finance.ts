@@ -7,12 +7,12 @@ import {
   serverTimestamp,
   setDoc,
   Timestamp,
-  updateDoc,
   writeBatch,
 } from 'firebase/firestore';
 import { db } from './firebase';
 import type { Player } from '@/types';
 import { resolvePlayerSalary, shouldRefreshLegacySalary } from '@/lib/salary';
+import { normalizeRatingTo100 } from '@/lib/player';
 
 export type FinanceHistoryCategory = 'match' | 'sponsor' | 'loan' | 'salary' | 'stadium' | 'transfer';
 
@@ -47,11 +47,11 @@ export interface StadiumLevelConfig {
 }
 
 export const STADIUM_LEVELS: Record<StadiumLevel, StadiumLevelConfig> = {
-  1: { capacity: 1_000, matchIncome: 1_000, upgradeCost: 0 },
-  2: { capacity: 3_000, matchIncome: 3_000, upgradeCost: 20_000 },
-  3: { capacity: 7_500, matchIncome: 7_500, upgradeCost: 50_000 },
-  4: { capacity: 15_000, matchIncome: 12_000, upgradeCost: 100_000 },
-  5: { capacity: 30_000, matchIncome: 20_000, upgradeCost: 200_000 },
+  1: { capacity: 1_000, matchIncome: 30_000, upgradeCost: 0 },
+  2: { capacity: 3_000, matchIncome: 55_000, upgradeCost: 20_000 },
+  3: { capacity: 7_500, matchIncome: 95_000, upgradeCost: 50_000 },
+  4: { capacity: 15_000, matchIncome: 165_000, upgradeCost: 100_000 },
+  5: { capacity: 30_000, matchIncome: 280_000, upgradeCost: 200_000 },
 };
 
 export interface CreditPackage {
@@ -104,6 +104,10 @@ export interface TeamSalariesDoc {
 
 const FINANCE_DEFAULT_BALANCE = 50_000;
 const DAY_MS = 24 * 60 * 60 * 1000;
+const MATCHES_PER_MONTH = 4;
+const DEFAULT_TEAM_STRENGTH = 58;
+const MIN_STARTERS_FOR_REAL_STRENGTH = 8;
+const REVENUE_ROUNDING_UNIT = 50;
 
 const financeDoc = (uid: string) => doc(db, 'finance', uid);
 const historyCollection = (uid: string) => collection(db, 'finance', 'history', uid);
@@ -114,12 +118,105 @@ const teamSalariesDoc = (teamId: string) => doc(db, 'teams', teamId, 'salaries',
 const teamSalariesScheduleDoc = (teamId: string) => doc(db, 'teams', teamId, 'salaries', 'schedule');
 const sponsorshipCollection = (uid: string) => collection(db, 'users', uid, 'sponsorships');
 
-const randomId = () =>
-  typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
-    ? crypto.randomUUID()
-    : Math.random().toString(36).slice(2, 10);
-
 export { getSalaryForOverall } from '@/lib/salary';
+
+const roundRevenue = (value: number): number => {
+  const safeValue = Number.isFinite(value) ? value : 0;
+  return Math.max(0, Math.round(safeValue / REVENUE_ROUNDING_UNIT) * REVENUE_ROUNDING_UNIT);
+};
+
+const clamp = (value: number, min: number, max: number): number => {
+  if (!Number.isFinite(value)) {
+    return min;
+  }
+  return Math.max(min, Math.min(max, value));
+};
+
+const isRevenueEligiblePlayer = (player: Player): boolean => {
+  if (!player) {
+    return false;
+  }
+  if (player.injuryStatus === 'injured') {
+    return false;
+  }
+  const status = player.contract?.status;
+  if (status === 'expired' || status === 'released') {
+    return false;
+  }
+  return true;
+};
+
+export const getTeamStrength = (players: Player[] = []): number => {
+  const eligiblePlayers = players.filter(isRevenueEligiblePlayer);
+  if (!eligiblePlayers.length) {
+    return DEFAULT_TEAM_STRENGTH;
+  }
+
+  const rankedPlayers = [...eligiblePlayers].sort(
+    (left, right) => normalizeRatingTo100(right.overall) - normalizeRatingTo100(left.overall),
+  );
+  const starters = rankedPlayers.filter((player) => player.squadRole === 'starting');
+
+  let selected = starters.slice(0, 11);
+  if (selected.length < MIN_STARTERS_FOR_REAL_STRENGTH) {
+    selected = rankedPlayers.slice(0, 11);
+  } else if (selected.length < 11) {
+    const selectedIds = new Set(selected.map((player) => player.id));
+    for (const player of rankedPlayers) {
+      if (selectedIds.has(player.id)) {
+        continue;
+      }
+      selected.push(player);
+      selectedIds.add(player.id);
+      if (selected.length >= 11) {
+        break;
+      }
+    }
+  }
+
+  if (!selected.length) {
+    return DEFAULT_TEAM_STRENGTH;
+  }
+
+  const total = selected.reduce((sum, player) => sum + normalizeRatingTo100(player.overall), 0);
+  return Math.max(35, Math.round(total / selected.length));
+};
+
+export interface ExpectedRevenueBreakdown {
+  monthly: number;
+  matchEstimate: number;
+  sponsorEstimate: number;
+  matchesPerMonth: number;
+  teamStrength: number;
+  attendanceRate: number;
+  occupiedSeats: number;
+  projectedDailyIncome: number;
+  monthlyMatchEstimate: number;
+}
+
+export const getMatchRevenueEstimate = (
+  level: StadiumLevel,
+  players: Player[] = [],
+): Omit<ExpectedRevenueBreakdown, 'monthly' | 'sponsorEstimate'> => {
+  const config = STADIUM_LEVELS[level];
+  const teamStrength = getTeamStrength(players);
+  const attendanceRate = clamp(0.55 + teamStrength * 0.003 + level * 0.04, 0.6, 0.96);
+  const occupiedSeats = Math.round(config.capacity * attendanceRate);
+  const ticketYield = 10 + teamStrength * 0.12 + level * 1.5;
+  const commercialBoost = 5_000 + config.capacity * 2 + teamStrength * 120 + level * 2_500;
+  const matchEstimate = roundRevenue(occupiedSeats * ticketYield + commercialBoost);
+  const monthlyMatchEstimate = roundRevenue(matchEstimate * MATCHES_PER_MONTH);
+
+  return {
+    matchEstimate,
+    matchesPerMonth: MATCHES_PER_MONTH,
+    teamStrength,
+    attendanceRate,
+    occupiedSeats,
+    projectedDailyIncome: roundRevenue(monthlyMatchEstimate / 30),
+    monthlyMatchEstimate,
+  };
+};
 
 async function addFinanceHistoryEntry(
   uid: string,
@@ -150,10 +247,9 @@ async function ensureStadiumDoc(teamId: string): Promise<void> {
   const ref = teamStadiumDoc(teamId);
   const snap = await getDoc(ref);
   if (!snap.exists()) {
-    const config = STADIUM_LEVELS[1];
     await setDoc(ref, {
       level: 1,
-      incomePerMatch: config.matchIncome,
+      incomePerMatch: getMatchRevenueEstimate(1).matchEstimate,
       upgradeCost: STADIUM_LEVELS[2].upgradeCost,
       upgradedAt: serverTimestamp(),
     });
@@ -353,7 +449,7 @@ export async function upgradeStadiumLevel(teamId: string): Promise<StadiumState>
     }
     const nextLevel = (currentLevel + 1) as StadiumLevel;
     const nextConfig = STADIUM_LEVELS[nextLevel];
-    const teamData = teamSnap.data() as { budget?: number; transferBudget?: number } | undefined;
+    const teamData = teamSnap.data() as { budget?: number; transferBudget?: number; players?: Player[] } | undefined;
     const balanceSource = Number.isFinite(teamData?.budget)
       ? Number(teamData?.budget)
       : Number.isFinite(teamData?.transferBudget)
@@ -368,7 +464,7 @@ export async function upgradeStadiumLevel(teamId: string): Promise<StadiumState>
       stadiumRef,
       {
         level: nextLevel,
-        incomePerMatch: nextConfig.matchIncome,
+        incomePerMatch: getMatchRevenueEstimate(nextLevel, teamData?.players ?? []).matchEstimate,
         upgradeCost: STADIUM_LEVELS[Math.min(5, nextLevel + 1) as StadiumLevel]?.upgradeCost ?? 0,
         upgradedAt: serverTimestamp(),
       },
@@ -387,9 +483,9 @@ export async function upgradeStadiumLevel(teamId: string): Promise<StadiumState>
       },
       { merge: true },
     );
-    upgraded = {
+  upgraded = {
       level: nextLevel,
-      incomePerMatch: nextConfig.matchIncome,
+      incomePerMatch: getMatchRevenueEstimate(nextLevel, teamData?.players ?? []).matchEstimate,
       upgradeCost: STADIUM_LEVELS[Math.min(5, nextLevel + 1) as StadiumLevel]?.upgradeCost ?? 0,
     };
   });
@@ -572,28 +668,36 @@ export async function applySponsorEarnings(teamId: string, sponsorId: string): P
   return payout;
 }
 
-export interface ExpectedRevenueBreakdown {
-  monthly: number;
-  matchEstimate: number;
-  sponsorEstimate: number;
-  matchesPerMonth: number;
-}
-
-export function getExpectedRevenue(stadium: StadiumState | null, sponsors: UserSponsorDoc[]): ExpectedRevenueBreakdown {
-  const matchesPerMonth = 4;
-  const matchIncome = stadium?.incomePerMatch ?? STADIUM_LEVELS[stadium?.level ?? 1].matchIncome;
-  const matchEstimate = Math.max(0, matchIncome * matchesPerMonth);
+export function getExpectedRevenue(
+  stadium: StadiumState | null,
+  sponsors: UserSponsorDoc[],
+  players: Player[] = [],
+): ExpectedRevenueBreakdown {
+  const level = stadium?.level ?? 1;
+  const baseEstimate = players.length
+    ? getMatchRevenueEstimate(level, players)
+    : {
+        ...getMatchRevenueEstimate(level),
+        matchEstimate: stadium?.incomePerMatch ?? STADIUM_LEVELS[level].matchIncome,
+        monthlyMatchEstimate: roundRevenue((stadium?.incomePerMatch ?? STADIUM_LEVELS[level].matchIncome) * MATCHES_PER_MONTH),
+      };
   const sponsorEstimate = sponsors
     .filter((sponsor) => sponsor.active)
     .reduce((sum, sponsor) => {
-      const multiplier = sponsor.reward.cycle === 'daily' ? 30 : 4;
+      const multiplier = sponsor.reward.cycle === 'daily' ? 30 : 30 / 7;
       return sum + sponsor.reward.amount * multiplier;
     }, 0);
+  const monthly = roundRevenue(baseEstimate.monthlyMatchEstimate + sponsorEstimate);
   return {
-    monthly: matchEstimate + sponsorEstimate,
-    matchEstimate,
+    monthly,
+    matchEstimate: baseEstimate.matchEstimate,
     sponsorEstimate,
-    matchesPerMonth,
+    matchesPerMonth: baseEstimate.matchesPerMonth,
+    teamStrength: baseEstimate.teamStrength,
+    attendanceRate: baseEstimate.attendanceRate,
+    occupiedSeats: baseEstimate.occupiedSeats,
+    projectedDailyIncome: roundRevenue(monthly / 30),
+    monthlyMatchEstimate: baseEstimate.monthlyMatchEstimate,
   };
 }
 
