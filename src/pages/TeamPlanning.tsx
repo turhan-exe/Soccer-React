@@ -39,7 +39,6 @@ import Pitch, { type PitchSlot } from '@/features/team-planning/Pitch';
 import {
   TeamPlanningProvider,
   useTeamPlanningStore,
-  type PlayerPosition as StorePlayerPosition,
   type MetricKey,
 } from '@/features/team-planning/useTeamPlanningStore';
 import { ContractDecisionDialog } from '@/features/team-planning/dialogs/ContractDecisionDialog';
@@ -151,9 +150,6 @@ function TeamPlanningContent() {
   const {
     selectedMetric,
     setSelectedMetric,
-    setPlayerPositions,
-    updateFormationFromPositions,
-    registerFormationUpdater,
   } = useTeamPlanningStore();
 
   useEffect(() => {
@@ -176,59 +172,6 @@ function TeamPlanningContent() {
     [players],
   );
 
-
-  const applyFormationPositions = useCallback(
-    (positions: Record<string, StorePlayerPosition>) => {
-      setCustomFormations(prev => {
-        const entries = Object.entries(positions);
-        if (entries.length === 0) {
-          if (!(selectedFormation in prev)) {
-            return prev;
-          }
-          const { [selectedFormation]: _removed, ...rest } = prev;
-          return rest;
-        }
-
-        const layout = entries.reduce<Record<string, FormationPlayerPosition>>(
-          (acc, [playerId, value]) => {
-            acc[playerId] = {
-              x: clampPercentageValue(value.x),
-              y: clampPercentageValue(value.y),
-              position: value.position,
-            };
-            return acc;
-          },
-          {},
-        );
-
-        if (
-          prev[selectedFormation] &&
-          Object.entries(prev[selectedFormation]).length === entries.length &&
-          entries.every(([playerId, value]) => {
-            const current = prev[selectedFormation]?.[playerId];
-            return (
-              current &&
-              current.x === clampPercentageValue(value.x) &&
-              current.y === clampPercentageValue(value.y) &&
-              current.position === value.position
-            );
-          })
-        ) {
-          return prev;
-        }
-
-        return {
-          ...prev,
-          [selectedFormation]: layout,
-        };
-      });
-    },
-    [selectedFormation],
-  );
-
-  useEffect(() => {
-    registerFormationUpdater(applyFormationPositions);
-  }, [registerFormationUpdater, applyFormationPositions]);
 
   const handleRightPaneScroll = useCallback(
     (event: React.UIEvent<HTMLDivElement>) => {
@@ -941,10 +884,21 @@ function TeamPlanningContent() {
         position: data.position,
       };
       updatePlayerManualPosition(formationName, playerId, normalized);
-      setManualSlotPositions(prev => ({
-        ...prev,
-        [playerId]: normalized,
-      }));
+      setManualSlotPositions(prev => {
+        const current = prev[playerId];
+        if (
+          current &&
+          current.x === normalized.x &&
+          current.y === normalized.y &&
+          current.position === normalized.position
+        ) {
+          return prev;
+        }
+        return {
+          ...prev,
+          [playerId]: normalized,
+        };
+      });
     },
     [selectedFormation, updatePlayerManualPosition],
   );
@@ -1722,35 +1676,6 @@ function TeamPlanningContent() {
     },
     [applyManualPosition, findNearestSlot, getPitchCoordinates, setPlayers],
   );
-
-
-  const buildPositionsMap = useCallback(
-    (slots: PitchSlot[]): Record<string, StorePlayerPosition> =>
-      slots.reduce<Record<string, StorePlayerPosition>>((acc, slot) => {
-        if (!slot.player) {
-          return acc;
-        }
-        acc[slot.player.id] = {
-          x: clampPercentageValue(slot.x),
-          y: clampPercentageValue(slot.y),
-          position: slot.position,
-          slotIndex: slot.slotIndex,
-        };
-        return acc;
-      }, {}),
-    [],
-  );
-
-  useEffect(() => {
-    const positions = buildPositionsMap(formationPositions);
-    setPlayerPositions(positions);
-    updateFormationFromPositions(positions);
-  }, [
-    buildPositionsMap,
-    formationPositions,
-    setPlayerPositions,
-    updateFormationFromPositions,
-  ]);
 
   const derivedFormationShape = useMemo(
     () => deriveFormationShape(formationPositions),

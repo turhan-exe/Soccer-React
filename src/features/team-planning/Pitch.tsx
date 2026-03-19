@@ -109,71 +109,109 @@ const PitchPlayerMarker: React.FC<PitchPlayerMarkerProps> = ({
   const isSelected = isFocused || isPressing;
 
   // Touch handling for mobile drag
-  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
+  const touchDragStateRef = useRef<{
+    startX: number;
+    startY: number;
+    dragging: boolean;
+  } | null>(null);
+  const suppressClickRef = useRef(false);
   const elementRef = useRef<HTMLDivElement>(null);
+
+  const resetTouchVisualState = useCallback(() => {
+    if (elementRef.current) {
+      elementRef.current.style.transform = '';
+      elementRef.current.style.zIndex = '';
+    }
+  }, []);
+
+  const beginTouchDrag = useCallback(
+    (target: HTMLDivElement) => {
+      const fakeEvent = {
+        dataTransfer: {
+          setData: () => { },
+          effectAllowed: 'move',
+        },
+        currentTarget: target,
+      } as unknown as React.DragEvent<HTMLDivElement>;
+
+      handleDragStart(fakeEvent);
+    },
+    [handleDragStart],
+  );
 
   const handleTouchStart = (e: React.TouchEvent) => {
     const touch = e.touches[0];
-    touchStartRef.current = { x: touch.clientX, y: touch.clientY };
-
-    // Simulate Drag Start
-    // Create a fake drag event to pass the player ID
-    const fakeEvent = {
-      dataTransfer: {
-        setData: () => { },
-        effectAllowed: 'move'
-      },
-      currentTarget: e.currentTarget
-    } as unknown as React.DragEvent<HTMLDivElement>;
-
-    // Trigger the parent's drag start logic (sets draggedPlayerId)
-    handleDragStart(fakeEvent);
+    suppressClickRef.current = false;
+    touchDragStateRef.current = {
+      startX: touch.clientX,
+      startY: touch.clientY,
+      dragging: false,
+    };
   };
 
   const handleTouchMove = (e: React.TouchEvent) => {
-    // Prevent scrolling while dragging a player
-    if (touchStartRef.current) {
-      e.preventDefault();
+    const dragState = touchDragStateRef.current;
+    if (!dragState) {
+      return;
+    }
 
-      // Optional: Move a visual ghost here if we want advanced feedback
-      const touch = e.touches[0];
-      if (elementRef.current) {
-        const dx = touch.clientX - touchStartRef.current.x;
-        const dy = touch.clientY - touchStartRef.current.y;
-        elementRef.current.style.transform = `translate(${dx}px, ${dy}px) scale(1.2)`;
-        elementRef.current.style.zIndex = '100';
-      }
+    const touch = e.touches[0];
+    const dx = touch.clientX - dragState.startX;
+    const dy = touch.clientY - dragState.startY;
+    const distance = Math.hypot(dx, dy);
+
+    if (!dragState.dragging && distance >= 8) {
+      dragState.dragging = true;
+      beginTouchDrag(e.currentTarget);
+    }
+
+    if (!dragState.dragging) {
+      return;
+    }
+
+    if (elementRef.current) {
+      elementRef.current.style.transform = `translate(${dx}px, ${dy}px) scale(1.2)`;
+      elementRef.current.style.zIndex = '100';
     }
   };
 
   const handleTouchEnd = (e: React.TouchEvent) => {
-    const startPos = touchStartRef.current;
-    touchStartRef.current = null;
+    const dragState = touchDragStateRef.current;
+    touchDragStateRef.current = null;
+    resetTouchVisualState();
 
-    if (elementRef.current) {
-      // Reset styles
-      elementRef.current.style.transform = '';
-      elementRef.current.style.zIndex = '';
+    if (!dragState) return;
+    if (!dragState.dragging) {
+      return;
     }
 
-    if (!startPos) return;
-
-    // Calculate final position
     const touch = e.changedTouches[0];
+    suppressClickRef.current = true;
 
-    // Create a fake event with the final coordinates
-    // We pass these coordinates to the parent's handlePlayerDragEnd
-    // Note: clientX/Y here are used by the parent to find the nearest slot
     const fakeEvent = {
       clientX: touch.clientX,
       clientY: touch.clientY,
       preventDefault: () => { },
-      stopPropagation: () => { }
+      stopPropagation: () => { },
     } as unknown as React.DragEvent<HTMLDivElement>;
 
-    // Trigger Drop Logic
     handleDragEnd(fakeEvent);
   };
+
+  const handleTouchCancel = useCallback(() => {
+    touchDragStateRef.current = null;
+    resetTouchVisualState();
+    clearPressTimeout();
+    setIsPressing(false);
+  }, [clearPressTimeout, resetTouchVisualState]);
+
+  const handleClick = useCallback(() => {
+    if (suppressClickRef.current) {
+      suppressClickRef.current = false;
+      return;
+    }
+    onSelect();
+  }, [onSelect]);
 
   return (
     <div
@@ -184,14 +222,15 @@ const PitchPlayerMarker: React.FC<PitchPlayerMarkerProps> = ({
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
-      onClick={onSelect}
+      onTouchCancel={handleTouchCancel}
+      onClick={handleClick}
       onPointerDown={handlePressStart}
       onPointerUp={handlePressEnd}
       onPointerLeave={handlePressEnd}
       onPointerCancel={handlePressEnd}
       data-pressed={isPressing ? 'true' : undefined}
       className={cn(
-        'relative flex cursor-grab flex-col items-center justify-center transition-transform duration-150 ease-out',
+        'touch-none relative flex cursor-grab flex-col items-center justify-center transition-transform duration-150 ease-out',
         isSelected ? 'scale-110' : 'hover:scale-105'
       )}
       style={{ width: PITCH_MARKER_SIZE, height: PITCH_MARKER_SIZE }}
