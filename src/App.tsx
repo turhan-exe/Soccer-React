@@ -11,6 +11,7 @@ import { DiamondProvider } from '@/contexts/DiamondContext';
 import { router } from '@/routes/router';
 import { InventoryProvider } from '@/contexts/InventoryContext';
 import { unityBridge } from '@/services/unityBridge';
+import MatchControlPresenceHeartbeat from '@/components/system/MatchControlPresenceHeartbeat';
 
 const queryClient = new QueryClient();
 
@@ -103,6 +104,7 @@ const App = () => {
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
         <AuthProvider>
+          <MatchControlPresenceHeartbeat />
           <DiamondProvider>
             <InventoryProvider>
               <TooltipProvider>

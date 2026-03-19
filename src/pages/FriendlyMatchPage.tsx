@@ -11,6 +11,8 @@ import {
   acceptFriendlyRequest,
   buildUnityRuntimeTeamPayload,
   createFriendlyRequest,
+  getFriendlyRequestStatus,
+  getMatchControlHealth,
   getMatchStatus,
   getFriendlyMatchReadyStates,
   isMatchControlConfigured,
@@ -21,6 +23,13 @@ import {
   type FriendlyMatchHistoryItem,
   type FriendlyRequestListItem,
 } from '@/services/matchControl';
+
+function normalizeFriendlyAcceptMode(value: unknown): 'manual' | 'offline_auto' | 'unknown' {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (normalized === 'offline_auto') return 'offline_auto';
+  if (normalized === 'manual') return 'manual';
+  return 'unknown';
+}
 
 export default function FriendlyMatchPage() {
   const navigate = useNavigate();
@@ -35,6 +44,8 @@ export default function FriendlyMatchPage() {
   const [requestId, setRequestId] = useState('');
   const [matchId, setMatchId] = useState('');
   const [requestState, setRequestState] = useState<'idle' | 'pending' | 'accepted' | 'expired' | 'running'>('idle');
+  const [requestAcceptMode, setRequestAcceptMode] = useState<'manual' | 'offline_auto' | 'unknown'>('unknown');
+  const [autoAcceptAt, setAutoAcceptAt] = useState<string | null>(null);
   const [loadingAction, setLoadingAction] = useState<string | null>(null);
   const [unityLaunchOverlay, setUnityLaunchOverlay] = useState<{
     title: string;
@@ -50,6 +61,7 @@ export default function FriendlyMatchPage() {
   const [matchHistory, setMatchHistory] = useState<FriendlyMatchHistoryItem[]>([]);
   const [opponentUserId, setOpponentUserId] = useState('');
   const [opponentName, setOpponentName] = useState('');
+  const [autoAcceptCountdownSeconds, setAutoAcceptCountdownSeconds] = useState<number | null>(null);
   const pollFailureCountRef = useRef(0);
   const hasLoggedConnectionErrorRef = useRef(false);
   const delayedHistoryRefreshTimersRef = useRef<number[]>([]);
@@ -167,6 +179,25 @@ export default function FriendlyMatchPage() {
     };
   }, [unityLaunchOverlay]);
 
+  useEffect(() => {
+    if (!autoAcceptAt) {
+      setAutoAcceptCountdownSeconds(null);
+      return;
+    }
+
+    const updateCountdown = () => {
+      const remainingMs = new Date(autoAcceptAt).getTime() - Date.now();
+      setAutoAcceptCountdownSeconds(Math.max(0, Math.ceil(remainingMs / 1000)));
+    };
+
+    updateCountdown();
+    const timer = window.setInterval(updateCountdown, 250);
+
+    return () => {
+      window.clearInterval(timer);
+    };
+  }, [autoAcceptAt]);
+
   const launchUnity = async (serverIp: string, serverPort: number, joinTicket?: string, activeMatchId?: string) => {
     await unityBridge.launchMatchActivity(serverIp, serverPort, {
       homeId,
@@ -178,6 +209,34 @@ export default function FriendlyMatchPage() {
     });
   };
 
+  const launchFriendlyMatchById = useCallback(async (targetMatchId: string) => {
+    if (!canRunApiFlow || !user?.id) {
+      toast.error('API flow icin giris yap ve VITE_MATCH_CONTROL_BASE_URL tanimla.');
+      return;
+    }
+
+    showUnityLaunchOverlay('Mac baglantisi hazirlaniyor', 'Join ticket aliniyor ve mac sunucusunun hazir olmasi bekleniyor.');
+    const ticket = await requestJoinTicket({
+      matchId: targetMatchId.trim(),
+      userId: user.id,
+      role: 'player',
+    });
+    showUnityLaunchOverlay('Mac sunucusu hazirlaniyor', 'Sunucu running durumuna gelene kadar bekleniyor. Bu adim bazen 10-20 saniye surebilir.');
+    const readyMatch = await waitForMatchReady(ticket.matchId, {
+      timeoutMs: 60000,
+      pollMs: 700,
+      readyStates: getFriendlyMatchReadyStates(),
+    });
+
+    setMatchId(readyMatch.matchId);
+    setIp(readyMatch.serverIp);
+    setPort(String(readyMatch.serverPort));
+
+    showUnityLaunchOverlay('Unity aciliyor', 'Unity ekrani acilana kadar bu sayfada kal. Uygulama birazdan Unity alanina gececek.');
+    await launchUnity(readyMatch.serverIp, readyMatch.serverPort, ticket.joinTicket, readyMatch.matchId);
+    toast.success('Unity client baglantisi baslatildi.');
+  }, [canRunApiFlow, launchUnity, showUnityLaunchOverlay, user?.id]);
+
   const syncLists = useCallback(async () => {
     if (!canRunApiFlow || !user?.id) {
       return;
@@ -185,10 +244,16 @@ export default function FriendlyMatchPage() {
 
     const items = await listFriendlyRequests(user.id);
     const incoming = items.filter(
-      (item) => item.status === 'pending' && item.opponentUserId === user.id && item.requesterUserId !== user.id,
+      (item) =>
+        item.status === 'pending' &&
+        item.opponentUserId === user.id &&
+        item.requesterUserId !== user.id &&
+        normalizeFriendlyAcceptMode(item.acceptMode) !== 'offline_auto',
     );
     const outgoing = items.filter(
-      (item) => item.requesterUserId === user.id && (item.status === 'pending' || item.status === 'accepted'),
+      (item) =>
+        item.requesterUserId === user.id &&
+        (item.status === 'pending' || item.status === 'accepted'),
     );
 
     setIncomingRequests(incoming);
@@ -211,10 +276,16 @@ export default function FriendlyMatchPage() {
         setIp(tracked.match.serverIp);
         setPort(String(tracked.match.serverPort));
         setRequestState('accepted');
+        setRequestAcceptMode(normalizeFriendlyAcceptMode(tracked.acceptMode));
+        setAutoAcceptAt(tracked.autoAcceptAt || null);
       } else if (tracked?.status === 'pending') {
         setRequestState('pending');
+        setRequestAcceptMode(normalizeFriendlyAcceptMode(tracked.acceptMode));
+        setAutoAcceptAt(tracked.autoAcceptAt || null);
       } else if (tracked?.status === 'expired') {
         setRequestState('expired');
+        setRequestAcceptMode(normalizeFriendlyAcceptMode(tracked.acceptMode));
+        setAutoAcceptAt(null);
       }
     }
   }, [canRunApiFlow, user?.id, requestId, opponentUserId]);
@@ -236,6 +307,41 @@ export default function FriendlyMatchPage() {
       console.warn('[FriendlyMatchPage] Failed to load friendly history.', error);
     }
   }, [canRunApiFlow, opponentUserId, user?.id]);
+
+  const waitForOfflineAutoAcceptAndLaunch = useCallback(async (targetRequestId: string) => {
+    let deadline = Date.now() + 45_000;
+
+    while (Date.now() < deadline) {
+      const current = await getFriendlyRequestStatus(targetRequestId);
+      const currentState = String(current.status || '').trim().toLowerCase();
+      const expiresAtMs = current.expiresAt ? new Date(current.expiresAt).getTime() : Number.NaN;
+      if (Number.isFinite(expiresAtMs)) {
+        deadline = Math.max(deadline, Math.min(expiresAtMs + 1500, Date.now() + 115_000));
+      }
+      setRequestAcceptMode(normalizeFriendlyAcceptMode(current.acceptMode));
+      setAutoAcceptAt(current.autoAcceptAt || null);
+
+      if (currentState === 'accepted' && current.match?.matchId) {
+        setRequestState('accepted');
+        setMatchId(current.match.matchId);
+        setIp(current.match.serverIp);
+        setPort(String(current.match.serverPort));
+        await syncLists();
+        await refreshHistory();
+        await launchFriendlyMatchById(current.match.matchId);
+        return;
+      }
+
+      if (currentState === 'expired') {
+        setRequestState('expired');
+        throw new Error('Offline dostluk maci otomatik olarak baslatilamadi.');
+      }
+
+      await new Promise((resolve) => window.setTimeout(resolve, 600));
+    }
+
+    throw new Error('Offline dostluk maci zamaninda hazir olmadi.');
+  }, [launchFriendlyMatchById, refreshHistory, syncLists]);
 
   const scheduleDelayedHistoryRefreshes = useCallback(() => {
     delayedHistoryRefreshTimersRef.current.forEach((timerId) => window.clearTimeout(timerId));
@@ -333,7 +439,17 @@ export default function FriendlyMatchPage() {
 
     const poll = async () => {
       try {
-        await syncLists();
+        const health = await getMatchControlHealth();
+        if (!health?.ok) {
+          throw new Error('Match Control API health check basarisiz.');
+        }
+
+        try {
+          await syncLists();
+        } catch (error) {
+          console.warn('[FriendlyMatchPage] Request sync failed while API is online.', error);
+        }
+
         pollFailureCountRef.current = 0;
         hasLoggedConnectionErrorRef.current = false;
         if (alive) {
@@ -405,9 +521,18 @@ export default function FriendlyMatchPage() {
       });
       setRequestId(result.requestId);
       setRequestState('pending');
-      toast.success(`Dostluk istegi olusturuldu. RequestId: ${result.requestId}`);
+      setRequestAcceptMode(normalizeFriendlyAcceptMode(result.acceptMode));
+      setAutoAcceptAt(result.autoAcceptAt || null);
       await syncLists();
       await refreshHistory();
+
+      if (normalizeFriendlyAcceptMode(result.acceptMode) === 'offline_auto') {
+        toast.success('Rakip offline. 3 saniye icinde mac otomatik hazirlanacak.');
+        setLoadingAction('offline-auto');
+        await waitForOfflineAutoAcceptAndLaunch(result.requestId);
+      } else {
+        toast.success(`Dostluk istegi olusturuldu. RequestId: ${result.requestId}`);
+      }
     } catch (error: unknown) {
       console.error(error);
       toast.error(getErrorMessage(error, 'Istek olusturulamadi.'));
@@ -429,26 +554,7 @@ export default function FriendlyMatchPage() {
 
     setLoadingAction('join');
     try {
-      showUnityLaunchOverlay('Mac baglantisi hazirlaniyor', 'Join ticket aliniyor ve mac sunucusunun hazir olmasi bekleniyor.');
-      const ticket = await requestJoinTicket({
-        matchId: targetMatchId.trim(),
-        userId: user.id,
-        role: 'player',
-      });
-      showUnityLaunchOverlay('Mac sunucusu hazirlaniyor', 'Sunucu running durumuna gelene kadar bekleniyor. Bu adim bazen 10-20 saniye surebilir.');
-      const readyMatch = await waitForMatchReady(ticket.matchId, {
-        timeoutMs: 60000,
-        pollMs: 700,
-        readyStates: getFriendlyMatchReadyStates(),
-      });
-
-      setMatchId(readyMatch.matchId);
-      setIp(readyMatch.serverIp);
-      setPort(String(readyMatch.serverPort));
-
-      showUnityLaunchOverlay('Unity aciliyor', 'Unity ekrani acilana kadar bu sayfada kal. Uygulama birazdan Unity alanina gececek.');
-      await launchUnity(readyMatch.serverIp, readyMatch.serverPort, ticket.joinTicket, readyMatch.matchId);
-      toast.success('Unity client baglantisi baslatildi.');
+      await launchFriendlyMatchById(targetMatchId);
     } catch (error: unknown) {
       hideUnityLaunchOverlay();
       console.error(error);
@@ -479,6 +585,8 @@ export default function FriendlyMatchPage() {
       setRequestId(targetRequestId.trim());
       setMatchId(accepted.matchId);
       setRequestState('accepted');
+      setRequestAcceptMode('manual');
+      setAutoAcceptAt(null);
       showUnityLaunchOverlay('Mac sunucusu hazirlaniyor', 'Mac durumu running olana kadar bekleniyor. Unity birazdan acilacak.');
       const readyMatch = await waitForMatchReady(accepted.matchId, {
         timeoutMs: 60000,
@@ -587,8 +695,14 @@ export default function FriendlyMatchPage() {
             <div>Current user: {user?.id || 'not logged in'}</div>
             <div>Flow mode: {apiEnabled ? 'API-first' : 'API disabled'}</div>
             <div>Request state: {requestState}</div>
+            <div>Accept mode: {requestAcceptMode}</div>
             <div>API connection: {apiConnectionState}</div>
             {opponentUserId ? <div>Selected opponent: {opponentName || opponentUserId}</div> : null}
+            {requestAcceptMode === 'offline_auto' && autoAcceptCountdownSeconds != null ? (
+              <div className="text-amber-300">
+                Rakip offline. Otomatik kabul geri sayimi: {autoAcceptCountdownSeconds} sn
+              </div>
+            ) : null}
             {apiConnectionState === 'offline' ? (
               <div className="text-red-400">
                 API offline. {apiConnectionError || 'match-control-api servisini calistir.'}
@@ -657,7 +771,13 @@ export default function FriendlyMatchPage() {
                   <div key={item.requestId} className="rounded border border-slate-700 p-2 text-xs text-slate-300 space-y-1">
                     <div>Request: {item.requestId}</div>
                     <div>Status: {item.status}</div>
+                    <div>Accept mode: {item.acceptMode || 'manual'}</div>
                     <div>To: {item.opponentUserId || '-'}</div>
+                    {normalizeFriendlyAcceptMode(item.acceptMode) === 'offline_auto' && item.autoAcceptAt ? (
+                      <div className="text-amber-300">
+                        Otomatik kabul zamani: {new Date(item.autoAcceptAt).toLocaleTimeString('tr-TR')}
+                      </div>
+                    ) : null}
                     {item.match?.matchId ? (
                       <Button
                         size="sm"

@@ -22,7 +22,16 @@ import { Friend, User, ClubTeam, FriendRequest } from '@/types';
 export const getFriends = async (userId: string): Promise<Friend[]> => {
      const q = collection(db, `users/${userId}/friends`);
      const snapshot = await getDocs(q);
-     return snapshot.docs.map(doc => doc.data() as Friend);
+     return snapshot.docs.map((doc) => {
+          const data = doc.data() as Partial<Friend>;
+          return {
+               id: doc.id,
+               teamName: String(data.teamName || '').trim(),
+               managerName: String(data.managerName || '').trim(),
+               avatar: data.avatar,
+               addedAt: String(data.addedAt || '').trim(),
+          } as Friend;
+     });
 };
 
 // Arkadaş Silme

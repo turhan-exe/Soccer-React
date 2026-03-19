@@ -123,6 +123,7 @@ const config = {
     process.env.MATCH_CONTROL_SECRET ||
     "dev-signing-key",
   friendlyRequestTtlSec: Number(process.env.FRIENDLY_REQUEST_TTL_SEC || 120),
+  presenceTtlSec: Number(process.env.PRESENCE_TTL_SEC || 30),
   joinTicketTtlSec: Number(process.env.JOIN_TICKET_TTL_SEC || 300),
   leagueJoinTicketTtlSec: Number(process.env.LEAGUE_JOIN_TICKET_TTL_SEC || 900),
   defaultFriendlyMaxClients: Number(process.env.FRIENDLY_MAX_CLIENTS || 2),
@@ -142,6 +143,9 @@ const config = {
   ),
   friendlyStateCleanupIntervalMs: Number(
     process.env.FRIENDLY_STATE_CLEANUP_INTERVAL_MS || 60_000,
+  ),
+  friendlyOfflineAutoAcceptIntervalMs: Number(
+    process.env.FRIENDLY_OFFLINE_AUTO_ACCEPT_INTERVAL_MS || 1_000,
   ),
   lifecycleCallbackBaseUrl: process.env.MATCH_CONTROL_CALLBACK_BASE_URL || "",
   firebaseLifecycleUrl: process.env.FIREBASE_LIFECYCLE_URL || "",
@@ -182,6 +186,7 @@ fastify.register(cors, {
 const memoryStore = {
   friendlyRequests: new Map(),
   matches: new Map(),
+  presence: new Map(),
 };
 
 const pool =
@@ -397,6 +402,142 @@ function unixSeconds() {
   return Math.floor(Date.now() / 1000);
 }
 
+function normalizeFriendlyAcceptMode(value) {
+  const normalized = String(value || "").trim().toLowerCase();
+  return normalized === "offline_auto" ? "offline_auto" : "manual";
+}
+
+function normalizeAcceptedByKind(value) {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (normalized === "system") return "system";
+  if (normalized === "user") return "user";
+  return null;
+}
+
+function getPresenceMemoryRecord(userId) {
+  const normalizedUserId = String(userId || "").trim();
+  if (!normalizedUserId) return null;
+  const record = memoryStore.presence.get(normalizedUserId);
+  if (!record) return null;
+  if (Number(record.expiresAtMs || 0) <= Date.now()) {
+    memoryStore.presence.delete(normalizedUserId);
+    return null;
+  }
+  return record;
+}
+
+function setPresenceMemoryRecord(userId, ttlSec = config.presenceTtlSec) {
+  const normalizedUserId = String(userId || "").trim();
+  if (!normalizedUserId) {
+    return { expiresAt: nowIso() };
+  }
+
+  const expiresAtMs = Date.now() + Math.max(1, Number(ttlSec) || 30) * 1000;
+  const record = {
+    expiresAtMs,
+    expiresAt: new Date(expiresAtMs).toISOString(),
+  };
+  memoryStore.presence.set(normalizedUserId, record);
+
+  if (memoryStore.presence.size > 1000) {
+    for (const [key, value] of memoryStore.presence.entries()) {
+      if (Number(value?.expiresAtMs || 0) <= Date.now()) {
+        memoryStore.presence.delete(key);
+      }
+    }
+  }
+
+  return record;
+}
+
+async function storeUserPresence(userId) {
+  const normalizedUserId = String(userId || "").trim();
+  const ttlSec = Math.max(5, Number(config.presenceTtlSec || 30));
+  if (!normalizedUserId) {
+    return { ok: false, reliable: false, expiresAt: nowIso() };
+  }
+
+  if (redis) {
+    if (!redisReady) {
+      return { ok: true, reliable: false, expiresAt: new Date(Date.now() + ttlSec * 1000).toISOString() };
+    }
+
+    const expiresAt = new Date(Date.now() + ttlSec * 1000).toISOString();
+    await redis.set(`presence:user:${normalizedUserId}`, expiresAt, "EX", ttlSec);
+    return { ok: true, reliable: true, expiresAt };
+  }
+
+  const record = setPresenceMemoryRecord(normalizedUserId, ttlSec);
+  return {
+    ok: true,
+    reliable: true,
+    expiresAt: record.expiresAt,
+  };
+}
+
+async function getUserPresenceSnapshot(userId) {
+  const normalizedUserId = String(userId || "").trim();
+  if (!normalizedUserId) {
+    return { isOnline: false, reliable: false, expiresAt: null };
+  }
+
+  try {
+    if (redis) {
+      if (!redisReady) {
+        return { isOnline: false, reliable: false, expiresAt: null };
+      }
+
+      const expiresAt = await redis.get(`presence:user:${normalizedUserId}`);
+      return {
+        isOnline: Boolean(expiresAt),
+        reliable: true,
+        expiresAt: expiresAt || null,
+      };
+    }
+
+    const record = getPresenceMemoryRecord(normalizedUserId);
+    return {
+      isOnline: Boolean(record),
+      reliable: true,
+      expiresAt: record?.expiresAt || null,
+    };
+  } catch (error) {
+    fastify.log.warn({ err: error, userId: normalizedUserId }, "presence_lookup_failed");
+    return { isOnline: false, reliable: false, expiresAt: null };
+  }
+}
+
+function getIstanbulDayBounds(date = new Date()) {
+  const formatter = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Europe/Istanbul",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+  const partMap = Object.fromEntries(
+    formatter
+      .formatToParts(date)
+      .filter((part) => part.type !== "literal")
+      .map((part) => [part.type, part.value]),
+  );
+  const year = partMap.year;
+  const month = partMap.month;
+  const day = partMap.day;
+  const startIso = `${year}-${month}-${day}T00:00:00+03:00`;
+  const endBase = new Date(`${year}-${month}-${day}T00:00:00.000Z`);
+  endBase.setUTCDate(endBase.getUTCDate() + 1);
+  const endPartMap = Object.fromEntries(
+    formatter
+      .formatToParts(endBase)
+      .filter((part) => part.type !== "literal")
+      .map((part) => [part.type, part.value]),
+  );
+  return {
+    startIso,
+    endIso: `${endPartMap.year}-${endPartMap.month}-${endPartMap.day}T00:00:00+03:00`,
+  };
+}
+
 function makeId(prefix) {
   return `${prefix}_${crypto.randomUUID().replace(/-/g, "")}`;
 }
@@ -582,6 +723,33 @@ function ensureMatchAccess(identity, match, reply) {
   }
 
   reply.code(403).send({ error: "match_access_forbidden" });
+  return false;
+}
+
+function ensureFriendlyOfflineAutoAccess(identity, match, reply) {
+  if (
+    String(match?.mode || "").trim().toLowerCase() !== "friendly" ||
+    normalizeFriendlyAcceptMode(match?.friendlyAcceptMode) !== "offline_auto" ||
+    isTerminalMatchState(match)
+  ) {
+    return true;
+  }
+
+  if (identity?.type === "api_secret") {
+    return true;
+  }
+
+  const currentUserId = String(identity?.uid || "").trim();
+  if (!currentUserId) {
+    reply.code(401).send({ error: "unauthorized" });
+    return false;
+  }
+
+  if (currentUserId === String(match?.homeUserId || "").trim()) {
+    return true;
+  }
+
+  reply.code(403).send({ error: "friendly_offline_auto_join_forbidden" });
   return false;
 }
 
@@ -866,6 +1034,223 @@ function buildFriendlyServerUnavailablePayload({
   };
 }
 
+function createFriendlyRequestError(code, statusCode = 500) {
+  const error = new Error(code);
+  error.code = code;
+  error.statusCode = statusCode;
+  return error;
+}
+
+async function ensureFriendlyRequestAccepted({
+  pending,
+  acceptingUserId,
+  acceptedByKind = "user",
+  maxClients = config.defaultFriendlyMaxClients,
+}) {
+  if (!pending?.id) {
+    throw createFriendlyRequestError("friendly_request_not_found", 404);
+  }
+
+  const normalizedAcceptedByKind =
+    normalizeAcceptedByKind(acceptedByKind) || "user";
+  const acceptedByUserId = String(acceptingUserId || "").trim() || null;
+
+  if (pending.status === "accepted" && pending.matchId) {
+    const existingMatch = await getMatchById(pending.matchId);
+    if (!existingMatch) {
+      throw createFriendlyRequestError("accepted_match_missing", 409);
+    }
+    if (isTerminalMatchState(existingMatch)) {
+      throw createFriendlyRequestError(
+        existingMatch.endedReason || `match_${existingMatch.status || "unavailable"}`,
+        503,
+      );
+    }
+
+    return {
+      pending,
+      match: existingMatch,
+      reused: true,
+    };
+  }
+
+  if (pending.status !== "pending") {
+    throw createFriendlyRequestError("friendly_request_not_pending", 404);
+  }
+
+  if (new Date(pending.expiresAt).getTime() < Date.now()) {
+    pending.status = "expired";
+    pending.autoAcceptAt = null;
+    await storeFriendlyRequest(pending);
+    throw createFriendlyRequestError("friendly_request_expired", 410);
+  }
+
+  const matchId = makeId("m");
+  const sessionSecret = crypto.randomBytes(24).toString("hex");
+  const callbackUrl = buildLifecycleCallbackUrl(matchId);
+  const allocationPayload = {
+    matchId,
+    mode: "friendly",
+    maxClients: Number(maxClients || config.defaultFriendlyMaxClients),
+    sessionSecret,
+    homeTeamId: pending.homeTeamId,
+    awayTeamId: pending.awayTeamId,
+    homeTeamPayload: pending.homeTeamPayload || undefined,
+    awayTeamPayload: pending.awayTeamPayload || undefined,
+    autoStart: false,
+    callbackUrl,
+    callbackToken: config.callbackToken,
+  };
+  let allocationResult;
+
+  try {
+    allocationResult = await allocateAcrossNodePool("friendly", allocationPayload);
+  } catch (allocationError) {
+    if (!isNoFreeSlotAllocationError(allocationError)) {
+      const wrappedError = createFriendlyRequestError("friendly_server_unavailable", 503);
+      wrappedError.details = allocationError?.details || [];
+      throw wrappedError;
+    }
+
+    let reclaimReport;
+    try {
+      reclaimReport = await reclaimFriendlySlotsAfterNoFreeSlot();
+    } catch (reclaimError) {
+      fastify.log.error(
+        { err: reclaimError },
+        "friendly_no_free_slot_reclaim_failed",
+      );
+      reclaimReport = {
+        selected: 0,
+        attempted: 0,
+        released: 0,
+        skipped: 0,
+        releasedMatchIds: [],
+        errors: [
+          {
+            message: String(reclaimError?.message || "reclaim_failed"),
+          },
+        ],
+      };
+    }
+
+    if (reclaimReport.released > 0) {
+      try {
+        allocationResult = await allocateAcrossNodePool("friendly", allocationPayload);
+      } catch (retryError) {
+        if (!isNoFreeSlotAllocationError(retryError)) {
+          const wrappedError = createFriendlyRequestError("friendly_server_unavailable", 503);
+          wrappedError.details = retryError?.details || [];
+          throw wrappedError;
+        }
+
+        const wrappedError = createFriendlyRequestError("friendly_servers_busy", 409);
+        wrappedError.details = retryError.details || allocationError.details || [];
+        wrappedError.reclaim = reclaimReport;
+        throw wrappedError;
+      }
+    } else {
+      const wrappedError = createFriendlyRequestError("friendly_servers_busy", 409);
+      wrappedError.details = allocationError.details || [];
+      wrappedError.reclaim = reclaimReport;
+      throw wrappedError;
+    }
+  }
+
+  const node = allocationResult.node;
+  const allocation = allocationResult.allocation;
+
+  let match = {
+    id: matchId,
+    mode: "friendly",
+    status: "starting",
+    nodeId: normalizeNodeId(node),
+    serverIp: allocation.serverIp,
+    serverPort: allocation.serverPort,
+    sessionSecret,
+    homeTeamId: pending.homeTeamId,
+    awayTeamId: pending.awayTeamId,
+    homeUserId: pending.requesterUserId,
+    awayUserId: pending.opponentUserId || acceptedByUserId || null,
+    friendlyAcceptMode: normalizeFriendlyAcceptMode(pending.acceptMode),
+    friendlyAcceptedByKind: normalizedAcceptedByKind,
+    friendlyRequestId: pending.id,
+    homeTeamName:
+      String(pending.homeTeamPayload?.teamName || pending.homeTeamId || "Home").trim() ||
+      "Home",
+    awayTeamName:
+      String(pending.awayTeamPayload?.teamName || pending.awayTeamId || "Away").trim() ||
+      "Away",
+    leagueId: null,
+    fixtureId: null,
+    kickoffAt: null,
+    endedReason: null,
+    liveMinute: null,
+    liveMinuteAt: null,
+    updatedAt: nowIso(),
+  };
+
+  await storeMatch(match);
+
+  try {
+    await startOnNode(node, matchId);
+    try {
+      await waitForMatchPortReady(match.serverIp, match.serverPort);
+      match.status = "server_started";
+    } catch (transportError) {
+      match = await markMatchTransportUnavailable(
+        match,
+        String(transportError?.code || "match_transport_unavailable"),
+      );
+      const wrappedError = createFriendlyRequestError("friendly_server_unavailable", 503);
+      wrappedError.details = [
+        {
+          nodeId: normalizeNodeId(node),
+          serverIp: match.serverIp || null,
+          serverPort: match.serverPort || null,
+          message: match.endedReason || "match_transport_unavailable",
+        },
+      ];
+      throw wrappedError;
+    }
+
+    match.updatedAt = nowIso();
+    await storeMatch(match);
+  } catch (error) {
+    if (String(error?.code || error?.message || "") !== "friendly_server_unavailable") {
+      match.status = "failed";
+      match.endedReason = error.code || "match_start_failed";
+      match.updatedAt = nowIso();
+      await storeMatch(match);
+
+      try {
+        await releaseOnNode(node, matchId);
+      } catch (releaseError) {
+        fastify.log.warn(
+          { err: releaseError, matchId },
+          "friendly_accept_release_after_start_failure_failed",
+        );
+      }
+    }
+
+    fastify.log.warn({ err: error, matchId }, "friendly_accept_match_start_failed");
+    throw error;
+  }
+
+  pending.status = "accepted";
+  pending.acceptedBy = acceptedByUserId;
+  pending.acceptedByKind = normalizedAcceptedByKind;
+  pending.matchId = matchId;
+  pending.autoAcceptAt = null;
+  await storeFriendlyRequest(pending);
+
+  return {
+    pending,
+    match,
+    reused: false,
+  };
+}
+
 function resolveFriendlyRequestCreatedAtMs(requestItem) {
   return parseTimeMs(requestItem?.createdAt) || parseTimeMs(requestItem?.expiresAt) || 0;
 }
@@ -1033,7 +1418,11 @@ function sanitizeFriendlyRequest(row) {
     homeTeamId: row.home_team_id ?? row.homeTeamId,
     awayTeamId: row.away_team_id ?? row.awayTeamId,
     status: row.status,
+    acceptMode: normalizeFriendlyAcceptMode(row.accept_mode ?? row.acceptMode),
+    autoAcceptAt: row.auto_accept_at ?? row.autoAcceptAt ?? null,
     acceptedBy: row.accepted_by ?? row.acceptedBy ?? null,
+    acceptedByKind:
+      normalizeAcceptedByKind(row.accepted_by_kind ?? row.acceptedByKind) ?? null,
     matchId: row.match_id ?? row.matchId ?? null,
     homeTeamPayload:
       parseJsonObjectField(row.home_team_payload_json) ??
@@ -1062,6 +1451,13 @@ function sanitizeMatch(row) {
     awayTeamId: row.away_team_id ?? row.awayTeamId,
     homeUserId: row.home_user_id ?? row.homeUserId ?? null,
     awayUserId: row.away_user_id ?? row.awayUserId ?? null,
+    friendlyAcceptMode:
+      normalizeFriendlyAcceptMode(row.friendly_accept_mode ?? row.friendlyAcceptMode),
+    friendlyAcceptedByKind:
+      normalizeAcceptedByKind(
+        row.friendly_accepted_by_kind ?? row.friendlyAcceptedByKind,
+      ) ?? null,
+    friendlyRequestId: row.friendly_request_id ?? row.friendlyRequestId ?? null,
     seasonId: row.season_id ?? row.seasonId ?? null,
     leagueId: row.league_id ?? row.leagueId,
     fixtureId: row.fixture_id ?? row.fixtureId,
@@ -1157,6 +1553,18 @@ async function initPg() {
     ALTER TABLE friendly_requests
     ADD COLUMN IF NOT EXISTS away_team_payload_json TEXT;
   `);
+  await pool.query(`
+    ALTER TABLE friendly_requests
+    ADD COLUMN IF NOT EXISTS accept_mode TEXT NOT NULL DEFAULT 'manual';
+  `);
+  await pool.query(`
+    ALTER TABLE friendly_requests
+    ADD COLUMN IF NOT EXISTS auto_accept_at TIMESTAMPTZ;
+  `);
+  await pool.query(`
+    ALTER TABLE friendly_requests
+    ADD COLUMN IF NOT EXISTS accepted_by_kind TEXT;
+  `);
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS matches (
@@ -1244,6 +1652,18 @@ async function initPg() {
     ALTER TABLE matches
     ADD COLUMN IF NOT EXISTS live_minute_at TIMESTAMPTZ;
   `);
+  await pool.query(`
+    ALTER TABLE matches
+    ADD COLUMN IF NOT EXISTS friendly_accept_mode TEXT;
+  `);
+  await pool.query(`
+    ALTER TABLE matches
+    ADD COLUMN IF NOT EXISTS friendly_accepted_by_kind TEXT;
+  `);
+  await pool.query(`
+    ALTER TABLE matches
+    ADD COLUMN IF NOT EXISTS friendly_request_id TEXT;
+  `);
 
   pgReady = true;
 }
@@ -1261,16 +1681,20 @@ async function storeFriendlyRequest(req) {
   await pool.query(
     `INSERT INTO friendly_requests (
        id, requester_user_id, opponent_user_id, home_team_id, away_team_id,
-       status, accepted_by, match_id, expires_at, home_team_payload_json, away_team_payload_json
+       status, accept_mode, auto_accept_at, accepted_by, accepted_by_kind, match_id, expires_at,
+       home_team_payload_json, away_team_payload_json
      )
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
      ON CONFLICT (id) DO UPDATE SET
        requester_user_id = EXCLUDED.requester_user_id,
        opponent_user_id = EXCLUDED.opponent_user_id,
        home_team_id = EXCLUDED.home_team_id,
        away_team_id = EXCLUDED.away_team_id,
        status = EXCLUDED.status,
+       accept_mode = EXCLUDED.accept_mode,
+       auto_accept_at = EXCLUDED.auto_accept_at,
        accepted_by = EXCLUDED.accepted_by,
+       accepted_by_kind = EXCLUDED.accepted_by_kind,
        match_id = EXCLUDED.match_id,
        expires_at = EXCLUDED.expires_at,
        home_team_payload_json = EXCLUDED.home_team_payload_json,
@@ -1282,7 +1706,10 @@ async function storeFriendlyRequest(req) {
       req.homeTeamId,
       req.awayTeamId,
       req.status,
+      normalizeFriendlyAcceptMode(req.acceptMode),
+      req.autoAcceptAt || null,
       req.acceptedBy || null,
+      normalizeAcceptedByKind(req.acceptedByKind),
       req.matchId || null,
       req.expiresAt,
       req.homeTeamPayload ? JSON.stringify(req.homeTeamPayload) : null,
@@ -1376,6 +1803,166 @@ async function listFriendlyRequestsByUser(userId) {
   }
 
   return listFriendlyRequestsInternal({ userId: normalizedUserId, limit: 50 });
+}
+
+function isSameUserPair(leftRequest, userA, userB) {
+  const normalizedUserA = String(userA || "").trim();
+  const normalizedUserB = String(userB || "").trim();
+  if (!normalizedUserA || !normalizedUserB) {
+    return false;
+  }
+
+  return (
+    (String(leftRequest?.requesterUserId || "").trim() === normalizedUserA &&
+      String(leftRequest?.opponentUserId || "").trim() === normalizedUserB) ||
+    (String(leftRequest?.requesterUserId || "").trim() === normalizedUserB &&
+      String(leftRequest?.opponentUserId || "").trim() === normalizedUserA)
+  );
+}
+
+async function findActiveFriendlyRequestForPair(userA, userB) {
+  const normalizedUserA = String(userA || "").trim();
+  const normalizedUserB = String(userB || "").trim();
+  if (!normalizedUserA || !normalizedUserB) {
+    return null;
+  }
+
+  if (pool && pgReady) {
+    const result = await pool.query(
+      `SELECT fr.*,
+              m.status AS linked_match_status,
+              m.ended_at AS linked_match_ended_at
+         FROM friendly_requests fr
+         LEFT JOIN matches m
+           ON m.id = fr.match_id
+        WHERE (
+          (fr.requester_user_id = $1 AND fr.opponent_user_id = $2)
+          OR
+          (fr.requester_user_id = $2 AND fr.opponent_user_id = $1)
+        )
+          AND LOWER(fr.status) = ANY($3::text[])
+        ORDER BY fr.created_at DESC
+        LIMIT 20`,
+      [normalizedUserA, normalizedUserB, ["pending", "accepted"]],
+    );
+
+    for (const row of result.rows) {
+      const requestItem = sanitizeFriendlyRequest(row);
+      if (!requestItem) continue;
+      const requestStatus = String(requestItem.status || "").trim().toLowerCase();
+      if (requestStatus === "pending") {
+        return requestItem;
+      }
+
+      const linkedMatchStatus = String(row.linked_match_status || "").trim().toLowerCase();
+      if (!linkedMatchStatus || !["failed", "ended", "released"].includes(linkedMatchStatus)) {
+        return requestItem;
+      }
+    }
+
+    return null;
+  }
+
+  const requests = await listFriendlyRequestsInternal({
+    statuses: ["pending", "accepted"],
+    limit: 100,
+  });
+
+  for (const requestItem of requests) {
+    if (!isSameUserPair(requestItem, normalizedUserA, normalizedUserB)) {
+      continue;
+    }
+
+    const requestStatus = String(requestItem.status || "").trim().toLowerCase();
+    if (requestStatus === "pending") {
+      return requestItem;
+    }
+
+    if (!requestItem.matchId) {
+      return requestItem;
+    }
+
+    const match = await getMatchById(requestItem.matchId);
+    if (!match || !isTerminalMatchState(match)) {
+      return requestItem;
+    }
+  }
+
+  return null;
+}
+
+async function countOfflineFriendlyMatchesForPairToday(userA, userB) {
+  const normalizedUserA = String(userA || "").trim();
+  const normalizedUserB = String(userB || "").trim();
+  if (!normalizedUserA || !normalizedUserB) {
+    return 0;
+  }
+
+  const { startIso, endIso } = getIstanbulDayBounds();
+
+  if (pool && pgReady) {
+    const result = await pool.query(
+      `SELECT COUNT(*)::int AS total
+         FROM matches
+        WHERE LOWER(mode) = 'friendly'
+          AND LOWER(COALESCE(friendly_accept_mode, 'manual')) = 'offline_auto'
+          AND created_at >= $3
+          AND created_at < $4
+          AND (
+            (home_user_id = $1 AND away_user_id = $2)
+            OR
+            (home_user_id = $2 AND away_user_id = $1)
+          )`,
+      [normalizedUserA, normalizedUserB, startIso, endIso],
+    );
+    return Number(result.rows?.[0]?.total || 0);
+  }
+
+  return Array.from(memoryStore.matches.values()).filter((item) => {
+    if (String(item?.mode || "").trim().toLowerCase() !== "friendly") {
+      return false;
+    }
+    if (normalizeFriendlyAcceptMode(item?.friendlyAcceptMode) !== "offline_auto") {
+      return false;
+    }
+    const createdAt = parseTimeMs(item?.createdAt);
+    return (
+      createdAt >= parseTimeMs(startIso) &&
+      createdAt < parseTimeMs(endIso) &&
+      ((String(item?.homeUserId || "").trim() === normalizedUserA &&
+        String(item?.awayUserId || "").trim() === normalizedUserB) ||
+        (String(item?.homeUserId || "").trim() === normalizedUserB &&
+          String(item?.awayUserId || "").trim() === normalizedUserA))
+    );
+  }).length;
+}
+
+async function listDueOfflineAutoAcceptRequests(limit = 100) {
+  const normalizedLimit = normalizePositiveInt(limit, 100, { min: 1, max: 500 });
+  const now = nowIso();
+
+  if (pool && pgReady) {
+    const result = await pool.query(
+      `SELECT *
+         FROM friendly_requests
+        WHERE LOWER(status) = 'pending'
+          AND LOWER(COALESCE(accept_mode, 'manual')) = 'offline_auto'
+          AND auto_accept_at IS NOT NULL
+          AND auto_accept_at <= $1
+        ORDER BY auto_accept_at ASC
+        LIMIT $2`,
+      [now, normalizedLimit],
+    );
+
+    return result.rows.map((row) => sanitizeFriendlyRequest(row)).filter(Boolean);
+  }
+
+  return Array.from(memoryStore.friendlyRequests.values())
+    .filter((item) => String(item?.status || "").trim().toLowerCase() === "pending")
+    .filter((item) => normalizeFriendlyAcceptMode(item?.acceptMode) === "offline_auto")
+    .filter((item) => parseTimeMs(item?.autoAcceptAt) > 0 && parseTimeMs(item?.autoAcceptAt) <= parseTimeMs(now))
+    .sort((a, b) => parseTimeMs(a.autoAcceptAt) - parseTimeMs(b.autoAcceptAt))
+    .slice(0, normalizedLimit);
 }
 
 async function getMatchById(matchId) {
@@ -1874,6 +2461,102 @@ function scheduleFriendlyStateCleanupJob() {
   fastify.log.info({ intervalMs }, "friendly_state_cleanup_interval_started");
 }
 
+async function runFriendlyOfflineAutoAcceptJob(trigger = "manual", options = {}) {
+  const requests = await listDueOfflineAutoAcceptRequests(options.limit ?? 100);
+  const report = {
+    scanned: requests.length,
+    accepted: 0,
+    reused: 0,
+    expired: 0,
+    errors: [],
+  };
+
+  for (const pending of requests) {
+    const lockKey = `lock:friendly:${pending.id}`;
+    const locked = await acquireLock(lockKey);
+    if (!locked) {
+      continue;
+    }
+
+    try {
+      const freshPending = await getFriendlyRequestById(pending.id);
+      if (!freshPending) {
+        continue;
+      }
+      if (String(freshPending.status || "").trim().toLowerCase() !== "pending") {
+        continue;
+      }
+      if (normalizeFriendlyAcceptMode(freshPending.acceptMode) !== "offline_auto") {
+        continue;
+      }
+      if (parseTimeMs(freshPending.autoAcceptAt) > Date.now()) {
+        continue;
+      }
+
+      const { reused } = await ensureFriendlyRequestAccepted({
+        pending: freshPending,
+        acceptingUserId: freshPending.opponentUserId || null,
+        acceptedByKind: "system",
+      });
+      if (reused) {
+        report.reused += 1;
+      } else {
+        report.accepted += 1;
+      }
+    } catch (error) {
+      if (error?.code === "friendly_request_expired") {
+        report.expired += 1;
+        continue;
+      }
+
+      if (
+        error?.code === "friendly_servers_busy" ||
+        error?.code === "friendly_server_unavailable"
+      ) {
+        const freshPending = await getFriendlyRequestById(pending.id);
+        if (freshPending && String(freshPending.status || "").trim().toLowerCase() === "pending") {
+          freshPending.autoAcceptAt = new Date(Date.now() + 3000).toISOString();
+          await storeFriendlyRequest(freshPending);
+        }
+        report.errors.push({
+          requestId: pending.id,
+          error: error.code,
+        });
+        continue;
+      }
+
+      report.errors.push({
+        requestId: pending.id,
+        error: String(error?.code || error?.message || "offline_auto_accept_failed"),
+      });
+    }
+  }
+
+  if (report.accepted > 0 || report.expired > 0 || report.errors.length > 0) {
+    fastify.log.info({ trigger, ...report }, "friendly_offline_auto_accept_completed");
+  }
+
+  return report;
+}
+
+function scheduleFriendlyOfflineAutoAcceptJob() {
+  const intervalMs = Math.max(
+    1000,
+    Number(config.friendlyOfflineAutoAcceptIntervalMs || 1000),
+  );
+  const timer = setInterval(() => {
+    void runFriendlyOfflineAutoAcceptJob("interval").catch((error) => {
+      fastify.log.error({ err: error }, "friendly_offline_auto_accept_interval_failed");
+    });
+  }, intervalMs);
+
+  if (typeof timer.unref === "function") {
+    timer.unref();
+  }
+
+  fastify.log.info({ intervalMs }, "friendly_offline_auto_accept_interval_started");
+}
+
 async function storeMatch(match) {
   memoryStore.matches.set(match.id, match);
   if (!pool || !pgReady) return;
@@ -1881,12 +2564,13 @@ async function storeMatch(match) {
   await pool.query(
     `INSERT INTO matches (
       id, mode, status, node_id, server_ip, server_port, session_secret,
-      home_team_id, away_team_id, home_user_id, away_user_id, season_id,
+      home_team_id, away_team_id, home_user_id, away_user_id, friendly_accept_mode,
+      friendly_accepted_by_kind, friendly_request_id, season_id,
       league_id, fixture_id, kickoff_at, ended_reason,
       home_score, away_score, home_team_name, away_team_name,
       live_minute, live_minute_at, result_payload, ended_at, replay_status, replay_storage_path,
       video_status, video_storage_path, video_watch_url, updated_at
-    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23::jsonb,$24,$25,$26,$27,$28,$29,now())
+    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26::jsonb,$27,$28,$29,$30,$31,$32,now())
     ON CONFLICT (id) DO UPDATE SET
       mode = EXCLUDED.mode,
       status = EXCLUDED.status,
@@ -1898,6 +2582,9 @@ async function storeMatch(match) {
       away_team_id = EXCLUDED.away_team_id,
       home_user_id = EXCLUDED.home_user_id,
       away_user_id = EXCLUDED.away_user_id,
+      friendly_accept_mode = EXCLUDED.friendly_accept_mode,
+      friendly_accepted_by_kind = EXCLUDED.friendly_accepted_by_kind,
+      friendly_request_id = EXCLUDED.friendly_request_id,
       season_id = EXCLUDED.season_id,
       league_id = EXCLUDED.league_id,
       fixture_id = EXCLUDED.fixture_id,
@@ -1929,6 +2616,9 @@ async function storeMatch(match) {
       match.awayTeamId,
       match.homeUserId || null,
       match.awayUserId || null,
+      normalizeFriendlyAcceptMode(match.friendlyAcceptMode),
+      normalizeAcceptedByKind(match.friendlyAcceptedByKind),
+      match.friendlyRequestId || null,
       match.seasonId || null,
       match.leagueId,
       match.fixtureId,
@@ -2175,6 +2865,27 @@ fastify.get("/health", async () => ({
     : 0,
 }));
 
+fastify.post("/v1/presence/heartbeat", async (request, reply) => {
+  if (!(await requireUserOrApiAuth(request, reply))) return;
+
+  const body = request.body || {};
+  const userId = String(body.userId || "").trim();
+  if (!userId) {
+    return reply.code(400).send({ error: "userId required" });
+  }
+
+  if (!ensureClaimedUserMatches(request.identity, userId, reply, "userId")) {
+    return;
+  }
+
+  const result = await storeUserPresence(userId);
+  return reply.send({
+    ok: true,
+    expiresAt: result.expiresAt,
+    reliable: Boolean(result.reliable),
+  });
+});
+
 fastify.post("/v1/friendly/requests", async (request, reply) => {
   if (!(await requireUserOrApiAuth(request, reply))) return;
 
@@ -2196,6 +2907,36 @@ fastify.post("/v1/friendly/requests", async (request, reply) => {
     return;
   }
 
+  if (opponentUserId) {
+    const activeRequest = await findActiveFriendlyRequestForPair(
+      requesterUserId,
+      opponentUserId,
+    );
+    if (activeRequest) {
+      return reply.code(409).send({ error: "friendly_request_active_exists" });
+    }
+  }
+
+  let acceptMode = "manual";
+  let autoAcceptAt = null;
+  if (opponentUserId) {
+    const presence = await getUserPresenceSnapshot(opponentUserId);
+    if (presence.reliable && !presence.isOnline) {
+      const offlineCountToday = await countOfflineFriendlyMatchesForPairToday(
+        requesterUserId,
+        opponentUserId,
+      );
+      if (offlineCountToday >= 2) {
+        return reply
+          .code(409)
+          .send({ error: "friendly_offline_daily_limit_reached" });
+      }
+
+      acceptMode = "offline_auto";
+      autoAcceptAt = new Date(Date.now() + 3000).toISOString();
+    }
+  }
+
   const requestId = makeId("fr");
   const expiresAt = new Date(Date.now() + config.friendlyRequestTtlSec * 1000).toISOString();
   const data = {
@@ -2207,14 +2948,23 @@ fastify.post("/v1/friendly/requests", async (request, reply) => {
     homeTeamPayload,
     awayTeamPayload,
     status: "pending",
+    acceptMode,
+    autoAcceptAt,
     acceptedBy: null,
+    acceptedByKind: null,
     matchId: null,
     createdAt: nowIso(),
     expiresAt,
   };
 
   await storeFriendlyRequest(data);
-  return reply.code(201).send({ requestId, status: data.status, expiresAt });
+  return reply.code(201).send({
+    requestId,
+    status: data.status,
+    expiresAt,
+    acceptMode: data.acceptMode,
+    autoAcceptAt: data.autoAcceptAt,
+  });
 });
 
 fastify.get("/v1/friendly/requests", async (request, reply) => {
@@ -2235,11 +2985,14 @@ fastify.get("/v1/friendly/requests", async (request, reply) => {
       const payload = {
         requestId: item.id,
         status: item.status,
+        acceptMode: normalizeFriendlyAcceptMode(item.acceptMode),
+        autoAcceptAt: item.autoAcceptAt || null,
         requesterUserId: item.requesterUserId,
         opponentUserId: item.opponentUserId || null,
     homeTeamId: item.homeTeamId,
     awayTeamId: item.awayTeamId,
         acceptedBy: item.acceptedBy || null,
+        acceptedByKind: normalizeAcceptedByKind(item.acceptedByKind) || null,
         matchId: item.matchId || null,
         expiresAt: item.expiresAt,
         createdAt: item.createdAt || null,
@@ -2285,11 +3038,14 @@ fastify.get("/v1/friendly/requests/:requestId", async (request, reply) => {
   const response = {
     requestId: pending.id,
     status: pending.status,
+    acceptMode: normalizeFriendlyAcceptMode(pending.acceptMode),
+    autoAcceptAt: pending.autoAcceptAt || null,
     requesterUserId: pending.requesterUserId,
     opponentUserId: pending.opponentUserId || null,
     homeTeamId: pending.homeTeamId,
     awayTeamId: pending.awayTeamId,
     acceptedBy: pending.acceptedBy,
+    acceptedByKind: normalizeAcceptedByKind(pending.acceptedByKind) || null,
     matchId: pending.matchId,
     expiresAt: pending.expiresAt,
   };
@@ -2389,217 +3145,65 @@ fastify.post("/v1/friendly/requests/:requestId/accept", async (request, reply) =
     return reply.code(404).send({ error: "friendly_request_not_found" });
   }
 
-  if (pending.status === "accepted" && pending.matchId) {
-    const existingMatch = await getMatchById(pending.matchId);
-    if (!existingMatch) {
-      return reply.code(409).send({ error: "accepted_match_missing" });
-    }
+  if (
+    normalizeFriendlyAcceptMode(pending.acceptMode) === "offline_auto" &&
+    acceptingUserId !== String(pending.requesterUserId || "").trim()
+  ) {
+    return reply.code(403).send({ error: "friendly_offline_auto_join_forbidden" });
+  }
 
-    if (isTerminalMatchState(existingMatch)) {
-      return reply.code(503).send({
-        error: existingMatch.endedReason || `match_${existingMatch.status || "unavailable"}`,
-      });
-    }
+  if (
+    normalizeFriendlyAcceptMode(pending.acceptMode) !== "offline_auto" &&
+    pending.opponentUserId &&
+    pending.opponentUserId !== acceptingUserId
+  ) {
+    return reply.code(403).send({ error: "forbidden_accepting_user" });
+  }
+
+  try {
+    const { match, reused } = await ensureFriendlyRequestAccepted({
+      pending,
+      acceptingUserId,
+      acceptedByKind: "user",
+      maxClients: body.maxClients,
+    });
 
     const joinTicket = issueJoinTicket({
-      matchId: existingMatch.id,
+      matchId: match.id,
       userId: acceptingUserId,
       role: acceptedRole,
-      teamSide: resolveTeamSide(existingMatch, acceptingUserId, acceptedRole),
+      teamSide: resolveTeamSide(match, acceptingUserId, acceptedRole),
       ttlSec: config.joinTicketTtlSec,
-      secret: existingMatch.sessionSecret,
+      secret: match.sessionSecret,
     });
 
     return reply.send({
       requestId,
-      matchId: existingMatch.id,
-      state: existingMatch.status,
-      serverIp: existingMatch.serverIp,
-      serverPort: existingMatch.serverPort,
+      matchId: match.id,
+      state: match.status,
+      serverIp: match.serverIp,
+      serverPort: match.serverPort,
       joinTicket,
       expiresAt: new Date(Date.now() + config.joinTicketTtlSec * 1000).toISOString(),
-      reused: true,
+      reused,
     });
-  }
-
-  if (pending.status !== "pending") {
-    return reply.code(404).send({ error: "friendly_request_not_pending" });
-  }
-
-  if (pending.opponentUserId && pending.opponentUserId !== acceptingUserId) {
-    return reply.code(403).send({ error: "forbidden_accepting_user" });
-  }
-
-  if (new Date(pending.expiresAt).getTime() < Date.now()) {
-    pending.status = "expired";
-    await storeFriendlyRequest(pending);
-    return reply.code(410).send({ error: "friendly_request_expired" });
-  }
-
-  const matchId = makeId("m");
-  const sessionSecret = crypto.randomBytes(24).toString("hex");
-  const callbackUrl = buildLifecycleCallbackUrl(matchId);
-  const allocationPayload = {
-    matchId,
-    mode: "friendly",
-    maxClients: Number(body.maxClients || config.defaultFriendlyMaxClients),
-    sessionSecret,
-    homeTeamId: pending.homeTeamId,
-    awayTeamId: pending.awayTeamId,
-    homeTeamPayload: pending.homeTeamPayload || undefined,
-    awayTeamPayload: pending.awayTeamPayload || undefined,
-    autoStart: false,
-    callbackUrl,
-    callbackToken: config.callbackToken,
-  };
-  let allocationResult;
-
-  try {
-    allocationResult = await allocateAcrossNodePool("friendly", allocationPayload);
-  } catch (allocationError) {
-    if (!isNoFreeSlotAllocationError(allocationError)) {
-      return reply.code(503).send(buildFriendlyServerUnavailablePayload({
-        details: allocationError?.details || [],
-      }));
-    }
-
-    let reclaimReport;
-    try {
-      reclaimReport = await reclaimFriendlySlotsAfterNoFreeSlot();
-    } catch (reclaimError) {
-      fastify.log.error(
-        { err: reclaimError },
-        "friendly_no_free_slot_reclaim_failed",
-      );
-      reclaimReport = {
-        selected: 0,
-        attempted: 0,
-        released: 0,
-        skipped: 0,
-        releasedMatchIds: [],
-        errors: [
-          {
-            message: String(reclaimError?.message || "reclaim_failed"),
-          },
-        ],
-      };
-    }
-    if (reclaimReport.released > 0) {
-      try {
-        allocationResult = await allocateAcrossNodePool("friendly", allocationPayload);
-      } catch (retryError) {
-        if (!isNoFreeSlotAllocationError(retryError)) {
-          return reply.code(503).send(buildFriendlyServerUnavailablePayload({
-            details: retryError?.details || [],
-          }));
-        }
-
-        return reply.code(409).send(buildFriendlyServersBusyPayload({
-          details: retryError.details || allocationError.details || [],
-          reclaim: reclaimReport,
-        }));
-      }
-    } else {
-      return reply.code(409).send(buildFriendlyServersBusyPayload({
-        details: allocationError.details || [],
-        reclaim: reclaimReport,
-      }));
-    }
-  }
-
-  const node = allocationResult.node;
-  const allocation = allocationResult.allocation;
-
-  const match = {
-    id: matchId,
-    mode: "friendly",
-    status: "starting",
-    nodeId: normalizeNodeId(node),
-    serverIp: allocation.serverIp,
-    serverPort: allocation.serverPort,
-    sessionSecret,
-    homeTeamId: pending.homeTeamId,
-    awayTeamId: pending.awayTeamId,
-    homeUserId: pending.requesterUserId,
-    awayUserId: acceptingUserId,
-    leagueId: null,
-    fixtureId: null,
-    kickoffAt: null,
-    endedReason: null,
-    liveMinute: null,
-    liveMinuteAt: null,
-    updatedAt: nowIso(),
-  };
-
-  await storeMatch(match);
-
-  try {
-    await startOnNode(node, matchId);
-    try {
-      await waitForMatchPortReady(match.serverIp, match.serverPort);
-      match.status = "server_started";
-    } catch (transportError) {
-      match = await markMatchTransportUnavailable(
-        match,
-        String(transportError?.code || "match_transport_unavailable"),
-      );
-      return reply.code(503).send(
-        buildFriendlyServerUnavailablePayload({
-          details: [
-            {
-              nodeId: normalizeNodeId(node),
-              serverIp: match.serverIp || null,
-              serverPort: match.serverPort || null,
-              message: match.endedReason || "match_transport_unavailable",
-            },
-          ],
-        }),
-      );
-    }
-    match.updatedAt = nowIso();
-    await storeMatch(match);
   } catch (error) {
-    match.status = "failed";
-    match.endedReason = error.code || "match_start_failed";
-    match.updatedAt = nowIso();
-    await storeMatch(match);
-
-    try {
-      await releaseOnNode(node, matchId);
-    } catch (releaseError) {
-      fastify.log.warn(
-        { err: releaseError, matchId },
-        "friendly_accept_release_after_start_failure_failed",
-      );
+    if (error?.code === "friendly_servers_busy") {
+      return reply.code(409).send(buildFriendlyServersBusyPayload({
+        details: error.details || [],
+        reclaim: error.reclaim || null,
+      }));
+    }
+    if (error?.code === "friendly_server_unavailable") {
+      return reply.code(503).send(buildFriendlyServerUnavailablePayload({
+        details: error.details || [],
+      }));
     }
 
-    fastify.log.warn({ err: error, matchId }, "friendly_accept_match_start_failed");
-    return reply.code(503).send({ error: error.code || "match_start_failed" });
+    return reply
+      .code(Number(error?.statusCode || 503))
+      .send({ error: error?.code || error?.message || "friendly_accept_failed" });
   }
-
-  pending.status = "accepted";
-  pending.acceptedBy = acceptingUserId;
-  pending.matchId = matchId;
-  await storeFriendlyRequest(pending);
-
-  const joinTicket = issueJoinTicket({
-    matchId,
-    userId: acceptingUserId,
-    role: acceptedRole,
-    teamSide: resolveTeamSide(match, acceptingUserId, acceptedRole),
-    ttlSec: config.joinTicketTtlSec,
-    secret: sessionSecret,
-  });
-
-  return reply.send({
-    requestId,
-    matchId,
-    state: match.status,
-    serverIp: match.serverIp,
-    serverPort: match.serverPort,
-    joinTicket,
-    expiresAt: new Date(Date.now() + config.joinTicketTtlSec * 1000).toISOString(),
-  });
 });
 
 fastify.post("/v1/matches/:matchId/join-ticket", async (request, reply) => {
@@ -2637,6 +3241,9 @@ fastify.post("/v1/matches/:matchId/join-ticket", async (request, reply) => {
   }
 
   if (!ensureMatchAccess(request.identity, match, reply)) {
+    return;
+  }
+  if (!ensureFriendlyOfflineAutoAccess(request.identity, match, reply)) {
     return;
   }
 
@@ -2703,6 +3310,9 @@ fastify.get("/v1/matches/:matchId/status", async (request, reply) => {
   }
 
   if (!ensureMatchAccess(request.identity, match, reply)) {
+    return;
+  }
+  if (!ensureFriendlyOfflineAutoAccess(request.identity, match, reply)) {
     return;
   }
 
@@ -3085,6 +3695,7 @@ async function start() {
     fastify.log.error({ err: error }, "friendly_state_cleanup_startup_failed");
   }
   scheduleFriendlyStateCleanupJob();
+  scheduleFriendlyOfflineAutoAcceptJob();
 
   await fastify.listen({ port: config.port, host: config.host });
   fastify.log.info({ port: config.port, host: config.host }, "match-control-api started");

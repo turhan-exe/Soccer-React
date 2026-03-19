@@ -756,7 +756,60 @@ function isPortReservedByAllocation(allocation) {
   return ["allocated", "starting", "running", "stopping"].includes(allocation.state);
 }
 
+function isPidAlive(pid) {
+  const normalizedPid = Number(pid || 0);
+  if (!Number.isInteger(normalizedPid) || normalizedPid <= 0) {
+    return false;
+  }
+
+  try {
+    process.kill(normalizedPid, 0);
+    return true;
+  } catch (error) {
+    if (error?.code === "EPERM") {
+      return true;
+    }
+    if (error?.code === "ESRCH") {
+      return false;
+    }
+    return false;
+  }
+}
+
+function pruneStaleInMemoryAllocations(source = "unknown") {
+  let released = 0;
+  for (const [matchId, allocation] of allocations.entries()) {
+    if (!allocation) {
+      allocations.delete(matchId);
+      continue;
+    }
+    if (!isPortReservedByAllocation(allocation)) {
+      continue;
+    }
+    if (allocation.process) {
+      continue;
+    }
+    if (allocation.pid && isPidAlive(allocation.pid)) {
+      continue;
+    }
+
+    allocation.state = "released";
+    allocation.releaseReason = allocation.releaseReason || `stale_in_memory_${source}`;
+    allocation.pid = null;
+    allocation.updatedAt = nowIso();
+    allocations.delete(matchId);
+    released += 1;
+  }
+
+  if (released > 0) {
+    fastify.log.warn({ source, released }, "stale_in_memory_allocations_pruned");
+  }
+
+  return released;
+}
+
 function getReservedPorts() {
+  pruneStaleInMemoryAllocations("getReservedPorts");
   const result = new Set();
   for (const allocation of allocations.values()) {
     if (isPortReservedByAllocation(allocation)) {
@@ -919,6 +972,7 @@ function safePublicIp() {
 }
 
 function computeCapacity() {
+  pruneStaleInMemoryAllocations("computeCapacity");
   const totalSlots = config.allocatablePorts.length;
   let usedSlots = 0;
   let runningSlots = 0;
@@ -1573,6 +1627,7 @@ function startAllocationProcess(allocation) {
 }
 
 function createAllocation(body) {
+  pruneStaleInMemoryAllocations("createAllocation");
   const matchId = String(body.matchId || "").trim();
   if (!matchId) {
     throw new Error("matchId_required");

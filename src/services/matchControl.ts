@@ -1,3 +1,4 @@
+import { Capacitor, CapacitorHttp } from '@capacitor/core';
 import { auth } from '@/services/firebase';
 import type { ClubTeam, Player as ClubPlayer } from '@/types';
 
@@ -7,11 +8,7 @@ function resolveMatchControlBaseUrl(): string {
 
   try {
     const parsed = new URL(raw);
-    const isLocalhost = ['localhost', '127.0.0.1'].includes(parsed.hostname);
-    if (import.meta.env.DEV || isLocalhost) {
-      return raw.replace(/\/$/, '');
-    }
-    if (parsed.protocol === 'https:') {
+    if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
       return raw.replace(/\/$/, '');
     }
   } catch {
@@ -23,11 +20,20 @@ function resolveMatchControlBaseUrl(): string {
 
 const BASE_URL = resolveMatchControlBaseUrl();
 const STATIC_BEARER = (import.meta.env.VITE_MATCH_CONTROL_BEARER || '').trim();
+const USE_NATIVE_HTTP = Capacitor.isNativePlatform() && BASE_URL.startsWith('http://');
 
 export type FriendlyRequestResponse = {
   requestId: string;
   status: 'pending' | 'accepted' | 'expired' | string;
   expiresAt: string;
+  acceptMode?: 'manual' | 'offline_auto' | string;
+  autoAcceptAt?: string | null;
+};
+
+export type PresenceHeartbeatResponse = {
+  ok?: boolean;
+  expiresAt?: string;
+  reliable?: boolean;
 };
 
 export type UnityRuntimePlayerPayload = {
@@ -68,11 +74,14 @@ export type UnityRuntimeTeamPayload = {
 export type FriendlyRequestListItem = {
   requestId: string;
   status: 'pending' | 'accepted' | 'expired' | string;
+  acceptMode?: 'manual' | 'offline_auto' | string;
+  autoAcceptAt?: string | null;
   requesterUserId: string;
   opponentUserId?: string | null;
   homeTeamId?: string;
   awayTeamId?: string;
   acceptedBy?: string | null;
+  acceptedByKind?: 'user' | 'system' | string | null;
   matchId?: string | null;
   expiresAt?: string;
   createdAt?: string | null;
@@ -87,11 +96,14 @@ export type FriendlyRequestListItem = {
 export type FriendlyRequestStatusResponse = {
   requestId: string;
   status: 'pending' | 'accepted' | 'expired' | string;
+  acceptMode?: 'manual' | 'offline_auto' | string;
+  autoAcceptAt?: string | null;
   requesterUserId?: string;
   opponentUserId?: string | null;
   homeTeamId?: string;
   awayTeamId?: string;
   acceptedBy?: string | null;
+  acceptedByKind?: 'user' | 'system' | string | null;
   matchId?: string | null;
   expiresAt?: string;
   match?: {
@@ -126,6 +138,16 @@ export type MatchStatusResponse = {
   serverIp: string;
   serverPort: number;
   updatedAt: string;
+};
+
+export type MatchControlHealthResponse = {
+  ok?: boolean;
+  pgReady?: boolean;
+  redisReady?: boolean;
+  nodeAgents?: number;
+  nodeAgentsFriendly?: number;
+  nodeAgentsLeague?: number;
+  timestamp?: string;
 };
 
 const MATCH_READY_STATES = new Set(['server_started', 'running']);
@@ -200,8 +222,90 @@ type MatchControlRequestInit = RequestInit & {
   timeoutMs?: number;
 };
 
+type NativeHttpResult = {
+  status: number;
+  data: unknown;
+};
+
+async function executeNativeHttp(
+  path: string,
+  init: MatchControlRequestInit | undefined,
+  authHeader: string | null,
+): Promise<NativeHttpResult> {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...(init?.headers as Record<string, string> | undefined),
+  };
+  if (authHeader) {
+    headers.Authorization = authHeader;
+  }
+
+  const timeoutMs = Math.max(1000, Number(init?.timeoutMs || 10000));
+  const method = String(init?.method || 'GET').toUpperCase();
+  let data: unknown = undefined;
+  const body = init?.body;
+
+  if (typeof body === 'string' && body.length > 0) {
+    try {
+      data = JSON.parse(body);
+    } catch {
+      data = body;
+    }
+  } else if (body != null) {
+    data = body as unknown;
+  }
+
+  const response = await CapacitorHttp.request({
+    url: `${BASE_URL.replace(/\/$/, '')}${path}`,
+    method,
+    headers,
+    data,
+    connectTimeout: timeoutMs,
+    readTimeout: timeoutMs,
+  });
+
+  return {
+    status: Number(response.status || 0),
+    data: response.data,
+  };
+}
+
+async function requestPublicJson<T>(path: string, timeoutMs = 6000): Promise<T> {
+  if (!BASE_URL) {
+    throw new Error('Match Control API base URL tanimli degil.');
+  }
+
+  if (USE_NATIVE_HTTP) {
+    const response = await executeNativeHttp(path, { method: 'GET', timeoutMs }, null);
+    if (response.status < 200 || response.status >= 300) {
+      throw new Error(`Request failed (${response.status})`);
+    }
+    return response.data as T;
+  }
+
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const response = await fetch(`${BASE_URL.replace(/\/$/, '')}${path}`, {
+      method: 'GET',
+      signal: controller.signal,
+    });
+    if (!response.ok) {
+      throw new Error(`Request failed (${response.status})`);
+    }
+    return (await response.json()) as T;
+  } finally {
+    window.clearTimeout(timeout);
+  }
+}
+
 async function requestJson<T>(path: string, init?: MatchControlRequestInit): Promise<T> {
   if (!BASE_URL) {
+    throw new Error('Match Control API base URL tanimli degil.');
+  }
+
+  if (!USE_NATIVE_HTTP && typeof window !== 'undefined' && window.location.protocol === 'https:' && BASE_URL.startsWith('http://')) {
     throw new Error('Match Control API production icin HTTPS uzerinden tanimlanmali.');
   }
 
@@ -216,12 +320,65 @@ async function requestJson<T>(path: string, init?: MatchControlRequestInit): Pro
     return headers;
   };
 
-  const controller = new AbortController();
+  let authHeader = await resolveAuthHeader();
   const timeoutMs = Math.max(1000, Number(init?.timeoutMs || 10000));
+
+  if (USE_NATIVE_HTTP) {
+    let response: NativeHttpResult;
+    try {
+      response = await executeNativeHttp(path, init, authHeader);
+
+      if (response.status === 401 && !STATIC_BEARER) {
+        const refreshedAuthHeader = await resolveAuthHeaderWithRefresh();
+        const retryAuthHeader = refreshedAuthHeader || authHeader;
+        if (retryAuthHeader) {
+          response = await executeNativeHttp(path, init, retryAuthHeader);
+          authHeader = retryAuthHeader;
+        }
+      }
+    } catch {
+      throw new Error(`Match Control API ulasilamiyor: ${BASE_URL}`);
+    }
+
+    if (response.status < 200 || response.status >= 300) {
+      const text =
+        typeof response.data === 'string' ? response.data : JSON.stringify(response.data ?? '');
+      let parsed: Record<string, unknown> | null = null;
+      if (response.data && typeof response.data === 'object' && !Array.isArray(response.data)) {
+        parsed = response.data as Record<string, unknown>;
+      } else if (text) {
+        try {
+          const candidate = JSON.parse(text);
+          if (candidate && typeof candidate === 'object' && !Array.isArray(candidate)) {
+            parsed = candidate as Record<string, unknown>;
+          }
+        } catch {
+          // keep plain-text fallback below
+        }
+      }
+
+      const errorCode = typeof parsed?.error === 'string' ? parsed.error.trim() : '';
+      if (errorCode === 'friendly_servers_busy' || errorCode === 'no_free_slot') {
+        throw new Error('Dostluk maci icin sunucu dolu, lutfen bekleyin.');
+      }
+      if (errorCode === 'friendly_server_unavailable' || errorCode === 'allocation_failed') {
+        throw new Error('Dostluk maci sunucusuna ulasilamiyor, lutfen tekrar deneyin.');
+      }
+      if (errorCode) {
+        throw new Error(errorCode);
+      }
+
+      const message = typeof parsed?.message === 'string' ? parsed.message.trim() : '';
+      throw new Error(message || text || `Request failed (${response.status})`);
+    }
+
+    return response.data as T;
+  }
+
+  const controller = new AbortController();
   const timeout = window.setTimeout(() => controller.abort(), timeoutMs);
 
   let response: Response;
-  let authHeader = await resolveAuthHeader();
   try {
     response = await fetch(`${BASE_URL.replace(/\/$/, '')}${path}`, {
       ...init,
@@ -245,7 +402,7 @@ async function requestJson<T>(path: string, init?: MatchControlRequestInit): Pro
     if (error instanceof DOMException && error.name === 'AbortError') {
       throw new Error(`Match Control API timeout (${Math.round(timeoutMs / 1000)}s).`);
     }
-      throw new Error(`Match Control API ulasilamiyor: ${BASE_URL}`);
+    throw new Error(`Match Control API ulasilamiyor: ${BASE_URL}`);
   } finally {
     window.clearTimeout(timeout);
   }
@@ -295,6 +452,16 @@ export async function createFriendlyRequest(payload: {
     method: 'POST',
     body: JSON.stringify(payload),
     timeoutMs: 20000,
+  });
+}
+
+export async function heartbeatMatchControlPresence(
+  userId: string,
+): Promise<PresenceHeartbeatResponse> {
+  return requestJson<PresenceHeartbeatResponse>('/v1/presence/heartbeat', {
+    method: 'POST',
+    body: JSON.stringify({ userId }),
+    timeoutMs: 12000,
   });
 }
 
@@ -795,6 +962,10 @@ export async function getMatchStatus(matchId: string): Promise<MatchStatusRespon
   return requestJson<MatchStatusResponse>(`/v1/matches/${encodeURIComponent(matchId)}/status`, {
     method: 'GET',
   });
+}
+
+export async function getMatchControlHealth(): Promise<MatchControlHealthResponse> {
+  return requestPublicJson<MatchControlHealthResponse>('/health', 6000);
 }
 
 export async function waitForMatchReady(

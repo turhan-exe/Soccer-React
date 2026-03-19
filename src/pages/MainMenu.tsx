@@ -364,6 +364,7 @@ export default function MainMenu() {
     if (!user?.id) return null;
 
     const relevant = items
+      .filter((item) => !(item.acceptMode === 'offline_auto' && item.requesterUserId !== user.id))
       .filter((item) => item.requesterUserId === user.id || item.opponentUserId === user.id)
       .sort((a, b) => {
         const left = new Date(b.createdAt || b.expiresAt || 0).getTime();

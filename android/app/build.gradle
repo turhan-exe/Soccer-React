@@ -10,10 +10,10 @@ if (keystorePropertiesFile.exists()) {
 android {
     namespace "com.nerbuss.fhsmanager"
     compileSdk rootProject.ext.compileSdkVersion
-    ndkVersion "23.1.7779620"
+    ndkVersion "27.2.12479018"
     defaultConfig {
         applicationId "com.nerbuss.fhsmanager"
-        minSdkVersion rootProject.ext.minSdkVersion
+        minSdkVersion 25
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 2026031702
         versionName "1.0.2"
