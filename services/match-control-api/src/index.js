@@ -128,8 +128,8 @@ const config = {
   leagueJoinTicketTtlSec: Number(process.env.LEAGUE_JOIN_TICKET_TTL_SEC || 900),
   defaultFriendlyMaxClients: Number(process.env.FRIENDLY_MAX_CLIENTS || 2),
   defaultLeagueMaxClients: Number(process.env.LEAGUE_MAX_CLIENTS || 2),
-  nodeAgentRequestTimeoutMs: Number(process.env.NODE_AGENT_REQUEST_TIMEOUT_MS || 3000),
-  matchPortReadyTimeoutMs: Number(process.env.MATCH_PORT_READY_TIMEOUT_MS || 15000),
+  nodeAgentRequestTimeoutMs: Number(process.env.NODE_AGENT_REQUEST_TIMEOUT_MS || 10000),
+  matchPortReadyTimeoutMs: Number(process.env.MATCH_PORT_READY_TIMEOUT_MS || 45000),
   matchPortReadyPollMs: Number(process.env.MATCH_PORT_READY_POLL_MS || 500),
   matchEndReleaseDelayMs: Number(process.env.MATCH_END_RELEASE_DELAY_MS || 90000),
   friendlyNoFreeSlotReclaimLimit: Number(
@@ -1256,7 +1256,7 @@ function resolveFriendlyRequestCreatedAtMs(requestItem) {
 }
 
 async function waitForMatchReady(matchId, options = {}) {
-  const timeoutMs = Math.max(1000, Number(options.timeoutMs || 30000));
+  const timeoutMs = Math.max(1000, Number(options.timeoutMs || 90000));
   const pollMs = Math.max(100, Number(options.pollMs || 400));
   const deadline = Date.now() + timeoutMs;
   let lastMatch = await getMatchById(matchId);

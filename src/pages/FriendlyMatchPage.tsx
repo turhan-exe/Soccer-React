@@ -223,7 +223,7 @@ export default function FriendlyMatchPage() {
     });
     showUnityLaunchOverlay('Mac sunucusu hazirlaniyor', 'Sunucu running durumuna gelene kadar bekleniyor. Bu adim bazen 10-20 saniye surebilir.');
     const readyMatch = await waitForMatchReady(ticket.matchId, {
-      timeoutMs: 60000,
+      timeoutMs: 90000,
       pollMs: 700,
       readyStates: getFriendlyMatchReadyStates(),
     });
@@ -589,7 +589,7 @@ export default function FriendlyMatchPage() {
       setAutoAcceptAt(null);
       showUnityLaunchOverlay('Mac sunucusu hazirlaniyor', 'Mac durumu running olana kadar bekleniyor. Unity birazdan acilacak.');
       const readyMatch = await waitForMatchReady(accepted.matchId, {
-        timeoutMs: 60000,
+        timeoutMs: 90000,
         pollMs: 700,
         readyStates: getFriendlyMatchReadyStates(),
       });

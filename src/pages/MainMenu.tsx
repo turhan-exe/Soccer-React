@@ -554,7 +554,7 @@ export default function MainMenu() {
           role: 'player',
         });
         const readyMatch = await waitForMatchReady(ticket.matchId, {
-          timeoutMs: 60000,
+          timeoutMs: 90000,
           pollMs: 700,
           readyStates: getFriendlyMatchReadyStates(),
         });
@@ -583,7 +583,7 @@ export default function MainMenu() {
         role: 'player',
       });
       const readyMatch = await waitForMatchReady(ticket.matchId, {
-        timeoutMs: 35000,
+        timeoutMs: 90000,
         pollMs: 700,
       });
       await unityBridge.launchMatchActivity(readyMatch.serverIp, readyMatch.serverPort, {

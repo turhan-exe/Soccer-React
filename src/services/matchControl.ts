@@ -20,7 +20,9 @@ function resolveMatchControlBaseUrl(): string {
 
 const BASE_URL = resolveMatchControlBaseUrl();
 const STATIC_BEARER = (import.meta.env.VITE_MATCH_CONTROL_BEARER || '').trim();
-const USE_NATIVE_HTTP = Capacitor.isNativePlatform() && BASE_URL.startsWith('http://');
+const USE_NATIVE_HTTP =
+  Capacitor.isNativePlatform() &&
+  (BASE_URL.startsWith('http://') || BASE_URL.startsWith('https://'));
 
 export type FriendlyRequestResponse = {
   requestId: string;
@@ -976,7 +978,7 @@ export async function waitForMatchReady(
     readyStates?: Iterable<string>;
   },
 ): Promise<MatchStatusResponse> {
-  const timeoutMs = Math.max(1000, Number(options?.timeoutMs || 35000));
+  const timeoutMs = Math.max(1000, Number(options?.timeoutMs || 90000));
   const pollMs = Math.max(200, Number(options?.pollMs || 600));
   const readyStates = new Set(
     Array.from(options?.readyStates || MATCH_READY_STATES, (state) =>
