@@ -27,4 +27,17 @@
         <item name="windowSplashScreenBackground">#020617</item>
         <item name="postSplashScreenTheme">@style/AppTheme.NoActionBar</item>
     </style>
+
+    <!-- Mirror Unity's exported host theme locally so app manifest resolution
+         does not depend on library resource merge timing. -->
+    <style name="BaseUnityTheme" parent="android:Theme.Holo.Light.NoActionBar.Fullscreen" />
+
+    <style name="UnityThemeSelector" parent="BaseUnityTheme">
+        <item name="android:windowBackground">@android:color/black</item>
+    </style>
+
+    <style name="UnityThemeSelector.Translucent" parent="@style/UnityThemeSelector">
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+    </style>
 </resources>
