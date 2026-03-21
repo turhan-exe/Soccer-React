@@ -53,7 +53,6 @@ import {
   TRAINING_FINISH_COST,
   finishTrainingWithDiamonds,
   markTrainingRecordsViewed,
-  reduceTrainingTimeWithAd,
 } from '@/services/training';
 import {
   Clock,
@@ -68,6 +67,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useInventory } from '@/contexts/InventoryContext';
+import { runRewardedAdFlow } from '@/services/rewardedAds';
 
 const EXTRA_ASSIGNMENT_DIAMOND_COST = 20;
 const FINISH_COST_PER_ASSIGNMENT = 18;
@@ -292,6 +292,28 @@ export default function TrainingPage() {
       setActiveSessionSafe(null);
       setPendingActiveSession(null);
       return;
+    }
+
+    try {
+      const persistedSession = await getActiveTraining(user.id);
+      if (!persistedSession) {
+        const [team, records] = await Promise.all([
+          getTeam(user.id),
+          getTrainingHistory(user.id),
+        ]);
+        setPlayers(team?.players || []);
+        setHistory(records);
+        setIsTraining(false);
+        setTimeLeft(0);
+        setActiveSessionSafe(null);
+        setPendingActiveSession(null);
+        setSelectedPlayers([]);
+        setSelectedTrainings([]);
+        toast.success('Antrenman tamamlandi');
+        return;
+      }
+    } catch (error) {
+      console.warn('Sunucu antrenman durumu kontrol edilemedi', error);
     }
 
     const { updatedPlayers: sessionUpdatedPlayers, records } = runTrainingSimulation(
@@ -646,28 +668,44 @@ export default function TrainingPage() {
 
     setIsWatchingAd(true);
     try {
-      const session = await reduceTrainingTimeWithAd(user.id);
+      const result = await runRewardedAdFlow({
+        userId: user.id,
+        placement: 'training_finish',
+        context: {
+          surface: 'training',
+          playerIds: activeSession.players.map(player => player.id),
+          trainingIds: activeSession.trainings.map(training => training.id),
+        },
+      });
       setActiveSessionState(prev => {
-        const next = prev ? { ...prev, durationSeconds: session.durationSeconds } : prev;
+        const next = prev;
         activeSessionRef.current = next;
         return next;
       });
 
-      const startAtDate = activeSession.startedAt.toDate();
-      const elapsedSeconds = Math.max(
-        0,
-        Math.floor((Date.now() - startAtDate.getTime()) / 1000),
-      );
-      const newRemaining = Math.max(session.durationSeconds - elapsedSeconds, 0);
-
-      if (newRemaining <= 0) {
+      if (result.outcome === 'claimed' || result.outcome === 'already_claimed') {
         setTimeLeft(0);
-        toast.success('Antrenman tamamlandı');
+
+        toast.success('Antrenman reklam odulu ile tamamlandi');
         await completeSession();
-      } else {
-        startCountdown(newRemaining);
-        toast.success('Antrenman tamamlandı');
+        return;
       }
+
+      if (result.outcome === 'dismissed') {
+        toast.info('Reklam tamamlanmadi, antrenman devam ediyor.');
+        startCountdown(remainingBeforeAd);
+        return;
+      }
+
+      if (result.outcome === 'pending_verification') {
+        toast.info('Reklam dogrulaniyor. Biraz sonra yeniden deneyin.');
+        startCountdown(remainingBeforeAd);
+        return;
+      }
+
+      toast.error('Reklam gosterilemedi.');
+      startCountdown(remainingBeforeAd);
+      return;
     } catch (err) {
       console.warn('Antrenman reklamla hızlandırılamadı', err);
       toast.error((err as Error).message || 'Reklam izleme başarısız');

@@ -28,9 +28,63 @@ export type LeagueBootstrapOptions = {
   leagueCount?: number;
 };
 
+export type ListLeaguesOptions = {
+  includeTeams?: boolean;
+  hydrateNames?: boolean;
+};
+
+export async function hydrateLeagueTeamCounts(
+  leagueIds: string[]
+): Promise<Record<string, number>> {
+  const uniqueLeagueIds = Array.from(new Set(leagueIds.filter(Boolean)));
+  if (uniqueLeagueIds.length === 0) return {};
+
+  const entries = await Promise.all(
+    uniqueLeagueIds.map(async (leagueId) => {
+      const slotsSnap = await getDocs(collection(db, 'leagues', leagueId, 'slots'));
+
+      if (!slotsSnap.empty) {
+        const uniqueSlots = new Set<number>();
+        slotsSnap.docs.forEach((docSnap) => {
+          const data = docSnap.data() as Record<string, unknown>;
+          const slotIndex =
+            typeof data.slotIndex === 'number'
+              ? data.slotIndex
+              : Number(docSnap.id) || 0;
+          if (slotIndex > 0) uniqueSlots.add(slotIndex);
+        });
+        return [leagueId, uniqueSlots.size] as const;
+      }
+
+      const standingsSnap = await getDocs(collection(db, 'leagues', leagueId, 'standings'));
+      if (!standingsSnap.empty) {
+        const uniqueTeams = new Set<string>();
+        standingsSnap.docs.forEach((docSnap) => {
+          const data = docSnap.data() as Record<string, unknown>;
+          const stableId =
+            typeof data.teamId === 'string' && data.teamId.trim().length > 0
+              ? data.teamId
+              : `slot-${typeof data.slotIndex === 'number' ? data.slotIndex : Number(docSnap.id) || 0}`;
+          if (stableId) uniqueTeams.add(stableId);
+        });
+        return [leagueId, uniqueTeams.size] as const;
+      }
+
+      const teamsSnap = await getDocs(collection(db, 'leagues', leagueId, 'teams'));
+      if (!teamsSnap.empty) {
+        return [leagueId, teamsSnap.docs.length] as const;
+      }
+
+      return [leagueId, 0] as const;
+    })
+  );
+
+  return Object.fromEntries(entries);
+}
+
 /** Uygulama ilk açıldığında en az bir lig olduğundan emin ol */
 export async function ensureDefaultLeague(): Promise<void> {
-  const snap = await getDocs(collection(db, 'leagues'));
+  const snap = await getDocs(query(collection(db, 'leagues'), limit(1)));
   if (!snap.empty) return;
   // Yeni akış: boşsa aylık slot tabanlı ligleri kurmayı dener
   try {
@@ -753,83 +807,116 @@ export function listenStandings(
 }
 
 /** Lig listesini (takımlarla birlikte) getir */
-export async function listLeagues(): Promise<League[]> {
+export async function listLeagues(
+  options: ListLeaguesOptions = {}
+): Promise<League[]> {
+  const { includeTeams = false, hydrateNames = false } = options;
   const snap = await getDocs(collection(db, 'leagues'));
-  const leagues: League[] = [];
-  for (const d of snap.docs) {
-    const data = d.data() as any;
-    const standingsSnap = await getDocs(collection(d.ref, 'standings'));
-    const slotsSnap = await getDocs(collection(d.ref, 'slots'));
-    let teams: { id: string; name: string }[] = [];
-    let teamCount = 0;
 
-    const standingsById = new Map<string, { id: string; name: string }>();
-    if (!standingsSnap.empty) {
-      for (const standingDoc of standingsSnap.docs) {
-        const row = standingDoc.data() as any;
-        const stableId = row.teamId || `slot-${row.slotIndex}`;
-        if (!stableId || standingsById.has(stableId)) continue;
-        standingsById.set(stableId, {
-          id: stableId,
-          name: row.name || row.teamId || `Slot ${row.slotIndex}`,
-        });
-      }
-      teams = Array.from(standingsById.values());
-      teamCount = teams.length;
-    }
+  if (!includeTeams) {
+    return snap.docs.map((d) => {
+      const data = d.data() as any;
+      const capacity = Number(data.capacity) || 0;
+      const rawTeamCount = Number(data.teamCount);
+      const normalizedTeamCount = Number.isFinite(rawTeamCount)
+        ? Math.max(0, rawTeamCount)
+        : 0;
 
-    if (!slotsSnap.empty) {
-      const slotTeamsByIndex = new Map<number, { id: string; name: string }>();
-      for (const slotDoc of slotsSnap.docs) {
-        const slotData = slotDoc.data() as any;
-        const slotIndex =
-          typeof slotData.slotIndex === 'number' ? slotData.slotIndex : Number(slotDoc.id) || 0;
-        if (slotIndex <= 0 || slotTeamsByIndex.has(slotIndex)) continue;
-
-        const stableId = slotData.teamId || `slot-${slotIndex}`;
-        slotTeamsByIndex.set(slotIndex, {
-          id: stableId,
-          name:
-            standingsById.get(stableId)?.name ||
-            slotData.name ||
-            slotData.teamId ||
-            `Bot ${slotData.botId || slotIndex}`,
-        });
-      }
-
-      teams = Array.from(slotTeamsByIndex.values());
-      teamCount = slotTeamsByIndex.size;
-    } else if (teams.length === 0) {
-      const teamsSnap = await getDocs(collection(d.ref, 'teams'));
-      const legacyTeamsById = new Map<string, { id: string; name: string }>();
-      for (const teamDoc of teamsSnap.docs) {
-        const teamData = teamDoc.data() as any;
-        if (legacyTeamsById.has(teamDoc.id)) continue;
-        legacyTeamsById.set(teamDoc.id, { id: teamDoc.id, name: teamData.name || teamDoc.id });
-      }
-      teams = Array.from(legacyTeamsById.values());
-      teamCount = teams.length;
-    }
-
-    const capacity = Number(data.capacity) || 0;
-    if (capacity > 0) {
-      teamCount = Math.min(teamCount, capacity);
-    }
-
-    leagues.push({
-      id: d.id,
-      name: data.name,
-      season: data.season,
-      capacity: data.capacity,
-      timezone: data.timezone,
-      state: data.state,
-      startDate: data.startDate,
-      rounds: data.rounds,
-      teamCount,
-      teams: await hydrateTeamNames(teams),
-    } as League);
+      return {
+        id: d.id,
+        name: data.name,
+        season: data.season,
+        capacity: data.capacity,
+        timezone: data.timezone,
+        state: data.state,
+        startDate: data.startDate,
+        rounds: data.rounds,
+        teamCount:
+          capacity > 0
+            ? Math.min(normalizedTeamCount, capacity)
+            : normalizedTeamCount,
+        teams: [],
+      } as League;
+    });
   }
-  return leagues;
+
+  return Promise.all(
+    snap.docs.map(async (d) => {
+      const data = d.data() as any;
+      const [standingsSnap, slotsSnap] = await Promise.all([
+        getDocs(collection(d.ref, 'standings')),
+        getDocs(collection(d.ref, 'slots')),
+      ]);
+      let teams: { id: string; name: string }[] = [];
+      let teamCount = 0;
+
+      const standingsById = new Map<string, { id: string; name: string }>();
+      if (!standingsSnap.empty) {
+        for (const standingDoc of standingsSnap.docs) {
+          const row = standingDoc.data() as any;
+          const stableId = row.teamId || `slot-${row.slotIndex}`;
+          if (!stableId || standingsById.has(stableId)) continue;
+          standingsById.set(stableId, {
+            id: stableId,
+            name: row.name || row.teamId || `Slot ${row.slotIndex}`,
+          });
+        }
+        teams = Array.from(standingsById.values());
+        teamCount = teams.length;
+      }
+
+      if (!slotsSnap.empty) {
+        const slotTeamsByIndex = new Map<number, { id: string; name: string }>();
+        for (const slotDoc of slotsSnap.docs) {
+          const slotData = slotDoc.data() as any;
+          const slotIndex =
+            typeof slotData.slotIndex === 'number' ? slotData.slotIndex : Number(slotDoc.id) || 0;
+          if (slotIndex <= 0 || slotTeamsByIndex.has(slotIndex)) continue;
+
+          const stableId = slotData.teamId || `slot-${slotIndex}`;
+          slotTeamsByIndex.set(slotIndex, {
+            id: stableId,
+            name:
+              standingsById.get(stableId)?.name ||
+              slotData.name ||
+              slotData.teamId ||
+              `Bot ${slotData.botId || slotIndex}`,
+          });
+        }
+
+        teams = Array.from(slotTeamsByIndex.values());
+        teamCount = slotTeamsByIndex.size;
+      } else if (teams.length === 0) {
+        const teamsSnap = await getDocs(collection(d.ref, 'teams'));
+        const legacyTeamsById = new Map<string, { id: string; name: string }>();
+        for (const teamDoc of teamsSnap.docs) {
+          const teamData = teamDoc.data() as any;
+          if (legacyTeamsById.has(teamDoc.id)) continue;
+          legacyTeamsById.set(teamDoc.id, { id: teamDoc.id, name: teamData.name || teamDoc.id });
+        }
+        teams = Array.from(legacyTeamsById.values());
+        teamCount = teams.length;
+      }
+
+      const capacity = Number(data.capacity) || 0;
+      if (capacity > 0) {
+        teamCount = Math.min(teamCount, capacity);
+      }
+
+      return {
+        id: d.id,
+        name: data.name,
+        season: data.season,
+        capacity: data.capacity,
+        timezone: data.timezone,
+        state: data.state,
+        startDate: data.startDate,
+        rounds: data.rounds,
+        teamCount,
+        teams: hydrateNames ? await hydrateTeamNames(teams) : teams,
+      } as League;
+    })
+  );
 }
 
 /** Puan durumunu tek seferlik getir (istemcide sıralama) */

@@ -7,6 +7,7 @@ import { dateForRound } from './utils/time.js';
 import { nextDayAtTR } from './utils/schedule.js';
 import { ensureBotTeamDoc } from './utils/bots.js';
 import { ensureLeagueTeamDocs } from './utils/leagueTeams.js';
+import { enqueueLeagueMatchReminders } from './notify/matchReminder.js';
 
 const db = getFirestore();
 const REGION = 'europe-west1';
@@ -173,6 +174,7 @@ async function rebuildFixturesForLeague(
   let batch = db.batch();
   let ops = 0;
   let created = 0;
+  const reminderJobs: Array<{ fixtureId: string; kickoffAt: Date }> = [];
 
   for (const match of template) {
     const realHomeSlot = slotOrder[match.homeSlot - 1];
@@ -182,6 +184,7 @@ async function rebuildFixturesForLeague(
     const awayInfo = slotMap.get(realAwaySlot);
     const date = dateForRound(startDate, match.round);
     const ref = leagueRef.collection('fixtures').doc();
+    reminderJobs.push({ fixtureId: ref.id, kickoffAt: date });
     batch.set(ref, {
       round: match.round,
       date: Timestamp.fromDate(date),
@@ -203,6 +206,15 @@ async function rebuildFixturesForLeague(
   }
   if (ops > 0) {
     await batch.commit();
+  }
+
+  const reminders = await enqueueLeagueMatchReminders(leagueId, reminderJobs);
+  if (reminders.failed > 0) {
+    functions.logger.warn('[rebuildFixturesForLeague] reminder enqueue partial failure', {
+      leagueId,
+      scheduled: reminders.scheduled,
+      failed: reminders.failed,
+    });
   }
 
   const totalRounds = template[template.length - 1]?.round || 0;

@@ -29,7 +29,7 @@ const RootLayout = () => {
     <div className="app-safe-area">
       <HardwareBackHandler />
       <div className="flex min-h-full flex-col bg-background text-foreground">
-        <main className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden" data-app-scroll-container>
+        <main className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden" data-app-scroll-container data-keyboard-scroll-container>
           <Outlet />
         </main>
       </div>

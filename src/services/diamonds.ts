@@ -5,11 +5,36 @@ import {
   onSnapshot,
   Unsubscribe,
   runTransaction,
-  collection,
-  serverTimestamp,
 } from 'firebase/firestore';
-import { db } from './firebase';
+import { httpsCallable } from 'firebase/functions';
+import { db, functions } from './firebase';
 import { toast } from 'sonner';
+import { getDiamondPackByProductId } from '@/features/diamonds/packs';
+import { listOwnedPlayBillingPurchases } from './playBilling';
+
+type FinalizeAndroidDiamondPurchasePayload = {
+  productId: string;
+  purchaseToken: string;
+  orderId?: string | null;
+  packageName?: string | null;
+};
+
+export type FinalizeAndroidDiamondPurchaseResponse = {
+  purchaseId: string;
+  productId: string;
+  packId: string;
+  amount: number;
+  diamondBalance: number;
+  granted: boolean;
+  alreadyProcessed: boolean;
+  consumeAttempted: boolean;
+  consumed: boolean;
+};
+
+const finalizeAndroidDiamondPurchaseCallable = httpsCallable<
+  FinalizeAndroidDiamondPurchasePayload,
+  FinalizeAndroidDiamondPurchaseResponse
+>(functions, 'finalizeAndroidDiamondPurchase');
 
 export async function ensureUserDoc(uid: string): Promise<void> {
   const ref = doc(db, 'users', uid);
@@ -30,41 +55,65 @@ export function listenDiamondBalance(
   });
 }
 
-export async function mockPurchaseDiamonds(
-  uid: string,
-  { packId, amount, priceFiat }: { packId: string; amount: number; priceFiat?: number },
-): Promise<void> {
-  const userRef = doc(db, 'users', uid);
-  const purchases = collection(userRef, 'diamondPurchases');
-  try {
-    await runTransaction(db, async (tx) => {
-      const userSnap = await tx.get(userRef);
-      const currentBalance = userSnap.exists() ? Number(userSnap.data()?.diamondBalance ?? 0) : 0;
-      const nextBalance = Math.max(0, Math.round(currentBalance + amount));
+export async function finalizeAndroidDiamondPurchase(
+  payload: FinalizeAndroidDiamondPurchasePayload,
+): Promise<FinalizeAndroidDiamondPurchaseResponse> {
+  const response = await finalizeAndroidDiamondPurchaseCallable(payload);
+  return response.data;
+}
 
-      tx.set(
-        userRef,
-        {
-          diamondBalance: nextBalance,
-        },
-        { merge: true },
-      );
-      const purchaseRef = doc(purchases);
-      tx.set(purchaseRef, {
-        packId,
-        amount,
-        priceFiat,
-        paymentMethod: 'mock-crypto',
-        status: 'mock_paid',
-        createdAt: serverTimestamp(),
+export async function syncPendingAndroidDiamondPurchases(): Promise<{
+  processed: number;
+  pending: number;
+  skipped: number;
+}> {
+  const purchases = await listOwnedPlayBillingPurchases();
+  let processed = 0;
+  let pending = 0;
+  let skipped = 0;
+  let firstError: Error | null = null;
+
+  for (const purchase of purchases) {
+    const productId = purchase.productId?.trim() ?? '';
+    const purchaseToken = purchase.purchaseToken?.trim() ?? '';
+    const pack = getDiamondPackByProductId(productId);
+
+    if (!pack || !purchaseToken) {
+      skipped += 1;
+      continue;
+    }
+
+    if (purchase.purchaseState === 'PENDING' || purchase.status === 'pending') {
+      pending += 1;
+      continue;
+    }
+
+    if (purchase.purchaseState !== 'PURCHASED' && purchase.status !== 'purchased') {
+      skipped += 1;
+      continue;
+    }
+
+    try {
+      await finalizeAndroidDiamondPurchase({
+        productId,
+        purchaseToken,
+        orderId: purchase.orderId ?? null,
+        packageName: purchase.packageName ?? null,
       });
-    });
-    toast.success('Ödeme tamamlandı');
-  } catch (err) {
-    console.warn(err);
-    toast.error('Ödeme başarısız');
-    throw err;
+      processed += 1;
+    } catch (error) {
+      console.warn('[diamonds] pending purchase finalize failed', error);
+      if (!firstError) {
+        firstError = error as Error;
+      }
+    }
   }
+
+  if (firstError) {
+    throw firstError;
+  }
+
+  return { processed, pending, skipped };
 }
 
 export async function spendDiamonds(uid: string, amount: number): Promise<void> {

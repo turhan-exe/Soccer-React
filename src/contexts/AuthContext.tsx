@@ -142,17 +142,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
     const connectedAccounts = getConnectedAccounts(firebaseUser, provider);
 
-    setUser({
-      id: firebaseUser.uid,
-      username: managerName,
-      email: firebaseUser.email || '',
-      teamName: normalizeTeamName(trimmedName ?? existingTeam?.name ?? desiredTeamName) || 'Takimim',
-      teamLogo: existingTeam?.logo ?? null,
-      role: profile?.role ?? 'user',
-      connectedAccounts,
-      contactPhone: profile?.contactPhone ?? null,
-      contactCrypto: profile?.contactCrypto ?? null,
-    });
+            setUser({
+              id: firebaseUser.uid,
+              username: managerName,
+              email: firebaseUser.email || '',
+              teamName: normalizeTeamName(trimmedName ?? existingTeam?.name ?? desiredTeamName) || 'Takimim',
+              teamLogo: existingTeam?.logo ?? null,
+              role: profile?.role ?? 'user',
+              notificationPrefs: profile?.notificationPrefs ?? { pushEnabled: true },
+              connectedAccounts,
+              contactPhone: profile?.contactPhone ?? null,
+              contactCrypto: profile?.contactCrypto ?? null,
+            });
   };
   useEffect(() => {
     getAuthRedirectResult()
@@ -248,6 +249,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
               teamName: resolvedTeamName,
               teamLogo: team?.logo ?? null,
               role: profile?.role ?? 'user',
+              notificationPrefs: profile?.notificationPrefs ?? { pushEnabled: true },
               connectedAccounts: getConnectedAccounts(firebaseUser),
               contactPhone: profile?.contactPhone ?? null,
               contactCrypto: profile?.contactCrypto ?? null,
@@ -268,6 +270,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                   username,
                   email: firebaseUser.email || '',
                   role: profile?.role ?? prev?.role ?? 'user',
+                  notificationPrefs: profile?.notificationPrefs ?? prev?.notificationPrefs ?? { pushEnabled: true },
                   connectedAccounts: prev?.connectedAccounts ?? getConnectedAccounts(firebaseUser),
                   contactPhone: profile?.contactPhone ?? prev?.contactPhone ?? null,
                   contactCrypto: profile?.contactCrypto ?? prev?.contactCrypto ?? null,
@@ -415,6 +418,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             email: firebaseUser.email || email,
             teamName: normalizeTeamName(teamName) || 'Takimim',
             teamLogo: null,
+            notificationPrefs: { pushEnabled: true },
             connectedAccounts: { google: false, apple: false },
             contactPhone: null,
             contactCrypto: null,
@@ -538,6 +542,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           teamName: team?.name ?? prev.teamName,
           teamLogo: team?.logo ?? prev.teamLogo ?? null,
           role: profile?.role ?? prev.role ?? 'user',
+          notificationPrefs: profile?.notificationPrefs ?? prev.notificationPrefs ?? { pushEnabled: true },
           contactPhone: profile?.contactPhone ?? prev.contactPhone ?? null,
           contactCrypto: profile?.contactCrypto ?? prev.contactCrypto ?? null,
         };

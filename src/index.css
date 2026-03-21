@@ -27,8 +27,30 @@ body {
   background-color: #020617;
 }
 
+html[data-native-app='true'] .app-safe-area {
+  min-height: var(--app-viewport-height, 100vh);
+}
+
+html[data-native-app='true'] .h-screen {
+  height: var(--app-viewport-height, 100vh) !important;
+}
+
+html[data-native-app='true'] .min-h-screen {
+  min-height: var(--app-viewport-height, 100vh) !important;
+}
+
+html[data-native-app='true'] [data-app-scroll-container],
+html[data-native-app='true'] [data-keyboard-scroll-container] {
+  scroll-padding-top: 24px;
+  scroll-padding-bottom: calc(var(--keyboard-offset, 0px) + 32px);
+}
+
 @supports (min-height: 100dvh) {
   .app-safe-area {
+    min-height: var(--app-viewport-height, 100dvh);
+  }
+
+  html:not([data-native-app='true']) .app-safe-area {
     min-height: max(100dvh, var(--app-viewport-height, 100dvh));
   }
 }

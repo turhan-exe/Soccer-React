@@ -11,7 +11,10 @@ import { DiamondProvider } from '@/contexts/DiamondContext';
 import { router } from '@/routes/router';
 import { InventoryProvider } from '@/contexts/InventoryContext';
 import { unityBridge } from '@/services/unityBridge';
+import { initializeRewardedAds, isRewardedAdsSupported } from '@/services/rewardedAds';
 import MatchControlPresenceHeartbeat from '@/components/system/MatchControlPresenceHeartbeat';
+import PushNotificationsBootstrap from '@/components/system/PushNotificationsBootstrap';
+import KeyboardViewportManager from '@/components/system/KeyboardViewportManager';
 
 const queryClient = new QueryClient();
 
@@ -32,17 +35,11 @@ const App = () => {
       }
     };
 
-    const updateViewportHeight = () => {
-      document.documentElement.style.setProperty('--app-viewport-height', `${window.innerHeight}px`);
-    };
-
     const handleResize = () => {
-      updateViewportHeight();
       void lockOrientation();
     };
 
     lockOrientation();
-    updateViewportHeight();
 
     window.addEventListener('resize', handleResize, { passive: true });
     window.addEventListener('orientationchange', handleResize);
@@ -100,11 +97,23 @@ const App = () => {
     };
   }, []);
 
+  useEffect(() => {
+    if (!isRewardedAdsSupported()) {
+      return;
+    }
+
+    void initializeRewardedAds().catch((error) => {
+      console.warn('[App] Rewarded ads initialization failed', error);
+    });
+  }, []);
+
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
         <AuthProvider>
+          <KeyboardViewportManager />
           <MatchControlPresenceHeartbeat />
+          <PushNotificationsBootstrap />
           <DiamondProvider>
             <InventoryProvider>
               <TooltipProvider>

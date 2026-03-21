@@ -1,3 +1,4 @@
+/// <reference types="@capacitor-firebase/messaging" />
 import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
@@ -14,8 +15,12 @@ const config: CapacitorConfig = {
       showSpinner: false,
     },
     FirebaseAuthentication: {
+      authDomain: 'osm-react.firebaseapp.com',
       skipNativeAuth: true,
       providers: ['google.com', 'apple.com'],
+    },
+    FirebaseMessaging: {
+      presentationOptions: ['alert', 'badge', 'sound'],
     },
   },
 };

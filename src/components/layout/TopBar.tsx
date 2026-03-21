@@ -48,7 +48,6 @@ import { useInventory } from '@/contexts/InventoryContext';
 import { getMyLeagueId, getFixturesForTeam } from '@/services/leagues';
 import { getTeam } from '@/services/team';
 import {
-  finalizeExpiredTrainingSession,
   getActiveTraining,
   getUnviewedTrainingCount,
   listenActiveTraining,
@@ -64,6 +63,7 @@ import { KIT_CONFIG, formatKitEffect } from '@/lib/kits';
 import KitUsageDialog from '@/components/kit/KitUsageDialog';
 import { toast } from 'sonner';
 import { normalizeRatingTo100 } from '@/lib/player';
+import { runRewardedAdFlow } from '@/services/rewardedAds';
 import '@/styles/nostalgia-theme.css';
 import { useSwipeDownReveal, SWIPE_DOWN_DEFAULTS } from '@/hooks/useSwipeDownReveal';
 
@@ -114,6 +114,7 @@ const TopBar = forwardRef<TopBarHandle, TopBarProps>(
     const [isNotificationOpen, setIsNotificationOpen] = useState(false);
     const [currentKitIndex, setCurrentKitIndex] = useState(0);
     const [isKitMenuOpen, setIsKitMenuOpen] = useState(false);
+    const [isRewardingKit, setIsRewardingKit] = useState(false);
     const [unreadChats, setUnreadChats] = useState<any[]>([]);
 
     // Track dismissed notification IDs
@@ -123,9 +124,6 @@ const TopBar = forwardRef<TopBarHandle, TopBarProps>(
     const notificationContentRef = useRef<HTMLDivElement | null>(null);
     const lastVisibilityChangeRef = useRef<number>(0);
     const focusFrameRef = useRef<number | null>(null);
-
-    // Track previously sent notifications to avoid spamming
-    const sentNotificationIdsRef = useRef<Set<string>>(new Set());
 
     const vipIconClass = vipActive ? 'text-amber-300 drop-shadow' : 'text-slate-400';
     const vipButtonClass = vipActive
@@ -362,15 +360,7 @@ const TopBar = forwardRef<TopBarHandle, TopBarProps>(
       let unsubscribeYouthGeneration: (() => void) | null = null;
       let unsubscribeChats: (() => void) | null = null;
 
-      // ... (existing loadNotifications logic) ...
       const loadNotifications = async () => {
-        // ... (existing try-catch blocks) ...
-        try {
-          await finalizeExpiredTrainingSession(user.id);
-        } catch (error) {
-          console.warn('[TopBar] antrenman yenileme basarisiz', error);
-        }
-
         try {
           const activeSession = await getActiveTraining(user.id);
           if (!cancelled) {
@@ -565,42 +555,6 @@ const TopBar = forwardRef<TopBarHandle, TopBarProps>(
       dismissedIds
     ]);
 
-    // Request notification permission and handle sending mechanism
-    useEffect(() => {
-      if (!('Notification' in window)) return;
-
-      if (Notification.permission === 'default') {
-        Notification.requestPermission();
-      }
-    }, []);
-
-    // Send system notifications for new items
-    useEffect(() => {
-      notifications.forEach(item => {
-        if (!sentNotificationIdsRef.current.has(item.id)) {
-          sentNotificationIdsRef.current.add(item.id);
-
-          // Try to send push/system notification
-          if ('Notification' in window && Notification.permission === 'granted') {
-            try {
-              const n = new Notification('Football Manager', {
-                body: item.message,
-                icon: '/android-chrome-192x192.png', // Assuming pwa icon exists
-                tag: item.id
-              });
-              n.onclick = () => {
-                window.focus();
-                navigate(item.path);
-                n.close();
-              };
-            } catch (e) {
-              console.warn('System notification failed', e);
-            }
-          }
-        }
-      });
-    }, [notifications, navigate]);
-
     const handleNavigateHome = useCallback(() => {
       navigate('/');
     }, [navigate]);
@@ -627,6 +581,41 @@ const TopBar = forwardRef<TopBarHandle, TopBarProps>(
     );
 
     const handlePurchase = async (type: KitType, method: 'ad' | 'diamonds') => {
+      if (method === 'ad') {
+        if (!user) {
+          toast.error('Kit odulu icin giris yapmalisin.');
+          return;
+        }
+
+        setIsRewardingKit(true);
+        try {
+          const result = await runRewardedAdFlow({
+            userId: user.id,
+            placement: 'kit_reward',
+            context: {
+              kitType: type,
+              surface: 'topbar',
+            },
+          });
+
+          if (result.outcome === 'claimed' || result.outcome === 'already_claimed') {
+            toast.success(`Reklam odulu verildi: +1 ${KIT_CONFIG[type].label}.`);
+          } else if (result.outcome === 'dismissed') {
+            toast.info('Odul almak icin reklami tamamlamalisin.');
+          } else if (result.outcome === 'pending_verification') {
+            toast.info('Reklam odulu dogrulaniyor. Birazdan envanterine yansiyacak.');
+          } else {
+            toast.error('Reklam gosterilemedi.');
+          }
+        } catch (error) {
+          console.warn('[TopBar] rewarded kit failed', error);
+          toast.error('Odullu reklam baslatilamadi.');
+        } finally {
+          setIsRewardingKit(false);
+        }
+        return;
+      }
+
       try {
         await purchaseKit(type, method);
       } catch (error) {
@@ -734,14 +723,14 @@ const TopBar = forwardRef<TopBarHandle, TopBarProps>(
                               {effectText}
                             </p>
                           )}
-                          <DropdownMenuItem disabled={isProcessing} onClick={() => handlePurchase(currentKitType, 'ad')}>
-                            Reklam izle (+{config.adReward})
+                          <DropdownMenuItem disabled={isProcessing || isRewardingKit} onClick={() => handlePurchase(currentKitType, 'ad')}>
+                            {isRewardingKit ? 'Reklam yukleniyor...' : `Reklam izle (+${config.adReward})`}
                           </DropdownMenuItem>
-                          <DropdownMenuItem disabled={isProcessing} onClick={() => handlePurchase(currentKitType, 'diamonds')}>
+                          <DropdownMenuItem disabled={isProcessing || isRewardingKit} onClick={() => handlePurchase(currentKitType, 'diamonds')}>
                             {config.diamondCost} Elmas ile Satin Al
                           </DropdownMenuItem>
                           <DropdownMenuSeparator />
-                          <DropdownMenuItem disabled={count === 0 || isProcessing} onClick={() => handleUse(currentKitType)}>
+                          <DropdownMenuItem disabled={count === 0 || isProcessing || isRewardingKit} onClick={() => handleUse(currentKitType)}>
                             {count === 0 ? 'Stok Yok' : 'Kiti Kullan'}
                           </DropdownMenuItem>
                         </>

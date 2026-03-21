@@ -15,6 +15,7 @@ import {
 } from '@/lib/contractNegotiation';
 import { completeLegendRental, getLegendIdFromPlayer } from '@/services/legends';
 import { auth } from '@/services/firebase';
+import { runRewardedAdFlow } from '@/services/rewardedAds';
 import { useAuth } from '@/contexts/AuthContext';
 import { useDiamonds } from '@/contexts/DiamondContext';
 import { Search, Save, Eye, X, ChevronLeft } from 'lucide-react';
@@ -547,12 +548,39 @@ function TeamPlanningContent() {
     setIsRenamingPlayer(true);
 
     try {
-      if (method === 'purchase') {
-        await spend(PLAYER_RENAME_DIAMOND_COST);
-        diamondsSpent = true;
-      } else {
-        await new Promise(resolve => setTimeout(resolve, 1000));
+      if (method === 'ad') {
+        const result = await runRewardedAdFlow({
+          userId,
+          placement: 'player_rename',
+          context: {
+            surface: 'team_planning',
+            playerId: renamePlayer.id,
+            newName: trimmed,
+          },
+        });
+
+        if (result.outcome === 'claimed' || result.outcome === 'already_claimed') {
+          const refreshedTeam = await getTeam(userId);
+          if (refreshedTeam) {
+            setPlayers(normalizePlayers(refreshedTeam.players));
+          }
+          toast.success('Oyuncu adi guncellendi');
+          setRenamePlayerId(null);
+          return;
+        }
+
+        if (result.outcome === 'dismissed') {
+          toast.info('Reklam tamamlanmadi, isim degismedi.');
+        } else if (result.outcome === 'pending_verification') {
+          toast.info('Reklam dogrulaniyor. Biraz sonra yeniden deneyin.');
+        } else {
+          toast.error('Reklam gosterilemedi.');
+        }
+        return;
       }
+
+      await spend(PLAYER_RENAME_DIAMOND_COST);
+      diamondsSpent = true;
 
       const now = new Date();
       const adCooldown = new Date(
@@ -588,7 +616,9 @@ function TeamPlanningContent() {
     } catch (error) {
       console.error('[TeamPlanning] player rename failed', error);
       toast.error('Oyuncu adı güncellenemedi');
-      setPlayers(previousPlayers);
+      if (method === 'purchase') {
+        setPlayers(previousPlayers);
+      }
       if (method === 'purchase' && diamondsSpent) {
         toast.error('Elmas harcaması yapıldı, lütfen destek ekibiyle iletişime geçin.');
       }

@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { Capacitor } from '@capacitor/core';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -6,14 +7,29 @@ import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { useTheme } from '@/contexts/ThemeContext';
-import { Settings, Moon, Volume2, Trash2, Download, Image, Loader2, Gift, Crown, Phone, Wallet } from 'lucide-react';
+import {
+  Settings,
+  Moon,
+  Volume2,
+  Trash2,
+  Download,
+  Image,
+  Loader2,
+  Gift,
+  Crown,
+  Phone,
+  Wallet,
+  ShieldCheck,
+} from 'lucide-react';
 import { toast } from 'sonner';
 import { BackButton } from '@/components/ui/back-button';
 import { useAuth } from '@/contexts/AuthContext';
 import { useDiamonds } from '@/contexts/DiamondContext';
 import { useInventory } from '@/contexts/InventoryContext';
+import { isRewardedAdsSupported, showRewardedAdsPrivacyOptions } from '@/services/rewardedAds';
 import { updateTeamLogo, renameClubWithDiamonds, renameStadiumWithDiamonds, getTeam } from '@/services/team';
-import { updateUserContactInfo } from '@/services/users';
+import { setNativePushPreference } from '@/services/pushNotifications';
+import { updateUserContactInfo, updateUserNotificationPreferences } from '@/services/users';
 import { repairLeagueCapacities } from '@/services/admin';
 import { Input } from '@/components/ui/input';
 import {
@@ -72,6 +88,8 @@ export default function SettingsPage() {
   const [contactPhone, setContactPhone] = useState(user?.contactPhone ?? '');
   const [contactCrypto, setContactCrypto] = useState(user?.contactCrypto ?? '');
   const [isSavingContact, setIsSavingContact] = useState(false);
+  const [isSavingPushPreference, setIsSavingPushPreference] = useState(false);
+  const [isOpeningAdPrivacyOptions, setIsOpeningAdPrivacyOptions] = useState(false);
   const navigate = useNavigate();
   const {
     lastDailyRewardDate,
@@ -119,6 +137,7 @@ export default function SettingsPage() {
   const normalizedCryptoInput = contactCrypto.trim();
   const hasContactChanges =
     normalizedPhoneInput !== normalizedStoredPhone || normalizedCryptoInput !== normalizedStoredCrypto;
+  const pushEnabled = user?.notificationPrefs?.pushEnabled !== false;
 
   useEffect(() => {
     setLogoPreview(user?.teamLogo ?? null);
@@ -340,6 +359,30 @@ export default function SettingsPage() {
     setContactCrypto(user?.contactCrypto ?? '');
   };
 
+  const handlePushToggle = async (checked: boolean) => {
+    if (!user) {
+      toast.error('Bildirimleri guncellemek icin oturum acmalisin.');
+      return;
+    }
+
+    setIsSavingPushPreference(true);
+    try {
+      await updateUserNotificationPreferences(user.id, { pushEnabled: checked });
+      await setNativePushPreference(user.id, checked);
+      await refreshTeamInfo();
+      toast.success(
+        checked
+          ? 'Telefon bildirimleri etkinlestirildi.'
+          : 'Telefon bildirimleri kapatildi.',
+      );
+    } catch (error) {
+      console.error('[Settings] Failed to update push preference', error);
+      toast.error('Bildirim tercihi guncellenemedi.');
+    } finally {
+      setIsSavingPushPreference(false);
+    }
+  };
+
   const openFileDialog = () => {
     if (!isSavingLogo) {
       fileInputRef.current?.click();
@@ -352,6 +395,28 @@ export default function SettingsPage() {
 
   const handleExportData = () => {
     toast.success('Veriler dışa aktarıldı');
+  };
+
+  const handleOpenAdPrivacyOptions = async () => {
+    if (!isRewardedAdsSupported()) {
+      toast.info('Reklam gizlilik tercihleri yalnizca Android uygulamasinda acilabilir.');
+      return;
+    }
+
+    setIsOpeningAdPrivacyOptions(true);
+    try {
+      const shown = await showRewardedAdsPrivacyOptions();
+      if (shown) {
+        toast.success('Reklam gizlilik tercihi formu acildi.');
+      } else {
+        toast.info('Su anda guncellenecek reklam gizlilik tercihi bulunmuyor.');
+      }
+    } catch (error) {
+      console.error('[Settings] Failed to open rewarded ads privacy options', error);
+      toast.error('Reklam gizlilik tercihi acilamadi.');
+    } finally {
+      setIsOpeningAdPrivacyOptions(false);
+    }
   };
 
   const cardBaseClass = 'border-white/10 bg-slate-900/60 text-slate-100 backdrop-blur-lg';
@@ -699,32 +764,30 @@ export default function SettingsPage() {
                 <CardTitle>Bildirimler</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-4">
                   <div>
-                    <Label className="font-medium">Maç Bildirimleri</Label>
-                    <p className="text-sm text-slate-400">Maç başlamadan önce bildirim al</p>
+                    <Label className="font-medium">Telefon Bildirimleri</Label>
+                    <p className="text-sm text-slate-400">
+                      Altyapi, akademi, antrenman ve resmi lig maci hatirlatmalarini telefon bildirimi olarak al.
+                    </p>
                   </div>
-                  <Switch defaultChecked />
+                  <Switch
+                    checked={pushEnabled}
+                    disabled={!user || isSavingPushPreference}
+                    onCheckedChange={handlePushToggle}
+                  />
                 </div>
-
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Label className="font-medium">Antrenman Bildirimleri</Label>
-                    <p className="text-sm text-slate-400">Antrenman tamamlandığında bildirim al</p>
-                  </div>
-                  <Switch defaultChecked />
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Label className="font-medium">Transfer Bildirimleri</Label>
-                    <p className="text-sm text-slate-400">Transfer döneminde fırsatlar için bildirim al</p>
-                  </div>
-                  <Switch />
-                </div>
+                <p className="text-xs text-slate-400">
+                  Android canli olarak desteklenir. iOS icin kod yolu hazirlanir fakat canli push icin
+                  `GoogleService-Info.plist` ve APNs/Firebase kurulumu gerekir.
+                </p>
+                {!Capacitor.isNativePlatform() ? (
+                  <p className="text-xs text-amber-300">
+                    Web tarayicisinda native cihaz kaydi yapilmaz. Bu ayar mobil uygulama icindir.
+                  </p>
+                ) : null}
               </CardContent>
             </Card>
-
             <Card className={cardBaseClass}>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
@@ -829,6 +892,20 @@ export default function SettingsPage() {
                   >
                     <Trash2 className="mr-2 h-4 w-4" />
                     Önbelleği Temizle
+                  </Button>
+
+                  <Button
+                    variant="outline"
+                    className="w-full justify-start border-white/20 bg-white/5 text-slate-100 hover:bg-white/10"
+                    onClick={handleOpenAdPrivacyOptions}
+                    disabled={isOpeningAdPrivacyOptions}
+                  >
+                    {isOpeningAdPrivacyOptions ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <ShieldCheck className="mr-2 h-4 w-4" />
+                    )}
+                    Reklam gizlilik tercihleri
                   </Button>
 
                   {isAdmin ? (
@@ -999,5 +1076,6 @@ export default function SettingsPage() {
     </>
   );
 }
+
 
 

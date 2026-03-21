@@ -1,20 +1,21 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { ensureUserDoc, mockPurchaseDiamonds } from './diamonds';
+import { ensureUserDoc, spendDiamonds } from './diamonds';
 
-vi.mock('./firebase', () => ({ db: {} }));
+vi.mock('./firebase', () => ({ db: {}, functions: {} }));
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+vi.mock('firebase/functions', () => ({ httpsCallable: vi.fn(() => vi.fn()) }));
+vi.mock('@/features/diamonds/packs', () => ({ getDiamondPackByProductId: vi.fn() }));
+vi.mock('./playBilling', () => ({ listOwnedPlayBillingPurchases: vi.fn() }));
 
 const {
   docMock,
   getDocMock,
   setDocMock,
-  collectionMock,
   runTransactionMock,
 } = vi.hoisted(() => ({
   docMock: vi.fn(),
   getDocMock: vi.fn(),
   setDocMock: vi.fn(),
-  collectionMock: vi.fn(),
   runTransactionMock: vi.fn(),
 }));
 
@@ -24,8 +25,6 @@ vi.mock('firebase/firestore', () => ({
   setDoc: (...args: unknown[]) => setDocMock(...args),
   onSnapshot: vi.fn(),
   runTransaction: (...args: unknown[]) => runTransactionMock(...args),
-  collection: (...args: unknown[]) => collectionMock(...args),
-  serverTimestamp: vi.fn(() => 'server-timestamp'),
 }));
 
 describe('diamonds service', () => {
@@ -33,7 +32,6 @@ describe('diamonds service', () => {
     docMock.mockReset();
     getDocMock.mockReset();
     setDocMock.mockReset();
-    collectionMock.mockReset();
     runTransactionMock.mockReset();
   });
 
@@ -57,48 +55,42 @@ describe('diamonds service', () => {
     });
   });
 
-  describe('mockPurchaseDiamonds', () => {
-    it('creates a user balance and purchase record when the user doc is missing', async () => {
-      docMock
-        .mockReturnValueOnce('user-ref')
-        .mockReturnValueOnce('purchase-ref');
-      collectionMock.mockReturnValue('purchase-col');
-
+  describe('spendDiamonds', () => {
+    it('deducts balance when enough diamonds exist', async () => {
+      docMock.mockReturnValue('user-ref');
       const txSet = vi.fn();
 
       runTransactionMock.mockImplementationOnce(async (_db, callback) =>
         callback({
           get: vi.fn(async () => ({
-            exists: () => false,
-            data: () => undefined,
+            data: () => ({ diamondBalance: 250 }),
           })),
           set: txSet,
         }),
       );
 
-      await mockPurchaseDiamonds('uid', {
-        packId: 'starter',
-        amount: 250,
-        priceFiat: 4.99,
-      });
+      await spendDiamonds('uid', 120);
 
-      expect(txSet).toHaveBeenNthCalledWith(
-        1,
+      expect(txSet).toHaveBeenCalledWith(
         'user-ref',
-        { diamondBalance: 250 },
+        { diamondBalance: 130 },
         { merge: true },
       );
-      expect(txSet).toHaveBeenNthCalledWith(
-        2,
-        'purchase-ref',
-        expect.objectContaining({
-          packId: 'starter',
-          amount: 250,
-          priceFiat: 4.99,
-          paymentMethod: 'mock-crypto',
-          status: 'mock_paid',
+    });
+
+    it('throws when balance is insufficient', async () => {
+      docMock.mockReturnValue('user-ref');
+
+      runTransactionMock.mockImplementationOnce(async (_db, callback) =>
+        callback({
+          get: vi.fn(async () => ({
+            data: () => ({ diamondBalance: 20 }),
+          })),
+          set: vi.fn(),
         }),
       );
+
+      await expect(spendDiamonds('uid', 120)).rejects.toThrow('Yeterli elmas yok');
     });
   });
 });

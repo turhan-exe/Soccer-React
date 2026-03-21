@@ -7,6 +7,22 @@ if (keystorePropertiesFile.exists()) {
     keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
 }
 
+def admobPropertiesFile = rootProject.file("admob.properties")
+def admobProperties = new Properties()
+if (admobPropertiesFile.exists()) {
+    admobProperties.load(new FileInputStream(admobPropertiesFile))
+}
+
+def admobSampleAppId = "ca-app-pub-3940256099942544~3347511713"
+def admobSampleRewardedUnitId = "ca-app-pub-3940256099942544/5224354917"
+def admobUseTestIds = admobProperties.getProperty("ADMOB_USE_TEST_IDS", "true").toBoolean()
+def admobAppId = admobUseTestIds
+    ? admobSampleAppId
+    : admobProperties.getProperty("ADMOB_APP_ID_ANDROID", admobSampleAppId)
+def admobRewardedUnitId = admobUseTestIds
+    ? admobSampleRewardedUnitId
+    : admobProperties.getProperty("ADMOB_REWARDED_UNIT_ID_ANDROID", admobSampleRewardedUnitId)
+
 android {
     namespace "com.nerbuss.fhsmanager"
     compileSdk rootProject.ext.compileSdkVersion
@@ -15,9 +31,13 @@ android {
         applicationId "com.nerbuss.fhsmanager"
         minSdkVersion 25
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 2026031702
-        versionName "1.0.2"
+        versionCode 2026031705
+        versionName "1.0.5"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        manifestPlaceholders = [admobAppId: admobAppId]
+        buildConfigField "String", "ADMOB_APP_ID", "\"${admobAppId}\""
+        buildConfigField "String", "ADMOB_REWARDED_AD_UNIT_ID", "\"${admobRewardedUnitId}\""
+        buildConfigField "boolean", "ADMOB_USE_TEST_IDS", admobUseTestIds.toString()
     }
     androidResources {
         ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
@@ -55,6 +75,9 @@ android {
             useLegacyPackaging true
         }
     }
+    buildFeatures {
+        buildConfig true
+    }
 }
 
 repositories {
@@ -68,6 +91,9 @@ dependencies {
     implementation "androidx.appcompat:appcompat:$androidxAppCompatVersion"
     implementation "androidx.coordinatorlayout:coordinatorlayout:$androidxCoordinatorLayoutVersion"
     implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
+    implementation "com.android.billingclient:billing:8.3.0"
+    implementation "com.google.android.gms:play-services-ads:25.1.0"
+    implementation "com.google.android.ump:user-messaging-platform:4.0.0"
     implementation project(':capacitor-android')
     testImplementation "junit:junit:$junitVersion"
     androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"

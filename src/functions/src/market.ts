@@ -554,7 +554,7 @@ export const marketPurchaseListing = functions
           sellerTeamRef.path !== buyerTeamRef.path
         ) {
           const updatedSellerBudget = Math.round(sellerBudget + price);
-          const sellerUpdates: Record<string, unknown> = {
+          const sellerUpdates: DocumentData = {
             transferBudget: updatedSellerBudget,
             budget: updatedSellerBudget,
           };
@@ -583,7 +583,7 @@ export const marketPurchaseListing = functions
           }
         }
 
-        const listingUpdates: Record<string, unknown> = {
+        const listingUpdates: DocumentData = {
           status: 'sold',
           buyerUid: uid,
           buyerId: uid,

@@ -80,6 +80,7 @@ import iconMatchPreview from '@/assets/menu/icon_match_preview.png';
 import iconFixtures from '@/assets/menu/icon_fixtures.png';
 
 import GlobalChatWidget from '@/features/chat/GlobalChatWidget';
+import { runRewardedAdFlow } from '@/services/rewardedAds';
 import '@/styles/nostalgia-theme.css';
 
 const KIT_ICONS: Record<KitType, { icon: any; color: string }> = {
@@ -253,6 +254,7 @@ export default function MainMenu() {
   const kitCount = kitTypes.length;
   const currentKitType = kitCount > 0 ? kitTypes[currentKitIndex % kitCount] : null;
   const [isKitMenuOpen, setIsKitMenuOpen] = useState(false);
+  const [isRewardingKit, setIsRewardingKit] = useState(false);
 
   // Auto-cycle kits every 5 seconds
   useEffect(() => {
@@ -269,6 +271,41 @@ export default function MainMenu() {
 
   // --- Kit Handlers ---
   const handlePurchase = async (type: KitType, method: 'ad' | 'diamonds') => {
+    if (method === 'ad') {
+      if (!user) {
+        toast.error('Kit odulu icin giris yapmalisin.');
+        return;
+      }
+
+      setIsRewardingKit(true);
+      try {
+        const result = await runRewardedAdFlow({
+          userId: user.id,
+          placement: 'kit_reward',
+          context: {
+            kitType: type,
+            surface: 'mainmenu',
+          },
+        });
+
+        if (result.outcome === 'claimed' || result.outcome === 'already_claimed') {
+          toast.success(`Reklam odulu verildi: +1 ${KIT_CONFIG[type].label}.`);
+        } else if (result.outcome === 'dismissed') {
+          toast.info('Odul almak icin reklami tamamlamalisin.');
+        } else if (result.outcome === 'pending_verification') {
+          toast.info('Reklam odulu dogrulaniyor. Birazdan envanterine yansiyacak.');
+        } else {
+          toast.error('Reklam gosterilemedi.');
+        }
+      } catch (error) {
+        console.warn('[MainMenu] rewarded kit failed', error);
+        toast.error('Odullu reklam baslatilamadi.');
+      } finally {
+        setIsRewardingKit(false);
+      }
+      return;
+    }
+
     try {
       await purchaseKit(type, method);
     } catch (error) {
@@ -794,8 +831,10 @@ export default function MainMenu() {
                           <p className="px-2 text-xs text-slate-400 mb-2">{config.description}</p>
                           {effectText && <p className="px-2 pb-2 text-xs font-medium text-emerald-400">{effectText}</p>}
                           <div className="grid grid-cols-2 gap-2 p-2">
-                            <Button variant="outline" size="sm" className="h-8 text-xs border-white/10 hover:bg-white/5" disabled={isProcessing} onClick={() => handlePurchase(currentKitType, 'ad')}>Reklam İzle</Button>
-                            <Button variant="outline" size="sm" className="h-8 text-xs border-white/10 hover:bg-white/5" disabled={isProcessing} onClick={() => handlePurchase(currentKitType, 'diamonds')}>{config.diamondCost} Elmas</Button>
+                            <Button variant="outline" size="sm" className="h-8 text-xs border-white/10 hover:bg-white/5" disabled={isProcessing || isRewardingKit} onClick={() => handlePurchase(currentKitType, 'ad')}>
+                              {isRewardingKit ? 'Reklam Yukleniyor...' : 'Reklam Izle'}
+                            </Button>
+                            <Button variant="outline" size="sm" className="h-8 text-xs border-white/10 hover:bg-white/5" disabled={isProcessing || isRewardingKit} onClick={() => handlePurchase(currentKitType, 'diamonds')}>{config.diamondCost} Elmas</Button>
                           </div>
                           <Button variant="default" size="sm" className="w-full mt-2 bg-emerald-600 hover:bg-emerald-500 text-white" disabled={count === 0} onClick={() => handleUse(currentKitType)}>
                             {count === 0 ? 'Stok Yok' : 'Kullan'}

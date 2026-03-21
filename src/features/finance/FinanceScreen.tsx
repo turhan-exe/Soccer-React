@@ -1,46 +1,55 @@
 import { useEffect, useMemo, useState } from 'react';
 import { collection, doc, onSnapshot, orderBy, query, Timestamp, where } from 'firebase/firestore';
-import { db } from '@/services/firebase';
-import { useAuth } from '@/contexts/AuthContext';
+import { toast } from 'sonner';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent } from '@/components/ui/card';
-import { toast } from 'sonner';
+import { useAuth } from '@/contexts/AuthContext';
 import { useTeamBudget } from '@/hooks/useTeamBudget';
+import { useCollection } from '@/hooks/useCollection';
+import { db } from '@/services/firebase';
 import {
   applySponsorEarnings,
+  activateSponsor,
   CreditPackage,
   ensureFinanceProfile,
   ensureMonthlySalaryCharge,
   FinanceDoc,
   FinanceHistoryEntry,
-  recordCreditPurchase,
+  getExpectedRevenue,
   SponsorCatalogEntry,
+  StadiumLevel,
   StadiumState,
   STADIUM_LEVELS,
-  StadiumLevel,
-  syncTeamSalaries,
   syncFinanceBalanceWithTeam,
-  getExpectedRevenue,
+  syncTeamSalaries,
   TeamSalariesDoc,
   upgradeStadiumLevel,
   UserSponsorDoc,
-  activateSponsor,
 } from '@/services/finance';
+import {
+  getPlayBillingUnavailableMessage,
+  isNativeAndroidPlayBillingSupported,
+  loadPlayBillingProducts,
+  startPlayBillingPurchase,
+  type PlayBillingProduct,
+} from '@/services/playBilling';
+import {
+  finalizeAndroidCreditPurchase,
+  syncPendingAndroidCreditPurchases,
+} from '@/services/creditPurchases';
+import {
+  finalizeAndroidSponsorPurchase,
+  syncPendingAndroidSponsorPurchases,
+} from '@/services/sponsorPurchases';
 import type { Player } from '@/types';
-
-// Components
+import { CREDIT_PACKAGES } from './creditPacks';
+import { buildSponsorStoreProductId, mapSponsorCatalogSnapshot } from './sponsorCatalogUtils';
 import { FinanceHeader, formatCurrency } from './components/FinanceHeader';
 import { SummaryTab } from './components/SummaryTab';
 import { StadiumTab } from './components/StadiumTab';
 import { SalaryTab } from './components/SalaryTab';
 import { SponsorTab } from './components/SponsorTab';
 import { CreditTab } from './components/CreditTab';
-
-const CREDIT_PACKAGES: CreditPackage[] = [
-  { id: 'credit-10k', price: 9.99, amount: 10_000 },
-  { id: 'credit-25k', price: 19.99, amount: 25_000 },
-  { id: 'credit-60k', price: 49.99, amount: 60_000 },
-];
 
 const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
 
@@ -57,42 +66,67 @@ export default function FinanceSummaryScreen() {
   const [creditLoading, setCreditLoading] = useState<string | null>(null);
   const [sponsorLoading, setSponsorLoading] = useState<string | null>(null);
   const [upgrading, setUpgrading] = useState(false);
+  const [productsById, setProductsById] = useState<Record<string, PlayBillingProduct>>({});
+  const [isStoreLoading, setIsStoreLoading] = useState(false);
+  const [storeError, setStoreError] = useState<string | null>(null);
   const { budget } = useTeamBudget();
+  const {
+    data: sponsorCatalogEntries,
+    loading: sponsorCatalogLoading,
+    error: sponsorCatalogError,
+  } = useCollection<SponsorCatalogEntry>('sponsorship_catalog', mapSponsorCatalogSnapshot);
 
   useEffect(() => {
-    if (!user) return;
-    void ensureFinanceProfile(user.id).catch((err) => console.warn('[Finance] ensure profile failed', err));
+    if (!user) {
+      return;
+    }
+    void ensureFinanceProfile(user.id).catch((err) =>
+      console.warn('[FinanceScreen] ensure profile failed', err),
+    );
   }, [user]);
 
   useEffect(() => {
-    if (!user) return;
-    void syncFinanceBalanceWithTeam(user.id).catch((err) => console.warn('[Finance] balance sync failed', err));
+    if (!user) {
+      return;
+    }
+    void syncFinanceBalanceWithTeam(user.id).catch((err) =>
+      console.warn('[FinanceScreen] balance sync failed', err),
+    );
   }, [user]);
 
   useEffect(() => {
-    if (!user) return;
+    if (!user) {
+      return;
+    }
     return onSnapshot(doc(db, 'finance', user.id), (snap) => {
       setFinance((snap.data() as FinanceDoc) ?? null);
     });
   }, [user]);
 
   useEffect(() => {
-    if (!user) return;
+    if (!user) {
+      return;
+    }
     return onSnapshot(doc(db, 'teams', user.id, 'stadium', 'state'), (snap) => {
       setStadium((snap.data() as StadiumState) ?? null);
     });
   }, [user]);
 
   useEffect(() => {
-    if (!user) return;
+    if (!user) {
+      return;
+    }
     const since = Timestamp.fromMillis(Date.now() - THIRTY_DAYS_MS);
     const col = collection(db, 'finance', 'history', user.id);
     const q = query(col, where('timestamp', '>=', since), orderBy('timestamp', 'desc'));
     return onSnapshot(q, (snap) => {
-      const entries = snap.docs.map((docSnap) => ({
-        id: docSnap.id,
-        ...docSnap.data()
-      }) as FinanceHistoryEntry);
+      const entries = snap.docs.map(
+        (docSnap) =>
+          ({
+            id: docSnap.id,
+            ...docSnap.data(),
+          }) as FinanceHistoryEntry,
+      );
       setHistory(entries);
     });
   }, [user]);
@@ -110,7 +144,9 @@ export default function FinanceSummaryScreen() {
   }, [user]);
 
   useEffect(() => {
-    if (!user) return;
+    if (!user) {
+      return;
+    }
     return onSnapshot(doc(db, 'teams', user.id, 'salaries', 'current'), (snap) => {
       if (!snap.exists()) {
         setSalaries(null);
@@ -121,7 +157,9 @@ export default function FinanceSummaryScreen() {
   }, [user]);
 
   useEffect(() => {
-    if (!user) return;
+    if (!user) {
+      return;
+    }
     const col = collection(db, 'users', user.id, 'sponsorships');
     return onSnapshot(col, (snap) => {
       setUserSponsors(
@@ -134,15 +172,19 @@ export default function FinanceSummaryScreen() {
   }, [user]);
 
   useEffect(() => {
-    if (!user) return;
-    void syncTeamSalaries(user.id).catch((err) => console.warn('[Finance] sync salaries failed', err));
+    if (!user) {
+      return;
+    }
+    void syncTeamSalaries(user.id).catch((err) => console.warn('[FinanceScreen] sync salaries failed', err));
   }, [user, players]);
 
   useEffect(() => {
-    if (!user) return;
+    if (!user) {
+      return;
+    }
     void ensureMonthlySalaryCharge(user.id).catch((err) => {
       if (err instanceof Error && err.message !== 'Yetersiz bakiye.') {
-        console.warn('[Finance] ensure salary charge', err);
+        console.warn('[FinanceScreen] ensure salary charge failed', err);
       }
     });
   }, [user]);
@@ -157,6 +199,7 @@ export default function FinanceSummaryScreen() {
     const expenseTotals: Record<string, number> = {};
     let totalIncome = 0;
     let totalExpense = 0;
+
     history.forEach((entry) => {
       if (entry.type === 'income') {
         totalIncome += entry.amount;
@@ -166,7 +209,14 @@ export default function FinanceSummaryScreen() {
         expenseTotals[entry.category] = (expenseTotals[entry.category] ?? 0) + entry.amount;
       }
     });
-    return { totalIncome, totalExpense, net: totalIncome - totalExpense, incomeTotals, expenseTotals };
+
+    return {
+      totalIncome,
+      totalExpense,
+      net: totalIncome - totalExpense,
+      incomeTotals,
+      expenseTotals,
+    };
   }, [history]);
 
   const dateFormatter = useMemo(
@@ -180,40 +230,45 @@ export default function FinanceSummaryScreen() {
 
   const chartData = useMemo(() => {
     const buckets = new Map<string, { income: number; expense: number; date: Date }>();
+
     history.forEach((entry) => {
       const ts = entry.timestamp?.toDate?.();
       if (!ts) {
         return;
       }
+
       const day = new Date(ts);
       day.setHours(0, 0, 0, 0);
       const key = day.toISOString().slice(0, 10);
       const bucket = buckets.get(key) ?? { income: 0, expense: 0, date: day };
+
       if (entry.type === 'income') {
         bucket.income += entry.amount;
       } else {
         bucket.expense += entry.amount;
       }
+
       buckets.set(key, bucket);
     });
+
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    const series: { label: string; income: number; expense: number; net: number }[] = [];
-    for (let offset = 29; offset >= 0; offset -= 1) {
+
+    return Array.from({ length: 30 }, (_, index) => {
       const day = new Date(today);
-      day.setDate(today.getDate() - offset);
+      day.setDate(today.getDate() - (29 - index));
       const key = day.toISOString().slice(0, 10);
       const bucket = buckets.get(key);
       const income = bucket?.income ?? 0;
       const expense = bucket?.expense ?? 0;
-      series.push({
+
+      return {
         label: dateFormatter.format(day),
         income: Math.round(income),
         expense: Math.round(expense),
         net: Math.round(income - expense),
-      });
-    }
-    return series;
+      };
+    });
   }, [history, dateFormatter]);
 
   const expectedRevenue = useMemo(
@@ -221,39 +276,160 @@ export default function FinanceSummaryScreen() {
     [stadium, userSponsors, players],
   );
 
+  const premiumSponsorEntries = useMemo(
+    () => sponsorCatalogEntries.filter((entry) => entry.type === 'premium'),
+    [sponsorCatalogEntries],
+  );
+  const premiumSponsorProductIds = useMemo(
+    () => premiumSponsorEntries.map((entry) => buildSponsorStoreProductId(entry)).filter(Boolean),
+    [premiumSponsorEntries],
+  );
+  const premiumSponsorKey = useMemo(
+    () => premiumSponsorProductIds.join('|'),
+    [premiumSponsorProductIds],
+  );
+
+  useEffect(() => {
+    let isCancelled = false;
+
+    async function prepareStore() {
+      if (!user) {
+        setProductsById({});
+        setStoreError(null);
+        setIsStoreLoading(false);
+        return;
+      }
+
+      if (!isNativeAndroidPlayBillingSupported()) {
+        setProductsById({});
+        setStoreError(getPlayBillingUnavailableMessage());
+        setIsStoreLoading(false);
+        return;
+      }
+
+      const productIds = [
+        ...new Set([...CREDIT_PACKAGES.map((pack) => pack.productId), ...premiumSponsorProductIds]),
+      ];
+
+      setStoreError(null);
+      setIsStoreLoading(true);
+
+      try {
+        const products = await loadPlayBillingProducts(productIds);
+        if (!isCancelled) {
+          setProductsById(products);
+        }
+      } catch (error) {
+        console.warn('[FinanceScreen] prepare store failed', error);
+        if (!isCancelled) {
+          setStoreError(
+            error instanceof Error
+              ? error.message
+              : 'Play Store baglantisi kurulurken hata olustu.',
+          );
+        }
+      } finally {
+        if (!isCancelled) {
+          setIsStoreLoading(false);
+        }
+      }
+
+      try {
+        const creditSync = await syncPendingAndroidCreditPurchases();
+        if (!isCancelled) {
+          if (creditSync.processed > 0) {
+            toast.success(`${creditSync.processed} bekleyen kredi satin almasi hesaba islendi.`);
+          }
+          if (creditSync.pending > 0) {
+            toast(
+              `${creditSync.pending} kredi satin almasi beklemede. Onaylandiginda otomatik islenecek.`,
+            );
+          }
+        }
+      } catch (error) {
+        console.warn('[FinanceScreen] pending credit purchase sync failed', error);
+      }
+
+      if (premiumSponsorEntries.length === 0) {
+        return;
+      }
+
+      try {
+        const sponsorSync = await syncPendingAndroidSponsorPurchases(premiumSponsorEntries);
+        if (!isCancelled) {
+          if (sponsorSync.processed > 0) {
+            toast.success(`${sponsorSync.processed} bekleyen sponsor satin almasi aktif edildi.`);
+          }
+          if (sponsorSync.pending > 0) {
+            toast(
+              `${sponsorSync.pending} sponsor satin almasi beklemede. Onaylandiginda otomatik islenecek.`,
+            );
+          }
+        }
+      } catch (error) {
+        console.warn('[FinanceScreen] pending sponsor purchase sync failed', error);
+      }
+    }
+
+    void prepareStore();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [user, premiumSponsorEntries, premiumSponsorProductIds, premiumSponsorKey]);
+
   const averageMatchIncome = expectedRevenue.matchEstimate;
   const dailyIncomeEstimate = expectedRevenue.projectedDailyIncome;
 
   if (!user) {
     return (
-      <div className="p-6 text-white min-h-screen bg-slate-950 flex items-center justify-center">
-        <Card className="bg-slate-900 border-white/10">
+      <div className="flex min-h-screen items-center justify-center bg-slate-950 p-6 text-white">
+        <Card className="border-white/10 bg-slate-900">
           <CardContent className="space-y-4 p-8 text-center">
-            <h2 className="text-xl font-bold">Finans Ekranına Erişim</h2>
-            <p className="text-slate-400">Verileri görüntülemek için lütfen giriş yapın.</p>
+            <h2 className="text-xl font-bold">Finans Ekranina Erisim</h2>
+            <p className="text-slate-400">Verileri goruntulemek icin lutfen giris yapin.</p>
           </CardContent>
         </Card>
       </div>
     );
   }
 
+  const beginPlayBillingPurchase = async (productId: string) => {
+    if (!isNativeAndroidPlayBillingSupported()) {
+      throw new Error(getPlayBillingUnavailableMessage());
+    }
+
+    return startPlayBillingPurchase({
+      productId,
+      obfuscatedAccountId: user.id,
+      obfuscatedProfileId: user.id,
+    });
+  };
+
   const handleUpgrade = async () => {
-    if (!user) return;
     if (isTeamOwner !== true) {
-      toast.error('Yetki Hatası', { description: 'Stadyum guncellemesi icin sadece takim sahibi yetkilidir.' });
+      toast.error('Yetki Hatasi', {
+        description: 'Stadyum guncellemesi icin sadece takim sahibi yetkilidir.',
+      });
       return;
     }
+
     setUpgrading(true);
     try {
       await upgradeStadiumLevel(user.id);
-      toast.success('Başarılı', { description: 'Stadyum seviyesi guncellendi' });
-    } catch (err) {
-      if (err instanceof Error && err.message.toLowerCase().includes('missing or insufficient permissions')) {
-        toast.error('Yetki Hatası', {
+      toast.success('Basarili', { description: 'Stadyum seviyesi guncellendi.' });
+    } catch (error) {
+      if (
+        error instanceof Error &&
+        error.message.toLowerCase().includes('missing or insufficient permissions')
+      ) {
+        toast.error('Yetki Hatasi', {
           description: 'Stadyum guncellemesi icin takim sahibi olmalisin.',
         });
       } else {
-        toast.error('Hata', { description: err instanceof Error ? err.message : 'Stadyum guncellenemedi' });
+        toast.error('Hata', {
+          description: error instanceof Error ? error.message : 'Stadyum guncellenemedi.',
+        });
       }
     } finally {
       setUpgrading(false);
@@ -261,64 +437,162 @@ export default function FinanceSummaryScreen() {
   };
 
   const handleActivateSponsor = async (entry: SponsorCatalogEntry) => {
-    if (!user) return;
     setSponsorLoading(entry.id);
     try {
-      await activateSponsor(user.id, entry);
-      toast.success('Başarılı', { description: `${entry.name} sponsoru aktif` });
-    } catch (err) {
-      toast.error('Hata', { description: err instanceof Error ? err.message : 'Sponsor aktive edilemedi' });
+      if (entry.type !== 'premium') {
+        await activateSponsor(user.id, entry);
+        toast.success('Basarili', { description: `${entry.name} sponsoru aktif edildi.` });
+        return;
+      }
+
+      const productId = buildSponsorStoreProductId(entry);
+      const storeProduct = productId ? productsById[productId] ?? null : null;
+      if (!productId || !storeProduct) {
+        throw new Error('Premium sponsor icin Play Store urunu bulunamadi.');
+      }
+
+      const purchaseResult = await beginPlayBillingPurchase(productId);
+      if (purchaseResult.status === 'cancelled') {
+        return;
+      }
+
+      if (purchaseResult.status === 'pending' || purchaseResult.purchaseState === 'PENDING') {
+        toast(
+          'Sponsor satin alma islemi beklemede. Google Play onayindan sonra otomatik aktif edilecek.',
+        );
+        return;
+      }
+
+      if (!purchaseResult.purchaseToken) {
+        throw new Error('purchase_token_missing');
+      }
+
+      const finalized = await finalizeAndroidSponsorPurchase({
+        sponsorId: entry.id,
+        productId,
+        purchaseToken: purchaseResult.purchaseToken,
+        orderId: purchaseResult.orderId ?? null,
+        packageName: purchaseResult.packageName ?? null,
+      });
+
+      if (finalized.granted) {
+        if (finalized.consumeAttempted && !finalized.consumed) {
+          toast.warning(
+            'Sponsor aktif edildi. Satin alma tuketimi tamamlanamadi; finans ekranini tekrar acman gerekebilir.',
+          );
+          return;
+        }
+
+        toast.success('Basarili', { description: `${finalized.sponsorName} sponsoru aktif edildi.` });
+        return;
+      }
+
+      if (finalized.alreadyProcessed) {
+        toast.success('Bu sponsor satin almasi daha once islenmis.');
+        return;
+      }
+
+      toast.success('Odeme dogrulandi.');
+    } catch (error) {
+      toast.error('Hata', {
+        description: error instanceof Error ? error.message : 'Sponsor aktive edilemedi.',
+      });
     } finally {
       setSponsorLoading(null);
     }
   };
 
   const handleCollectSponsor = async (sponsorId: string) => {
-    if (!user) return;
     setSponsorLoading(sponsorId);
     try {
       const payout = await applySponsorEarnings(user.id, sponsorId);
-      toast.success('Ödeme Alındı', { description: `Sponsor kazanci: ${formatCurrency(payout)}` });
-    } catch (err) {
-      toast.error('Hata', { description: err instanceof Error ? err.message : 'Sponsor kazanci alinamadi' });
+      toast.success('Odeme Alindi', { description: `Sponsor kazanci: ${formatCurrency(payout)}` });
+    } catch (error) {
+      toast.error('Hata', {
+        description: error instanceof Error ? error.message : 'Sponsor kazanci alinamadi.',
+      });
     } finally {
       setSponsorLoading(null);
     }
   };
 
   const handleCreditPurchase = async (pack: CreditPackage) => {
-    if (!user) return;
     setCreditLoading(pack.id);
     try {
-      await recordCreditPurchase(user.id, pack);
-      toast.success('Kredi Yüklendi', { description: `${formatCurrency(pack.amount)} kredi hesabina eklendi` });
-    } catch (err) {
-      toast.error('Hata', { description: err instanceof Error ? err.message : 'Kredi satin alinamadi' });
+      const storeProduct = productsById[pack.productId] ?? null;
+      if (!storeProduct) {
+        throw new Error('Bu kredi paketi icin Play Store urunu bulunamadi.');
+      }
+
+      const purchaseResult = await beginPlayBillingPurchase(pack.productId);
+      if (purchaseResult.status === 'cancelled') {
+        return;
+      }
+
+      if (purchaseResult.status === 'pending' || purchaseResult.purchaseState === 'PENDING') {
+        toast('Odeme islemi beklemede. Onaylandiginda kredi paketi otomatik islenecek.');
+        return;
+      }
+
+      if (!purchaseResult.purchaseToken) {
+        throw new Error('purchase_token_missing');
+      }
+
+      const finalized = await finalizeAndroidCreditPurchase({
+        productId: pack.productId,
+        purchaseToken: purchaseResult.purchaseToken,
+        orderId: purchaseResult.orderId ?? null,
+        packageName: purchaseResult.packageName ?? null,
+      });
+
+      if (finalized.granted) {
+        if (finalized.consumeAttempted && !finalized.consumed) {
+          toast.warning(
+            'Krediler hesaba eklendi. Satin alma tuketimi tamamlanamadi; finans ekranini tekrar acman gerekebilir.',
+          );
+          return;
+        }
+
+        toast.success('Kredi Yuklendi', {
+          description: `${formatCurrency(pack.amount)} kredi hesabina eklendi`,
+        });
+        return;
+      }
+
+      if (finalized.alreadyProcessed) {
+        toast.success('Bu kredi satin almasi daha once hesaba islenmis.');
+        return;
+      }
+
+      toast.success('Odeme dogrulandi.');
+    } catch (error) {
+      toast.error('Hata', {
+        description: error instanceof Error ? error.message : 'Kredi satin alinamadi.',
+      });
     } finally {
       setCreditLoading(null);
     }
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 pb-20 md:pb-6 relative overflow-x-hidden">
-      {/* Background Gradients */}
-      <div className="fixed inset-0 z-0 pointer-events-none">
-        <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] rounded-full bg-emerald-900/10 blur-[120px]" />
-        <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] rounded-full bg-indigo-900/10 blur-[120px]" />
+    <div className="relative min-h-screen overflow-x-hidden bg-slate-950 pb-20 md:pb-6">
+      <div className="pointer-events-none fixed inset-0 z-0">
+        <div className="absolute left-[-10%] top-[-10%] h-[50%] w-[50%] rounded-full bg-emerald-900/10 blur-[120px]" />
+        <div className="absolute bottom-[-10%] right-[-10%] h-[50%] w-[50%] rounded-full bg-indigo-900/10 blur-[120px]" />
       </div>
 
-      <div className="relative z-10 flex flex-col h-full">
+      <div className="relative z-10 flex h-full flex-col">
         <FinanceHeader balance={balance} />
 
-        <main className="flex-1 px-4 py-6 max-w-5xl mx-auto w-full">
+        <main className="mx-auto flex-1 w-full max-w-5xl px-4 py-6">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-            <div className="overflow-x-auto pb-2 -mx-4 px-4 scrollbar-hide">
-              <TabsList className="flex w-max h-auto p-1 bg-slate-900/80 backdrop-blur border border-white/5 rounded-full">
-                <TabItem value="summary" label="ÖZET" />
+            <div className="-mx-4 overflow-x-auto px-4 pb-2 scrollbar-hide">
+              <TabsList className="flex h-auto w-max rounded-full border border-white/5 bg-slate-900/80 p-1 backdrop-blur">
+                <TabItem value="summary" label="OZET" />
                 <TabItem value="stadium" label="STADYUM" />
-                <TabItem value="salaries" label="MAAŞLAR" />
+                <TabItem value="salaries" label="MAASLAR" />
                 <TabItem value="sponsors" label="SPONSORLAR" />
-                <TabItem value="credits" label="KREDİ" />
+                <TabItem value="credits" label="KREDI" />
               </TabsList>
             </div>
 
@@ -359,14 +633,27 @@ export default function FinanceSummaryScreen() {
             <TabsContent value="sponsors" className="mt-0 focus-visible:outline-none">
               <SponsorTab
                 sponsors={userSponsors}
+                catalogEntries={sponsorCatalogEntries}
+                catalogLoading={sponsorCatalogLoading}
+                catalogError={sponsorCatalogError}
                 onActivate={handleActivateSponsor}
                 onCollect={handleCollectSponsor}
                 loadingId={sponsorLoading}
+                storeProductsById={productsById}
+                isStoreLoading={isStoreLoading}
+                storeError={storeError}
               />
             </TabsContent>
 
             <TabsContent value="credits" className="mt-0 focus-visible:outline-none">
-              <CreditTab packages={CREDIT_PACKAGES} loadingId={creditLoading} onPurchase={handleCreditPurchase} />
+              <CreditTab
+                packages={CREDIT_PACKAGES}
+                loadingId={creditLoading}
+                onPurchase={handleCreditPurchase}
+                productsById={productsById}
+                isStoreLoading={isStoreLoading}
+                storeError={storeError}
+              />
             </TabsContent>
           </Tabs>
         </main>
@@ -379,9 +666,9 @@ function TabItem({ value, label }: { value: string; label: string }) {
   return (
     <TabsTrigger
       value={value}
-      className="rounded-full px-6 py-2 text-xs font-bold data-[state=active]:bg-emerald-500 data-[state=active]:text-white data-[state=active]:shadow-lg active:scale-95 transition-all text-slate-400 hover:text-white"
+      className="rounded-full px-6 py-2 text-xs font-bold text-slate-400 transition-all hover:text-white data-[state=active]:bg-emerald-500 data-[state=active]:text-white data-[state=active]:shadow-lg active:scale-95"
     >
       {label}
     </TabsTrigger>
-  )
+  );
 }

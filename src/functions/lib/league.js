@@ -5,6 +5,7 @@ import './_firebase.js';
 import { getFirestore, FieldValue, Timestamp, } from 'firebase-admin/firestore';
 import { getAuth } from 'firebase-admin/auth';
 import { normalizeCapacity } from './utils/roundrobin.js';
+import { enqueueLeagueMatchReminders } from './notify/matchReminder.js';
 const db = getFirestore();
 const ADMIN_SECRET = functions.config()?.admin?.secret || '';
 const DEFAULT_FORMING_CAPACITY = normalizeCapacity(22);
@@ -377,10 +378,12 @@ async function generateFixturesForLeague(leagueId, startDate) {
     const teamIds = teamsSnap.docs.map((d) => d.id);
     const fixtures = generateRoundRobinFixtures(teamIds);
     const batch = db.batch();
+    const reminderJobs = [];
     fixtures.forEach((m) => {
         const date = new Date(startDate.getTime());
         date.setUTCDate(date.getUTCDate() + (m.round - 1));
         const ref = leagueRef.collection('fixtures').doc();
+        reminderJobs.push({ fixtureId: ref.id, kickoffAt: date });
         batch.set(ref, {
             round: m.round,
             date: Timestamp.fromDate(date),
@@ -392,6 +395,14 @@ async function generateFixturesForLeague(leagueId, startDate) {
         });
     });
     await batch.commit();
+    const reminders = await enqueueLeagueMatchReminders(leagueId, reminderJobs);
+    if (reminders.failed > 0) {
+        functions.logger.warn('[FIXTURE] reminder enqueue partial failure', {
+            leagueId,
+            scheduled: reminders.scheduled,
+            failed: reminders.failed,
+        });
+    }
     functions.logger.info('[FIXTURE] Üretim bitti', { leagueId, total: fixtures.length });
 }
 export const generateRoundRobinFixturesFn = functions.region('europe-west1').https.onCall(async (request) => {

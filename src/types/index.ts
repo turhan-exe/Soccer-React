@@ -343,6 +343,9 @@ export interface User {
   teamName: string;
   teamLogo: string | null;
   role?: 'admin' | 'user';
+  notificationPrefs?: {
+    pushEnabled?: boolean;
+  };
   connectedAccounts: {
     google?: boolean;
     apple?: boolean;

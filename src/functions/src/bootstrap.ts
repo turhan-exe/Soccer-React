@@ -14,6 +14,7 @@ import {
   resolveLeagueCount,
   roundsForCapacity,
 } from './utils/leagueConfig.js';
+import { enqueueLeagueMatchReminders } from './notify/matchReminder.js';
 
 const db = getFirestore();
 const REGION = 'europe-west1';
@@ -256,9 +257,11 @@ async function runBootstrap(input: BootstrapInput = {}) {
 
     let batch = db.batch();
     let ops = 0;
+    const reminderJobs: Array<{ fixtureId: string; kickoffAt: Date }> = [];
     for (const f of fixturesTemplate) {
       const date = dateForRound(startDate, f.round);
       const docRef = ref.collection('fixtures').doc();
+      reminderJobs.push({ fixtureId: docRef.id, kickoffAt: date });
       const homeTeamId = slotMap.get(f.homeSlot)?.teamId || null;
       const awayTeamId = slotMap.get(f.awaySlot)?.teamId || null;
       batch.set(docRef, {
@@ -281,6 +284,15 @@ async function runBootstrap(input: BootstrapInput = {}) {
       }
     }
     if (ops > 0) await batch.commit();
+
+    const reminders = await enqueueLeagueMatchReminders(ref.id, reminderJobs);
+    if (reminders.failed > 0) {
+      functions.logger.warn('[runBootstrap] reminder enqueue partial failure', {
+        leagueId: ref.id,
+        scheduled: reminders.scheduled,
+        failed: reminders.failed,
+      });
+    }
   }
 
   return {

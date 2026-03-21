@@ -8,6 +8,7 @@ import { trAt, dayKeyTR } from './utils/schedule.js';
 import { ensureBotTeamDoc } from './utils/bots.js';
 import { buildUnityRuntimeTeamPayload, type UnityRuntimeTeamPayload } from './utils/unityRuntimePayload.js';
 import { enqueueRenderJob } from './replay/renderJob.js';
+import { enqueueLeagueMatchReminder } from './notify/matchReminder.js';
 
 const REGION = 'europe-west1';
 const TZ = 'Europe/Istanbul';
@@ -1356,6 +1357,18 @@ async function autoRescheduleFailedLeagueFixturesInternal(now = new Date()) {
         'live.rescheduledAt': FieldValue.serverTimestamp(),
         'live.rescheduleCount': previousReschedules + 1,
       });
+      const leagueId = entry.doc.ref.parent.parent?.id;
+      if (leagueId) {
+        try {
+          await enqueueLeagueMatchReminder(leagueId, entry.doc.id, nextKickoff);
+        } catch (error: any) {
+          functions.logger.warn('[autoRescheduleFailedLeagueFixtures] reminder enqueue failed', {
+            leagueId,
+            fixtureId: entry.doc.id,
+            error: error?.message || String(error),
+          });
+        }
+      }
       rescheduled += 1;
     } catch (error: any) {
       failed += 1;

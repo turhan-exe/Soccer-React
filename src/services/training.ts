@@ -32,6 +32,7 @@ export interface ActiveTrainingSession {
   trainingIds: string[];
   startAt: Timestamp;
   durationSeconds: number;
+  endsAt?: Timestamp;
 }
 
 export interface TrainingHistoryRecord {
@@ -51,6 +52,9 @@ const trainingHistoryCol = (uid: string) =>
   collection(db, 'users', uid, 'trainingHistory');
 const trainingHistoryDoc = (uid: string, id: string) =>
   doc(db, 'users', uid, 'trainingHistory', id);
+
+const buildEndsAt = (startAt: Timestamp, durationSeconds: number) =>
+  Timestamp.fromMillis(startAt.toMillis() + Math.max(0, durationSeconds) * 1000);
 
 export async function getActiveTraining(uid: string): Promise<ActiveTrainingSession | null> {
   const snap = await getDoc(trainingDoc(uid));
@@ -84,7 +88,11 @@ export function listenActiveTraining(
 }
 
 export async function setActiveTraining(uid: string, session: ActiveTrainingSession): Promise<void> {
-  await setDoc(trainingDoc(uid), session);
+  const normalizedSession = {
+    ...session,
+    endsAt: session.endsAt ?? buildEndsAt(session.startAt, session.durationSeconds),
+  };
+  await setDoc(trainingDoc(uid), normalizedSession);
 }
 
 export async function clearActiveTraining(uid: string): Promise<void> {
@@ -225,10 +233,11 @@ export async function reduceTrainingTimeWithAd(
         elapsedSeconds,
         data.durationSeconds - reductionSeconds,
       );
+      const endsAt = buildEndsAt(data.startAt, newDurationSeconds);
 
-      tx.update(sessionRef, { durationSeconds: newDurationSeconds });
+      tx.update(sessionRef, { durationSeconds: newDurationSeconds, endsAt });
 
-      return { ...data, durationSeconds: newDurationSeconds };
+      return { ...data, durationSeconds: newDurationSeconds, endsAt };
     });
 
     return session;

@@ -5,6 +5,9 @@ export type UserProfile = {
   contactPhone: string | null;
   contactCrypto: string | null;
   role?: 'admin' | 'user';
+  notificationPrefs?: {
+    pushEnabled?: boolean;
+  };
 };
 
 const sanitizeContactField = (value: string | null | undefined, maxLength: number): string | null => {
@@ -41,6 +44,9 @@ export const getUserProfile = async (uid: string): Promise<UserProfile | null> =
     contactPhone: normalizeProfileField(data?.contactPhone),
     contactCrypto: normalizeProfileField(data?.contactCrypto),
     role: data?.role === 'admin' ? 'admin' : 'user',
+    notificationPrefs: {
+      pushEnabled: data?.notificationPrefs?.pushEnabled !== false,
+    },
   };
 };
 
@@ -61,4 +67,20 @@ export const updateUserContactInfo = async (
   }
 
   await setDoc(doc(db, 'users', uid), update, { merge: true });
+};
+
+export const updateUserNotificationPreferences = async (
+  uid: string,
+  payload: { pushEnabled: boolean },
+): Promise<void> => {
+  await setDoc(
+    doc(db, 'users', uid),
+    {
+      notificationPrefs: {
+        pushEnabled: payload.pushEnabled,
+      },
+      notificationPrefsUpdatedAt: serverTimestamp(),
+    },
+    { merge: true },
+  );
 };

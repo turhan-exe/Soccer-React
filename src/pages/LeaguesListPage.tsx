@@ -1,7 +1,12 @@
 ﻿import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-import { ensureDefaultLeague, listLeagues, listenMyLeague } from '@/services/leagues';
+import {
+  ensureDefaultLeague,
+  hydrateLeagueTeamCounts,
+  listLeagues,
+  listenMyLeague,
+} from '@/services/leagues';
 import type { League } from '@/types';
 import { PagesHeader } from '@/components/layout/PagesHeader';
 import { Shield, ChevronRight, Trophy, Users } from 'lucide-react';
@@ -13,12 +18,16 @@ export default function LeaguesListPage() {
   const [leagues, setLeagues] = useState<League[]>([]);
   const [myLeagueId, setMyLeagueId] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
+  const [hydratedCounts, setHydratedCounts] = useState<Record<string, number>>({});
 
   useEffect(() => {
     const load = async () => {
       try {
-        await ensureDefaultLeague();
-        const ls = await listLeagues();
+        let ls = await listLeagues({ includeTeams: false });
+        if (ls.length === 0) {
+          await ensureDefaultLeague();
+          ls = await listLeagues({ includeTeams: false });
+        }
         setLeagues(ls);
       } finally {
         setLoading(false);
@@ -35,8 +44,43 @@ export default function LeaguesListPage() {
     return unsub;
   }, [user]);
 
+  useEffect(() => {
+    if (leagues.length === 0) {
+      setHydratedCounts({});
+      return;
+    }
+
+    let cancelled = false;
+
+    void (async () => {
+      const counts = await hydrateLeagueTeamCounts(leagues.map((league) => league.id));
+      if (!cancelled) setHydratedCounts(counts);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [leagues]);
+
   const myLeague = leagues.find((l) => l.id === myLeagueId) || null;
   const otherLeagues = leagues.filter((l) => l.id !== myLeagueId);
+
+  const renderTeamCount = (league: League) => {
+    const fallback =
+      typeof league.teamCount === 'number' && league.teamCount > 0
+        ? Math.min(league.teamCount, league.capacity)
+        : null;
+    const resolved =
+      hydratedCounts[league.id] !== undefined
+        ? Math.min(hydratedCounts[league.id]!, league.capacity)
+        : fallback;
+
+    if ((resolved == null || resolved === 0) && league.state !== 'forming') {
+      return String(league.capacity);
+    }
+
+    return resolved == null ? '...' : String(resolved);
+  };
 
   return (
     <div className="min-h-screen bg-slate-950 p-4 md:p-6 lg:p-8 font-sans text-slate-100 flex flex-col gap-6">
@@ -85,7 +129,7 @@ export default function LeaguesListPage() {
                   </div>
                   <div className="col-span-2 text-center text-slate-400 font-medium flex items-center justify-center gap-2">
                     <Users size={14} className="text-slate-500" />
-                    {myLeague.teamCount ?? 0} / {myLeague.capacity}
+                    {renderTeamCount(myLeague)} / {myLeague.capacity}
                   </div>
                   <div className="col-span-2 flex justify-center">
                     <span className={`px-3 py-1 rounded-full text-xs font-bold border ${myLeague.state === 'active' ? 'bg-green-500/10 text-green-400 border-green-500/20' :
@@ -120,7 +164,7 @@ export default function LeaguesListPage() {
                   </div>
                   <div className="col-span-2 text-center text-slate-500 font-medium flex items-center justify-center gap-2">
                     <Users size={14} />
-                    {l.teamCount ?? 0} / {l.capacity}
+                    {renderTeamCount(l)} / {l.capacity}
                   </div>
                   <div className="col-span-2 flex justify-center">
                     <span className={`px-3 py-1 rounded-full text-xs font-bold border ${l.state === 'active' ? 'bg-green-500/10 text-green-400 border-green-500/20' :

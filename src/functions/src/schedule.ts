@@ -5,6 +5,7 @@ import { generateDoubleRoundRobinSlots } from './utils/roundrobin.js';
 import { nextMonthOrThisMonthFirstAt19, monthKeyTR, dateForRound, monthStartAt19TR } from './utils/time.js';
 import { ensureBotTeamDoc } from './utils/bots.js';
 import { DEFAULT_MONTHLY_CAPACITY, resolveLeagueCapacity, roundsForCapacity } from './utils/leagueConfig.js';
+import { enqueueLeagueMatchReminders } from './notify/matchReminder.js';
 
 const db = getFirestore();
 const REGION = 'europe-west1';
@@ -334,10 +335,12 @@ async function resetSeasonMonthlyInternal(input: ResetSeasonInput = {}) {
     repair.slots.forEach((slot) => {
       slotMap.set(slot.slotIndex, slot.fixtureTeamId);
     });
+    const reminderJobs: Array<{ fixtureId: string; kickoffAt: Date }> = [];
 
     for (const f of template) {
       const fRef = leagueRef.collection('fixtures').doc();
       const date = dateForRound(startDate, f.round);
+      reminderJobs.push({ fixtureId: fRef.id, kickoffAt: date });
       const homeTeamId = slotMap.get(f.homeSlot) || null;
       const awayTeamId = slotMap.get(f.awaySlot) || null;
       batch.set(fRef, {
@@ -354,6 +357,15 @@ async function resetSeasonMonthlyInternal(input: ResetSeasonInput = {}) {
       ops++; if (ops >= 450) { await batch.commit(); batch = db.batch(); ops = 0; }
     }
     if (ops > 0) await batch.commit();
+
+    const reminders = await enqueueLeagueMatchReminders(leagueRef.id, reminderJobs);
+    if (reminders.failed > 0) {
+      functions.logger.warn('[resetSeasonMonthlyInternal] reminder enqueue partial failure', {
+        leagueId: leagueRef.id,
+        scheduled: reminders.scheduled,
+        failed: reminders.failed,
+      });
+    }
   }
 
   return { processed: leagues.length, startDate: startDate.toISOString(), monthKey: mKey };

@@ -1,38 +1,72 @@
+import { useMemo, useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { useDiamonds } from '@/contexts/DiamondContext';
+import type { PlayBillingProduct } from '@/services/playBilling';
 import type { DiamondPack } from './packs';
 
 interface Props {
   pack: DiamondPack | null;
+  storeProduct: PlayBillingProduct | null;
+  storeError: string | null;
+  isStoreLoading: boolean;
   onClose: () => void;
 }
 
-const CheckoutModal: React.FC<Props> = ({ pack, onClose }) => {
+const CheckoutModal: React.FC<Props> = ({
+  pack,
+  storeProduct,
+  storeError,
+  isStoreLoading,
+  onClose,
+}) => {
   const { purchase } = useDiamonds();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const confirmDisabled = useMemo(() => {
+    if (!pack) return true;
+    if (isSubmitting || isStoreLoading) return true;
+    if (storeError) return true;
+    return !storeProduct;
+  }, [isStoreLoading, isSubmitting, pack, storeError, storeProduct]);
 
   const handleConfirm = async () => {
-    if (!pack) return;
-    await purchase(pack);
-    onClose();
+    if (!pack || confirmDisabled) return;
+
+    setIsSubmitting(true);
+    try {
+      await purchase(pack);
+      onClose();
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
     <Dialog open={!!pack} onOpenChange={onClose}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Kripto ile ödeme</DialogTitle>
+          <DialogTitle>Google Play ile odeme</DialogTitle>
         </DialogHeader>
-        <p>Cüzdan bağlandı (simülasyon)</p>
+
         {pack && (
-          <div className="mt-4 space-y-1 text-sm">
-            <div>Ağ ücreti: ~0.001 ETH</div>
-            {pack.priceFiat && <div>Toplam: ₺{pack.priceFiat.toFixed(2)}</div>}
+          <div className="space-y-3 text-sm">
+            <p>{pack.amount} elmas Google Play satin alma akisi ile hesaba eklenecek.</p>
+            <div className="space-y-1 rounded-lg bg-muted/40 p-3">
+              <div>Paket: {pack.label}</div>
+              <div>Urun ID: {pack.productId}</div>
+              <div>Fiyat: {storeProduct?.formattedPrice ?? `TRY ${pack.priceFiat?.toFixed(2) ?? '-'}`}</div>
+            </div>
+            {storeError && <p className="text-amber-600">{storeError}</p>}
+            {!storeError && !storeProduct && !isStoreLoading && (
+              <p className="text-amber-600">Bu paket icin Play Console urunu bulunamadi.</p>
+            )}
           </div>
         )}
+
         <DialogFooter>
-          <Button onClick={handleConfirm} data-testid="checkout-confirm">
-            Ödemeyi Onayla
+          <Button disabled={confirmDisabled} onClick={handleConfirm} data-testid="checkout-confirm">
+            {isSubmitting ? 'Isleniyor' : 'Google Play satin alimini baslat'}
           </Button>
         </DialogFooter>
       </DialogContent>

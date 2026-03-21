@@ -15,6 +15,22 @@
       },
       "oauth_client": [
         {
+          "client_id": "597848278073-3gevu7ef6dtum25h8q6h80vq56l22q93.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.nerbuss.fhsmanager",
+            "certificate_hash": "05b9745d96b424a22e14acdc2542dc4ba0fdc55e"
+          }
+        },
+        {
+          "client_id": "597848278073-b0paj8v8im578amjh50moeplqrpudi6t.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.nerbuss.fhsmanager",
+            "certificate_hash": "6932c317d65b6ea196843d58ab6647d852ebf393"
+          }
+        },
+        {
           "client_id": "597848278073-t4s3cbbr0k32629q6912u2rhp98ea9nv.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {

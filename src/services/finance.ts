@@ -56,6 +56,7 @@ export const STADIUM_LEVELS: Record<StadiumLevel, StadiumLevelConfig> = {
 
 export interface CreditPackage {
   id: string;
+  productId: string;
   amount: number;
   price: number;
 }
@@ -69,10 +70,12 @@ export interface SponsorReward {
 
 export interface SponsorCatalogEntry {
   id: string;
+  catalogId: string;
   name: string;
   type: SponsorType;
   reward: SponsorReward;
   price?: number;
+  storeProductId?: string | null;
 }
 
 export interface UserSponsorDoc {
@@ -82,6 +85,7 @@ export interface UserSponsorDoc {
   type: SponsorType;
   reward: SponsorReward;
   price?: number;
+  storeProductId?: string | null;
   active: boolean;
   activatedAt: Timestamp;
   lastPayoutAt?: Timestamp | null;
@@ -566,11 +570,12 @@ export async function activateSponsor(teamId: string, sponsor: SponsorCatalogEnt
         active: isSelectedSponsor,
         ...(isSelectedSponsor
           ? {
-              catalogId: sponsor.id,
+              catalogId: sponsor.catalogId,
               name: sponsor.name,
               type: sponsor.type,
               reward: sponsor.reward,
               price: sponsor.price ?? null,
+              storeProductId: sponsor.storeProductId ?? null,
               activatedAt: serverTimestamp(),
               lastPayoutAt: null,
               nextPayoutAt: null,
@@ -585,11 +590,12 @@ export async function activateSponsor(teamId: string, sponsor: SponsorCatalogEnt
     const ref = doc(col, sponsor.id);
     batch.set(ref, {
       id: sponsor.id,
-      catalogId: sponsor.id,
+      catalogId: sponsor.catalogId,
       name: sponsor.name,
       type: sponsor.type,
       reward: sponsor.reward,
       price: sponsor.price ?? null,
+      storeProductId: sponsor.storeProductId ?? null,
       active: true,
       activatedAt: serverTimestamp(),
       lastPayoutAt: null,

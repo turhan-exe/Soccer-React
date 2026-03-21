@@ -16,7 +16,7 @@ import {
 } from '@/components/ui/dialog';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
-import { Loader2, Chrome, Apple } from 'lucide-react';
+import { Loader2, Chrome } from 'lucide-react';
 import { FirebaseError } from 'firebase/app';
 
 const getRegisterErrorMessage = (error: unknown): string => {
@@ -54,9 +54,21 @@ const getSocialAuthErrorMessage = (provider: 'google' | 'apple', error: unknown)
   };
 
   const message = normalizeMessage(error).trim();
+  const lowerMessage = message.toLowerCase();
   if (provider === 'google') {
-    if (/^10:?/.test(message)) {
-      return 'Google oturumu başlatılamadı. Firebase projenize Android SHA-1/SHA-256 imzalarını ekleyip yeni google-services.json dosyasını indirin ve projeye kopyalayın.';
+    if (/^(10|12500):?/.test(message) || lowerMessage.includes('developer_error')) {
+      return 'Google oturumu baslatilamadi. Firebase projenize Android release ve Play App Signing SHA-1/SHA-256 imzalarini ekleyip yeni google-services.json dosyasini indirerek projeye kopyalayin.';
+    }
+  }
+
+  if (provider === 'apple') {
+    if (
+      lowerMessage.includes('invalid_oauth_response') ||
+      lowerMessage.includes('invalid-oauth-response') ||
+      lowerMessage.includes('invalid credential') ||
+      lowerMessage.includes('invalid-credential')
+    ) {
+      return 'Apple girisi basarisiz. Firebase Console icinde Apple saglayicisini etkinlestirip Apple Service ID, Team ID, Key ID, private key ve return URL ayarlarinizi kontrol edin.';
     }
   }
 
@@ -65,7 +77,23 @@ const getSocialAuthErrorMessage = (provider: 'google' | 'apple', error: unknown)
       'auth/popup-blocked': 'Tarayici acilir pencere engellemesini kaldirin ve tekrar deneyin.',
       'auth/popup-closed-by-user': 'Oturum penceresini kapattiniz. Lutfen tekrar deneyin.',
       'auth/cancelled-popup-request': 'Baska bir oturum istegi zaten isleniyor. Lutfen tekrar deneyin.',
-      'auth/unauthorized-domain': 'Bu alan Google girisi icin yetkilendirilmemis. Lutfen yonetici ile iletisime gecin.',
+      'auth/network-request-failed': 'Ag istegi basarisiz oldu. Internet baglantisini kontrol edip tekrar deneyin.',
+      'auth/invalid-oauth-client-id':
+        provider === 'google'
+          ? 'Google OAuth istemcisi gecersiz. Firebase projesine dogru SHA imzalarini ekleyip yeni google-services.json dosyasini indirin.'
+          : 'Apple OAuth istemcisi gecersiz. Firebase Console icindeki Apple saglayici ayarlarini kontrol edin.',
+      'auth/operation-not-allowed':
+        provider === 'google'
+          ? 'Firebase Authentication icinde Google girisi etkin degil. Firebase Console > Authentication > Sign-in method ekranindan Google saglayicisini acin.'
+          : 'Firebase Authentication icinde Apple girisi etkin degil. Firebase Console > Authentication > Sign-in method ekranindan Apple saglayicisini acin.',
+      'auth/unauthorized-domain':
+        provider === 'google'
+          ? 'Bu alan Google girisi icin yetkilendirilmemis. Firebase Authentication yetkili domainlerini kontrol edin.'
+          : 'Bu alan Apple girisi icin yetkilendirilmemis. Firebase Authentication yetkili domainlerini ve Apple return URL ayarini kontrol edin.',
+      'auth/invalid-credential':
+        provider === 'google'
+          ? 'Google oturum bilgileri gecersiz. Yeni google-services.json dosyasini alip uygulamayi yeniden derleyin.'
+          : 'Apple oturum bilgileri gecersiz. Apple Service ID ve Firebase Apple provider ayarlarinizi kontrol edin.',
     };
     const friendly = codeMap[error.code];
     if (friendly) {
@@ -110,16 +138,14 @@ export default function Auth() {
     login,
     register,
     loginWithGoogle,
-    loginWithApple,
     registerWithGoogle,
-    registerWithApple,
     resetPassword,
     isLoading,
   } = useAuth();
   const [loginForm, setLoginForm] = useState({ email: '', password: '' });
   const [registerForm, setRegisterForm] = useState({ email: '', password: '', teamName: '' });
   const [socialTeamName, setSocialTeamName] = useState('');
-  const [socialProvider, setSocialProvider] = useState<'google' | 'apple' | null>(null);
+  const [socialProvider, setSocialProvider] = useState<'google' | null>(null);
   const [isSocialDialogOpen, setIsSocialDialogOpen] = useState(false);
   const [isResetDialogOpen, setIsResetDialogOpen] = useState(false);
   const [resetEmail, setResetEmail] = useState('');
@@ -311,15 +337,6 @@ export default function Auth() {
                   <Chrome className="w-4 h-4 mr-2" />
                   Google ile Giriş
                 </Button>
-                <Button
-                  variant="outline"
-                  className="w-full"
-                  onClick={handleAppleAuth}
-                  disabled={isLoading}
-                >
-                  <Apple className="w-4 h-4 mr-2" />
-                  Apple ile Giriş
-                </Button>
               </div>
             </TabsContent>
 
@@ -381,15 +398,6 @@ export default function Auth() {
                 >
                   <Chrome className="w-4 h-4 mr-2" />
                   Google ile Kayıt
-                </Button>
-                <Button
-                  variant="outline"
-                  className="w-full"
-                  onClick={() => openSocialRegister('apple')}
-                  disabled={isLoading}
-                >
-                  <Apple className="w-4 h-4 mr-2" />
-                  Apple ile Kayıt
                 </Button>
               </div>
             </TabsContent>
