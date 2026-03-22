@@ -74,6 +74,7 @@ public class MatchResultSummary
     public int homeGoals;
     public int awayGoals;
     public List<MatchEvent> events;
+    public MatchSummaryStats stats;
 }
 
 [Serializable]
@@ -84,4 +85,21 @@ public class MatchEvent
     public string club;
     public string playerId;
     public string description;
+}
+
+[Serializable]
+public class MatchSummaryStats
+{
+    public int shotsHome;
+    public int shotsAway;
+    public int possessionHome;
+    public int possessionAway;
+    public int cornersHome;
+    public int cornersAway;
+    public int foulsHome;
+    public int foulsAway;
+    public int offsidesHome;
+    public int offsidesAway;
+    public int penaltiesHome;
+    public int penaltiesAway;
 }

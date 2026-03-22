@@ -1,10 +1,15 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
+using System.Reflection;
 using UnityEngine;
 
 public class MatchRecorder : MonoBehaviour
 {
+    private const string MatchManagerTypeName = "FStudio.MatchEngine.MatchManager";
+    private const string AssemblyCSharp = "Assembly-CSharp";
+
     [Serializable]
     public class TrackedPlayer
     {
@@ -26,6 +31,12 @@ public class MatchRecorder : MonoBehaviour
     private readonly List<MatchEvent> _events = new List<MatchEvent>();
     private float _startTime;
     private bool _recording;
+    private static Type _matchManagerType;
+    private static PropertyInfo _matchManagerCurrentProperty;
+    private static PropertyInfo _matchManagerStatisticsProperty;
+    private static PropertyInfo _summaryEventsProperty;
+    private static FieldInfo _homeScoreField;
+    private static FieldInfo _awayScoreField;
 
     public MatchReplayPayload Payload => _payload;
 
@@ -44,7 +55,8 @@ public class MatchRecorder : MonoBehaviour
             {
                 homeGoals = 0,
                 awayGoals = 0,
-                events = _events
+                events = _events,
+                stats = new MatchSummaryStats()
             }
         };
 
@@ -61,6 +73,7 @@ public class MatchRecorder : MonoBehaviour
             StopCoroutine(_loop);
         }
         _payload.durationMs = (long)((Time.time - _startTime) * 1000f);
+        SyncSummaryFromMatchManager();
         RecalculateScore();
     }
 
@@ -147,5 +160,207 @@ public class MatchRecorder : MonoBehaviour
         }
         _payload.summary.homeGoals = home;
         _payload.summary.awayGoals = away;
+    }
+
+    private void SyncSummaryFromMatchManager()
+    {
+        if (_payload?.summary == null)
+        {
+            return;
+        }
+
+        var matchManager = GetMatchManagerInstance();
+        if (matchManager == null)
+        {
+            return;
+        }
+
+        _events.Clear();
+        foreach (var summaryEvent in ReadSummaryEvents(matchManager))
+        {
+            if (summaryEvent == null)
+            {
+                continue;
+            }
+
+            var type = ReadStringMember(summaryEvent, "type");
+            if (string.IsNullOrWhiteSpace(type))
+            {
+                continue;
+            }
+
+            _events.Add(new MatchEvent
+            {
+                minute = ReadIntMember(summaryEvent, "minute"),
+                type = type,
+                club = ReadStringMember(summaryEvent, "club"),
+                playerId = ReadStringMember(summaryEvent, "playerId"),
+                description = ReadStringMember(summaryEvent, "description")
+            });
+        }
+
+        _payload.summary.homeGoals = ReadIntField(matchManager, _homeScoreField);
+        _payload.summary.awayGoals = ReadIntField(matchManager, _awayScoreField);
+        _payload.summary.stats = BuildStatsSnapshot(matchManager);
+    }
+
+    private static MatchSummaryStats BuildStatsSnapshot(object matchManager)
+    {
+        var stats = GetStatisticsObject(matchManager);
+        if (stats == null)
+        {
+            return new MatchSummaryStats
+            {
+                possessionHome = 50,
+                possessionAway = 50
+            };
+        }
+
+        int ReadInt(int[] source, int index) => source != null && source.Length > index ? source[index] : 0;
+
+        return new MatchSummaryStats
+        {
+            shotsHome = ReadInt(ReadIntArray(stats, "Attempts", "shooting"), 0),
+            shotsAway = ReadInt(ReadIntArray(stats, "Attempts", "shooting"), 1),
+            possessionHome = ReadInt(ReadIntArray(stats, "TeamPositioning", "possesioning", "possessioning"), 0),
+            possessionAway = ReadInt(ReadIntArray(stats, "TeamPositioning", "possesioning", "possessioning"), 1),
+            cornersHome = ReadInt(ReadIntArray(stats, "CornerCount", "corners"), 0),
+            cornersAway = ReadInt(ReadIntArray(stats, "CornerCount", "corners"), 1),
+            foulsHome = ReadInt(ReadIntArray(stats, "FoulCount", "fouls"), 0),
+            foulsAway = ReadInt(ReadIntArray(stats, "FoulCount", "fouls"), 1),
+            offsidesHome = ReadInt(ReadIntArray(stats, "OffsideCount", "offsides"), 0),
+            offsidesAway = ReadInt(ReadIntArray(stats, "OffsideCount", "offsides"), 1),
+            penaltiesHome = ReadInt(ReadIntArray(stats, "PenaltyCount", "penalties"), 0),
+            penaltiesAway = ReadInt(ReadIntArray(stats, "PenaltyCount", "penalties"), 1),
+        };
+    }
+
+    private static object GetMatchManagerInstance()
+    {
+        EnsureMatchManagerReflection();
+        return _matchManagerCurrentProperty?.GetValue(null);
+    }
+
+    private static IEnumerable<object> ReadSummaryEvents(object matchManager)
+    {
+        EnsureMatchManagerReflection();
+        if (_summaryEventsProperty?.GetValue(matchManager) is IEnumerable enumerable)
+        {
+            foreach (var item in enumerable)
+            {
+                if (item != null)
+                {
+                    yield return item;
+                }
+            }
+        }
+    }
+
+    private static object GetStatisticsObject(object matchManager)
+    {
+        EnsureMatchManagerReflection();
+        return _matchManagerStatisticsProperty?.GetValue(null);
+    }
+
+    private static void EnsureMatchManagerReflection()
+    {
+        if (_matchManagerType != null)
+        {
+            return;
+        }
+
+        _matchManagerType = Type.GetType($"{MatchManagerTypeName}, {AssemblyCSharp}") ??
+            AppDomain.CurrentDomain.GetAssemblies()
+                .Select(assembly => assembly.GetType(MatchManagerTypeName))
+                .FirstOrDefault(type => type != null);
+
+        if (_matchManagerType == null)
+        {
+            return;
+        }
+
+        _matchManagerCurrentProperty = _matchManagerType.GetProperty("Current", BindingFlags.Public | BindingFlags.Static);
+        _matchManagerStatisticsProperty = _matchManagerType.GetProperty("Statistics", BindingFlags.Public | BindingFlags.Static);
+        _summaryEventsProperty = _matchManagerType.GetProperty("SummaryEvents", BindingFlags.Public | BindingFlags.Instance);
+        _homeScoreField = _matchManagerType.GetField("homeTeamScore", BindingFlags.Public | BindingFlags.Instance);
+        _awayScoreField = _matchManagerType.GetField("awayTeamScore", BindingFlags.Public | BindingFlags.Instance);
+    }
+
+    private static object GetMemberValue(object target, params string[] memberNames)
+    {
+        object current = target;
+        if (current == null || memberNames == null)
+        {
+            return null;
+        }
+
+        foreach (var memberName in memberNames)
+        {
+            if (current == null || string.IsNullOrWhiteSpace(memberName))
+            {
+                return null;
+            }
+
+            var type = current.GetType();
+            var property = type.GetProperty(memberName, BindingFlags.Public | BindingFlags.Instance);
+            if (property != null)
+            {
+                current = property.GetValue(current);
+                continue;
+            }
+
+            var field = type.GetField(memberName, BindingFlags.Public | BindingFlags.Instance);
+            if (field != null)
+            {
+                current = field.GetValue(current);
+                continue;
+            }
+
+            return null;
+        }
+
+        return current;
+    }
+
+    private static int[] ReadIntArray(object root, string arrayMemberName, params string[] path)
+    {
+        if (root == null || string.IsNullOrWhiteSpace(arrayMemberName))
+        {
+            return null;
+        }
+
+        if (path != null)
+        {
+            foreach (var step in path)
+            {
+                var nested = GetMemberValue(root, step);
+                if (nested == null)
+                {
+                    continue;
+                }
+
+                if (GetMemberValue(nested, arrayMemberName) is int[] nestedArray)
+                {
+                    return nestedArray;
+                }
+            }
+        }
+
+        return GetMemberValue(root, arrayMemberName) as int[];
+    }
+
+    private static int ReadIntField(object target, FieldInfo field)
+    {
+        return target != null && field != null && field.GetValue(target) is int value ? value : 0;
+    }
+
+    private static int ReadIntMember(object target, string memberName)
+    {
+        return GetMemberValue(target, memberName) is int value ? value : 0;
+    }
+
+    private static string ReadStringMember(object target, string memberName)
+    {
+        return GetMemberValue(target, memberName)?.ToString();
     }
 }

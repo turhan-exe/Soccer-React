@@ -34,20 +34,30 @@ export interface MatchResultSummary {
   homeGoals: number;
   awayGoals: number;
   events: MatchEvent[];
-  stats: {
-    shotsHome: number;
-    shotsAway: number;
-    possessionHome: number;
-    possessionAway: number;
-  };
+  stats: MatchSummaryStats;
 }
 
 export interface MatchEvent {
   minute: number;
-  type: 'goal' | 'yellow_card' | 'red_card' | 'shot' | 'foul' | 'other';
+  type: 'goal' | 'yellow_card' | 'red_card' | 'shot' | 'foul' | 'corner' | 'offside' | 'penalty' | 'other';
   club: 'home' | 'away';
   playerId?: string;
   description?: string;
+}
+
+export interface MatchSummaryStats {
+  shotsHome: number;
+  shotsAway: number;
+  possessionHome: number;
+  possessionAway: number;
+  cornersHome: number;
+  cornersAway: number;
+  foulsHome: number;
+  foulsAway: number;
+  offsidesHome: number;
+  offsidesAway: number;
+  penaltiesHome: number;
+  penaltiesAway: number;
 }
 
 export interface MatchReplayMeta {
@@ -124,4 +134,5 @@ export interface ReplayResultSummary {
   homeGoals: number;
   awayGoals: number;
   events: MatchEvent[];
+  stats?: MatchSummaryStats;
 }

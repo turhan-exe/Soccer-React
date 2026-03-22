@@ -25,6 +25,9 @@ public struct MatchEndPayload
     public int[] attemptsOnTarget;
     public float[] runningDistance;
     public int[] corners;
+    public int[] fouls;
+    public int[] offsides;
+    public int[] penalties;
     public int[] ballWinning;
 }
 
@@ -579,6 +582,9 @@ public class MatchEndReplicator : NetworkBehaviour
         payload.attemptsOnTarget = ReadIntArray(stats, "AttemptsOnTarget", "shooting");
         payload.runningDistance = ReadFloatArray(stats, "TeamDistances", "runningDistance");
         payload.corners = ReadIntArray(stats, "CornerCount", "corners");
+        payload.fouls = ReadIntArray(stats, "FoulCount", "fouls");
+        payload.offsides = ReadIntArray(stats, "OffsideCount", "offsides");
+        payload.penalties = ReadIntArray(stats, "PenaltyCount", "penalties");
         payload.ballWinning = ReadIntArray(stats, "Winnings", "ballWinning");
 
         bool complete =
@@ -590,6 +596,9 @@ public class MatchEndReplicator : NetworkBehaviour
             HasLength(payload.attemptsOnTarget, 2) &&
             HasLength(payload.runningDistance, 2) &&
             HasLength(payload.corners, 2) &&
+            HasLength(payload.fouls, 2) &&
+            HasLength(payload.offsides, 2) &&
+            HasLength(payload.penalties, 2) &&
             HasLength(payload.ballWinning, 2);
 
         payload.hasStats = complete;
@@ -631,6 +640,9 @@ public class MatchEndReplicator : NetworkBehaviour
         applied |= WriteIntArray(stats, payload.attemptsOnTarget, 2, "AttemptsOnTarget", "shooting");
         applied |= WriteFloatArray(stats, payload.runningDistance, 2, "TeamDistances", "runningDistance");
         applied |= WriteIntArray(stats, payload.corners, 2, "CornerCount", "corners");
+        applied |= WriteIntArray(stats, payload.fouls, 2, "FoulCount", "fouls");
+        applied |= WriteIntArray(stats, payload.offsides, 2, "OffsideCount", "offsides");
+        applied |= WriteIntArray(stats, payload.penalties, 2, "PenaltyCount", "penalties");
         applied |= WriteIntArray(stats, payload.ballWinning, 2, "Winnings", "ballWinning");
 
         if (applied)

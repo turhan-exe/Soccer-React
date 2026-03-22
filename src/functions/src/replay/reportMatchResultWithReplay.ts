@@ -78,6 +78,9 @@ function buildMatchResultSummary(payload: MatchReplayPayload): MatchResultSummar
   const events: MatchEvent[] = Array.isArray(summary?.events) ? summary.events : [];
   let homeGoals = typeof summary?.homeGoals === 'number' ? summary.homeGoals : 0;
   let awayGoals = typeof summary?.awayGoals === 'number' ? summary.awayGoals : 0;
+  const stats = summary?.stats;
+  const readNumber = (value: unknown, fallback = 0): number =>
+    typeof value === 'number' && Number.isFinite(value) ? value : fallback;
 
   if (!homeGoals && !awayGoals) {
     for (const ev of events) {
@@ -93,10 +96,18 @@ function buildMatchResultSummary(payload: MatchReplayPayload): MatchResultSummar
     awayGoals,
     events,
     stats: {
-      shotsHome: 0,
-      shotsAway: 0,
-      possessionHome: 50,
-      possessionAway: 50,
+      shotsHome: readNumber(stats?.shotsHome),
+      shotsAway: readNumber(stats?.shotsAway),
+      possessionHome: readNumber(stats?.possessionHome, 50),
+      possessionAway: readNumber(stats?.possessionAway, 50),
+      cornersHome: readNumber(stats?.cornersHome),
+      cornersAway: readNumber(stats?.cornersAway),
+      foulsHome: readNumber(stats?.foulsHome),
+      foulsAway: readNumber(stats?.foulsAway),
+      offsidesHome: readNumber(stats?.offsidesHome),
+      offsidesAway: readNumber(stats?.offsidesAway),
+      penaltiesHome: readNumber(stats?.penaltiesHome),
+      penaltiesAway: readNumber(stats?.penaltiesAway),
     },
   };
 }
