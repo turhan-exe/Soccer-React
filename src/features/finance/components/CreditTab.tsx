@@ -59,7 +59,7 @@ export function CreditTab({
               <CardContent className="flex h-full flex-col items-center justify-between p-6 text-center">
                 <div>
                   <p className="bg-gradient-to-b from-white to-slate-400 bg-clip-text font-mono text-3xl font-black tracking-tighter text-transparent">
-                    {formatCurrency(pack.amount).replace('$', '')}
+                    {formatCurrency(pack.amount)}
                   </p>
                   <p className="mt-1 text-xs font-bold uppercase tracking-widest text-emerald-400">
                     Kredi

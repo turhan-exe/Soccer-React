@@ -7,6 +7,10 @@ if (Test-Path $targetRoot) {
 }
 
 Copy-Item $exportRoot $targetRoot -Recurse -Force
+New-Item -ItemType Directory -Path (Join-Path $targetRoot 'src\main\java\com\unity3d\player') -Force | Out-Null
+New-Item -ItemType Directory -Path (Join-Path $targetRoot 'src\main\res\values') -Force | Out-Null
+New-Item -ItemType Directory -Path (Join-Path $targetRoot 'src\main\res\values-v21') -Force | Out-Null
+New-Item -ItemType Directory -Path (Join-Path $targetRoot 'src\main\res\values-v31') -Force | Out-Null
 Copy-Item (Join-Path $backupRoot 'build.gradle') (Join-Path $targetRoot 'build.gradle') -Force
 Copy-Item (Join-Path $backupRoot 'proguard-unity.txt') (Join-Path $targetRoot 'proguard-unity.txt') -Force
 Copy-Item (Join-Path $backupRoot 'src\main\AndroidManifest.xml') (Join-Path $targetRoot 'src\main\AndroidManifest.xml') -Force

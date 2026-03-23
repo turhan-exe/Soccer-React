@@ -11,7 +11,8 @@ import { getTeam } from '@/services/team';
 import { getMyLeagueId, getFixturesForTeamSlotAware, getLeagueTeams } from '@/services/leagues';
 import type { ClubTeam, Fixture, Match, Player } from '@/types';
 import { formatRatingLabel, normalizeRatingTo100, normalizeRatingTo100OrNull } from '@/lib/player';
-import { useTeamBudget } from '@/hooks/useTeamBudget';
+import { useClubFinance } from '@/hooks/useClubFinance';
+import { formatClubCurrency } from '@/lib/clubFinance';
 import { Shield } from 'lucide-react';
 
 type KeyPlayer = NonNullable<Match['opponentStats']>['keyPlayers'][number];
@@ -135,7 +136,7 @@ const calculateOutcomeProbabilities = ({
 export default function MatchPreview() {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { budget } = useTeamBudget();
+  const { cashBalance } = useClubFinance();
   const fallbackMatch = upcomingMatches[0];
   const [matchInfo, setMatchInfo] = useState<Match>(fallbackMatch);
   const [teamOverall, setTeamOverall] = useState<number | null>(null);
@@ -502,9 +503,9 @@ export default function MatchPreview() {
             <div>
               <div className="text-sm font-bold text-white">{teamName}</div>
               <div className="flex items-center gap-2 text-xs text-slate-400">
-                <span>Bütçe</span>
+                <span>Kul�p Bakiyesi</span>
                 <div className="h-3 w-[1px] bg-white/10"></div>
-                <span className="text-emerald-400 font-mono">{(budget ?? 0).toLocaleString()} $</span>
+                <span className="text-emerald-400 font-mono">{formatClubCurrency(cashBalance)}</span>
               </div>
             </div>
           </div>
@@ -684,3 +685,4 @@ export default function MatchPreview() {
     </div>
   );
 }
+

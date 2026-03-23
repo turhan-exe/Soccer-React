@@ -2,6 +2,7 @@ import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 
 const db = getFirestore();
 const BOT_TEAM_PREFIX = 'botteam-';
+const INITIAL_CLUB_BALANCE = 50_000;
 const DEFAULT_FORMATION = 'auto';
 const STARTER_POSITIONS = ['GK', 'CB', 'CB', 'LB', 'RB', 'CM', 'CM', 'LM', 'RM', 'ST', 'ST'];
 const EXTRA_POSITIONS = ['GK', 'CB', 'LB', 'RB', 'CM', 'LM', 'RM', 'CAM', 'LW', 'RW', 'ST'];
@@ -143,8 +144,8 @@ export async function ensureBotTeamDoc(input: BotTeamInput) {
     kitHome: 'home',
     kitAway: 'away',
     logo: null,
-    transferBudget: 0,
-    budget: 0,
+    transferBudget: INITIAL_CLUB_BALANCE,
+    budget: INITIAL_CLUB_BALANCE,
     isBot: true,
     botId: input.botId,
     players,

@@ -2,7 +2,8 @@ import React from 'react';
 import { BackButton } from '@/components/ui/back-button';
 import { Shield } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { useDiamonds } from '@/contexts/DiamondContext';
+import { useClubFinance } from '@/hooks/useClubFinance';
+import { formatClubCurrency } from '@/lib/clubFinance';
 
 interface PagesHeaderProps {
     title: string;
@@ -12,7 +13,7 @@ interface PagesHeaderProps {
 
 export function PagesHeader({ title, description, showBackButton = true }: PagesHeaderProps) {
     const { user } = useAuth();
-    const { balance } = useDiamonds();
+    const { cashBalance, diamondBalance, loading } = useClubFinance();
 
     return (
         <div className="relative flex flex-col justify-between gap-4 overflow-hidden rounded-[24px] border border-white/5 bg-gradient-to-r from-blue-900/40 via-purple-900/40 to-slate-900/40 p-4 backdrop-blur-xl md:flex-row md:items-center">
@@ -54,9 +55,17 @@ export function PagesHeader({ title, description, showBackButton = true }: Pages
                         <h3 className="truncate pr-2 font-bold text-white text-base leading-none">{user?.teamName || 'Tak\u0131m \u0130smi'}</h3>
                         <div className="w-2 h-2 rounded-full bg-green-500 shadow-[0_0_8px_#22c55e]" />
                     </div>
-                    <div className="flex items-center justify-between mt-0.5 text-[10px] text-slate-400 font-medium">
-                        <span>B\u00fct\u00e7e</span>
-                        <span className="truncate pl-2 text-slate-200">{balance.toLocaleString()} TL</span>
+                    <div className="mt-2 grid grid-cols-2 gap-3 text-[10px] font-medium">
+                        <div className="min-w-0">
+                            <div className="text-slate-400">Kulüp Bakiyesi</div>
+                            <div className="truncate text-slate-200">
+                                {loading ? 'Yükleniyor...' : formatClubCurrency(cashBalance)}
+                            </div>
+                        </div>
+                        <div className="min-w-0 text-right">
+                            <div className="text-slate-400">Elmas</div>
+                            <div className="truncate text-sky-300">{diamondBalance.toLocaleString('tr-TR')}</div>
+                        </div>
                     </div>
                 </div>
             </div>

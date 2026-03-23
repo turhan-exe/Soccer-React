@@ -12,6 +12,7 @@ import { router } from '@/routes/router';
 import { InventoryProvider } from '@/contexts/InventoryContext';
 import { unityBridge } from '@/services/unityBridge';
 import { initializeRewardedAds, isRewardedAdsSupported } from '@/services/rewardedAds';
+import ForceUpdateGate from '@/components/system/ForceUpdateGate';
 import MatchControlPresenceHeartbeat from '@/components/system/MatchControlPresenceHeartbeat';
 import PushNotificationsBootstrap from '@/components/system/PushNotificationsBootstrap';
 import KeyboardViewportManager from '@/components/system/KeyboardViewportManager';
@@ -110,19 +111,21 @@ const App = () => {
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
-        <AuthProvider>
-          <KeyboardViewportManager />
-          <MatchControlPresenceHeartbeat />
-          <PushNotificationsBootstrap />
-          <DiamondProvider>
-            <InventoryProvider>
-              <TooltipProvider>
-                <Toaster />
-                <RouterProvider router={router} future={{ v7_startTransition: true }} />
-              </TooltipProvider>
-            </InventoryProvider>
-          </DiamondProvider>
-        </AuthProvider>
+        <ForceUpdateGate>
+          <AuthProvider>
+            <KeyboardViewportManager />
+            <MatchControlPresenceHeartbeat />
+            <PushNotificationsBootstrap />
+            <DiamondProvider>
+              <InventoryProvider>
+                <TooltipProvider>
+                  <Toaster />
+                  <RouterProvider router={router} future={{ v7_startTransition: true }} />
+                </TooltipProvider>
+              </InventoryProvider>
+            </DiamondProvider>
+          </AuthProvider>
+        </ForceUpdateGate>
       </ThemeProvider>
     </QueryClientProvider>
   );

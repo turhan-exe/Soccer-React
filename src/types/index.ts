@@ -151,6 +151,17 @@ export interface ClubTeam {
   };
 }
 
+export interface ClubFinanceSnapshot {
+  cashBalance: number;
+  diamondBalance: number;
+  projectedMonthlyIncome: number;
+  projectedMonthlyExpense: number;
+  projectedMonthlyNet: number;
+  last30dIncome: number;
+  last30dExpense: number;
+  last30dNet: number;
+}
+
 export interface Match {
   id: string;
   opponent: string;

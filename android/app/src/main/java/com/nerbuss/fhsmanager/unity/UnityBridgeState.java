@@ -6,6 +6,7 @@ import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
 import com.getcapacitor.JSObject;
+import com.nerbuss.fhsmanager.MainActivity;
 import java.lang.ref.WeakReference;
 import java.util.ArrayDeque;
 import java.util.Queue;
@@ -152,32 +153,26 @@ public final class UnityBridgeState {
               serverPort);
 
           try {
-            if (currentUnityActivity != null) {
-              if (invokeEmbeddedUnityShellReturn(currentUnityActivity)) {
-                Log.d(TAG, "requestReturnToMainShell: unloading embedded Unity activity for shell return.");
-              } else {
-                Log.d(TAG, "requestReturnToMainShell: finishing current Unity activity for shell return.");
-                try {
-                  currentUnityActivity.setResult(Activity.RESULT_OK);
-                } catch (Throwable ignored) {
-                  // no-op
-                }
-                currentUnityActivity.finish();
-              }
+            if (currentUnityActivity != null && currentUnityActivity != hostActivity) {
+              Log.d(
+                  TAG,
+                  "requestReturnToMainShell: finishing current Unity child activity and letting host return to shell.");
+              finishActivitySafely(currentUnityActivity);
+              return;
             }
           } catch (Throwable ignored) {
             // no-op
           }
 
           try {
-            if (currentUnityActivity == null && hostActivity != null) {
-              Log.d(TAG, "requestReturnToMainShell: no child activity, finishing Unity host activity.");
-              try {
-                hostActivity.setResult(Activity.RESULT_OK);
-              } catch (Throwable ignored) {
-                // no-op
-              }
-              hostActivity.finish();
+            Activity shellSource = hostActivity != null ? hostActivity : currentUnityActivity;
+            if (shellSource != null) {
+              bringShellToFront(shellSource);
+            }
+
+            if (hostActivity != null) {
+              Log.d(TAG, "requestReturnToMainShell: finishing Unity host activity for shell return.");
+              finishActivitySafely(hostActivity);
             }
           } catch (Throwable ignored) {
             // no-op
@@ -185,6 +180,25 @@ public final class UnityBridgeState {
         });
 
     return true;
+  }
+
+  private static void bringShellToFront(Activity source) {
+    if (source == null) {
+      return;
+    }
+
+    try {
+      Intent shellIntent = new Intent(source, MainActivity.class);
+      shellIntent.addFlags(
+          Intent.FLAG_ACTIVITY_CLEAR_TOP
+              | Intent.FLAG_ACTIVITY_SINGLE_TOP
+              | Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
+              | Intent.FLAG_ACTIVITY_NEW_TASK);
+      shellIntent.putExtra("unity_force_shell_return", true);
+      source.startActivity(shellIntent);
+    } catch (Throwable t) {
+      Log.w(TAG, "bringShellToFront failed.", t);
+    }
   }
 
   private static Activity resolveCurrentUnityActivity() {
@@ -210,22 +224,21 @@ public final class UnityBridgeState {
     return className != null && className.startsWith("com.unity3d.player.");
   }
 
-  private static boolean invokeEmbeddedUnityShellReturn(Activity activity) {
+  private static void finishActivitySafely(Activity activity) {
     if (activity == null) {
-      return false;
+      return;
     }
 
     try {
-      Class<?> embeddedClass = Class.forName("com.unity3d.player.EmbeddedUnityPlayerActivity");
-      if (!embeddedClass.isInstance(activity)) {
-        return false;
-      }
+      activity.setResult(Activity.RESULT_OK);
+    } catch (Throwable ignored) {
+      // no-op
+    }
 
-      embeddedClass.getMethod("requestReturnToShell").invoke(activity);
-      return true;
-    } catch (Throwable t) {
-      Log.w(TAG, "invokeEmbeddedUnityShellReturn: reflection fallback failed.", t);
-      return false;
+    try {
+      activity.finish();
+    } catch (Throwable ignored) {
+      // no-op
     }
   }
 

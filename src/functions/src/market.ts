@@ -10,6 +10,7 @@ import {
 
 const db = getFirestore();
 const LISTINGS_PATH = 'transferListings';
+const FINANCE_DEFAULT_BALANCE = 50_000;
 
 const region = 'europe-west1';
 
@@ -178,6 +179,62 @@ type TeamDoc = {
 };
 
 const listingsCollection = db.collection(LISTINGS_PATH);
+const financeDoc = (uid: string) => db.collection('finance').doc(uid);
+const financeHistoryCollection = (uid: string) => db.collection('finance').doc('history').collection(uid);
+
+const resolveTeamFinanceBalance = (
+  team?: TeamDoc | null,
+  finance?: { balance?: number } | null,
+) => {
+  if (typeof team?.transferBudget === 'number' && Number.isFinite(team.transferBudget)) {
+    return Math.max(0, Math.round(team.transferBudget));
+  }
+  if (typeof team?.budget === 'number' && Number.isFinite(team.budget)) {
+    return Math.max(0, Math.round(team.budget));
+  }
+  if (typeof finance?.balance === 'number' && Number.isFinite(finance.balance)) {
+    return Math.max(0, Math.round(finance.balance));
+  }
+  return FINANCE_DEFAULT_BALANCE;
+};
+
+const setFinanceMirror = (
+  tx: FirebaseFirestore.Transaction,
+  teamId: string,
+  balance: number,
+) => {
+  tx.set(
+    financeDoc(teamId),
+    {
+      balance: Math.max(0, Math.round(balance)),
+      updatedAt: FieldValue.serverTimestamp(),
+    },
+    { merge: true },
+  );
+};
+
+const addFinanceHistoryEntry = (
+  tx: FirebaseFirestore.Transaction,
+  teamId: string,
+  entry: {
+    type: 'income' | 'expense';
+    category: 'transfer';
+    amount: number;
+    source?: string;
+    note?: string;
+  },
+) => {
+  const ref = financeHistoryCollection(teamId).doc();
+  tx.set(ref, {
+    id: ref.id,
+    type: entry.type,
+    category: entry.category,
+    amount: Math.max(0, Math.round(entry.amount)),
+    source: entry.source ?? null,
+    note: entry.note ?? null,
+    timestamp: FieldValue.serverTimestamp(),
+  });
+};
 
 export const marketCreateListing = functions
   .region(region)
@@ -419,6 +476,7 @@ export const marketPurchaseListing = functions
 
       const listingRef = listingsCollection.doc(listingId);
       const buyerTeamRef = db.collection('teams').doc(buyerTeamId);
+      const buyerFinanceRef = financeDoc(buyerTeamId);
       const purchaseRef = purchaseId ? db.collection('purchases').doc(purchaseId) : null;
 
       const { soldAt } = await db.runTransaction(async tx => {
@@ -455,7 +513,10 @@ export const marketPurchaseListing = functions
           throw new functions.https.HttpsError('failed-precondition', 'SELF_PURCHASE');
         }
 
-        const buyerTeamSnap = await tx.get(buyerTeamRef);
+        const [buyerTeamSnap, buyerFinanceSnap] = await Promise.all([
+          tx.get(buyerTeamRef),
+          tx.get(buyerFinanceRef),
+        ]);
         if (!buyerTeamSnap.exists) {
           throw new functions.https.HttpsError('permission-denied', 'TEAM_NOT_FOUND');
         }
@@ -470,16 +531,25 @@ export const marketPurchaseListing = functions
           throw new functions.https.HttpsError('failed-precondition', 'INVALID_PRICE');
         }
 
-        const buyerBudget = getTransferBudget(buyerTeam);
+        const buyerBudget = resolveTeamFinanceBalance(
+          buyerTeam,
+          buyerFinanceSnap.exists ? ((buyerFinanceSnap.data() as { balance?: number }) ?? null) : null,
+        );
         if (buyerBudget < price) {
           throw new functions.https.HttpsError('resource-exhausted', 'INSUFFICIENT_FUNDS');
         }
 
         const sellerTeamId = String(listing.sellerTeamId ?? listing.teamId ?? '');
         const sellerTeamRef = sellerTeamId ? db.collection('teams').doc(sellerTeamId) : null;
+        const sellerFinanceRef = sellerTeamId ? financeDoc(sellerTeamId) : null;
         const sellerTeamSnap = sellerTeamRef ? await tx.get(sellerTeamRef).catch(() => null) : null;
         const sellerTeam = sellerTeamSnap?.exists ? (sellerTeamSnap.data() as TeamDoc) : null;
-        const sellerBudget = getTransferBudget(sellerTeam);
+        const sellerFinanceSnap =
+          sellerFinanceRef ? await tx.get(sellerFinanceRef).catch(() => null) : null;
+        const sellerBudget = resolveTeamFinanceBalance(
+          sellerTeam,
+          sellerFinanceSnap?.exists ? ((sellerFinanceSnap.data() as { balance?: number }) ?? null) : null,
+        );
 
         const playerPath = typeof listing.playerPath === 'string' ? listing.playerPath : '';
         const playerRef = playerPath ? db.doc(playerPath) : null;
@@ -547,6 +617,14 @@ export const marketPurchaseListing = functions
           budget: updatedBuyerBudget,
           players: buyerPlayers,
         });
+        setFinanceMirror(tx, buyerTeamId, updatedBuyerBudget);
+        addFinanceHistoryEntry(tx, buyerTeamId, {
+          type: 'expense',
+          category: 'transfer',
+          amount: price,
+          source: listingId,
+          note: `${updatedPlayer.name ?? playerId} transfer ucreti`,
+        });
 
         if (
           sellerTeamRef &&
@@ -562,6 +640,14 @@ export const marketPurchaseListing = functions
             sellerUpdates.players = sellerPlayers;
           }
           tx.update(sellerTeamRef, sellerUpdates);
+          setFinanceMirror(tx, sellerTeamId, updatedSellerBudget);
+          addFinanceHistoryEntry(tx, sellerTeamId, {
+            type: 'income',
+            category: 'transfer',
+            amount: price,
+            source: listingId,
+            note: `${updatedPlayer.name ?? playerId} transfer geliri`,
+          });
         }
 
         let targetPlayerRef: DocumentReference<DocumentData> | null = null;

@@ -3,6 +3,8 @@ import {
   doc,
   getDoc,
   getDocs,
+  limit,
+  query,
   runTransaction,
   serverTimestamp,
   setDoc,
@@ -13,6 +15,7 @@ import { db } from './firebase';
 import type { Player } from '@/types';
 import { resolvePlayerSalary, shouldRefreshLegacySalary } from '@/lib/salary';
 import { normalizeRatingTo100 } from '@/lib/player';
+import { INITIAL_CLUB_BALANCE, normalizeClubBalance } from '@/lib/clubFinance';
 
 export type FinanceHistoryCategory = 'match' | 'sponsor' | 'loan' | 'salary' | 'stadium' | 'transfer';
 
@@ -106,7 +109,6 @@ export interface TeamSalariesDoc {
   updatedAt?: Timestamp;
 }
 
-const FINANCE_DEFAULT_BALANCE = 50_000;
 const DAY_MS = 24 * 60 * 60 * 1000;
 const MATCHES_PER_MONTH = 4;
 const DEFAULT_TEAM_STRENGTH = 58;
@@ -121,6 +123,7 @@ const teamStadiumDoc = (teamId: string) => doc(db, 'teams', teamId, 'stadium', '
 const teamSalariesDoc = (teamId: string) => doc(db, 'teams', teamId, 'salaries', 'current');
 const teamSalariesScheduleDoc = (teamId: string) => doc(db, 'teams', teamId, 'salaries', 'schedule');
 const sponsorshipCollection = (uid: string) => collection(db, 'users', uid, 'sponsorships');
+const financeHistoryPreviewQuery = (uid: string) => query(historyCollection(uid), limit(1));
 
 export { getSalaryForOverall } from '@/lib/salary';
 
@@ -129,11 +132,69 @@ const roundRevenue = (value: number): number => {
   return Math.max(0, Math.round(safeValue / REVENUE_ROUNDING_UNIT) * REVENUE_ROUNDING_UNIT);
 };
 
+const roundSignedAmount = (value: number): number => {
+  const safeValue = Number.isFinite(value) ? value : 0;
+  return Math.round(safeValue / REVENUE_ROUNDING_UNIT) * REVENUE_ROUNDING_UNIT;
+};
+
 const clamp = (value: number, min: number, max: number): number => {
   if (!Number.isFinite(value)) {
     return min;
   }
   return Math.max(min, Math.min(max, value));
+};
+
+type TeamBudgetSource = {
+  budget?: number;
+  transferBudget?: number;
+};
+
+type FinanceBalanceSource = {
+  balance?: number;
+};
+
+const hasFiniteValue = (value: unknown): value is number =>
+  typeof value === 'number' && Number.isFinite(value);
+
+export const resolveCanonicalClubBalance = (
+  teamData?: TeamBudgetSource | null,
+  financeData?: FinanceBalanceSource | null,
+  options?: { hasHistory?: boolean },
+): number => {
+  const transferBudget = hasFiniteValue(teamData?.transferBudget)
+    ? normalizeClubBalance(teamData?.transferBudget)
+    : null;
+  const budget = hasFiniteValue(teamData?.budget)
+    ? normalizeClubBalance(teamData?.budget)
+    : null;
+  const financeBalance = hasFiniteValue(financeData?.balance)
+    ? normalizeClubBalance(financeData?.balance)
+    : null;
+
+  const hasHistory = options?.hasHistory === true;
+  const legacyInitialMismatch =
+    !hasHistory &&
+    transferBudget === 0 &&
+    budget === 0 &&
+    financeBalance === INITIAL_CLUB_BALANCE;
+
+  if (legacyInitialMismatch) {
+    return INITIAL_CLUB_BALANCE;
+  }
+
+  if (transferBudget != null) {
+    return transferBudget;
+  }
+
+  if (budget != null) {
+    return budget;
+  }
+
+  if (financeBalance != null) {
+    return financeBalance;
+  }
+
+  return INITIAL_CLUB_BALANCE;
 };
 
 const isRevenueEligiblePlayer = (player: Player): boolean => {
@@ -196,12 +257,14 @@ export interface ExpectedRevenueBreakdown {
   occupiedSeats: number;
   projectedDailyIncome: number;
   monthlyMatchEstimate: number;
+  projectedMonthlyExpense: number;
+  projectedMonthlyNet: number;
 }
 
 export const getMatchRevenueEstimate = (
   level: StadiumLevel,
   players: Player[] = [],
-): Omit<ExpectedRevenueBreakdown, 'monthly' | 'sponsorEstimate'> => {
+): Omit<ExpectedRevenueBreakdown, 'monthly' | 'sponsorEstimate' | 'projectedMonthlyExpense' | 'projectedMonthlyNet'> => {
   const config = STADIUM_LEVELS[level];
   const teamStrength = getTeamStrength(players);
   const attendanceRate = clamp(0.55 + teamStrength * 0.003 + level * 0.04, 0.6, 0.96);
@@ -243,7 +306,12 @@ async function ensureFinanceDoc(uid: string): Promise<void> {
   const ref = financeDoc(uid);
   const snap = await getDoc(ref);
   if (!snap.exists()) {
-    await setDoc(ref, { balance: FINANCE_DEFAULT_BALANCE, updatedAt: serverTimestamp() });
+    const teamSnap = await getDoc(teamDoc(uid));
+    const teamData = teamSnap.exists()
+      ? ((teamSnap.data() as TeamBudgetSource | undefined) ?? undefined)
+      : undefined;
+    const initialBalance = resolveCanonicalClubBalance(teamData, undefined);
+    await setDoc(ref, { balance: initialBalance, updatedAt: serverTimestamp() });
   }
 }
 
@@ -369,12 +437,12 @@ export async function ensureMonthlySalaryCharge(teamId: string): Promise<number 
       return;
     }
 
-    const balanceSource = Number.isFinite(teamData?.budget)
-      ? Number(teamData?.budget)
-      : Number.isFinite(teamData?.transferBudget)
-        ? Number(teamData?.transferBudget)
-        : (financeSnap.data()?.balance ?? FINANCE_DEFAULT_BALANCE);
-    const balance = Math.max(0, Math.round(balanceSource));
+    const balanceSource = Number.isFinite(teamData?.transferBudget)
+      ? Number(teamData?.transferBudget)
+      : Number.isFinite(teamData?.budget)
+        ? Number(teamData?.budget)
+        : (financeSnap.data()?.balance ?? INITIAL_CLUB_BALANCE);
+    const balance = normalizeClubBalance(balanceSource);
     if (balance < total) {
       throw new Error('Yetersiz bakiye.');
     }
@@ -454,12 +522,12 @@ export async function upgradeStadiumLevel(teamId: string): Promise<StadiumState>
     const nextLevel = (currentLevel + 1) as StadiumLevel;
     const nextConfig = STADIUM_LEVELS[nextLevel];
     const teamData = teamSnap.data() as { budget?: number; transferBudget?: number; players?: Player[] } | undefined;
-    const balanceSource = Number.isFinite(teamData?.budget)
-      ? Number(teamData?.budget)
-      : Number.isFinite(teamData?.transferBudget)
-        ? Number(teamData?.transferBudget)
-        : (financeSnap.data()?.balance ?? FINANCE_DEFAULT_BALANCE);
-    const balance = Math.max(0, Math.round(balanceSource));
+    const balanceSource = Number.isFinite(teamData?.transferBudget)
+      ? Number(teamData?.transferBudget)
+      : Number.isFinite(teamData?.budget)
+        ? Number(teamData?.budget)
+        : (financeSnap.data()?.balance ?? INITIAL_CLUB_BALANCE);
+    const balance = normalizeClubBalance(balanceSource);
     if (balance < nextConfig.upgradeCost) {
       throw new Error('Yetersiz bakiye.');
     }
@@ -515,12 +583,12 @@ export async function recordCreditPurchase(teamId: string, pack: CreditPackage):
     const teamRef = teamDoc(teamId);
     const [financeSnap, teamSnap] = await Promise.all([tx.get(financeRef), tx.get(teamRef)]);
     const teamData = teamSnap.data() as { budget?: number; transferBudget?: number } | undefined;
-    const currentBalanceSource = Number.isFinite(teamData?.budget)
-      ? Number(teamData?.budget)
-      : Number.isFinite(teamData?.transferBudget)
-        ? Number(teamData?.transferBudget)
-        : (financeSnap.data()?.balance ?? FINANCE_DEFAULT_BALANCE);
-    const nextBalance = Math.max(0, Math.round(currentBalanceSource + pack.amount));
+    const currentBalanceSource = Number.isFinite(teamData?.transferBudget)
+      ? Number(teamData?.transferBudget)
+      : Number.isFinite(teamData?.budget)
+        ? Number(teamData?.budget)
+        : (financeSnap.data()?.balance ?? INITIAL_CLUB_BALANCE);
+    const nextBalance = normalizeClubBalance(currentBalanceSource + pack.amount);
     tx.set(
       financeRef,
       {
@@ -637,12 +705,12 @@ export async function applySponsorEarnings(teamId: string, sponsorId: string): P
     }
     payout = periods * reward.amount;
     const teamData = teamSnap.data() as { budget?: number; transferBudget?: number } | undefined;
-    const balanceSource = Number.isFinite(teamData?.budget)
-      ? Number(teamData?.budget)
-      : Number.isFinite(teamData?.transferBudget)
-        ? Number(teamData?.transferBudget)
-        : (financeSnap.data()?.balance ?? FINANCE_DEFAULT_BALANCE);
-    const balance = Math.max(0, Math.round(balanceSource));
+    const balanceSource = Number.isFinite(teamData?.transferBudget)
+      ? Number(teamData?.transferBudget)
+      : Number.isFinite(teamData?.budget)
+        ? Number(teamData?.budget)
+        : (financeSnap.data()?.balance ?? INITIAL_CLUB_BALANCE);
+    const balance = normalizeClubBalance(balanceSource);
 
     const nextBalance = balance + payout;
     tx.update(financeRef, {
@@ -678,6 +746,7 @@ export function getExpectedRevenue(
   stadium: StadiumState | null,
   sponsors: UserSponsorDoc[],
   players: Player[] = [],
+  monthlyExpense = 0,
 ): ExpectedRevenueBreakdown {
   const level = stadium?.level ?? 1;
   const baseEstimate = players.length
@@ -694,6 +763,7 @@ export function getExpectedRevenue(
       return sum + sponsor.reward.amount * multiplier;
     }, 0);
   const monthly = roundRevenue(baseEstimate.monthlyMatchEstimate + sponsorEstimate);
+  const projectedMonthlyExpense = roundRevenue(monthlyExpense);
   return {
     monthly,
     matchEstimate: baseEstimate.matchEstimate,
@@ -704,6 +774,8 @@ export function getExpectedRevenue(
     occupiedSeats: baseEstimate.occupiedSeats,
     projectedDailyIncome: roundRevenue(monthly / 30),
     monthlyMatchEstimate: baseEstimate.monthlyMatchEstimate,
+    projectedMonthlyExpense,
+    projectedMonthlyNet: roundSignedAmount(monthly - projectedMonthlyExpense),
   };
 }
 
@@ -742,28 +814,65 @@ export async function recordTransferRefund(teamId: string, payload: TransferFina
   });
 }
 
-export async function syncFinanceBalanceWithTeam(teamId: string): Promise<number> {
-  await ensureFinanceProfile(teamId);
-  const teamSnap = await getDoc(teamDoc(teamId));
-  if (!teamSnap.exists()) {
-    throw new Error('Takim bulunamadi.');
+const reconcileInFlight = new Map<string, Promise<number>>();
+
+export async function reconcileClubFinance(teamId: string): Promise<number> {
+  const existing = reconcileInFlight.get(teamId);
+  if (existing) {
+    return existing;
   }
-  const team = teamSnap.data() as { budget?: number; transferBudget?: number } | undefined;
-  const rawBalance = Number.isFinite(team?.transferBudget)
-    ? Number(team?.transferBudget)
-    : Number.isFinite(team?.budget)
-      ? Number(team?.budget)
-      : FINANCE_DEFAULT_BALANCE;
-  const balance = Math.max(0, Math.round(rawBalance));
-  await setDoc(
-    financeDoc(teamId),
-    {
-      balance,
-      updatedAt: serverTimestamp(),
-    },
-    { merge: true },
-  );
-  return balance;
+
+  const task = (async () => {
+    await ensureFinanceProfile(teamId);
+
+    const [teamSnap, financeSnap, historySnap] = await Promise.all([
+      getDoc(teamDoc(teamId)),
+      getDoc(financeDoc(teamId)),
+      getDocs(financeHistoryPreviewQuery(teamId)),
+    ]);
+
+    if (!teamSnap.exists()) {
+      throw new Error('Takim bulunamadi.');
+    }
+
+    const teamData = (teamSnap.data() as TeamBudgetSource | undefined) ?? undefined;
+    const financeData = financeSnap.exists()
+      ? ((financeSnap.data() as FinanceBalanceSource | undefined) ?? undefined)
+      : undefined;
+    const balance = resolveCanonicalClubBalance(teamData, financeData, {
+      hasHistory: !historySnap.empty,
+    });
+
+    await Promise.all([
+      setDoc(
+        financeDoc(teamId),
+        {
+          balance,
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true },
+      ),
+      setDoc(
+        teamDoc(teamId),
+        {
+          budget: balance,
+          transferBudget: balance,
+        },
+        { merge: true },
+      ),
+    ]);
+
+    return balance;
+  })().finally(() => {
+    reconcileInFlight.delete(teamId);
+  });
+
+  reconcileInFlight.set(teamId, task);
+  return task;
+}
+
+export async function syncFinanceBalanceWithTeam(teamId: string): Promise<number> {
+  return reconcileClubFinance(teamId);
 }
 
 export { ensureMonthlySalaryCharge as calculateMonthlySalaries };

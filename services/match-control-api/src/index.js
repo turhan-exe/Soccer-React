@@ -507,6 +507,47 @@ async function getUserPresenceSnapshot(userId) {
   }
 }
 
+async function countOnlinePresenceUsers() {
+  try {
+    if (redis) {
+      if (!redisReady) {
+        return { onlineUsers: 0, reliable: false };
+      }
+
+      let cursor = "0";
+      let onlineUsers = 0;
+      do {
+        const [nextCursor, keys] = await redis.scan(
+          cursor,
+          "MATCH",
+          "presence:user:*",
+          "COUNT",
+          200,
+        );
+        cursor = nextCursor;
+        onlineUsers += Array.isArray(keys) ? keys.length : 0;
+      } while (cursor !== "0");
+
+      return { onlineUsers, reliable: true };
+    }
+
+    const now = Date.now();
+    let onlineUsers = 0;
+    for (const [key, value] of memoryStore.presence.entries()) {
+      if (Number(value?.expiresAtMs || 0) > now) {
+        onlineUsers += 1;
+      } else {
+        memoryStore.presence.delete(key);
+      }
+    }
+
+    return { onlineUsers, reliable: true };
+  } catch (error) {
+    fastify.log.warn({ err: error }, "presence_count_failed");
+    return { onlineUsers: 0, reliable: false };
+  }
+}
+
 function getIstanbulDayBounds(date = new Date()) {
   const formatter = new Intl.DateTimeFormat("en-CA", {
     timeZone: "Europe/Istanbul",
@@ -932,7 +973,12 @@ function isMatchReadyForClient(match) {
 
 function isTerminalMatchState(match) {
   const state = String(match?.status || "").trim().toLowerCase();
-  return state === "failed" || state === "ended" || state === "released";
+  return (
+    state === "failed" ||
+    state === "ended" ||
+    state === "released" ||
+    state === "client_disconnected"
+  );
 }
 
 function parseTimeMs(value) {
@@ -1192,31 +1238,27 @@ async function ensureFriendlyRequestAccepted({
 
   await storeMatch(match);
 
-  try {
-    await startOnNode(node, matchId);
     try {
-      await waitForMatchPortReady(match.serverIp, match.serverPort);
-      match.status = "server_started";
-    } catch (transportError) {
-      match = await markMatchTransportUnavailable(
-        match,
-        String(transportError?.code || "match_transport_unavailable"),
-      );
-      const wrappedError = createFriendlyRequestError("friendly_server_unavailable", 503);
-      wrappedError.details = [
-        {
-          nodeId: normalizeNodeId(node),
-          serverIp: match.serverIp || null,
-          serverPort: match.serverPort || null,
-          message: match.endedReason || "match_transport_unavailable",
-        },
-      ];
-      throw wrappedError;
-    }
-
-    match.updatedAt = nowIso();
-    await storeMatch(match);
-  } catch (error) {
+      await startOnNode(node, matchId);
+      try {
+        match = await waitForMatchLifecycleState(matchId, ["server_started", "running"]);
+      } catch (transportError) {
+        match = await markMatchTransportUnavailable(
+          transportError?.match || match,
+          String(transportError?.code || "match_transport_unavailable"),
+        );
+        const wrappedError = createFriendlyRequestError("friendly_server_unavailable", 503);
+        wrappedError.details = [
+          {
+            nodeId: normalizeNodeId(node),
+            serverIp: (transportError?.match || match)?.serverIp || null,
+            serverPort: (transportError?.match || match)?.serverPort || null,
+            message: (transportError?.match || match)?.endedReason || "match_transport_unavailable",
+          },
+        ];
+        throw wrappedError;
+      }
+    } catch (error) {
     if (String(error?.code || error?.message || "") !== "friendly_server_unavailable") {
       match.status = "failed";
       match.endedReason = error.code || "match_start_failed";
@@ -1978,6 +2020,51 @@ async function getMatchById(matchId) {
   return mapped;
 }
 
+async function waitForMatchLifecycleState(matchId, acceptedStates, options = {}) {
+  const desiredStates = new Set(
+    (Array.isArray(acceptedStates) ? acceptedStates : [acceptedStates])
+      .map((state) => String(state || "").trim().toLowerCase())
+      .filter(Boolean),
+  );
+  const timeoutMs = Math.max(
+    1000,
+    Number(options.timeoutMs ?? config.matchPortReadyTimeoutMs) || 45000,
+  );
+  const pollMs = Math.max(
+    100,
+    Number(options.pollMs ?? config.matchPortReadyPollMs) || 500,
+  );
+  const startedAt = Date.now();
+  let lastMatch = await getMatchById(matchId);
+
+  while (Date.now() - startedAt <= timeoutMs) {
+    const current =
+      Date.now() - startedAt < pollMs && lastMatch
+        ? lastMatch
+        : await getMatchById(matchId);
+    if (current) {
+      lastMatch = current;
+      const state = String(current.status || "").trim().toLowerCase();
+      if (desiredStates.has(state)) {
+        return current;
+      }
+      if (isTerminalMatchState(current)) {
+        const error = new Error(`match_${state || "terminal"}`);
+        error.code = `match_${state || "terminal"}`;
+        error.match = current;
+        throw error;
+      }
+    }
+
+    await sleep(pollMs);
+  }
+
+  const error = new Error("match_lifecycle_timeout");
+  error.code = "match_lifecycle_timeout";
+  error.match = lastMatch;
+  throw error;
+}
+
 async function findLeagueMatchByFixture(leagueId, fixtureId) {
   const normalizedLeagueId = String(leagueId || "").trim();
   const normalizedFixtureId = String(fixtureId || "").trim();
@@ -2692,14 +2779,44 @@ async function ensureFriendlyMatchTransportReady(match, options = {}) {
     return match;
   }
 
+  const state = String(match.status || "").trim().toLowerCase();
+  if (
+    state === "server_started" ||
+    state === "running" ||
+    state === "client_disconnected"
+  ) {
+    return match;
+  }
+
+  if (!match.serverIp || !match.serverPort) {
+    return match;
+  }
+
   try {
     await waitForMatchPortReady(match.serverIp, match.serverPort, options);
+    if (state === "starting" || state === "warm") {
+      const updated = {
+        ...match,
+        status: "server_started",
+        updatedAt: nowIso(),
+      };
+      await storeMatch(updated);
+      return updated;
+    }
+
     return match;
   } catch (error) {
-    return markMatchTransportUnavailable(
-      match,
-      String(error?.code || "match_transport_unavailable"),
+    fastify.log.warn(
+      {
+        err: error,
+        matchId: match.id,
+        status: match.status,
+        serverIp: match.serverIp,
+        serverPort: match.serverPort,
+      },
+      "friendly_match_transport_probe_failed_non_terminal",
     );
+    return match;
   }
 }
 
@@ -2883,6 +3000,19 @@ fastify.post("/v1/presence/heartbeat", async (request, reply) => {
     ok: true,
     expiresAt: result.expiresAt,
     reliable: Boolean(result.reliable),
+  });
+});
+
+fastify.get("/v1/presence/stats", async (request, reply) => {
+  if (!(await requireUserOrApiAuth(request, reply))) return;
+
+  const result = await countOnlinePresenceUsers();
+  return reply.send({
+    ok: true,
+    onlineUsers: result.onlineUsers,
+    reliable: Boolean(result.reliable),
+    ttlSec: config.presenceTtlSec,
+    timestamp: nowIso(),
   });
 });
 
@@ -3552,8 +3682,12 @@ fastify.post("/v1/internal/matches/:matchId/lifecycle", async (request, reply) =
 
   const { matchId } = request.params;
   const body = request.body || {};
-  const state = typeof body.state === "string" ? body.state.trim() : "";
+  const rawState = typeof body.state === "string" ? body.state.trim() : "";
   const reason = String(body.reason || "").trim();
+  const state =
+    rawState === "starting" && reason === "network_server_started"
+      ? "server_started"
+      : rawState;
   const minute = parseLifecycleMinute(body.minute);
   const resultPayload = normalizeObjectPayload(body.result);
   const replayPayload = normalizeObjectPayload(body.replay);

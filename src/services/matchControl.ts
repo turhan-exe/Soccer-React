@@ -1,6 +1,8 @@
 import { Capacitor, CapacitorHttp } from '@capacitor/core';
 import { auth } from '@/services/firebase';
 import type { ClubTeam, Player as ClubPlayer } from '@/types';
+import { collection, getCountFromServer } from 'firebase/firestore';
+import { db } from '@/services/firebase';
 
 function resolveMatchControlBaseUrl(): string {
   const raw = (import.meta.env.VITE_MATCH_CONTROL_BASE_URL || '').trim();
@@ -36,6 +38,14 @@ export type PresenceHeartbeatResponse = {
   ok?: boolean;
   expiresAt?: string;
   reliable?: boolean;
+};
+
+export type PresenceStatsResponse = {
+  ok?: boolean;
+  onlineUsers?: number;
+  reliable?: boolean;
+  ttlSec?: number;
+  timestamp?: string;
 };
 
 export type UnityRuntimePlayerPayload = {
@@ -153,8 +163,8 @@ export type MatchControlHealthResponse = {
 };
 
 const MATCH_READY_STATES = new Set(['server_started', 'running']);
-const MATCH_TERMINAL_STATES = new Set(['failed', 'ended', 'released']);
-const FRIENDLY_MATCH_READY_STATES = new Set(['running']);
+const MATCH_TERMINAL_STATES = new Set(['failed', 'ended', 'released', 'client_disconnected']);
+const FRIENDLY_MATCH_READY_STATES = new Set(['server_started', 'running']);
 
 export type FriendlyMatchHistoryItem = {
   matchId: string;
@@ -465,6 +475,18 @@ export async function heartbeatMatchControlPresence(
     body: JSON.stringify({ userId }),
     timeoutMs: 12000,
   });
+}
+
+export async function getMatchControlPresenceStats(): Promise<PresenceStatsResponse> {
+  return requestJson<PresenceStatsResponse>('/v1/presence/stats', {
+    method: 'GET',
+    timeoutMs: 12000,
+  });
+}
+
+export async function getRegisteredUsersCount(): Promise<number> {
+  const snapshot = await getCountFromServer(collection(db, 'users'));
+  return snapshot.data().count;
 }
 
 function toByte(value: number): number {

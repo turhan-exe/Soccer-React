@@ -1,15 +1,11 @@
 import { BackButton } from '@/components/ui/back-button';
+import { formatClubCurrency } from '@/lib/clubFinance';
 
 interface FinanceHeaderProps {
   balance: number;
 }
 
-export const formatCurrency = (value: number) =>
-  new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    maximumFractionDigits: 0,
-  }).format(Math.round(value));
+export const formatCurrency = (value: number) => formatClubCurrency(value);
 
 export function FinanceHeader({ balance }: FinanceHeaderProps) {
   return (

@@ -22,7 +22,7 @@ type MatchReminderPayload = {
 };
 
 const buildReminderTaskName = (parent: string, fixtureId: string, kickoffAtMs: number) =>
-  `${parent}/tasks/league-match-1m-${fixtureId}-${kickoffAtMs}`;
+  `${parent}/tasks/league-match-2m-${fixtureId}-${kickoffAtMs}`;
 
 export async function enqueueLeagueMatchReminder(
   leagueId: string,
@@ -40,7 +40,7 @@ export async function enqueueLeagueMatchReminder(
 
   const parent = tasksClient.queuePath(PROJECT, TASKS_LOCATION, MATCH_REMINDER_QUEUE);
   const url = `https://${REGION}-${PROJECT}.cloudfunctions.net/leagueMatchReminderHttp`;
-  const scheduleAtMs = Math.max(Date.now() + 5_000, kickoffAtMs - 60_000);
+  const scheduleAtMs = Math.max(Date.now() + 5_000, kickoffAtMs - 120_000);
   const payload: MatchReminderPayload = { leagueId, fixtureId, kickoffAtMs };
 
   const task = {
@@ -172,9 +172,9 @@ export const leagueMatchReminderHttp = functions
       await sendPushToUser(
         uid,
         {
-          type: 'league-match-1m',
+          type: 'league-match-2m',
           title: 'Lig maci yaklasiyor',
-          body: 'Resmi lig macin 1 dakika icinde baslayacak.',
+          body: 'Resmi lig macin 2 dakika icinde baslayacak.',
           path: '/fixtures',
           data: {
             leagueId,
@@ -182,7 +182,7 @@ export const leagueMatchReminderHttp = functions
             kickoffAtMs,
           },
         },
-        `league-match-1m:${leagueId}:${fixtureId}:${uid}`,
+        `league-match-2m:${leagueId}:${fixtureId}:${uid}`,
       );
     }
 

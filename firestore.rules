@@ -174,5 +174,10 @@ service cloud.firestore {
       allow read: if isSignedIn() && resource.data.uid == request.auth.uid;
       allow write: if false;
     }
+
+    match /public_config/{documentId} {
+      allow read: if documentId == 'mobile_update';
+      allow write: if false;
+    }
   }
 }

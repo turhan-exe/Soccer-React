@@ -7,8 +7,6 @@ import React, {
 } from 'react';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
-import { useLocation, useNavigate } from 'react-router-dom';
-import { Button } from '@/components/ui/button';
 import { Player, TransferListing } from '@/types';
 import { getTeam } from '@/services/team';
 import {
@@ -20,17 +18,9 @@ import {
   type MarketSortOption,
 } from '@/services/transferMarket';
 import { getLegendIdFromPlayer } from '@/services/legends';
-import { normalizeRatingTo100 } from '@/lib/player';
-import { finalizeNegotiationAttempt, recordTransferHistory, type NegotiationAttempt } from '@/services/negotiation';
-import {
-  syncTeamSalaries,
-  ensureMonthlySalaryCharge,
-  recordTransferExpense,
-  syncFinanceBalanceWithTeam,
-} from '@/services/finance';
-import { updatePlayerSalary } from '@/services/team';
+import { syncTeamSalaries } from '@/services/finance';
 import './transfer-market.css';
-import { useTeamBudget } from '@/hooks/useTeamBudget';
+import { useClubFinance } from '@/hooks/useClubFinance';
 
 // Components
 import { TransferHeader } from '@/features/transfer/components/TransferHeader';
@@ -95,13 +85,9 @@ const resolveMarketplaceError = (error: unknown) => {
 
 export default function TransferMarket() {
   const { user } = useAuth();
-  const location = useLocation();
-  const navigate = useNavigate();
   const [teamPlayers, setTeamPlayers] = useState<Player[]>([]);
   const [teamName, setTeamName] = useState<string>('');
-  const [teamBudget, setTeamBudget] = useState<number>(0);
-  const { budget: liveBudget, adjustBudget } = useTeamBudget();
-  const [isLoadingTeam, setIsLoadingTeam] = useState(false);
+  const { cashBalance: teamBudget } = useClubFinance();
   const [listings, setListings] = useState<TransferListing[]>([]);
   const [myListings, setMyListings] = useState<TransferListing[]>([]);
   const [selectedPlayerId, setSelectedPlayerId] = useState<string>('');
@@ -121,32 +107,16 @@ export default function TransferMarket() {
 
   const previousListingCount = useRef<number>(0);
 
-  // Sync Live Budget
-  useEffect(() => {
-    if (typeof liveBudget === 'number') {
-      setTeamBudget(liveBudget);
-    }
-  }, [liveBudget]);
-
   // Load Team Data
   const loadTeam = useCallback(async () => {
     if (!user) return;
-    setIsLoadingTeam(true);
     try {
       const team = await getTeam(user.id);
       setTeamPlayers(team?.players ?? []);
       setTeamName(team?.name ?? user.teamName ?? 'Takımım');
-      const nextBudget = Number.isFinite(team?.transferBudget)
-        ? Number(team?.transferBudget)
-        : Number.isFinite(team?.budget)
-          ? Number(team?.budget)
-          : 0;
-      setTeamBudget(nextBudget);
     } catch (error) {
       console.error('[TransferMarket] takimi yukleme hatasi', error);
       toast.error('Takım bilgileri alınamadı.');
-    } finally {
-      setIsLoadingTeam(false);
     }
   }, [user]);
 
@@ -302,8 +272,6 @@ export default function TransferMarket() {
     try {
       await purchaseTransferListing(listing.id, user.id);
       await loadTeam();
-      const syncedBalance = await syncFinanceBalanceWithTeam(user.id);
-      if (typeof syncedBalance === 'number') setTeamBudget(syncedBalance);
 
       const player = listing.player;
       if (player) {
@@ -373,3 +341,5 @@ export default function TransferMarket() {
     </div>
   );
 }
+
+

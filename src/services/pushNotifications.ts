@@ -98,6 +98,7 @@ const getNotificationPath = (data: PushData | null | undefined) => {
     case 'training-complete':
       return '/training';
     case 'league-match-1m':
+    case 'league-match-2m':
       return '/fixtures';
     default:
       return '/';

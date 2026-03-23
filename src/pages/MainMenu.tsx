@@ -231,6 +231,7 @@ export default function MainMenu() {
   const { kits, purchaseKit, isProcessing, vipActive, vipStatus, vipNostalgiaFreeAvailable } = useInventory();
 
   const [matchHighlight, setMatchHighlight] = useState<MatchHighlight | null>(null);
+  const [matchHighlightLoading, setMatchHighlightLoading] = useState(true);
   const [currentRank, setCurrentRank] = useState<number | null>(null);
   const [actionableMatchTile, setActionableMatchTile] = useState<ActionableMatchTile | null>(null);
   const [actionableMatchLoading, setActionableMatchLoading] = useState(false);
@@ -652,14 +653,25 @@ export default function MainMenu() {
 
   // --- Existing Logic (Quick Stats / Match Highlight) ---
   useEffect(() => {
+    let cancelled = false;
+
+    const applyMatchHighlight = (value: MatchHighlight | null) => {
+      if (cancelled) return;
+      setMatchHighlight(value);
+    };
+
     const loadQuickStats = async () => {
+      if (!cancelled) {
+        setMatchHighlightLoading(true);
+      }
+
       if (!user) {
         // Fallback for no user
         const fallbackMatch = upcomingMatches[0];
         if (fallbackMatch) {
           const fallbackDate = new Date(`${fallbackMatch.date}T${fallbackMatch.time ?? '00:00'}`);
           const hasValidDate = !Number.isNaN(fallbackDate.getTime());
-          setMatchHighlight({
+          applyMatchHighlight({
             competition: fallbackMatch.competition ?? 'Lig Maci',
             dateText: hasValidDate ? fallbackDate.toLocaleDateString('tr-TR') : fallbackMatch.date,
             timeText: fallbackMatch.time || '',
@@ -674,6 +686,9 @@ export default function MainMenu() {
               overall: normalizeRatingTo100OrNull(fallbackMatch.opponentStats?.overall),
             }
           });
+        }
+        if (!cancelled) {
+          setMatchHighlightLoading(false);
         }
         return;
       }
@@ -715,7 +730,7 @@ export default function MainMenu() {
             const fallbackStatic = upcomingMatches.find(m => m.opponent.toLowerCase() === opponentName.toLowerCase());
             if (!opponentLogo && fallbackStatic?.opponentLogo) opponentLogo = fallbackStatic.opponentLogo;
             if (opponentOverall == null && fallbackStatic?.opponentStats?.overall) opponentOverall = normalizeRatingTo100(fallbackStatic.opponentStats.overall);
-            setMatchHighlight({
+            applyMatchHighlight({
               competition: 'Lig Maci',
               dateText: next.date.toLocaleDateString('tr-TR'),
               timeText: next.date.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }),
@@ -729,10 +744,10 @@ export default function MainMenu() {
         }
         const fallbackMatch = upcomingMatches[0];
         if (fallbackMatch) {
-          setMatchHighlight({
+          applyMatchHighlight({
             competition: fallbackMatch.competition ?? 'Dostluk Maci',
             dateText: 'Bugun',
-            timeText: '21:00',
+            timeText: fallbackMatch.time || '',
             venue: 'home',
             team: { name: teamName, logo: teamLogo, form: teamForm, overall: teamOverall },
             opponent: { name: fallbackMatch.opponent, logo: fallbackMatch.opponentLogo, form: [], overall: 85 }
@@ -740,9 +755,17 @@ export default function MainMenu() {
         }
       } catch (e) {
         console.error("Menu stats error", e);
+      } finally {
+        if (!cancelled) {
+          setMatchHighlightLoading(false);
+        }
       }
     };
     loadQuickStats();
+
+    return () => {
+      cancelled = true;
+    };
   }, [user]);
 
   const renderLogo = (logo?: string | null, alt?: string, size = 'w-16 h-16') => {
@@ -761,6 +784,7 @@ export default function MainMenu() {
   const headerSubTextClass = isDark ? "text-slate-300" : "text-blue-200";
   const cardHomeName = actionableMatchTile?.homeId || matchHighlight?.team?.name || user?.teamName || 'TAKIM';
   const cardAwayName = actionableMatchTile?.awayId || matchHighlight?.opponent?.name || 'RAKIP';
+  const matchTimeText = matchHighlight?.timeText?.trim() || '';
   const actionableButtonLabel =
     actionableMatchTile?.kind === 'friendly_pending'
       ? actionableMatchTile.actionLabel
@@ -993,8 +1017,17 @@ export default function MainMenu() {
                 </div>
               ) : (
                 <div className="bg-slate-800/90 backdrop-blur-md border border-white/20 px-4 py-1 rounded-lg shadow-xl text-center min-w-[100px]">
-                  <div className="text-gray-300 text-[9px] uppercase font-bold tracking-widest leading-none mb-0.5">{matchHighlight?.dateText || 'BUGUN'}</div>
-                  <div className="text-white text-lg font-black tracking-wider leading-none">{matchHighlight?.timeText || '21:00'}</div>
+                  <div className="text-gray-300 text-[9px] uppercase font-bold tracking-widest leading-none mb-0.5">
+                    {matchHighlight?.dateText || (matchHighlightLoading ? 'YUKLENIYOR' : 'FIKSTUR')}
+                  </div>
+                  {matchTimeText ? (
+                    <div className="text-white text-lg font-black tracking-wider leading-none">{matchTimeText}</div>
+                  ) : (
+                    <div className="flex items-center justify-center gap-1.5 text-[9px] font-bold uppercase tracking-[0.16em] text-slate-200">
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      <span>MAC SAATI YUKLENIYOR</span>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

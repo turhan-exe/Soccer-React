@@ -1,30 +1,20 @@
 import { useEffect, useMemo, useState } from 'react';
-import { collection, doc, onSnapshot, orderBy, query, Timestamp, where } from 'firebase/firestore';
 import { toast } from 'sonner';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent } from '@/components/ui/card';
 import { useAuth } from '@/contexts/AuthContext';
-import { useTeamBudget } from '@/hooks/useTeamBudget';
+import { useClubFinance } from '@/hooks/useClubFinance';
 import { useCollection } from '@/hooks/useCollection';
-import { db } from '@/services/firebase';
 import {
   applySponsorEarnings,
   activateSponsor,
   CreditPackage,
-  ensureFinanceProfile,
   ensureMonthlySalaryCharge,
-  FinanceDoc,
-  FinanceHistoryEntry,
-  getExpectedRevenue,
   SponsorCatalogEntry,
   StadiumLevel,
-  StadiumState,
   STADIUM_LEVELS,
-  syncFinanceBalanceWithTeam,
   syncTeamSalaries,
-  TeamSalariesDoc,
   upgradeStadiumLevel,
-  UserSponsorDoc,
 } from '@/services/finance';
 import {
   getPlayBillingUnavailableMessage,
@@ -41,7 +31,6 @@ import {
   finalizeAndroidSponsorPurchase,
   syncPendingAndroidSponsorPurchases,
 } from '@/services/sponsorPurchases';
-import type { Player } from '@/types';
 import { CREDIT_PACKAGES } from './creditPacks';
 import { buildSponsorStoreProductId, mapSponsorCatalogSnapshot } from './sponsorCatalogUtils';
 import { FinanceHeader, formatCurrency } from './components/FinanceHeader';
@@ -51,25 +40,58 @@ import { SalaryTab } from './components/SalaryTab';
 import { SponsorTab } from './components/SponsorTab';
 import { CreditTab } from './components/CreditTab';
 
-const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
+const getPurchaseErrorMessage = (
+  error: unknown,
+  fallback: string,
+): string => {
+  const rawMessage = error instanceof Error ? error.message : fallback;
+  const normalized = rawMessage.toLowerCase();
+  const firebaseCode =
+    typeof error === 'object' && error !== null && 'code' in error
+      ? String((error as { code?: unknown }).code ?? '')
+      : '';
+
+  if (
+    normalized.includes('missing or insufficient permissions') ||
+    normalized.includes('insufficient permissions')
+  ) {
+    return (
+      "Google Play satin alma dogrulamasi icin yetki eksik. " +
+      "Play Console'da osm-react@appspot.gserviceaccount.com hesabinin uygulama erisimi, " +
+      'siparis ve finansal veri izinlerini kontrol et.'
+    );
+  }
+
+  if (firebaseCode === 'functions/permission-denied') {
+    return rawMessage || fallback;
+  }
+
+  return rawMessage;
+};
 
 export default function FinanceSummaryScreen() {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('summary');
-  const [finance, setFinance] = useState<FinanceDoc | null>(null);
-  const [stadium, setStadium] = useState<StadiumState | null>(null);
-  const [history, setHistory] = useState<FinanceHistoryEntry[]>([]);
-  const [salaries, setSalaries] = useState<TeamSalariesDoc | null>(null);
-  const [players, setPlayers] = useState<Player[]>([]);
   const [isTeamOwner, setIsTeamOwner] = useState<boolean | null>(null);
-  const [userSponsors, setUserSponsors] = useState<UserSponsorDoc[]>([]);
   const [creditLoading, setCreditLoading] = useState<string | null>(null);
   const [sponsorLoading, setSponsorLoading] = useState<string | null>(null);
   const [upgrading, setUpgrading] = useState(false);
   const [productsById, setProductsById] = useState<Record<string, PlayBillingProduct>>({});
   const [isStoreLoading, setIsStoreLoading] = useState(false);
   const [storeError, setStoreError] = useState<string | null>(null);
-  const { budget } = useTeamBudget();
+  const {
+    cashBalance: balance,
+    expectedRevenue,
+    history,
+    salaries,
+    stadium,
+    sponsors: userSponsors,
+    teamPlayers: players,
+    teamOwnerId,
+    last30dIncome,
+    last30dExpense,
+    last30dNet,
+  } = useClubFinance({ includeDetails: true });
   const {
     data: sponsorCatalogEntries,
     loading: sponsorCatalogLoading,
@@ -78,98 +100,13 @@ export default function FinanceSummaryScreen() {
 
   useEffect(() => {
     if (!user) {
-      return;
-    }
-    void ensureFinanceProfile(user.id).catch((err) =>
-      console.warn('[FinanceScreen] ensure profile failed', err),
-    );
-  }, [user]);
-
-  useEffect(() => {
-    if (!user) {
-      return;
-    }
-    void syncFinanceBalanceWithTeam(user.id).catch((err) =>
-      console.warn('[FinanceScreen] balance sync failed', err),
-    );
-  }, [user]);
-
-  useEffect(() => {
-    if (!user) {
-      return;
-    }
-    return onSnapshot(doc(db, 'finance', user.id), (snap) => {
-      setFinance((snap.data() as FinanceDoc) ?? null);
-    });
-  }, [user]);
-
-  useEffect(() => {
-    if (!user) {
-      return;
-    }
-    return onSnapshot(doc(db, 'teams', user.id, 'stadium', 'state'), (snap) => {
-      setStadium((snap.data() as StadiumState) ?? null);
-    });
-  }, [user]);
-
-  useEffect(() => {
-    if (!user) {
-      return;
-    }
-    const since = Timestamp.fromMillis(Date.now() - THIRTY_DAYS_MS);
-    const col = collection(db, 'finance', 'history', user.id);
-    const q = query(col, where('timestamp', '>=', since), orderBy('timestamp', 'desc'));
-    return onSnapshot(q, (snap) => {
-      const entries = snap.docs.map(
-        (docSnap) =>
-          ({
-            id: docSnap.id,
-            ...docSnap.data(),
-          }) as FinanceHistoryEntry,
-      );
-      setHistory(entries);
-    });
-  }, [user]);
-
-  useEffect(() => {
-    if (!user) {
       setIsTeamOwner(null);
       return;
     }
-    return onSnapshot(doc(db, 'teams', user.id), (snap) => {
-      const data = snap.data() as { players?: Player[]; ownerUid?: string } | undefined;
-      setPlayers(data?.players ?? []);
-      setIsTeamOwner(!data?.ownerUid || data.ownerUid === user.id);
-    });
-  }, [user]);
 
-  useEffect(() => {
-    if (!user) {
-      return;
-    }
-    return onSnapshot(doc(db, 'teams', user.id, 'salaries', 'current'), (snap) => {
-      if (!snap.exists()) {
-        setSalaries(null);
-        return;
-      }
-      setSalaries(snap.data() as TeamSalariesDoc);
-    });
-  }, [user]);
-
-  useEffect(() => {
-    if (!user) {
-      return;
-    }
-    const col = collection(db, 'users', user.id, 'sponsorships');
-    return onSnapshot(col, (snap) => {
-      setUserSponsors(
-        snap.docs.map((docSnap) => ({
-          id: docSnap.id,
-          ...(docSnap.data() as UserSponsorDoc),
-        })),
-      );
-    });
-  }, [user]);
+    const ownerId = teamOwnerId;
+    setIsTeamOwner(!ownerId || ownerId === user.id);
+  }, [teamOwnerId, user]);
 
   useEffect(() => {
     if (!user) {
@@ -189,35 +126,19 @@ export default function FinanceSummaryScreen() {
     });
   }, [user]);
 
-  const balance = typeof budget === 'number' ? budget : finance?.balance ?? 0;
   const stadiumLevel = stadium?.level ?? 1;
   const stadiumConfig = STADIUM_LEVELS[stadiumLevel];
   const nextLevelConfig = STADIUM_LEVELS[Math.min(5, stadiumLevel + 1) as StadiumLevel];
 
   const totals = useMemo(() => {
-    const incomeTotals: Record<string, number> = {};
-    const expenseTotals: Record<string, number> = {};
-    let totalIncome = 0;
-    let totalExpense = 0;
-
-    history.forEach((entry) => {
-      if (entry.type === 'income') {
-        totalIncome += entry.amount;
-        incomeTotals[entry.category] = (incomeTotals[entry.category] ?? 0) + entry.amount;
-      } else {
-        totalExpense += entry.amount;
-        expenseTotals[entry.category] = (expenseTotals[entry.category] ?? 0) + entry.amount;
-      }
-    });
-
     return {
-      totalIncome,
-      totalExpense,
-      net: totalIncome - totalExpense,
-      incomeTotals,
-      expenseTotals,
+      totalIncome: last30dIncome,
+      totalExpense: last30dExpense,
+      net: last30dNet,
+      incomeTotals: {},
+      expenseTotals: {},
     };
-  }, [history]);
+  }, [last30dExpense, last30dIncome, last30dNet]);
 
   const dateFormatter = useMemo(
     () =>
@@ -270,11 +191,6 @@ export default function FinanceSummaryScreen() {
       };
     });
   }, [history, dateFormatter]);
-
-  const expectedRevenue = useMemo(
-    () => getExpectedRevenue(stadium, userSponsors, players),
-    [stadium, userSponsors, players],
-  );
 
   const premiumSponsorEntries = useMemo(
     () => sponsorCatalogEntries.filter((entry) => entry.type === 'premium'),
@@ -495,7 +411,7 @@ export default function FinanceSummaryScreen() {
       toast.success('Odeme dogrulandi.');
     } catch (error) {
       toast.error('Hata', {
-        description: error instanceof Error ? error.message : 'Sponsor aktive edilemedi.',
+        description: getPurchaseErrorMessage(error, 'Sponsor aktive edilemedi.'),
       });
     } finally {
       setSponsorLoading(null);
@@ -567,7 +483,7 @@ export default function FinanceSummaryScreen() {
       toast.success('Odeme dogrulandi.');
     } catch (error) {
       toast.error('Hata', {
-        description: error instanceof Error ? error.message : 'Kredi satin alinamadi.',
+        description: getPurchaseErrorMessage(error, 'Kredi satin alinamadi.'),
       });
     } finally {
       setCreditLoading(null);

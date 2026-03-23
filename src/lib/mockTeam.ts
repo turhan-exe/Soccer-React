@@ -1,6 +1,7 @@
 import { ClubTeam, Player, Position } from '@/types';
 import { formations } from '@/lib/formations';
 import { generateRandomName } from '@/lib/names';
+import { INITIAL_CLUB_BALANCE } from '@/lib/clubFinance';
 
 const allPositions: Position[] = [
   'GK', 'CB', 'LB', 'RB', 'CM', 'LM', 'RM', 'CAM', 'LW', 'RW', 'ST',
@@ -78,7 +79,8 @@ export function makeMockTeam(id: string, name: string, manager = 'AI Coach'): Cl
     manager,
     kitHome: 'home',
     kitAway: 'away',
-    budget: 0,
+    budget: INITIAL_CLUB_BALANCE,
+    transferBudget: INITIAL_CLUB_BALANCE,
     players,
   };
 }

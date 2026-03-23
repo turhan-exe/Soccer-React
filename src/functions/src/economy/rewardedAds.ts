@@ -15,6 +15,7 @@ const SESSION_TTL_MS = 15 * 60 * 1000;
 const PLAYER_RENAME_MIN_LENGTH = 2;
 const PLAYER_RENAME_MAX_LENGTH = 32;
 const PLAYER_RENAME_AD_COOLDOWN_HOURS = 24;
+const AD_MOB_VALIDATION_TOKEN = 'admob_validation_ping';
 
 const AD_MOB_KEYS_URL = 'https://www.gstatic.com/admob/reward/verifier-keys.json';
 
@@ -644,19 +645,55 @@ export const claimRewardedAdReward = functions
 export const admobRewardedSsv = functions
   .region(REGION)
   .https.onRequest(async (req, res) => {
-    if (req.method !== 'GET') {
-      res.status(405).json({ ok: false, message: 'Method not allowed' });
-      return;
-    }
-
     const originalUrl = req.originalUrl || req.url || '';
     const queryIndex = originalUrl.indexOf('?');
     if (queryIndex === -1) {
-      res.status(400).json({ ok: false, message: 'Missing query string' });
+      res.status(200).json({
+        ok: true,
+        accepted: false,
+        reason: 'validation_ping',
+      });
       return;
     }
 
     const rawQuery = originalUrl.substring(queryIndex + 1);
+    const rawParams = new URLSearchParams(rawQuery);
+    const validationUserId = normalizeString(rawParams.get('user_id'));
+    const validationCustomData = normalizeString(rawParams.get('custom_data'));
+    if (validationUserId === AD_MOB_VALIDATION_TOKEN || validationCustomData === AD_MOB_VALIDATION_TOKEN) {
+      res.status(200).json({
+        ok: true,
+        accepted: false,
+        reason: 'validation_ping',
+      });
+      return;
+    }
+
+    if (!rawQuery.includes('signature=') || !rawQuery.includes('key_id=')) {
+      res.status(200).json({
+        ok: true,
+        accepted: false,
+        reason: 'validation_ping',
+      });
+      return;
+    }
+
+    // AdMob's callback URL verifier may send synthetic requests that include
+    // signature fields but omit the real transaction/session identifiers.
+    // Those should not fail verification, but we also must not grant rewards.
+    if (!normalizeString(rawParams.get('transaction_id')) || !normalizeString(rawParams.get('custom_data'))) {
+      res.status(200).json({
+        ok: true,
+        accepted: false,
+        reason: 'validation_ping',
+      });
+      return;
+    }
+
+    if (req.method !== 'GET' && req.method !== 'HEAD') {
+      res.status(405).json({ ok: false, message: 'Method not allowed' });
+      return;
+    }
 
     try {
       const verification = await verifySsvRequest(rawQuery);
@@ -741,6 +778,8 @@ export const admobRewardedSsv = functions
     } catch (error) {
       functions.logger.error('AdMob rewarded SSV verification failed', {
         message: error instanceof Error ? error.message : String(error),
+        method: req.method,
+        rawQueryPreview: rawQuery.slice(0, 512),
       });
       res.status(400).json({
         ok: false,

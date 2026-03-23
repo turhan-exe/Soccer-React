@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Player } from '@/types';
-import { getExpectedRevenue, getMatchRevenueEstimate } from './finance';
+import { getExpectedRevenue, getMatchRevenueEstimate, resolveCanonicalClubBalance } from './finance';
+import { INITIAL_CLUB_BALANCE } from '@/lib/clubFinance';
 
 const createPlayer = (id: number, overall: number, squadRole: Player['squadRole'] = 'starting'): Player => ({
   id: `p-${id}`,
@@ -84,5 +85,38 @@ describe('finance revenue model', () => {
 
     expect(withSponsor.sponsorEstimate).toBe(150000);
     expect(withSponsor.monthly).toBeGreaterThan(noSponsor.monthly);
+  });
+
+  it('uses transfer budget as the canonical club balance', () => {
+    const balance = resolveCanonicalClubBalance(
+      { transferBudget: 87500, budget: 50000 },
+      { balance: 120000 },
+      { hasHistory: true },
+    );
+
+    expect(balance).toBe(87500);
+  });
+
+  it('repairs the legacy zero-team-vs-finance-start mismatch', () => {
+    const balance = resolveCanonicalClubBalance(
+      { transferBudget: 0, budget: 0 },
+      { balance: INITIAL_CLUB_BALANCE },
+      { hasHistory: false },
+    );
+
+    expect(balance).toBe(INITIAL_CLUB_BALANCE);
+  });
+
+  it('projects monthly expense and net together with revenue', () => {
+    const team = Array.from({ length: 11 }, (_, index) => createPlayer(index, 65));
+    const revenue = getExpectedRevenue(
+      { level: 1, incomePerMatch: 30000, upgradeCost: 20000 },
+      [],
+      team,
+      40000,
+    );
+
+    expect(revenue.projectedMonthlyExpense).toBe(40000);
+    expect(revenue.projectedMonthlyNet).toBe(revenue.monthly - revenue.projectedMonthlyExpense);
   });
 });

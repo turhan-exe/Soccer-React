@@ -13,6 +13,7 @@ import androidx.annotation.Nullable;
 import androidx.core.view.WindowCompat;
 import androidx.core.view.WindowInsetsCompat;
 import androidx.core.view.WindowInsetsControllerCompat;
+import com.nerbuss.fhsmanager.MainActivity;
 public class UnityHostActivity extends Activity {
   private static final String TAG = "UnityHostActivity";
   private static final int REQ_UNITY = 4107;
@@ -89,6 +90,19 @@ public class UnityHostActivity extends Activity {
 
     try {
       setResult(Activity.RESULT_OK);
+    } catch (Throwable ignored) {
+      // no-op
+    }
+
+    try {
+      Intent shellIntent = new Intent(this, MainActivity.class);
+      shellIntent.addFlags(
+          Intent.FLAG_ACTIVITY_CLEAR_TOP
+              | Intent.FLAG_ACTIVITY_SINGLE_TOP
+              | Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
+              | Intent.FLAG_ACTIVITY_NEW_TASK);
+      shellIntent.putExtra("unity_force_shell_return", true);
+      startActivity(shellIntent);
     } catch (Throwable ignored) {
       // no-op
     }

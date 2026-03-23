@@ -12,6 +12,7 @@ import androidx.core.view.WindowInsetsControllerCompat;
 import com.getcapacitor.BridgeActivity;
 import com.nerbuss.fhsmanager.ads.RewardedAdsPlugin;
 import com.nerbuss.fhsmanager.billing.PlayBillingPlugin;
+import com.nerbuss.fhsmanager.update.PlayUpdatePlugin;
 import com.nerbuss.fhsmanager.unity.UnityBridgeState;
 import com.nerbuss.fhsmanager.unity.UnityMatchPlugin;
 
@@ -25,6 +26,7 @@ public class MainActivity extends BridgeActivity {
   protected void onCreate(Bundle savedInstanceState) {
     registerPlugin(RewardedAdsPlugin.class);
     registerPlugin(PlayBillingPlugin.class);
+    registerPlugin(PlayUpdatePlugin.class);
     registerPlugin(UnityMatchPlugin.class);
     super.onCreate(savedInstanceState);
     hardenWebViewNetworkPolicy();

@@ -31,8 +31,8 @@ android {
         applicationId "com.nerbuss.fhsmanager"
         minSdkVersion 25
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 2026031706
-        versionName "1.0.6"
+        versionCode 2026031708
+        versionName "1.0.8"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         manifestPlaceholders = [admobAppId: admobAppId]
         buildConfigField "String", "ADMOB_APP_ID", "\"${admobAppId}\""
@@ -92,6 +92,7 @@ dependencies {
     implementation "androidx.coordinatorlayout:coordinatorlayout:$androidxCoordinatorLayoutVersion"
     implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
     implementation "com.android.billingclient:billing:8.3.0"
+    implementation "com.google.android.play:app-update:2.1.0"
     implementation "com.google.android.gms:play-services-ads:25.1.0"
     implementation "com.google.android.ump:user-messaging-platform:4.0.0"
     implementation project(':capacitor-android')

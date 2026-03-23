@@ -5,13 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import type { SponsorCatalogEntry } from '@/services/finance';
 import type { PlayBillingProduct } from '@/services/playBilling';
 import { buildSponsorStoreProductId } from './sponsorCatalogUtils';
-
-const formatCurrency = (value: number) =>
-  new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    maximumFractionDigits: 0,
-  }).format(Math.round(value));
+import { formatCurrency } from './components/FinanceHeader';
 
 interface SponsorCatalogProps {
   entries: SponsorCatalogEntry[];

@@ -9,6 +9,7 @@ import { calculateOverall, getRoles } from '@/lib/player';
 import { addGameYears, applyGameAgingToPlayers } from '@/lib/gameTime';
 import { formations } from '@/lib/formations';
 import { getSalaryForOverall } from '@/lib/salary';
+import { INITIAL_CLUB_BALANCE } from '@/lib/clubFinance';
 
 const positions: Player['position'][] = ['GK','CB','LB','RB','CM','LM','RM','CAM','LW','RW','ST'];
 
@@ -109,8 +110,8 @@ const generateTeamData = (id: string, name: string, manager: string): ClubTeam =
     kitHome: 'home',
     kitAway: 'away',
     logo: null,
-    budget: 0,
-    transferBudget: 0,
+    budget: INITIAL_CLUB_BALANCE,
+    transferBudget: INITIAL_CLUB_BALANCE,
     players,
   };
 };

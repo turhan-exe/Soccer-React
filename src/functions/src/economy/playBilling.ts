@@ -147,6 +147,13 @@ const fetchGooglePlayPurchase = async (
     const message = detail || `Google Play purchase verify failed with HTTP ${response.status}.`;
     const code =
       response.status === 401 || response.status === 403 ? 'permission-denied' : 'failed-precondition';
+    functions.logger.error('Google Play purchase verification failed', {
+      packageName: PACKAGE_NAME,
+      productId,
+      status: response.status,
+      code,
+      detail,
+    });
     throw new functions.https.HttpsError(code, message);
   }
 
@@ -265,10 +272,10 @@ const resolveTeamBalance = (
   teamData: { budget?: number; transferBudget?: number } | undefined,
   financeData: { balance?: number } | undefined,
 ): number => {
-  const balanceSource = Number.isFinite(teamData?.budget)
-    ? Number(teamData?.budget)
-    : Number.isFinite(teamData?.transferBudget)
-      ? Number(teamData?.transferBudget)
+  const balanceSource = Number.isFinite(teamData?.transferBudget)
+    ? Number(teamData?.transferBudget)
+    : Number.isFinite(teamData?.budget)
+      ? Number(teamData?.budget)
       : (financeData?.balance ?? FINANCE_DEFAULT_BALANCE);
 
   return Math.max(0, Math.round(balanceSource));

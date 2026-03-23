@@ -21,6 +21,7 @@ import type { GlobalChatMessage } from '@/types';
 import { collection, getDocs, limit, onSnapshot, orderBy, query } from 'firebase/firestore';
 import { db } from '@/services/firebase';
 import { useAuth } from '@/contexts/AuthContext';
+import { getMatchControlPresenceStats, getRegisteredUsersCount, isMatchControlConfigured } from '@/services/matchControl';
 
 type Severity = 'low' | 'medium' | 'high';
 type MessageStatus = 'active' | 'deleted';
@@ -369,6 +370,10 @@ const ChatModerationAdmin = () => {
   const [isLoadingPlayers, setIsLoadingPlayers] = useState(true);
   const [playersError, setPlayersError] = useState<string | null>(null);
   const [dataError, setDataError] = useState<string | null>(null);
+  const [registeredUsersCount, setRegisteredUsersCount] = useState<number | null>(null);
+  const [onlineUsersCount, setOnlineUsersCount] = useState<number | null>(null);
+  const [onlineUsersTtlSec, setOnlineUsersTtlSec] = useState<number | null>(null);
+  const [isLoadingAudienceStats, setIsLoadingAudienceStats] = useState(true);
   const { user } = useAuth();
 
   useEffect(() => {
@@ -550,6 +555,61 @@ const ChatModerationAdmin = () => {
       isActive = false;
     };
   }, [messages, activeSanctionsMap]);
+
+  useEffect(() => {
+    let cancelled = false;
+    let intervalId: number | null = null;
+
+    const loadAudienceStats = async () => {
+      if (!cancelled) {
+        setIsLoadingAudienceStats(true);
+      }
+
+      try {
+        const [registeredCount, presenceStats] = await Promise.all([
+          getRegisteredUsersCount(),
+          isMatchControlConfigured()
+            ? getMatchControlPresenceStats().catch((error) => {
+                console.warn('[chat] presence stats unavailable', error);
+                return null;
+              })
+            : Promise.resolve(null),
+        ]);
+
+        if (cancelled) return;
+
+        setRegisteredUsersCount(registeredCount);
+        setOnlineUsersCount(
+          presenceStats && typeof presenceStats.onlineUsers === 'number'
+            ? presenceStats.onlineUsers
+            : null,
+        );
+        setOnlineUsersTtlSec(
+          presenceStats && typeof presenceStats.ttlSec === 'number'
+            ? presenceStats.ttlSec
+            : null,
+        );
+      } catch (error) {
+        console.error('[chat] audience stats failed', error);
+      } finally {
+        if (!cancelled) {
+          setIsLoadingAudienceStats(false);
+        }
+      }
+    };
+
+    void loadAudienceStats();
+    intervalId = window.setInterval(() => {
+      void loadAudienceStats();
+    }, 15000);
+
+    return () => {
+      cancelled = true;
+      if (intervalId != null) {
+        window.clearInterval(intervalId);
+      }
+    };
+  }, []);
 
   const handleLogin = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -760,7 +820,7 @@ const ChatModerationAdmin = () => {
           <div className="rounded-2xl border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-sm text-rose-200">{dataError}</div>
         ) : null}
 
-        <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
           <Card className="border-slate-800 bg-slate-900/70">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 px-4 pb-1 pt-4">
               <CardTitle className="text-sm font-medium text-slate-400">Aktif Mesaj</CardTitle>
@@ -789,6 +849,32 @@ const ChatModerationAdmin = () => {
             <CardContent className="px-4 pb-4 pt-0">
               <div className="text-2xl font-semibold text-sky-100">{activeSanctions.length}</div>
               <p className="text-xs text-slate-500">mute + kalici ban toplami</p>
+            </CardContent>
+          </Card>
+          <Card className="border-slate-800 bg-slate-900/70">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 px-4 pb-1 pt-4">
+              <CardTitle className="text-sm font-medium text-slate-400">Kayitli Oyuncu</CardTitle>
+              <ShieldCheck className="h-4 w-4 text-emerald-300" />
+            </CardHeader>
+            <CardContent className="px-4 pb-4 pt-0">
+              <div className="text-2xl font-semibold text-emerald-100">
+                {isLoadingAudienceStats && registeredUsersCount === null ? '...' : registeredUsersCount ?? '-'}
+              </div>
+              <p className="text-xs text-slate-500">users koleksiyonundaki toplam hesap</p>
+            </CardContent>
+          </Card>
+          <Card className="border-slate-800 bg-slate-900/70">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 px-4 pb-1 pt-4">
+              <CardTitle className="text-sm font-medium text-slate-400">Online Oyuncu</CardTitle>
+              <div className="h-2.5 w-2.5 rounded-full bg-emerald-400" />
+            </CardHeader>
+            <CardContent className="px-4 pb-4 pt-0">
+              <div className="text-2xl font-semibold text-emerald-200">
+                {isLoadingAudienceStats && onlineUsersCount === null ? '...' : onlineUsersCount ?? '-'}
+              </div>
+              <p className="text-xs text-slate-500">
+                son {onlineUsersTtlSec ?? 30} sn icinde heartbeat atan oyuncu
+              </p>
             </CardContent>
           </Card>
         </section>
