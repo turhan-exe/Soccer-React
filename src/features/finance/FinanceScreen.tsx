@@ -40,16 +40,45 @@ import { SalaryTab } from './components/SalaryTab';
 import { SponsorTab } from './components/SponsorTab';
 import { CreditTab } from './components/CreditTab';
 
+const getErrorCode = (error: unknown): string =>
+  typeof error === 'object' && error !== null && 'code' in error
+    ? String((error as { code?: unknown }).code ?? '')
+    : '';
+
+const getErrorMessage = (error: unknown, fallback: string): string =>
+  error instanceof Error ? error.message : fallback;
+
+const logSponsorActionError = ({
+  action,
+  path,
+  sponsorId,
+  sponsorType,
+  error,
+}: {
+  action: 'activate' | 'collect';
+  path: 'free' | 'premium' | 'collect';
+  sponsorId: string;
+  sponsorType?: SponsorCatalogEntry['type'];
+  error: unknown;
+}) => {
+  console.error('[FinanceScreen] sponsor action failed', {
+    action,
+    path,
+    sponsorId,
+    sponsorType: sponsorType ?? null,
+    code: getErrorCode(error) || null,
+    message: getErrorMessage(error, 'Bilinmeyen sponsor hatasi.'),
+    rawError: error,
+  });
+};
+
 const getPurchaseErrorMessage = (
   error: unknown,
   fallback: string,
 ): string => {
-  const rawMessage = error instanceof Error ? error.message : fallback;
+  const rawMessage = getErrorMessage(error, fallback);
   const normalized = rawMessage.toLowerCase();
-  const firebaseCode =
-    typeof error === 'object' && error !== null && 'code' in error
-      ? String((error as { code?: unknown }).code ?? '')
-      : '';
+  const firebaseCode = getErrorCode(error);
 
   if (
     normalized.includes('missing or insufficient permissions') ||
@@ -356,8 +385,8 @@ export default function FinanceSummaryScreen() {
     setSponsorLoading(entry.id);
     try {
       if (entry.type !== 'premium') {
-        await activateSponsor(user.id, entry);
-        toast.success('Basarili', { description: `${entry.name} sponsoru aktif edildi.` });
+        const activated = await activateSponsor(entry);
+        toast.success('Basarili', { description: `${activated.sponsorName} sponsoru aktif edildi.` });
         return;
       }
 
@@ -410,6 +439,13 @@ export default function FinanceSummaryScreen() {
 
       toast.success('Odeme dogrulandi.');
     } catch (error) {
+      logSponsorActionError({
+        action: 'activate',
+        path: entry.type === 'premium' ? 'premium' : 'free',
+        sponsorId: entry.id,
+        sponsorType: entry.type,
+        error,
+      });
       toast.error('Hata', {
         description: getPurchaseErrorMessage(error, 'Sponsor aktive edilemedi.'),
       });
@@ -421,11 +457,17 @@ export default function FinanceSummaryScreen() {
   const handleCollectSponsor = async (sponsorId: string) => {
     setSponsorLoading(sponsorId);
     try {
-      const payout = await applySponsorEarnings(user.id, sponsorId);
-      toast.success('Odeme Alindi', { description: `Sponsor kazanci: ${formatCurrency(payout)}` });
+      const payout = await applySponsorEarnings(sponsorId);
+      toast.success('Odeme Alindi', { description: `Sponsor kazanci: ${formatCurrency(payout.payout)}` });
     } catch (error) {
+      logSponsorActionError({
+        action: 'collect',
+        path: 'collect',
+        sponsorId,
+        error,
+      });
       toast.error('Hata', {
-        description: error instanceof Error ? error.message : 'Sponsor kazanci alinamadi.',
+        description: getErrorMessage(error, 'Sponsor kazanci alinamadi.'),
       });
     } finally {
       setSponsorLoading(null);

@@ -6,6 +6,11 @@ import { createHmac, timingSafeEqual } from 'crypto';
 import { log } from '../logger.js';
 import { sendSlack } from '../notify/slack.js';
 import { enqueueRenderJob } from '../replay/renderJob.js';
+import {
+  applyLeagueMatchRevenueInTx,
+  applyStandingResultInTx,
+  resolveFixtureRevenueTeamIds,
+} from '../utils/leagueMatchFinalize.js';
 
 
 const db = getFirestore();
@@ -87,20 +92,28 @@ export const onResultFinalize = functions
       const videoPath = `videos/${seasonId}/${matchId}.mp4`;
 
       const fxRef = db.doc(`leagues/${leagueId}/fixtures/${matchId}`);
+      const fixtureBeforeSnap = await fxRef.get();
+      if (!fixtureBeforeSnap.exists) {
+        return;
+      }
+      const resolvedTeamIds = await resolveFixtureRevenueTeamIds(
+        leagueId,
+        (fixtureBeforeSnap.data() as Record<string, unknown>) ?? {},
+      );
       // Update fixture and standings atomically
       await db.runTransaction(async (tx) => {
         const fxSnap = await tx.get(fxRef);
         if (!fxSnap.exists) return;
-        const cur = fxSnap.data() as any;
-        if (cur.status === 'played') return; // idempotent
-        tx.update(fxRef, {
+        const cur = (fxSnap.data() as Record<string, unknown>) ?? {};
+        const currentStatus = String(cur.status || 'scheduled');
+        const currentVideo = (cur['video'] as Record<string, unknown> | undefined) ?? undefined;
+        const updatePatch: Record<string, unknown> = {
           status: 'played',
-          score,
           replayPath,
           videoMissing: true,
           'video.storagePath': videoPath,
           'video.type': 'mp4-v1',
-          'video.source': cur?.video?.source || 'render',
+          'video.source': String(currentVideo?.source || 'render'),
           'video.uploaded': false,
           'video.updatedAt': FieldValue.serverTimestamp(),
           'live.state': 'ended',
@@ -108,41 +121,20 @@ export const onResultFinalize = functions
           'live.lastLifecycleAt': FieldValue.serverTimestamp(),
           'live.resultMissing': false,
           'live.reason': FieldValue.delete(),
-          endedAt: FieldValue.serverTimestamp(),
-          playedAt: FieldValue.serverTimestamp(),
-        });
-        if (!score) return;
-        const homeSlot = Number(cur.homeSlot);
-        const awaySlot = Number(cur.awaySlot);
-        const useSlots = Number.isFinite(homeSlot) || Number.isFinite(awaySlot);
-        const homeId = useSlots ? (Number.isFinite(homeSlot) ? String(homeSlot) : null) : cur.homeTeamId;
-        const awayId = useSlots ? (Number.isFinite(awaySlot) ? String(awaySlot) : null) : cur.awayTeamId;
-        if (!homeId || !awayId) return;
-        const leagueRef = fxRef.parent.parent!;
-        const homeRef = leagueRef.collection('standings').doc(homeId);
-        const awayRef = leagueRef.collection('standings').doc(awayId);
-        const [homeSnap, awaySnap] = await Promise.all([tx.get(homeRef), tx.get(awayRef)]);
-        const hs = homeSnap.exists
-          ? (homeSnap.data() as any)
-          : useSlots
-            ? { slotIndex: homeSlot, teamId: cur.homeTeamId ?? null, name: '', P: 0, W: 0, D: 0, L: 0, GF: 0, GA: 0, GD: 0, Pts: 0 }
-            : { teamId: homeId, name: '', P: 0, W: 0, D: 0, L: 0, GF: 0, GA: 0, GD: 0, Pts: 0 };
-        const as = awaySnap.exists
-          ? (awaySnap.data() as any)
-          : useSlots
-            ? { slotIndex: awaySlot, teamId: cur.awayTeamId ?? null, name: '', P: 0, W: 0, D: 0, L: 0, GF: 0, GA: 0, GD: 0, Pts: 0 }
-            : { teamId: awayId, name: '', P: 0, W: 0, D: 0, L: 0, GF: 0, GA: 0, GD: 0, Pts: 0 };
-        const h = score.home;
-        const a = score.away;
-        hs.P++;
-        as.P++;
-        hs.GF += h; hs.GA += a; hs.GD = hs.GF - hs.GA;
-        as.GF += a; as.GA += h; as.GD = as.GF - as.GA;
-        if (h > a) { hs.W++; as.L++; hs.Pts += 3; }
-        else if (h < a) { as.W++; hs.L++; as.Pts += 3; }
-        else { hs.D++; as.D++; hs.Pts++; as.Pts++; }
-        tx.set(homeRef, hs, { merge: true });
-        tx.set(awayRef, as, { merge: true });
+        };
+        if (score) {
+          updatePatch.score = score;
+        }
+        if (currentStatus !== 'played') {
+          updatePatch.endedAt = FieldValue.serverTimestamp();
+          updatePatch.playedAt = FieldValue.serverTimestamp();
+        }
+        tx.update(fxRef, updatePatch);
+
+        if (score && currentStatus !== 'played') {
+          await applyStandingResultInTx(tx, fxRef, cur, score);
+        }
+        await applyLeagueMatchRevenueInTx(tx, fxRef, cur, resolvedTeamIds);
       });
 
       // Log sim duration metrics (if startedAt exists)

@@ -80,10 +80,14 @@ import {
 } from '@/features/team-planning/teamPlanningUtils';
 import { AlternativePlayerBubble } from '@/features/team-planning/components/AlternativePlayerBubble';
 import {
+  ORDERED_ZONE_IDS,
+  getZoneFitLevel,
   getZoneDefinition,
   recommendPlayers,
   resolveZoneId,
+  resolveZoneIdFromCoordinates,
   positionAffinity,
+  type SlotFitLevel,
   type ZoneId,
 } from '@/features/team-planning/slotZones';
 
@@ -105,6 +109,11 @@ type AutoFillAssignment = {
   position: Player['position'];
   x: number;
   y: number;
+};
+
+type DragZoneHighlight = {
+  zoneId: ZoneId;
+  fitLevel: SlotFitLevel;
 };
 
 function TeamPlanningContent() {
@@ -1420,6 +1429,31 @@ function TeamPlanningContent() {
     () => formationPositions.filter(slot => !slot.player),
     [formationPositions],
   );
+  const draggedDisplayPlayer = useMemo(
+    () =>
+      draggedPlayerId
+        ? displayPlayers.find(player => player.id === draggedPlayerId) ?? null
+        : null,
+    [displayPlayers, draggedPlayerId],
+  );
+  const dragZoneHighlights = useMemo<DragZoneHighlight[]>(() => {
+    if (!draggedDisplayPlayer) {
+      return [];
+    }
+
+    return ORDERED_ZONE_IDS
+      .map(zoneId => {
+        const fitLevel = getZoneFitLevel(draggedDisplayPlayer, zoneId);
+        if (fitLevel === 'invalid') {
+          return null;
+        }
+        return {
+          zoneId,
+          fitLevel,
+        };
+      })
+      .filter((entry): entry is DragZoneHighlight => entry !== null);
+  }, [draggedDisplayPlayer]);
   const autoFillAssignments = useMemo<AutoFillAssignment[]>(() => {
     if (emptyFormationSlots.length === 0) {
       return [];
@@ -1483,12 +1517,15 @@ function TeamPlanningContent() {
 
     return assignments;
   }, [displayPlayers, emptyFormationSlots]);
-  const findNearestSlot = useCallback(
-    (coords: { x: number; y: number }): PitchSlot | null => {
+  const findNearbyStartingPlayer = useCallback(
+    (coords: { x: number; y: number }, excludePlayerId?: string | null): PitchSlot | null => {
       if (!formationPositions.length) return null;
       let best: PitchSlot | null = null;
       let bestDist = Number.POSITIVE_INFINITY;
       formationPositions.forEach(slot => {
+        if (!slot.player || slot.player.id === excludePlayerId) {
+          return;
+        }
         const dx = slot.x - coords.x;
         const dy = slot.y - coords.y;
         const dist = dx * dx + dy * dy;
@@ -1497,7 +1534,7 @@ function TeamPlanningContent() {
           best = slot;
         }
       });
-      return best;
+      return bestDist <= 64 ? best : null;
     },
     [formationPositions],
   );
@@ -1522,13 +1559,15 @@ function TeamPlanningContent() {
 
     // GK LOCK LOGIC (Strict No-Swap):
     const isGK = canonicalPosition(player.position) === 'GK';
-    const nearestSlot = findNearestSlot(coordinates);
-    const finalPosition = nearestSlot?.position ?? player.position;
-    const isTargetSlotGK = nearestSlot && canonicalPosition(nearestSlot.position) === 'GK';
-    const isTargetOccupied = nearestSlot?.player;
+    const targetZoneId = resolveZoneIdFromCoordinates(coordinates);
+    const finalPosition = getZoneDefinition(targetZoneId).slotPosition;
+    const nearbyTargetSlot = findNearbyStartingPlayer(coordinates, playerId);
+    const targetPlayer = nearbyTargetSlot?.player ?? null;
+    const isTargetSlotGK = canonicalPosition(finalPosition) === 'GK';
+    const isTargetOccupied = !!targetPlayer;
 
     // Rule 1: If Target is GK Slot AND Occupied -> BLOCK (No Swap allowed)
-    if (isTargetSlotGK && isTargetOccupied && nearestSlot.player?.id !== player.id) {
+    if (isTargetSlotGK && isTargetOccupied && targetPlayer?.id !== player.id) {
       toast.warning("Kaleci pozisyonu doluyken başka oyuncu eklenemez.");
       setDraggedPlayerId(null);
       return;
@@ -1548,41 +1587,38 @@ function TeamPlanningContent() {
     dropHandledRef.current = true;
 
     if (player.squadRole === 'starting') {
-      if (finalPosition !== player.position) {
-        const targetPlayer = nearestSlot?.player;
-        if (targetPlayer && targetPlayer.id !== player.id) {
-          // SWAP LOGIC
-          const originSlot = formationPositions.find(entry => entry.player?.id === player.id);
-          setPlayers(prev =>
-            normalizePlayers(
-              prev.map(current => {
-                if (current.id === player.id) return { ...current, position: finalPosition };
-                if (current.id === targetPlayer.id) return { ...current, position: originSlot?.position ?? player.position };
-                return current;
-              }),
-            ),
-          );
+      if (targetPlayer && targetPlayer.id !== player.id) {
+        const originSlot = formationPositions.find(entry => entry.player?.id === player.id);
+        setPlayers(prev =>
+          normalizePlayers(
+            prev.map(current => {
+              if (current.id === player.id) return { ...current, position: finalPosition };
+              if (current.id === targetPlayer.id) return { ...current, position: originSlot?.position ?? player.position };
+              return current;
+            }),
+          ),
+        );
 
-          // Update UI for both players
-          applyManualPosition(playerId, {
-            x: coordinates.x,
-            y: coordinates.y,
-            position: finalPosition,
+        applyManualPosition(playerId, {
+          x: coordinates.x,
+          y: coordinates.y,
+          position: finalPosition,
+        });
+        if (originSlot) {
+          applyManualPosition(targetPlayer.id, {
+            x: originSlot.x,
+            y: originSlot.y,
+            position: originSlot.position,
           });
-          if (originSlot) {
-            applyManualPosition(targetPlayer.id, {
-              x: originSlot.x,
-              y: originSlot.y,
-              position: originSlot.position,
-            });
-          }
-
-          setFocusedPlayerId(playerId);
-          toast.success('Oyuncular yer değiştirdi');
-          setDraggedPlayerId(null);
-          return;
         }
 
+        setFocusedPlayerId(playerId);
+        toast.success('Oyuncular yer değiştirdi');
+        setDraggedPlayerId(null);
+        return;
+      }
+
+      if (finalPosition !== player.position) {
         setPlayers(prev =>
           normalizePlayers(
             prev.map(current =>
@@ -1607,7 +1643,9 @@ function TeamPlanningContent() {
     let result: PromoteToStartingResult | null = null;
 
     setPlayers(prev => {
-      const promotion = promotePlayerToStartingRoster(prev, playerId, finalPosition);
+      const promotion = promotePlayerToStartingRoster(prev, playerId, finalPosition, {
+        targetPlayerId: targetPlayer?.id,
+      });
       result = promotion;
       if (promotion.error) {
         errorMessage = promotion.error;
@@ -1629,7 +1667,15 @@ function TeamPlanningContent() {
         position: finalPosition,
       });
       if (result?.swappedPlayerId) {
-        removePlayerFromCustomFormations(result.swappedPlayerId);
+        if (nearbyTargetSlot && previousRole === 'starting') {
+          applyManualPosition(result.swappedPlayerId, {
+            x: nearbyTargetSlot.x,
+            y: nearbyTargetSlot.y,
+            position: nearbyTargetSlot.position,
+          });
+        } else {
+          removePlayerFromCustomFormations(result.swappedPlayerId);
+        }
       }
       setFocusedPlayerId(playerId);
       toast.success('Oyuncu sahada konumlandirildi');
@@ -1659,16 +1705,18 @@ function TeamPlanningContent() {
         return;
       }
 
-      const nearestSlot = findNearestSlot(coordinates);
-      const finalPosition = nearestSlot?.position ?? player.position;
+      const targetZoneId = resolveZoneIdFromCoordinates(coordinates);
+      const finalPosition = getZoneDefinition(targetZoneId).slotPosition;
+      const nearbyTargetSlot = findNearbyStartingPlayer(coordinates, player.id);
+      const targetPlayer = nearbyTargetSlot?.player ?? null;
 
       // GK LOCK LOGIC (Strict No-Swap via DragEnd Fallback)
       const isGK = canonicalPosition(player.position) === 'GK';
-      const isTargetSlotGK = nearestSlot && canonicalPosition(nearestSlot.position) === 'GK';
-      const isTargetOccupied = nearestSlot?.player;
+      const isTargetSlotGK = canonicalPosition(finalPosition) === 'GK';
+      const isTargetOccupied = !!targetPlayer;
 
       // Rule 1: If Target is GK Slot AND Occupied (by someone else) -> BLOCK
-      if (isTargetSlotGK && isTargetOccupied && nearestSlot.player?.id !== player.id) {
+      if (isTargetSlotGK && isTargetOccupied && targetPlayer?.id !== player.id) {
         toast.warning("Kaleci pozisyonu doluyken başka oyuncu eklenemez.");
         setDraggedPlayerId(null);
         return;
@@ -1687,8 +1735,25 @@ function TeamPlanningContent() {
 
 
 
-
-      if (finalPosition !== player.position) {
+      if (targetPlayer && targetPlayer.id !== player.id) {
+        const originSlot = formationPositions.find(entry => entry.player?.id === player.id);
+        setPlayers(prev =>
+          normalizePlayers(
+            prev.map(current => {
+              if (current.id === player.id) return { ...current, position: finalPosition };
+              if (current.id === targetPlayer.id) return { ...current, position: originSlot?.position ?? player.position };
+              return current;
+            }),
+          ),
+        );
+        if (originSlot) {
+          applyManualPosition(targetPlayer.id, {
+            x: originSlot.x,
+            y: originSlot.y,
+            position: originSlot.position,
+          });
+        }
+      } else if (finalPosition !== player.position) {
         setPlayers(prev =>
           normalizePlayers(
             prev.map(current =>
@@ -1704,7 +1769,7 @@ function TeamPlanningContent() {
         position: finalPosition,
       });
     },
-    [applyManualPosition, findNearestSlot, getPitchCoordinates, setPlayers],
+    [applyManualPosition, findNearbyStartingPlayer, formationPositions, getPitchCoordinates, setPlayers],
   );
 
   const derivedFormationShape = useMemo(
@@ -2246,6 +2311,7 @@ function TeamPlanningContent() {
               <Pitch
                 ref={pitchRef}
                 slots={formationPositions}
+                zoneHighlights={dragZoneHighlights}
                 onPitchDrop={handlePitchDrop}
                 onPositionDrop={handlePositionDrop}
                 onPlayerDragStart={player => {
@@ -2263,6 +2329,7 @@ function TeamPlanningContent() {
                 }}
                 onSelectSlot={handleSlotSelect}
                 focusedPlayerId={focusedPlayerId}
+                draggedPlayerId={draggedPlayerId}
                 selectedMetric={selectedMetric}
                 getMetricValue={getPitchMetricValue}
                 renderTooltip={renderPitchTooltip}

@@ -20,6 +20,7 @@ const firebaseConfig = {
 };
 const app = initializeApp(firebaseConfig);
 const isNativePlatform = Capacitor.isNativePlatform();
+const isNativeAndroid = isNativePlatform && Capacitor.getPlatform() === 'android';
 export const auth = isNativePlatform
   ? initializeAuth(app, {
       persistence: indexedDBLocalPersistence,
@@ -57,10 +58,21 @@ if (import.meta.env.DEV && import.meta.env.VITE_USE_FUNCTIONS_EMULATOR === '1') 
 const APP_CHECK_SITE_KEY = import.meta.env.VITE_APPCHECK_SITE_KEY as string | undefined;
 const DISABLE_APP_CHECK = import.meta.env.VITE_DISABLE_APPCHECK === '1';
 const ENABLE_APP_CHECK_IN_DEV = import.meta.env.VITE_ENABLE_APPCHECK_DEV === '1';
+const APP_CHECK_NATIVE_ANDROID_MODE = String(
+  import.meta.env.VITE_APPCHECK_NATIVE_ANDROID_MODE ?? '',
+)
+  .trim()
+  .toLowerCase();
+const BYPASS_NATIVE_ANDROID_APP_CHECK =
+  isNativeAndroid && APP_CHECK_NATIVE_ANDROID_MODE === 'bypass';
 const SHOULD_INIT_APP_CHECK =
+  !BYPASS_NATIVE_ANDROID_APP_CHECK &&
   !!APP_CHECK_SITE_KEY &&
   !DISABLE_APP_CHECK &&
   (!import.meta.env.DEV || ENABLE_APP_CHECK_IN_DEV);
+if (BYPASS_NATIVE_ANDROID_APP_CHECK) {
+  console.warn('[firebase] App Check bypassed for native Android build.');
+}
 if (SHOULD_INIT_APP_CHECK) {
   try {
     // Optional debug token for local testing

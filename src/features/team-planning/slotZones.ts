@@ -1,5 +1,5 @@
 import type { Player } from '@/types';
-import { canonicalPosition } from './teamPlanningUtils';
+import { canonicalPosition, computePositionOverall } from './teamPlanningUtils';
 import type { DisplayPlayer } from './teamPlanningUtils';
 import type { PitchSlot } from './teamPlanningUtils';
 import type { SkillTag } from './skillTags';
@@ -29,6 +29,32 @@ export type ZoneDefinition = {
   capabilityTags: SkillTag[];
   fallbackPositions?: Player['position'][];
 };
+
+export type ZoneOverlayBounds = {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+};
+
+export const ORDERED_ZONE_IDS: ZoneId[] = [
+  'sol bek',
+  'sol kanat',
+  'sol açık',
+  'kaleci',
+  'stoper sol',
+  'stoper sağ',
+  'sağ bek',
+  'sağ kanat',
+  'sağ açık',
+  'ön libero',
+  'defansif orta saha sol',
+  'defansif orta saha sağ',
+  'merkez orta saha',
+  'ofansif orta saha',
+  'gizli forvet',
+  'santrafor',
+];
 
 export const ZONES: Record<ZoneId, ZoneDefinition> = {
   santrafor: {
@@ -155,23 +181,33 @@ const ZONE_SHORT_CODES: Record<ZoneId, string> = {
   'santrafor': 'SF',
 };
 
-export const getZoneShortCode = (slot: PitchSlot): string => {
-  const zoneId = resolveZoneId(slot);
+const ZONE_OVERLAY_BOUNDS: Record<ZoneId, ZoneOverlayBounds> = {
+  'sol bek': { left: 0, top: 0, width: 35, height: 20 },
+  'sol kanat': { left: 35, top: 0, width: 25, height: 20 },
+  'sol açık': { left: 60, top: 0, width: 40, height: 20 },
+  kaleci: { left: 0, top: 20, width: 14, height: 60 },
+  'stoper sol': { left: 14, top: 20, width: 14, height: 30 },
+  'stoper sağ': { left: 14, top: 50, width: 14, height: 30 },
+  'ön libero': { left: 28, top: 20, width: 10, height: 60 },
+  'defansif orta saha sol': { left: 38, top: 20, width: 7, height: 30 },
+  'defansif orta saha sağ': { left: 38, top: 50, width: 7, height: 30 },
+  'merkez orta saha': { left: 45, top: 20, width: 13, height: 60 },
+  'ofansif orta saha': { left: 58, top: 20, width: 12, height: 60 },
+  'gizli forvet': { left: 70, top: 20, width: 5, height: 60 },
+  santrafor: { left: 75, top: 20, width: 25, height: 60 },
+  'sağ bek': { left: 0, top: 80, width: 35, height: 20 },
+  'sağ kanat': { left: 35, top: 80, width: 25, height: 20 },
+  'sağ açık': { left: 60, top: 80, width: 40, height: 20 },
+};
+
+export const getZoneShortCode = (zoneId: ZoneId): string => {
   return ZONE_SHORT_CODES[zoneId] ?? 'MO';
 };
 
+export const getZoneOverlayBounds = (zoneId: ZoneId): ZoneOverlayBounds =>
+  ZONE_OVERLAY_BOUNDS[zoneId];
 
-const isPitchLeft = (visualX: number): boolean => visualX <= 50;
-
-export const resolveZoneId = (slot: PitchSlot): ZoneId => {
-  // COORDINATE ROTATION FIX
-  // Pitch.tsx renders: left = (100 - slot.y)%, top = slot.x%
-  // So Visual X (Horizontal Depth) = 100 - slot.y
-  // So Visual Y (Vertical Side) = slot.x
-
-  const visualX = 100 - slot.y; // 0 (Left/GK) to 100 (Right/ST)
-  const visualY = slot.x;       // 0 (Top/Left Flank) to 100 (Bottom/Right Flank)
-
+const resolveZoneIdFromVisualCoordinates = (visualX: number, visualY: number): ZoneId => {
   // 1. Flank Zones (Based on Visual Y)
   if (visualY <= 20) { // Left Flank (Top)
     if (visualX < 35) return 'sol bek';
@@ -219,6 +255,12 @@ export const resolveZoneId = (slot: PitchSlot): ZoneId => {
   return 'santrafor';
 };
 
+export const resolveZoneIdFromCoordinates = (coords: Pick<PitchSlot, 'x' | 'y'>): ZoneId =>
+  resolveZoneIdFromVisualCoordinates(100 - coords.y, coords.x);
+
+export const resolveZoneId = (slot: PitchSlot): ZoneId =>
+  resolveZoneIdFromCoordinates(slot);
+
 export const getZoneDefinition = (zoneId: ZoneId): ZoneDefinition => ZONES[zoneId];
 
 type RecommendationOptions = {
@@ -247,6 +289,55 @@ export const positionAffinity = (player: DisplayPlayer, zone: ZoneDefinition): n
   );
   return fallbackMatch ? 0.6 : 0.3; // Significant penalty for mismatch
 };
+
+export type SlotFitLevel = 'exact' | 'near' | 'invalid';
+
+export const getZoneFitLevel = (
+  player: DisplayPlayer,
+  zoneId: ZoneId,
+  nearDropThreshold = 6,
+): SlotFitLevel => {
+  const zone = getZoneDefinition(zoneId);
+  const targetPosition = canonicalPosition(zone.slotPosition);
+  const naturalPosition = canonicalPosition(player.naturalPosition ?? player.position);
+  const allowedPositions = new Set<Player['position']>([
+    naturalPosition,
+    ...((player.roles ?? []).map(role => canonicalPosition(role))),
+  ]);
+  const projectedOverall = Math.min(
+    player.originalOverall,
+    computePositionOverall(targetPosition, player.attributes),
+  );
+  const drop = Math.max(0, player.originalOverall - projectedOverall);
+
+  if (targetPosition === 'GK') {
+    return !allowedPositions.has('GK')
+      ? 'invalid'
+      : drop === 0
+        ? 'exact'
+        : 'near';
+  }
+
+  if (allowedPositions.has('GK')) {
+    return 'invalid';
+  }
+
+  if (allowedPositions.has(targetPosition)) {
+    return drop === 0 ? 'exact' : 'near';
+  }
+
+  if (positionAffinity(player, zone) < 0.6) {
+    return 'invalid';
+  }
+
+  return drop <= nearDropThreshold ? 'near' : 'invalid';
+};
+
+export const getSlotFitLevel = (
+  player: DisplayPlayer,
+  slot: PitchSlot,
+  nearDropThreshold = 6,
+): SlotFitLevel => getZoneFitLevel(player, resolveZoneId(slot), nearDropThreshold);
 
 const skillScoreForZone = (player: DisplayPlayer, zone: ZoneDefinition): number => {
   const tags = zone.capabilityTags;

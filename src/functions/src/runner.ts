@@ -4,6 +4,11 @@ import { getFirestore, Timestamp, FieldValue } from 'firebase-admin/firestore';
 import * as pubsub from 'firebase-functions/v1/pubsub';
 import { dayKeyTR, dayRangeTR } from './utils/schedule.js';
 import { requireAppCheck, requireAuth } from './mw/auth.js';
+import {
+  applyLeagueMatchRevenueInTx,
+  applyStandingResultInTx,
+  resolveFixtureRevenueTeamIds,
+} from './utils/leagueMatchFinalize.js';
 
 const db = getFirestore();
 const REGION = 'europe-west1';
@@ -101,8 +106,6 @@ async function processMatch(
   doc: FirebaseFirestore.QueryDocumentSnapshot,
 ) {
   const data = doc.data() as any;
-  const homeRef = leagueRef.collection('standings').doc(data.homeTeamId);
-  const awayRef = leagueRef.collection('standings').doc(data.awayTeamId);
   const homeScore = Math.floor(Math.random() * 5);
   const awayScore = Math.floor(Math.random() * 5);
   const goalTimeline = buildGoalTimeline(
@@ -110,67 +113,30 @@ async function processMatch(
     awayScore,
     `${doc.id}-${data.homeTeamId || 'home'}-${data.awayTeamId || 'away'}`
   );
+  const resolvedTeamIds = await resolveFixtureRevenueTeamIds(
+    leagueRef.id,
+    (data as Record<string, unknown>) ?? {},
+  );
   await doc.ref.update({ status: 'in_progress' });
   await db.runTransaction(async (tx) => {
-    const homeSnap = await tx.get(homeRef);
-    const awaySnap = await tx.get(awayRef);
-    const hs = homeSnap.exists
-      ? (homeSnap.data() as any)
-      : {
-          teamId: data.homeTeamId,
-          name: '',
-          P: 0,
-          W: 0,
-          D: 0,
-          L: 0,
-          GF: 0,
-          GA: 0,
-          GD: 0,
-          Pts: 0,
-        };
-    const as = awaySnap.exists
-      ? (awaySnap.data() as any)
-      : {
-          teamId: data.awayTeamId,
-          name: '',
-          P: 0,
-          W: 0,
-          D: 0,
-          L: 0,
-          GF: 0,
-          GA: 0,
-          GD: 0,
-          Pts: 0,
-        };
-    hs.P++;
-    as.P++;
-    hs.GF += homeScore;
-    hs.GA += awayScore;
-    as.GF += awayScore;
-    as.GA += homeScore;
-    hs.GD = hs.GF - hs.GA;
-    as.GD = as.GF - as.GA;
-    if (homeScore > awayScore) {
-      hs.W++;
-      as.L++;
-      hs.Pts += 3;
-    } else if (homeScore < awayScore) {
-      as.W++;
-      hs.L++;
-      as.Pts += 3;
-    } else {
-      hs.D++;
-      as.D++;
-      hs.Pts++;
-      as.Pts++;
+    const snap = await tx.get(doc.ref);
+    if (!snap.exists) {
+      return;
     }
+    const cur = (snap.data() as Record<string, unknown>) ?? {};
+    if (cur.status === 'played') {
+      return;
+    }
+    const score = { home: homeScore, away: awayScore };
     tx.update(doc.ref, {
       status: 'played',
-      score: { home: homeScore, away: awayScore },
+      score,
       goalTimeline,
+      endedAt: FieldValue.serverTimestamp(),
+      playedAt: FieldValue.serverTimestamp(),
     });
-    tx.set(homeRef, hs, { merge: true });
-    tx.set(awayRef, as, { merge: true });
+    await applyStandingResultInTx(tx, doc.ref, cur, score);
+    await applyLeagueMatchRevenueInTx(tx, doc.ref, cur, resolvedTeamIds);
   });
 }
 
@@ -427,8 +393,6 @@ async function processSlotMatch(
   doc: FirebaseFirestore.QueryDocumentSnapshot,
 ) {
   const data = doc.data() as any;
-  const homeRef = leagueRef.collection('standings').doc(String(data.homeSlot));
-  const awayRef = leagueRef.collection('standings').doc(String(data.awaySlot));
   const homeScore = Math.floor(Math.random() * 5);
   const awayScore = Math.floor(Math.random() * 5);
   const goalTimeline = buildGoalTimeline(
@@ -436,29 +400,30 @@ async function processSlotMatch(
     awayScore,
     `${doc.id}-${data.homeSlot}-${data.awaySlot}`
   );
+  const resolvedTeamIds = await resolveFixtureRevenueTeamIds(
+    leagueRef.id,
+    (data as Record<string, unknown>) ?? {},
+  );
   await doc.ref.update({ status: 'in_progress' });
   await db.runTransaction(async (tx) => {
-    const homeSnap = await tx.get(homeRef);
-    const awaySnap = await tx.get(awayRef);
-    const hs = homeSnap.exists
-      ? (homeSnap.data() as any)
-      : { slotIndex: data.homeSlot, teamId: data.homeTeamId || null, name: '', P: 0, W: 0, D: 0, L: 0, GF: 0, GA: 0, GD: 0, Pts: 0 };
-    const as = awaySnap.exists
-      ? (awaySnap.data() as any)
-      : { slotIndex: data.awaySlot, teamId: data.awayTeamId || null, name: '', P: 0, W: 0, D: 0, L: 0, GF: 0, GA: 0, GD: 0, Pts: 0 };
-    hs.P++; as.P++;
-    hs.GF += homeScore; hs.GA += awayScore; hs.GD = hs.GF - hs.GA;
-    as.GF += awayScore; as.GA += homeScore; as.GD = as.GF - as.GA;
-    if (homeScore > awayScore) { hs.W++; as.L++; hs.Pts += 3; }
-    else if (homeScore < awayScore) { as.W++; hs.L++; as.Pts += 3; }
-    else { hs.D++; as.D++; hs.Pts++; as.Pts++; }
+    const snap = await tx.get(doc.ref);
+    if (!snap.exists) {
+      return;
+    }
+    const cur = (snap.data() as Record<string, unknown>) ?? {};
+    if (cur.status === 'played') {
+      return;
+    }
+    const score = { home: homeScore, away: awayScore };
     tx.update(doc.ref, {
       status: 'played',
-      score: { home: homeScore, away: awayScore },
+      score,
       goalTimeline,
+      endedAt: FieldValue.serverTimestamp(),
+      playedAt: FieldValue.serverTimestamp(),
     });
-    tx.set(homeRef, hs, { merge: true });
-    tx.set(awayRef, as, { merge: true });
+    await applyStandingResultInTx(tx, doc.ref, cur, score);
+    await applyLeagueMatchRevenueInTx(tx, doc.ref, cur, resolvedTeamIds);
   });
 }
 

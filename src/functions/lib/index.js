@@ -38,6 +38,7 @@ export { cronWatchdog } from './orchestrate/scheduler.js';
 export { finalizeWatchdogHttp } from './orchestrate/retry.js';
 export { renameClub, renameStadium } from './economy/rename.js';
 export { finalizeAndroidDiamondPurchase, finalizeAndroidCreditPurchase, finalizeAndroidSponsorPurchase, } from './economy/playBilling.js';
+export { activateUserSponsor, collectUserSponsorEarnings } from './economy/sponsors.js';
 export { createRewardedAdSession, claimRewardedAdReward, admobRewardedSsv, } from './economy/rewardedAds.js';
 export { notifyDueSignals } from './notify/dueSignals.js';
 export { finalizeDueTrainingSessions } from './notify/training.js';

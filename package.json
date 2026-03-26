@@ -8,6 +8,8 @@
     "dev:online": "node scripts/dev-online.mjs",
     "prebuild:disabled": "node scripts/copy-unity.mjs",
     "build": "vite build",
+    "android:sync": "npx cap sync android",
+    "android:prepare": "pnpm run build && npx cap sync android",
     "lint": "eslint --quiet ./src",
     "preview": "vite preview",
     "test": "vitest run --reporter=basic --silent --coverage=false",

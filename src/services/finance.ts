@@ -95,6 +95,19 @@ export interface UserSponsorDoc {
   nextPayoutAt?: Timestamp | null;
 }
 
+export interface ActivateUserSponsorResponse {
+  sponsorId: string;
+  sponsorName: string;
+  sponsorType: SponsorType;
+  active: boolean;
+}
+
+export interface CollectUserSponsorEarningsResponse {
+  sponsorId: string;
+  sponsorName: string;
+  payout: number;
+}
+
 export interface TeamSalaryRecord {
   playerId: string;
   name: string;
@@ -624,75 +637,22 @@ export async function recordCreditPurchase(teamId: string, pack: CreditPackage):
   });
 }
 
-export async function activateSponsor(teamId: string, sponsor: SponsorCatalogEntry): Promise<void> {
-  await ensureFinanceProfile(teamId);
-  const col = sponsorshipCollection(teamId);
-  const existing = await getDocs(col);
-  const batch = writeBatch(db);
-
-  existing.forEach((docSnap) => {
-    const isSelectedSponsor = docSnap.id === sponsor.id;
-    batch.set(
-      docSnap.ref,
-      {
-        active: isSelectedSponsor,
-        ...(isSelectedSponsor
-          ? {
-              catalogId: sponsor.catalogId,
-              name: sponsor.name,
-              type: sponsor.type,
-              reward: sponsor.reward,
-              price: sponsor.price ?? null,
-              storeProductId: sponsor.storeProductId ?? null,
-              activatedAt: serverTimestamp(),
-              lastPayoutAt: null,
-              nextPayoutAt: null,
-            }
-          : {}),
-      },
-      { merge: true },
-    );
-  });
-
-  if (!existing.docs.some((docSnap) => docSnap.id === sponsor.id)) {
-    const ref = doc(col, sponsor.id);
-    batch.set(ref, {
-      id: sponsor.id,
-      catalogId: sponsor.catalogId,
-      name: sponsor.name,
-      type: sponsor.type,
-      reward: sponsor.reward,
-      price: sponsor.price ?? null,
-      storeProductId: sponsor.storeProductId ?? null,
-      active: true,
-      activatedAt: serverTimestamp(),
-      lastPayoutAt: null,
-      nextPayoutAt: null,
-    });
-  }
-
-  await batch.commit();
+export async function activateSponsor(
+  sponsor: SponsorCatalogEntry,
+): Promise<ActivateUserSponsorResponse> {
+  const response = await activateUserSponsorCallable({ sponsorId: sponsor.id });
+  return response.data;
 }
 
-export async function applySponsorEarnings(teamId: string, sponsorId: string): Promise<number> {
-  await ensureFinanceProfile(teamId);
-  const ref = doc(sponsorshipCollection(teamId), sponsorId);
-  const financeRef = financeDoc(teamId);
-  const teamRef = teamDoc(teamId);
-  let payout = 0;
+export async function applySponsorEarnings(
+  sponsorId: string,
+): Promise<CollectUserSponsorEarningsResponse> {
+  const response = await collectUserSponsorEarningsCallable({ sponsorId });
+  return response.data;
 
-  await runTransaction(db, async (tx) => {
-    const [sponsorSnap, financeSnap, teamSnap] = await Promise.all([tx.get(ref), tx.get(financeRef), tx.get(teamRef)]);
-    if (!sponsorSnap.exists()) {
-      throw new Error('Sponsor bulunamadi.');
-    }
-    const data = sponsorSnap.data() as UserSponsorDoc;
-    if (!data.active) {
-      throw new Error('Sponsor aktif degil.');
-    }
-    const reward = data.reward;
-    const cadenceMs = reward.cycle === 'weekly' ? 7 * DAY_MS : DAY_MS;
-    const nowMs = Date.now();
+  /*
+
+  
     const lastPayoutMs = data.lastPayoutAt?.toMillis();
     const lastPayout = lastPayoutMs ?? data.activatedAt.toMillis();
     const nextPayoutAt = data.nextPayoutAt?.toMillis();
@@ -740,6 +700,7 @@ export async function applySponsorEarnings(teamId: string, sponsorId: string): P
   });
 
   return payout;
+  */
 }
 
 export function getExpectedRevenue(

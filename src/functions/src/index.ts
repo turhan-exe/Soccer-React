@@ -81,6 +81,7 @@ export {
   finalizeAndroidCreditPurchase,
   finalizeAndroidSponsorPurchase,
 } from './economy/playBilling.js';
+export { activateUserSponsor, collectUserSponsorEarnings } from './economy/sponsors.js';
 export {
   createRewardedAdSession,
   claimRewardedAdReward,

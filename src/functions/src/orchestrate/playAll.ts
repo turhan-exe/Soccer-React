@@ -5,6 +5,11 @@ import { dayRangeTR, dayKeyTR, ts } from '../utils/schedule.js';
 import { requireAppCheck, requireAuth } from '../mw/auth.js';
 import { startMatchInternal } from './startMatch.js';
 import { log } from '../logger.js';
+import {
+  applyLeagueMatchRevenueInTx,
+  applyStandingResultInTx,
+  resolveFixtureRevenueTeamIds,
+} from '../utils/leagueMatchFinalize.js';
 
 
 const db = getFirestore();
@@ -63,6 +68,43 @@ async function findFirstScheduledOnOrAfter(start: Date): Promise<FirebaseFiresto
     } catch {}
   }
   return best?.doc || null;
+}
+
+async function finalizeInstantFixture(
+  fixtureDoc: FirebaseFirestore.QueryDocumentSnapshot,
+  leagueId: string,
+): Promise<void> {
+  const fxRef = db.doc(`leagues/${leagueId}/fixtures/${fixtureDoc.id}`);
+  const resolvedTeamIds = await resolveFixtureRevenueTeamIds(
+    leagueId,
+    (fixtureDoc.data() as Record<string, unknown>) ?? {},
+  );
+
+  await db.runTransaction(async (tx) => {
+    const snap = await tx.get(fxRef);
+    if (!snap.exists) {
+      return;
+    }
+
+    const cur = (snap.data() as Record<string, unknown>) ?? {};
+    if (cur.status === 'played') {
+      return;
+    }
+
+    const score = {
+      home: Math.floor(Math.random() * 5),
+      away: Math.floor(Math.random() * 5),
+    };
+
+    tx.update(fxRef, {
+      status: 'played',
+      score,
+      endedAt: FieldValue.serverTimestamp(),
+      playedAt: FieldValue.serverTimestamp(),
+    });
+    await applyStandingResultInTx(tx, fxRef, cur, score);
+    await applyLeagueMatchRevenueInTx(tx, fxRef, cur, resolvedTeamIds);
+  });
 }
 
 /**
@@ -127,40 +169,7 @@ export const playAllForDayFn = functions
           const leagueId = d.ref.parent.parent?.id;
           if (!leagueId) continue;
           try {
-            const fxRef = db.doc(`leagues/${leagueId}/fixtures/${d.id}`);
-            await db.runTransaction(async (tx) => {
-              const snap = await tx.get(fxRef);
-              if (!snap.exists) return;
-              const cur = snap.data() as any;
-              if (cur.status === 'played') return; // idempotent
-              const homeId = cur.homeTeamId;
-              const awayId = cur.awayTeamId;
-              const h = Math.floor(Math.random() * 5);
-              const a = Math.floor(Math.random() * 5);
-              tx.update(fxRef, {
-                status: 'played',
-                score: { home: h, away: a },
-                endedAt: FieldValue.serverTimestamp(),
-              });
-              const leagueRef = fxRef.parent.parent!;
-              const homeRef = leagueRef.collection('standings').doc(homeId);
-              const awayRef = leagueRef.collection('standings').doc(awayId);
-              const [homeSnap, awaySnap] = await Promise.all([tx.get(homeRef), tx.get(awayRef)]);
-              const hs = homeSnap.exists
-                ? (homeSnap.data() as any)
-                : { teamId: homeId, name: '', P: 0, W: 0, D: 0, L: 0, GF: 0, GA: 0, GD: 0, Pts: 0 };
-              const as = awaySnap.exists
-                ? (awaySnap.data() as any)
-                : { teamId: awayId, name: '', P: 0, W: 0, D: 0, L: 0, GF: 0, GA: 0, GD: 0, Pts: 0 };
-              hs.P++; as.P++;
-              hs.GF += h; hs.GA += a; hs.GD = hs.GF - hs.GA;
-              as.GF += a; as.GA += h; as.GD = as.GF - as.GA;
-              if (h > a) { hs.W++; as.L++; hs.Pts += 3; }
-              else if (h < a) { as.W++; hs.L++; as.Pts += 3; }
-              else { hs.D++; as.D++; hs.Pts++; as.Pts++; }
-              tx.set(homeRef, hs, { merge: true });
-              tx.set(awayRef, as, { merge: true });
-            });
+            await finalizeInstantFixture(d, leagueId);
             started++;
           } catch (e) {
             log.error('playAllForDay_instant_err_one', { matchId: d.id, leagueId, err: (e as any)?.message || String(e) });
@@ -256,40 +265,7 @@ export const playAllForDayHttp = functions
           const leagueId = d.ref.parent.parent?.id;
           if (!leagueId) continue;
           try {
-            const fxRef = db.doc(`leagues/${leagueId}/fixtures/${d.id}`);
-            await db.runTransaction(async (tx) => {
-              const snap = await tx.get(fxRef);
-              if (!snap.exists) return;
-              const cur = snap.data() as any;
-              if (cur.status === 'played') return;
-              const homeId = cur.homeTeamId;
-              const awayId = cur.awayTeamId;
-              const h = Math.floor(Math.random() * 5);
-              const a = Math.floor(Math.random() * 5);
-              tx.update(fxRef, {
-                status: 'played',
-                score: { home: h, away: a },
-                endedAt: FieldValue.serverTimestamp(),
-              });
-              const leagueRef = fxRef.parent.parent!;
-              const homeRef = leagueRef.collection('standings').doc(homeId);
-              const awayRef = leagueRef.collection('standings').doc(awayId);
-              const [homeSnap, awaySnap] = await Promise.all([tx.get(homeRef), tx.get(awayRef)]);
-              const hs = homeSnap.exists
-                ? (homeSnap.data() as any)
-                : { teamId: homeId, name: '', P: 0, W: 0, D: 0, L: 0, GF: 0, GA: 0, GD: 0, Pts: 0 };
-              const as = awaySnap.exists
-                ? (awaySnap.data() as any)
-                : { teamId: awayId, name: '', P: 0, W: 0, D: 0, L: 0, GF: 0, GA: 0, GD: 0, Pts: 0 };
-              hs.P++; as.P++;
-              hs.GF += h; hs.GA += a; hs.GD = hs.GF - hs.GA;
-              as.GF += a; as.GA += h; as.GD = as.GF - as.GA;
-              if (h > a) { hs.W++; as.L++; hs.Pts += 3; }
-              else if (h < a) { as.W++; hs.L++; as.Pts += 3; }
-              else { hs.D++; as.D++; hs.Pts++; as.Pts++; }
-              tx.set(homeRef, hs, { merge: true });
-              tx.set(awayRef, as, { merge: true });
-            });
+            await finalizeInstantFixture(d, leagueId);
             started++;
           } catch (e) {
             log.error('playAllForDay_http_instant_err_one', { matchId: d.id, leagueId, err: (e as any)?.message || String(e) });

@@ -3,6 +3,14 @@ import { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 're
 import { AlertTriangle, Download, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
+  createPersistedAutoStartKey,
+  createPersistedGateState,
+  restorePersistedAutoStartKey,
+  restorePersistedGateState,
+  shouldRunResumeUpdateCheck,
+  type GateState,
+} from '@/components/system/forceUpdateGateSession';
+import {
   fetchAndroidMobileUpdatePolicyWithTimeout,
   getCachedAndroidMobileUpdatePolicy,
   setCachedAndroidMobileUpdatePolicy,
@@ -22,16 +30,6 @@ type ForceUpdateGateProps = {
   children: ReactNode;
 };
 
-type GatePhase = 'checking' | 'ready' | 'blocked';
-
-type GateState = {
-  phase: GatePhase;
-  policy: AndroidMobileUpdatePolicy | null;
-  installedVersionCode: number | null;
-  installedVersionName: string;
-  playUpdateState: PlayUpdateState;
-};
-
 const FALLBACK_PLAY_STATE: PlayUpdateState = {
   updateAvailable: false,
   immediateAllowed: false,
@@ -39,35 +37,130 @@ const FALLBACK_PLAY_STATE: PlayUpdateState = {
   source: 'fallback',
 };
 
-const INITIAL_STATE: GateState = {
-  phase: isAndroidNativeApp() ? 'checking' : 'ready',
+const GATE_STATE_STORAGE_KEY = 'fm_force_update_gate_state_v1';
+const AUTO_START_KEY_STORAGE_KEY = 'fm_force_update_gate_autostart_v1';
+
+let runtimeGateState: GateState | null = null;
+let runtimeLastCompletedCheckAt = 0;
+
+const READY_STATE: GateState = {
+  phase: 'ready',
   policy: null,
   installedVersionCode: null,
   installedVersionName: '',
   playUpdateState: FALLBACK_PLAY_STATE,
 };
 
+const CHECKING_STATE: GateState = {
+  ...READY_STATE,
+  phase: 'checking',
+};
+
+const readStorageValue = (key: string): string | null => {
+  try {
+    return window.localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+};
+
+const writeStorageValue = (key: string, value: string | null) => {
+  try {
+    if (value === null) {
+      window.localStorage.removeItem(key);
+      return;
+    }
+
+    window.localStorage.setItem(key, value);
+  } catch {
+    // Ignore storage failures and fall back to in-memory behavior.
+  }
+};
+
+const getRestoredGateState = (): GateState | null => {
+  if (runtimeGateState) {
+    return runtimeGateState;
+  }
+
+  const restoredState = restorePersistedGateState(
+    readStorageValue(GATE_STATE_STORAGE_KEY),
+    FALLBACK_PLAY_STATE,
+  );
+
+  if (restoredState) {
+    runtimeGateState = restoredState;
+  }
+
+  return restoredState;
+};
+
+const persistStableGateState = (state: GateState) => {
+  if (state.phase === 'checking') {
+    return;
+  }
+
+  runtimeGateState = state;
+  runtimeLastCompletedCheckAt = Date.now();
+  writeStorageValue(GATE_STATE_STORAGE_KEY, createPersistedGateState(state));
+};
+
+const getPersistedAutoStartKey = (): string | null =>
+  restorePersistedAutoStartKey(readStorageValue(AUTO_START_KEY_STORAGE_KEY));
+
+const persistAutoStartKey = (autoStartKey: string) => {
+  writeStorageValue(
+    AUTO_START_KEY_STORAGE_KEY,
+    createPersistedAutoStartKey(autoStartKey),
+  );
+};
+
+const getInitialGateState = (): GateState => {
+  if (!isAndroidNativeApp()) {
+    return READY_STATE;
+  }
+
+  return getRestoredGateState() ?? CHECKING_STATE;
+};
+
 const ForceUpdateGate = ({ children }: ForceUpdateGateProps) => {
-  const [gateState, setGateState] = useState<GateState>(INITIAL_STATE);
+  const [gateState, setGateState] = useState<GateState>(getInitialGateState);
   const [isStartingUpdate, setIsStartingUpdate] = useState(false);
-  const lastAutoStartKeyRef = useRef<string | null>(null);
+  const lastAutoStartKeyRef = useRef<string | null>(getPersistedAutoStartKey());
+  const lastBackgroundedAtRef = useRef<number | null>(null);
+  const lastCompletedCheckAtRef = useRef<number>(runtimeLastCompletedCheckAt);
   const requestIdRef = useRef(0);
   const targetPlatform = isAndroidNativeApp();
 
+  const commitGateState = useCallback((requestId: number, nextState: GateState) => {
+    if (requestId !== requestIdRef.current) {
+      return false;
+    }
+
+    setGateState(nextState);
+
+    if (nextState.phase !== 'checking') {
+      persistStableGateState(nextState);
+      lastCompletedCheckAtRef.current = runtimeLastCompletedCheckAt;
+    }
+
+    return true;
+  }, []);
+
   const applyPolicy = useCallback(
     async (
+      requestId: number,
       installedVersionCode: number | null,
       installedVersionName: string,
       policy: AndroidMobileUpdatePolicy | null,
     ) => {
       if (!targetPlatform) {
-        setGateState(INITIAL_STATE);
+        commitGateState(requestId, READY_STATE);
         return;
       }
 
       const shouldBlock = shouldForceUpdateForVersion(installedVersionCode, policy);
       if (!shouldBlock) {
-        setGateState({
+        commitGateState(requestId, {
           phase: 'ready',
           policy,
           installedVersionCode,
@@ -81,7 +174,7 @@ const ForceUpdateGate = ({ children }: ForceUpdateGateProps) => {
         ? await getPlayUpdateState()
         : FALLBACK_PLAY_STATE;
 
-      setGateState({
+      commitGateState(requestId, {
         phase: 'blocked',
         policy,
         installedVersionCode,
@@ -89,17 +182,21 @@ const ForceUpdateGate = ({ children }: ForceUpdateGateProps) => {
         playUpdateState: playState,
       });
     },
-    [targetPlatform],
+    [commitGateState, targetPlatform],
   );
 
   const runUpdateCheck = useCallback(
-    async (reason: 'startup' | 'resume') => {
+    async () => {
       if (!targetPlatform) {
         return;
       }
 
       const requestId = ++requestIdRef.current;
       const installedInfo = await getInstalledAppVersion();
+      if (requestId !== requestIdRef.current) {
+        return;
+      }
+
       const cachedPolicy = getCachedAndroidMobileUpdatePolicy();
       const cachedBlocks = shouldForceUpdateForVersion(
         installedInfo.versionCode,
@@ -108,18 +205,11 @@ const ForceUpdateGate = ({ children }: ForceUpdateGateProps) => {
 
       if (cachedBlocks) {
         await applyPolicy(
+          requestId,
           installedInfo.versionCode,
           installedInfo.versionName,
           cachedPolicy,
         );
-      } else if (reason === 'startup') {
-        setGateState({
-          phase: 'checking',
-          policy: null,
-          installedVersionCode: installedInfo.versionCode,
-          installedVersionName: installedInfo.versionName,
-          playUpdateState: FALLBACK_PLAY_STATE,
-        });
       }
 
       const remotePolicy = await fetchAndroidMobileUpdatePolicyWithTimeout();
@@ -130,6 +220,7 @@ const ForceUpdateGate = ({ children }: ForceUpdateGateProps) => {
       if (remotePolicy) {
         setCachedAndroidMobileUpdatePolicy(remotePolicy);
         await applyPolicy(
+          requestId,
           installedInfo.versionCode,
           installedInfo.versionName,
           remotePolicy,
@@ -139,6 +230,7 @@ const ForceUpdateGate = ({ children }: ForceUpdateGateProps) => {
 
       if (cachedBlocks) {
         await applyPolicy(
+          requestId,
           installedInfo.versionCode,
           installedInfo.versionName,
           cachedPolicy,
@@ -146,7 +238,7 @@ const ForceUpdateGate = ({ children }: ForceUpdateGateProps) => {
         return;
       }
 
-      setGateState({
+      commitGateState(requestId, {
         phase: 'ready',
         policy: null,
         installedVersionCode: installedInfo.versionCode,
@@ -154,7 +246,7 @@ const ForceUpdateGate = ({ children }: ForceUpdateGateProps) => {
         playUpdateState: FALLBACK_PLAY_STATE,
       });
     },
-    [applyPolicy, targetPlatform],
+    [applyPolicy, commitGateState, targetPlatform],
   );
 
   useEffect(() => {
@@ -162,11 +254,25 @@ const ForceUpdateGate = ({ children }: ForceUpdateGateProps) => {
       return;
     }
 
-    void runUpdateCheck('startup');
+    void runUpdateCheck();
 
     const listener = CapacitorApp.addListener('appStateChange', ({ isActive }) => {
-      if (isActive) {
-        void runUpdateCheck('resume');
+      const now = Date.now();
+
+      if (!isActive) {
+        lastBackgroundedAtRef.current = now;
+        return;
+      }
+
+      const shouldRecheck = shouldRunResumeUpdateCheck({
+        now,
+        lastCompletedCheckAt: lastCompletedCheckAtRef.current,
+        lastBackgroundedAt: lastBackgroundedAtRef.current,
+      });
+
+      lastBackgroundedAtRef.current = null;
+      if (shouldRecheck) {
+        void runUpdateCheck();
       }
     });
 
@@ -225,6 +331,7 @@ const ForceUpdateGate = ({ children }: ForceUpdateGateProps) => {
     }
 
     lastAutoStartKeyRef.current = autoStartKey;
+    persistAutoStartKey(autoStartKey);
     void handleUpdateAction();
   }, [
     gateState.installedVersionCode,

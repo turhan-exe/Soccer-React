@@ -189,7 +189,7 @@ function clearVideoPublishRetry(allocation) {
 }
 
 function scheduleVideoPublishRetry(allocation, source = "unknown", attempt = 0) {
-  if (!allocation || allocation.videoPublished) {
+  if (!allocation || allocation.videoPublished || !shouldEnableLiveVideoForAllocation()) {
     return;
   }
 
@@ -649,7 +649,7 @@ function shouldUseVirtualDisplayForRecording() {
 }
 
 function shouldEnableLiveVideoForAllocation() {
-  return isLiveVideoRecordingEnabled();
+  return toBool(process.env.NODE_AGENT_ENABLE_LIVE_VIDEO, false) && isLiveVideoRecordingEnabled();
 }
 
 function hasUsableXvfb() {

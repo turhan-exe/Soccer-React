@@ -3,8 +3,13 @@ import { Shirt } from 'lucide-react';
 import type { Player } from '@/types';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
-import { getPositionShortLabel } from './teamPlanningUtils';
-import { getZoneShortCode } from './slotZones';
+import {
+  getZoneOverlayBounds,
+  getZoneShortCode,
+  resolveZoneId,
+  type SlotFitLevel,
+  type ZoneId,
+} from './slotZones';
 import type { PitchSlot } from './teamPlanningUtils';
 export type { PitchSlot };
 import type { MetricKey } from './useTeamPlanningStore';
@@ -18,6 +23,7 @@ const PITCH_MARKER_SIZE = 75;
 
 type PitchProps = {
   slots: PitchSlot[];
+  zoneHighlights?: Array<{ zoneId: ZoneId; fitLevel: SlotFitLevel }>;
   onPitchDrop: (event: React.DragEvent<HTMLDivElement>) => void;
   onPositionDrop: (event: React.DragEvent<HTMLDivElement>, slot: PitchSlot) => void;
   onPlayerDragStart: (player: Player, event: React.DragEvent<HTMLDivElement>) => void;
@@ -25,6 +31,7 @@ type PitchProps = {
   onSelectPlayer: (playerId: string) => void;
   onSelectSlot?: (slot: PitchSlot) => void;
   focusedPlayerId: string | null;
+  draggedPlayerId?: string | null;
   selectedMetric: MetricKey;
   getMetricValue: (player: Player, metric: MetricKey) => number;
   renderTooltip: (player: Player) => React.ReactNode;
@@ -40,6 +47,7 @@ type PitchPlayerMarkerProps = {
   onSelect: () => void;
   onDragStart: (event: React.DragEvent<HTMLDivElement>) => void;
   onDragEnd: (event: React.DragEvent<HTMLDivElement>) => void;
+  onTouchDragPreview?: (preview: { clientX: number; clientY: number } | null) => void;
 };
 
 const formatMetricValue = (metric: MetricKey, value: number): string => {
@@ -57,6 +65,7 @@ const PitchPlayerMarker: React.FC<PitchPlayerMarkerProps> = ({
   onSelect,
   onDragStart,
   onDragEnd,
+  onTouchDragPreview,
 }) => {
   const normalizedValue = Math.max(0, Math.min(100, Number.isFinite(value) ? value : 0));
   const [isPressing, setIsPressing] = useState(false);
@@ -173,6 +182,7 @@ const PitchPlayerMarker: React.FC<PitchPlayerMarkerProps> = ({
       elementRef.current.style.transform = `translate(${dx}px, ${dy}px) scale(1.2)`;
       elementRef.current.style.zIndex = '100';
     }
+    onTouchDragPreview?.({ clientX: touch.clientX, clientY: touch.clientY });
   };
 
   const handleTouchEnd = (e: React.TouchEvent) => {
@@ -196,6 +206,7 @@ const PitchPlayerMarker: React.FC<PitchPlayerMarkerProps> = ({
     } as unknown as React.DragEvent<HTMLDivElement>;
 
     handleDragEnd(fakeEvent);
+    onTouchDragPreview?.(null);
   };
 
   const handleTouchCancel = useCallback(() => {
@@ -203,6 +214,7 @@ const PitchPlayerMarker: React.FC<PitchPlayerMarkerProps> = ({
     resetTouchVisualState();
     clearPressTimeout();
     setIsPressing(false);
+    onTouchDragPreview?.(null);
   }, [clearPressTimeout, resetTouchVisualState]);
 
   const handleClick = useCallback(() => {
@@ -272,6 +284,7 @@ const mergeRefs = <T extends HTMLElement>(
 const Pitch = forwardRef<HTMLDivElement, PitchProps>((props, forwardedRef) => {
   const {
     slots,
+    zoneHighlights = [],
     onPitchDrop,
     onPositionDrop,
     onPlayerDragStart,
@@ -279,6 +292,7 @@ const Pitch = forwardRef<HTMLDivElement, PitchProps>((props, forwardedRef) => {
     onSelectPlayer,
     onSelectSlot,
     focusedPlayerId,
+    draggedPlayerId = null,
     selectedMetric,
     getMetricValue,
     renderTooltip,
@@ -289,6 +303,7 @@ const Pitch = forwardRef<HTMLDivElement, PitchProps>((props, forwardedRef) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const fieldRef = useRef<HTMLDivElement | null>(null);
   const [markerScale, setMarkerScale] = useState(1);
+  const [activeDropZoneId, setActiveDropZoneId] = useState<ZoneId | null>(null);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -325,6 +340,61 @@ const Pitch = forwardRef<HTMLDivElement, PitchProps>((props, forwardedRef) => {
     event.preventDefault();
   }, []);
 
+  const zoneHighlightMap = useMemo(
+    () => new Map(zoneHighlights.map(highlight => [highlight.zoneId, highlight.fitLevel])),
+    [zoneHighlights],
+  );
+
+  const updateTouchDragPreview = useCallback(
+    (preview: { clientX: number; clientY: number } | null) => {
+      const field = fieldRef.current;
+      if (!preview || !field) {
+        setActiveDropZoneId(null);
+        return;
+      }
+
+      const rect = field.getBoundingClientRect();
+      if (
+        rect.width === 0 ||
+        rect.height === 0 ||
+        preview.clientX < rect.left ||
+        preview.clientX > rect.right ||
+        preview.clientY < rect.top ||
+        preview.clientY > rect.bottom
+      ) {
+        setActiveDropZoneId(null);
+        return;
+      }
+
+      const relativeX = ((preview.clientX - rect.left) / rect.width) * 100;
+      const relativeY = ((preview.clientY - rect.top) / rect.height) * 100;
+      const gameY = 100 - relativeX;
+      const gameX = relativeY;
+
+      let bestZoneId: ZoneId | null = null;
+      let bestDistance = Number.POSITIVE_INFINITY;
+
+      slots.forEach(slot => {
+        const dx = slot.x - gameX;
+        const dy = slot.y - gameY;
+        const distance = dx * dx + dy * dy;
+        if (distance < bestDistance) {
+          bestDistance = distance;
+          bestZoneId = resolveZoneId(slot);
+        }
+      });
+
+      setActiveDropZoneId(bestZoneId);
+    },
+    [slots],
+  );
+
+  useEffect(() => {
+    if (!draggedPlayerId) {
+      setActiveDropZoneId(null);
+    }
+  }, [draggedPlayerId]);
+
   const mergedFieldRef = useMemo(
     () => mergeRefs<HTMLDivElement>(forwardedRef, fieldRef),
     [forwardedRef],
@@ -349,7 +419,10 @@ const Pitch = forwardRef<HTMLDivElement, PitchProps>((props, forwardedRef) => {
           ref={mergedFieldRef}
           className="relative h-full w-full"
           onDragOver={handleDragOver}
-          onDrop={onPitchDrop}
+          onDrop={event => {
+            setActiveDropZoneId(null);
+            onPitchDrop(event);
+          }}
         >
           {/* Horizontal Field SVG lines */}
           <div className="absolute inset-0 opacity-60">
@@ -397,7 +470,65 @@ const Pitch = forwardRef<HTMLDivElement, PitchProps>((props, forwardedRef) => {
             </svg>
           </div>
 
-          <div className="absolute inset-0">
+          <div className="pointer-events-none absolute inset-0 z-[1]">
+            {Array.from(zoneHighlightMap.entries()).map(([zoneId, fitLevel]) => {
+              const bounds = getZoneOverlayBounds(zoneId);
+              const isActiveDropTarget = activeDropZoneId === zoneId;
+
+              return (
+                <div
+                  key={zoneId}
+                  className={cn(
+                    'absolute flex items-start justify-center overflow-hidden rounded-[14px] border shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)] transition-all duration-150',
+                    fitLevel === 'exact'
+                      ? 'border-emerald-200/85'
+                      : 'border-amber-200/85',
+                    isActiveDropTarget &&
+                      (fitLevel === 'exact'
+                        ? 'border-emerald-50'
+                        : 'border-amber-50'),
+                  )}
+                  style={{
+                    left: `${bounds.left}%`,
+                    top: `${bounds.top}%`,
+                    width: `${bounds.width}%`,
+                    height: `${bounds.height}%`,
+                  }}
+                >
+                  <div
+                    className={cn(
+                      'absolute inset-0',
+                      fitLevel === 'exact'
+                        ? 'bg-emerald-300/30'
+                        : 'bg-amber-300/30',
+                      isActiveDropTarget &&
+                        (fitLevel === 'exact'
+                          ? 'bg-emerald-300/42'
+                          : 'bg-amber-200/42'),
+                    )}
+                  />
+                  <div
+                    className={cn(
+                      'absolute inset-0 opacity-35',
+                      fitLevel === 'exact'
+                        ? 'bg-[linear-gradient(135deg,rgba(255,255,255,0.12)_0%,rgba(255,255,255,0.02)_45%,rgba(16,185,129,0.18)_100%)]'
+                        : 'bg-[linear-gradient(135deg,rgba(255,255,255,0.12)_0%,rgba(255,255,255,0.02)_45%,rgba(245,158,11,0.18)_100%)]',
+                    )}
+                  />
+                  <div
+                    className={cn(
+                      'relative z-10 mt-2 rounded-full px-2 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-white/95 shadow-sm backdrop-blur-sm',
+                      fitLevel === 'exact' ? 'bg-emerald-950/45' : 'bg-amber-950/45',
+                    )}
+                  >
+                    {getZoneShortCode(zoneId)}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="absolute inset-0 z-10">
             {slots.map(slot => {
               // Coordinate logic matches SVG geometry (4% padding)
               // Since SVG stretches 100%, these % values map perfectly to the visual elements.
@@ -413,8 +544,16 @@ const Pitch = forwardRef<HTMLDivElement, PitchProps>((props, forwardedRef) => {
                   key={slot.slotIndex}
                   className="absolute flex -translate-x-1/2 -translate-y-1/2 flex-col items-center"
                   style={{ left: `${horizX}% `, top: `${horizY}% ` }}
-                  onDragOver={handleDragOver}
-                  onDrop={event => onPositionDrop(event, slot)}
+                  onDragOver={event => {
+                    handleDragOver(event);
+                    if (draggedPlayerId) {
+                      setActiveDropZoneId(resolveZoneId(slot));
+                    }
+                  }}
+                  onDrop={event => {
+                    setActiveDropZoneId(null);
+                    onPositionDrop(event, slot);
+                  }}
                   onClick={e => {
                     e.stopPropagation();
                     onSelectSlot?.(slot);
@@ -423,7 +562,7 @@ const Pitch = forwardRef<HTMLDivElement, PitchProps>((props, forwardedRef) => {
                   {slot.player ? (
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <div style={{ transform: `scale(${markerScale})`, transformOrigin: 'center' }}>
+                        <div className="relative z-10" style={{ transform: `scale(${markerScale})`, transformOrigin: 'center' }}>
                           <PitchPlayerMarker
                             player={slot.player}
                             value={getMetricValue(slot.player, selectedMetric)}
@@ -432,6 +571,7 @@ const Pitch = forwardRef<HTMLDivElement, PitchProps>((props, forwardedRef) => {
                             onSelect={() => onSelectPlayer(slot.player!.id)}
                             onDragStart={event => onPlayerDragStart(slot.player!, event)}
                             onDragEnd={event => onPlayerDragEnd(slot.player!, event)}
+                            onTouchDragPreview={updateTouchDragPreview}
                           />
                         </div>
                       </TooltipTrigger>
@@ -441,10 +581,10 @@ const Pitch = forwardRef<HTMLDivElement, PitchProps>((props, forwardedRef) => {
                     </Tooltip>
                   ) : (
                     <div
-                      className="flex h-[3.5rem] w-[3.5rem] items-center justify-center rounded-full border-2 border-dashed border-white/30 bg-white/5 px-1.5 text-[10px] font-bold uppercase tracking-wider text-orange-100/50"
+                      className="relative z-10 flex h-[3.5rem] w-[3.5rem] items-center justify-center rounded-full border-2 border-dashed border-white/30 bg-white/5 px-1.5 text-[10px] font-bold uppercase tracking-wider text-orange-100/50"
                       style={{ transform: `scale(${markerScale})`, transformOrigin: 'center' }}
                     >
-                      {getZoneShortCode(slot)}
+                      {getZoneShortCode(resolveZoneId(slot))}
                     </div>
                   )}
                 </div>

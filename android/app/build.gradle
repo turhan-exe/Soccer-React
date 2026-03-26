@@ -1,4 +1,5 @@
 apply plugin: 'com.android.application'
+import groovy.json.JsonSlurper
 
 // Keystore properties dosyasını oku
 def keystorePropertiesFile = rootProject.file("keystore.properties")
@@ -22,6 +23,10 @@ def admobAppId = admobUseTestIds
 def admobRewardedUnitId = admobUseTestIds
     ? admobSampleRewardedUnitId
     : admobProperties.getProperty("ADMOB_REWARDED_UNIT_ID_ANDROID", admobSampleRewardedUnitId)
+def appVersionFile = rootProject.file("../app.version.json")
+def appVersionConfig = appVersionFile.exists()
+    ? new JsonSlurper().parse(appVersionFile)
+    : [versionName: "1.0.13", versionCode: 2026032613]
 
 android {
     namespace "com.nerbuss.fhsmanager"
@@ -31,8 +36,8 @@ android {
         applicationId "com.nerbuss.fhsmanager"
         minSdkVersion 25
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 2026031708
-        versionName "1.0.8"
+        versionCode (appVersionConfig.versionCode as Integer)
+        versionName appVersionConfig.versionName.toString()
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         manifestPlaceholders = [admobAppId: admobAppId]
         buildConfigField "String", "ADMOB_APP_ID", "\"${admobAppId}\""

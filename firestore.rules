@@ -55,10 +55,7 @@ service cloud.firestore {
       }
       match /sponsorships/{sponsorId} {
         allow read: if isOwner(uid);
-        allow create, update: if isOwner(uid) && (
-          !isPremiumSponsorCatalogEntry(sponsorId) || request.resource.data.active != true
-        );
-        allow delete: if isOwner(uid);
+        allow create, update, delete: if false;
       }
       match /sponsorPurchases/{purchaseId} {
         allow read: if isOwner(uid);

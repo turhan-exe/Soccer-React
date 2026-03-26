@@ -1,6 +1,11 @@
 import * as functions from 'firebase-functions/v1';
 import '../_firebase.js';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
+import {
+  applyLeagueMatchRevenueInTx,
+  applyStandingResultInTx,
+  resolveFixtureRevenueTeamIds,
+} from '../utils/leagueMatchFinalize.js';
 
 
 const db = getFirestore();
@@ -34,66 +39,41 @@ export const reportResult = functions.region('europe-west1').https.onRequest(asy
     const fixtureRef = db.doc(`leagues/${leagueId}/fixtures/${matchId}`);
     const replayPath: string = body?.replay?.path || `replays/${seasonId}/${leagueId}/${matchId}.json`;
     const score = normalizeScore(body);
+    const fixtureBeforeSnap = await fixtureRef.get();
+    if (!fixtureBeforeSnap.exists) {
+      throw new Error('fixture not found');
+    }
+    const resolvedTeamIds = await resolveFixtureRevenueTeamIds(
+      leagueId,
+      (fixtureBeforeSnap.data() as Record<string, unknown>) ?? {},
+    );
 
     await db.runTransaction(async (tx) => {
       const snap = await tx.get(fixtureRef);
       if (!snap.exists) throw new Error('fixture not found');
-      const cur = snap.data() as any;
-      if (cur.status === 'played') return; // idempotent
+      const cur = (snap.data() as Record<string, unknown>) ?? {};
+      const currentStatus = String(cur.status || 'scheduled');
 
-      tx.update(fixtureRef, {
+      const updatePatch: Record<string, unknown> = {
         status: 'played',
         score,
         replayPath,
-        playedAt: FieldValue.serverTimestamp(),
-        endedAt: FieldValue.serverTimestamp(),
         'live.state': 'ended',
         'live.endedAt': FieldValue.serverTimestamp(),
         'live.lastLifecycleAt': FieldValue.serverTimestamp(),
         'live.resultMissing': false,
         'live.reason': FieldValue.delete(),
-      });
-
-      const homeId = cur.homeTeamId;
-      const awayId = cur.awayTeamId;
-      const leagueRef = fixtureRef.parent.parent!;
-      const homeRef = leagueRef.collection('standings').doc(homeId);
-      const awayRef = leagueRef.collection('standings').doc(awayId);
-
-      const [homeSnap, awaySnap] = await Promise.all([tx.get(homeRef), tx.get(awayRef)]);
-      const hs = homeSnap.exists
-        ? (homeSnap.data() as any)
-        : { teamId: homeId, name: '', P: 0, W: 0, D: 0, L: 0, GF: 0, GA: 0, GD: 0, Pts: 0 };
-      const as = awaySnap.exists
-        ? (awaySnap.data() as any)
-        : { teamId: awayId, name: '', P: 0, W: 0, D: 0, L: 0, GF: 0, GA: 0, GD: 0, Pts: 0 };
-
-      const h = score.home;
-      const a = score.away;
-      hs.P++;
-      as.P++;
-      hs.GF += h;
-      hs.GA += a;
-      as.GF += a;
-      as.GA += h;
-      hs.GD = hs.GF - hs.GA;
-      as.GD = as.GF - as.GA;
-      if (h > a) {
-        hs.W++;
-        as.L++;
-        hs.Pts += 3;
-      } else if (h < a) {
-        as.W++;
-        hs.L++;
-        as.Pts += 3;
-      } else {
-        hs.D++;
-        as.D++;
-        hs.Pts++;
-        as.Pts++;
+      };
+      if (currentStatus !== 'played') {
+        updatePatch.playedAt = FieldValue.serverTimestamp();
+        updatePatch.endedAt = FieldValue.serverTimestamp();
       }
-      tx.set(homeRef, hs, { merge: true });
-      tx.set(awayRef, as, { merge: true });
+      tx.update(fixtureRef, updatePatch);
+
+      if (currentStatus !== 'played') {
+        await applyStandingResultInTx(tx, fixtureRef, cur, score);
+      }
+      await applyLeagueMatchRevenueInTx(tx, fixtureRef, cur, resolvedTeamIds);
     });
 
     functions.logger.info('[RESULT] Finalized via HTTP', { leagueId, matchId, score, replayPath });

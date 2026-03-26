@@ -7,6 +7,11 @@ import { createHmac, randomUUID } from 'crypto';
 import { trAt, dayKeyTR } from './utils/schedule.js';
 import { ensureBotTeamDoc } from './utils/bots.js';
 import { buildUnityRuntimeTeamPayload, type UnityRuntimeTeamPayload } from './utils/unityRuntimePayload.js';
+import {
+  applyLeagueMatchRevenueInTx,
+  applyStandingResultInTx,
+  resolveFixtureRevenueTeamIds,
+} from './utils/leagueMatchFinalize.js';
 import { enqueueRenderJob } from './replay/renderJob.js';
 import { enqueueLeagueMatchReminder } from './notify/matchReminder.js';
 
@@ -269,69 +274,6 @@ function extractInlineScore(body: Record<string, unknown>, resultPayload: Record
   }
 
   return { home, away };
-}
-
-async function applyStandingResultInTx(
-  tx: FirebaseFirestore.Transaction,
-  fixtureRef: FirebaseFirestore.DocumentReference<FirebaseFirestore.DocumentData>,
-  fixture: any,
-  score: { home: number; away: number },
-) {
-  const homeSlot = Number(fixture.homeSlot);
-  const awaySlot = Number(fixture.awaySlot);
-  const useSlots = Number.isFinite(homeSlot) || Number.isFinite(awaySlot);
-  const homeId = useSlots
-    ? (Number.isFinite(homeSlot) ? String(homeSlot) : null)
-    : (fixture.homeTeamId ? String(fixture.homeTeamId) : null);
-  const awayId = useSlots
-    ? (Number.isFinite(awaySlot) ? String(awaySlot) : null)
-    : (fixture.awayTeamId ? String(fixture.awayTeamId) : null);
-
-  if (!homeId || !awayId) return;
-
-  const leagueRef = fixtureRef.parent.parent!;
-  const homeRef = leagueRef.collection('standings').doc(homeId);
-  const awayRef = leagueRef.collection('standings').doc(awayId);
-  const [homeSnap, awaySnap] = await Promise.all([tx.get(homeRef), tx.get(awayRef)]);
-
-  const hs = homeSnap.exists
-    ? (homeSnap.data() as any)
-    : useSlots
-      ? { slotIndex: homeSlot, teamId: fixture.homeTeamId ?? null, name: '', P: 0, W: 0, D: 0, L: 0, GF: 0, GA: 0, GD: 0, Pts: 0 }
-      : { teamId: homeId, name: '', P: 0, W: 0, D: 0, L: 0, GF: 0, GA: 0, GD: 0, Pts: 0 };
-
-  const as = awaySnap.exists
-    ? (awaySnap.data() as any)
-    : useSlots
-      ? { slotIndex: awaySlot, teamId: fixture.awayTeamId ?? null, name: '', P: 0, W: 0, D: 0, L: 0, GF: 0, GA: 0, GD: 0, Pts: 0 }
-      : { teamId: awayId, name: '', P: 0, W: 0, D: 0, L: 0, GF: 0, GA: 0, GD: 0, Pts: 0 };
-
-  hs.P += 1;
-  as.P += 1;
-  hs.GF += score.home;
-  hs.GA += score.away;
-  hs.GD = hs.GF - hs.GA;
-  as.GF += score.away;
-  as.GA += score.home;
-  as.GD = as.GF - as.GA;
-
-  if (score.home > score.away) {
-    hs.W += 1;
-    as.L += 1;
-    hs.Pts += 3;
-  } else if (score.home < score.away) {
-    as.W += 1;
-    hs.L += 1;
-    as.Pts += 3;
-  } else {
-    hs.D += 1;
-    as.D += 1;
-    hs.Pts += 1;
-    as.Pts += 1;
-  }
-
-  tx.set(homeRef, hs, { merge: true });
-  tx.set(awayRef, as, { merge: true });
 }
 
 function requireMatchControlConfig() {
@@ -1664,6 +1606,10 @@ export const ingestLeagueMatchLifecycleHttp = functions
 
       const shouldFinalizeInline = state === 'ended' && inlineScore != null;
       if (shouldFinalizeInline) {
+        const resolvedTeamIds = await resolveFixtureRevenueTeamIds(
+          fixtureRef.parent.parent!.id,
+          fixture as Record<string, unknown>,
+        );
         await db.runTransaction(async (tx) => {
           const currentSnap = await tx.get(fixtureRef!);
           if (!currentSnap.exists) return;
@@ -1673,15 +1619,18 @@ export const ingestLeagueMatchLifecycleHttp = functions
             ...patch,
             status: 'played',
             score: inlineScore,
-            endedAt: FieldValue.serverTimestamp(),
-            playedAt: FieldValue.serverTimestamp(),
             'live.resultMissing': false,
           };
+          if (currentFixtureStatus !== 'played') {
+            updatePatch.endedAt = FieldValue.serverTimestamp();
+            updatePatch.playedAt = FieldValue.serverTimestamp();
+          }
 
           // Standings must be advanced here, otherwise later storage finalize is skipped by idempotency.
           if (currentFixtureStatus !== 'played') {
             await applyStandingResultInTx(tx, fixtureRef!, currentFixture, inlineScore);
           }
+          await applyLeagueMatchRevenueInTx(tx, fixtureRef!, currentFixture, resolvedTeamIds);
           tx.set(fixtureRef!, updatePatch, { merge: true });
         });
       } else {

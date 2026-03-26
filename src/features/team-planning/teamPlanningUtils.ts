@@ -98,6 +98,7 @@ export type PlayerBaseline = {
 };
 
 export type DisplayPlayer = Player & {
+  naturalPosition: Player['position'];
   originalOverall: number;
   assignedOverall: number;
   isOutOfPosition: boolean;
@@ -420,6 +421,7 @@ export function buildDisplayPlayer(
 
   return {
     ...player,
+    naturalPosition: baselinePosition,
     overall: computedOverall,
     originalOverall,
     assignedOverall: computedOverall,

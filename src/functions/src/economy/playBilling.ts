@@ -3,6 +3,17 @@ import { FieldValue, getFirestore } from 'firebase-admin/firestore';
 import { GoogleAuth } from 'google-auth-library';
 import { createHash } from 'crypto';
 import '../_firebase.js';
+import {
+  assertSponsorActivationAllowed,
+  buildSponsorActivationMutations,
+} from './sponsorActivation.js';
+import {
+  buildSponsorProductId,
+  getSponsorCatalogConfig,
+  normalizeSponsorString,
+  type SponsorCatalogConfig,
+  type SponsorRewardCycle,
+} from './sponsorCatalog.js';
 
 const db = getFirestore();
 const publisherAuth = new GoogleAuth({
@@ -48,21 +59,6 @@ type ValidatedPurchaseInput = {
   requestPackageName: string;
 };
 
-type SponsorRewardCycle = 'daily' | 'weekly';
-
-type SponsorCatalogConfig = {
-  sponsorId: string;
-  catalogId: string;
-  sponsorName: string;
-  type: 'free' | 'premium';
-  reward: {
-    amount: number;
-    cycle: SponsorRewardCycle;
-  };
-  price: number | null;
-  storeProductId: string;
-};
-
 const validateAuth = (context: functions.https.CallableContext): string => {
   const uid = context.auth?.uid;
   if (!uid) {
@@ -70,8 +66,6 @@ const validateAuth = (context: functions.https.CallableContext): string => {
   }
   return uid;
 };
-
-const normalizeString = (value: unknown): string => (typeof value === 'string' ? value.trim() : '');
 
 const getDiamondProductConfig = (productId: string) => {
   if (!(productId in DIAMOND_PRODUCT_CONFIG)) {
@@ -199,10 +193,10 @@ const parsePurchaseInput = (
   context: functions.https.CallableContext,
 ): ValidatedPurchaseInput => {
   const uid = validateAuth(context);
-  const productId = normalizeString(data?.productId);
-  const purchaseToken = normalizeString(data?.purchaseToken);
-  const requestOrderId = normalizeString(data?.orderId);
-  const requestPackageName = normalizeString(data?.packageName);
+  const productId = normalizeSponsorString(data?.productId);
+  const purchaseToken = normalizeSponsorString(data?.purchaseToken);
+  const requestOrderId = normalizeSponsorString(data?.orderId);
+  const requestPackageName = normalizeSponsorString(data?.packageName);
 
   if (!productId) {
     throw new functions.https.HttpsError('invalid-argument', 'productId zorunludur.');
@@ -279,87 +273,6 @@ const resolveTeamBalance = (
       : (financeData?.balance ?? FINANCE_DEFAULT_BALANCE);
 
   return Math.max(0, Math.round(balanceSource));
-};
-
-const sanitizeSponsorKey = (value: string): string =>
-  value
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9_.]+/g, '_')
-    .replace(/_+/g, '_')
-    .replace(/^_+|_+$/g, '');
-
-const buildSponsorProductId = (catalogId: string, explicitProductId?: string | null): string => {
-  const normalizedExplicit = normalizeString(explicitProductId);
-  if (normalizedExplicit) {
-    return normalizedExplicit;
-  }
-
-  const key = sanitizeSponsorKey(catalogId);
-  return key ? `sponsor_${key}` : '';
-};
-
-const resolveSponsorReward = (
-  rawReward: unknown,
-  rawCycle: unknown,
-): { amount: number; cycle: SponsorRewardCycle } => {
-  const resolveCycle = (): SponsorRewardCycle => {
-    if (rawCycle === 'daily' || rawCycle === 'weekly') {
-      return rawCycle;
-    }
-    if (typeof rawCycle === 'number') {
-      return rawCycle <= 1 ? 'daily' : 'weekly';
-    }
-    return 'weekly';
-  };
-
-  if (typeof rawReward === 'number') {
-    return { amount: Number(rawReward), cycle: resolveCycle() };
-  }
-
-  if (typeof rawReward === 'object' && rawReward !== null) {
-    const rewardObject = rawReward as Record<string, unknown>;
-    return {
-      amount: Number(rewardObject.amount ?? 0),
-      cycle:
-        rewardObject.cycle === 'daily' || rewardObject.cycle === 'weekly'
-          ? rewardObject.cycle
-          : resolveCycle(),
-    };
-  }
-
-  return { amount: Number(rawReward ?? 0), cycle: resolveCycle() };
-};
-
-const getSponsorCatalogConfig = async (sponsorId: string): Promise<SponsorCatalogConfig> => {
-  const sponsorRef = db.collection('sponsorship_catalog').doc(sponsorId);
-  const sponsorSnap = await sponsorRef.get();
-
-  if (!sponsorSnap.exists) {
-    throw new functions.https.HttpsError('invalid-argument', 'Sponsor katalogda bulunamadi.');
-  }
-
-  const raw = sponsorSnap.data() as Record<string, unknown>;
-  const price = raw.price === undefined ? null : Number(raw.price);
-  const type =
-    raw.type === 'premium' || raw.type === 'free'
-      ? raw.type
-      : typeof price === 'number' && price > 0
-        ? 'premium'
-        : 'free';
-
-  const catalogId = normalizeString(raw.catalogId) || sponsorId;
-  const storeProductId = buildSponsorProductId(catalogId, normalizeString(raw.storeProductId) || null);
-
-  return {
-    sponsorId,
-    catalogId,
-    sponsorName: normalizeString(raw.name) || sponsorId,
-    type,
-    reward: resolveSponsorReward(raw.reward, raw.cycle),
-    price: Number.isFinite(price) ? Number(price) : null,
-    storeProductId,
-  };
 };
 
 const getDiamondPurchaseRef = (uid: string, purchaseId: string) =>
@@ -640,19 +553,14 @@ export const finalizeAndroidCreditPurchase = functions
 export const finalizeAndroidSponsorPurchase = functions
   .region('europe-west1')
   .https.onCall(async (data, context) => {
-    const sponsorId = normalizeString(data?.sponsorId);
+    const sponsorId = normalizeSponsorString(data?.sponsorId);
     if (!sponsorId) {
       throw new functions.https.HttpsError('invalid-argument', 'sponsorId zorunludur.');
     }
 
     const input = parsePurchaseInput(data as Record<string, unknown> | undefined, context);
     const sponsorConfig = await getSponsorCatalogConfig(sponsorId);
-    if (sponsorConfig.type !== 'premium') {
-      throw new functions.https.HttpsError(
-        'failed-precondition',
-        'Secilen sponsor premium satin alma gerektirmiyor.',
-      );
-    }
+    assertSponsorActivationAllowed('premium', sponsorConfig);
     if (!sponsorConfig.storeProductId) {
       throw new functions.https.HttpsError(
         'failed-precondition',
@@ -705,51 +613,16 @@ export const finalizeAndroidSponsorPurchase = functions
       }
 
       granted = true;
-      let selectedExists = false;
-
-      sponsorshipsSnap.forEach((docSnap) => {
-        const isSelected = docSnap.id === sponsorId;
-        if (isSelected) {
-          selectedExists = true;
-        }
-        tx.set(
-          docSnap.ref,
-          {
-            active: isSelected,
-            ...(isSelected
-              ? {
-                  id: sponsorId,
-                  catalogId: sponsorConfig.catalogId,
-                  name: sponsorConfig.sponsorName,
-                  type: sponsorConfig.type,
-                  reward: sponsorConfig.reward,
-                  price: sponsorConfig.price,
-                  storeProductId: sponsorConfig.storeProductId,
-                  activatedAt: FieldValue.serverTimestamp(),
-                  lastPayoutAt: null,
-                  nextPayoutAt: null,
-                }
-              : {}),
-          },
-          { merge: true },
-        );
+      const mutations = buildSponsorActivationMutations(
+        sponsorshipsSnap.docs.map((docSnap) => docSnap.id),
+        sponsorConfig,
+        FieldValue.serverTimestamp(),
+      );
+      const refById = new Map(sponsorshipsSnap.docs.map((docSnap) => [docSnap.id, docSnap.ref]));
+      mutations.forEach((mutation) => {
+        const ref = refById.get(mutation.sponsorId) ?? sponsorshipsQuery.doc(mutation.sponsorId);
+        tx.set(ref, mutation.payload, { merge: true });
       });
-
-      if (!selectedExists) {
-        tx.set(sponsorshipsQuery.doc(sponsorId), {
-          id: sponsorId,
-          catalogId: sponsorConfig.catalogId,
-          name: sponsorConfig.sponsorName,
-          type: sponsorConfig.type,
-          reward: sponsorConfig.reward,
-          price: sponsorConfig.price,
-          storeProductId: sponsorConfig.storeProductId,
-          active: true,
-          activatedAt: FieldValue.serverTimestamp(),
-          lastPayoutAt: null,
-          nextPayoutAt: null,
-        });
-      }
 
       tx.set(purchaseRef, {
         purchaseId,
