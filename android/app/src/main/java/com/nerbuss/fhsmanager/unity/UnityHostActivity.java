@@ -46,10 +46,12 @@ public class UnityHostActivity extends Activity {
     super.onResume();
     enableImmersiveMode();
 
-    // When Unity activity closes and this host comes back to foreground, complete flow.
-    if (launchedChild && !waitingChildResult) {
-      Log.d(TAG, "onResume: child already closed, returning to shell and finishing host.");
-      returnToShellAndFinish("Unity activity closed.");
+    // Do not auto-close the host on plain resume.
+    // Child finish is handled in onActivityResult; auto-finishing here caused duplicate finish
+    // requests and could tear down the app during launch races.
+    if (shellReturnRequested && launchedChild && !waitingChildResult) {
+      Log.d(TAG, "onResume: shell return already requested, finishing host.");
+      finish();
     }
   }
 
@@ -76,7 +78,50 @@ public class UnityHostActivity extends Activity {
 
     waitingChildResult = false;
     Log.d(TAG, "onActivityResult: Unity child returned. resultCode=" + resultCode);
-    returnToShellAndFinish("Unity activity returned. resultCode=" + resultCode);
+
+    boolean requestedShellReturn =
+        shellReturnRequested || UnityBridgeState.consumePendingShellReturn();
+    if (requestedShellReturn) {
+      returnToShellAndFinish("Unity activity returned. resultCode=" + resultCode);
+      return;
+    }
+
+    handleUnexpectedChildExit(resultCode);
+  }
+
+  private void handleUnexpectedChildExit(int resultCode) {
+    Log.w(
+        TAG,
+        "handleUnexpectedChildExit: Unity child returned without explicit shell return. resultCode="
+            + resultCode);
+    UnityBridgeState.markUnityLaunchFailed();
+    UnityBridgeState.emit(
+        "error",
+        "Unity activity kapandi. Lutfen tekrar deneyin.",
+        matchId,
+        serverIp,
+        serverPort);
+
+    try {
+      setResult(Activity.RESULT_CANCELED);
+    } catch (Throwable ignored) {
+      // no-op
+    }
+
+    try {
+      Intent shellIntent = new Intent(this, MainActivity.class);
+      shellIntent.addFlags(
+          Intent.FLAG_ACTIVITY_CLEAR_TOP
+              | Intent.FLAG_ACTIVITY_SINGLE_TOP
+              | Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
+              | Intent.FLAG_ACTIVITY_NEW_TASK);
+      shellIntent.putExtra("unity_force_shell_return", true);
+      startActivity(shellIntent);
+    } catch (Throwable ignored) {
+      // no-op
+    }
+
+    finish();
   }
 
   private void returnToShellAndFinish(String message) {

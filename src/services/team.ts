@@ -6,6 +6,7 @@ import { auth, db, functions } from '@/services/firebase';
 import { Player, ClubTeam, CustomFormationMap, TeamBadge, TeamKitAssets } from '@/types';
 import { generateRandomName } from '@/lib/names';
 import { calculateOverall, getRoles } from '@/lib/player';
+import { normalizeTeamPlayers } from '@/lib/playerVitals';
 import { addGameYears, applyGameAgingToPlayers } from '@/lib/gameTime';
 import { formations } from '@/lib/formations';
 import { getSalaryForOverall } from '@/lib/salary';
@@ -82,6 +83,7 @@ const generatePlayer = (
     ageUpdatedAt: new Date().toISOString(),
     height: 180,
     weight: 75,
+    health: 1,
     squadRole: 'reserve',
     condition: randomGauge(),
     motivation: randomGauge(),
@@ -210,14 +212,18 @@ export const getTeam = async (userId: string): Promise<ClubTeam | null> => {
     new Date(),
     { leagueId },
   );
+  const normalizedPlayers = normalizeTeamPlayers(agedPlayers);
 
   const currentUid = auth.currentUser?.uid;
   const canPersist =
     !!currentUid && (currentUid === userId || (team as { ownerUid?: string }).ownerUid === currentUid);
 
-  if (changed && canPersist) {
+  const normalizationChanged =
+    JSON.stringify(normalizedPlayers) !== JSON.stringify(agedPlayers);
+
+  if ((changed || normalizationChanged) && canPersist) {
     try {
-      await saveTeamPlayers(userId, agedPlayers);
+      await saveTeamPlayers(userId, normalizedPlayers);
     } catch (error) {
       console.warn('[team.getTeam] failed to persist calendar aging', error);
     }
@@ -225,7 +231,7 @@ export const getTeam = async (userId: string): Promise<ClubTeam | null> => {
 
   return {
     ...team,
-    players: agedPlayers,
+    players: normalizedPlayers,
   };
 };
 
@@ -304,7 +310,8 @@ const sanitizeFirestoreData = <T>(value: T): T => {
 };
 
 export const saveTeamPlayers = async (userId: string, players: Player[], plan?: TeamPlanUpdate) => {
-  const payload: Record<string, unknown> = { players: sanitizeFirestoreData(players) };
+  const normalizedPlayers = normalizeTeamPlayers(players);
+  const payload: Record<string, unknown> = { players: sanitizeFirestoreData(normalizedPlayers) };
 
   if (plan) {
     const { formation, shape, squads, tactics, customFormations } = plan;
@@ -327,7 +334,7 @@ export const saveTeamPlayers = async (userId: string, players: Player[], plan?: 
       reserves: dedupe(squads?.reserves),
     };
 
-    const rosterIds = new Set(players.map(player => String(player.id)));
+    const rosterIds = new Set(normalizedPlayers.map(player => String(player.id)));
     const allowedStarterIds = new Set(sanitizedSquads.starters);
     const unknownIds = [
       ...sanitizedSquads.starters,
@@ -442,10 +449,10 @@ export const renameStadiumWithDiamonds = async (stadiumName: string): Promise<Re
 export const addPlayerToTeam = async (userId: string, player: Player) => {
   const team = await getTeam(userId);
   if (!team) return;
-  const updatedPlayers = [
+  const updatedPlayers = normalizeTeamPlayers([
     ...team.players,
     { ...player, injuryStatus: player.injuryStatus ?? 'healthy', squadRole: 'reserve' as const },
-  ];
+  ]);
   await setDoc(doc(db, 'teams', userId), { players: updatedPlayers }, { merge: true });
   return updatedPlayers;
 };
@@ -472,7 +479,7 @@ export const updatePlayerSalary = async (userId: string, playerId: string, salar
     };
     const nextPlayers = [...players];
     nextPlayers[index] = { ...player, contract };
-    tx.update(teamRef, { players: nextPlayers });
+    tx.update(teamRef, { players: normalizeTeamPlayers(nextPlayers) });
   });
 };
 

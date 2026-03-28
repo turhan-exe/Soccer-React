@@ -82,9 +82,11 @@ export {
   finalizeAndroidSponsorPurchase,
 } from './economy/playBilling.js';
 export { activateUserSponsor, collectUserSponsorEarnings } from './economy/sponsors.js';
+export { claimVipDailyCredits } from './economy/vipDailyCredit.js';
 export {
   createRewardedAdSession,
   claimRewardedAdReward,
+  logRewardedAdDiagnostic,
   admobRewardedSsv,
 } from './economy/rewardedAds.js';
 export { notifyDueSignals } from './notify/dueSignals.js';

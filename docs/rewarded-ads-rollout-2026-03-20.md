@@ -5,7 +5,9 @@
 - Android rewarded ads code is integrated.
 - Backend SSV flow is live.
 - Firestore rules are deployed.
-- Current Android config uses AdMob test IDs.
+- Current Android config uses real AdMob IDs.
+- Release builds now fail fast if `android/admob.properties` is missing, test IDs are enabled, or real IDs are not configured.
+- Android native plugin now exposes structured rewarded ad debug info plus Ad Inspector hooks for device-specific troubleshooting.
 
 Current config file:
 
@@ -14,9 +16,9 @@ Current config file:
 Current values:
 
 ```properties
-ADMOB_APP_ID_ANDROID=ca-app-pub-3940256099942544~3347511713
-ADMOB_REWARDED_UNIT_ID_ANDROID=ca-app-pub-3940256099942544/5224354917
-ADMOB_USE_TEST_IDS=true
+ADMOB_APP_ID_ANDROID=ca-app-pub-4528086511982026~7591944006
+ADMOB_REWARDED_UNIT_ID_ANDROID=ca-app-pub-4528086511982026/9622544690
+ADMOB_USE_TEST_IDS=false
 ```
 
 ## Live Reward Placements
@@ -165,8 +167,18 @@ cd android
 3. Tap `Reklam gizlilik tercihleri`
 4. Confirm the privacy form opens when available
 
+### Device diagnostics
+
+1. Open `Settings`
+2. Open `Veri Yonetimi`
+3. Tap `Reklam debug bilgisini yenile`
+4. Record `versionCode`, `installSource`, `networkType`, `consentStatus`, and latest load/show error
+5. If the device is configured as a test device, tap `Ad Inspector ac`
+6. Compare output between a working device and a failing device before escalating
+
 ## Notes
 
-- The repo currently ships with AdMob test IDs to avoid invalid traffic during integration.
-- Real monetization starts only after real IDs are placed in `android/admob.properties` and a new release build is uploaded.
+- The tracked repo config is already pointed at real AdMob IDs.
+- Keep `ADMOB_USE_TEST_IDS=true` only for temporary local debugging; release tasks now fail if test IDs are active.
+- Device-specific failures should be triaged with the Settings debug panel before requesting logcat.
 - The youth ad code path was intentionally left out of this rollout.

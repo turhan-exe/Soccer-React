@@ -19,6 +19,11 @@ export type InjuryStatus = 'healthy' | 'injured';
 
 export type KitType = 'energy' | 'morale' | 'health';
 
+export interface PlayerMotivationState {
+  underpaidActive?: boolean;
+  underpaidLastAppliedMonth?: string | null;
+}
+
 export type TeamBadge = {
   url: string;
   alt?: string;
@@ -69,9 +74,11 @@ export interface Player {
   ageUpdatedAt?: string | null;
   height: number;
   weight: number;
+  health: number;
   condition: number;
   motivation: number;
   injuryStatus?: InjuryStatus;
+  motivationState?: PlayerMotivationState | null;
   squadRole: SquadRole | 'youth';
   avatar?: string;
   uniqueId?: string;

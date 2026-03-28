@@ -5,11 +5,16 @@ import { Button } from './button';
 interface BackButtonProps {
   fallbackPath?: string;
   className?: string;
+  onClick?: () => void;
 }
 
-export function BackButton({ fallbackPath = '/', className }: BackButtonProps) {
+export function BackButton({ fallbackPath = '/', className, onClick }: BackButtonProps) {
   const navigate = useNavigate();
   const handleClick = () => {
+    if (onClick) {
+      onClick();
+      return;
+    }
     if (window.history.length > 1) {
       navigate(-1);
     } else {

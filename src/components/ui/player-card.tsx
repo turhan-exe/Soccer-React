@@ -144,6 +144,7 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({
 
   const positionBadge = POSITION_COLOR[player.position] ?? 'bg-gray-500';
 
+  const health = clampPerformanceGauge(player.health, 1);
   const condition = clampPerformanceGauge(player.condition);
   const motivation = clampPerformanceGauge(player.motivation);
   const contractExpiresAt = player.contract?.expiresAt
@@ -174,8 +175,9 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({
 
   const renderedStats = (
     <>
-      <div className={cn('mb-3 grid grid-cols-3 gap-2', (compact || condensedStats) && 'gap-1')}>
+      <div className={cn('mb-3 grid grid-cols-2 gap-2 md:grid-cols-4', (compact || condensedStats) && 'gap-1')}>
         <PerformanceGauge label="Güç" value={power} className={compact ? 'space-y-0.5' : ''} />
+        <PerformanceGauge label="Sağlık" value={health} className={compact ? 'space-y-0.5' : ''} />
         <PerformanceGauge label="Kondisyon" value={condition} className={compact ? 'space-y-0.5' : ''} />
         <PerformanceGauge label="Motivasyon" value={motivation} className={compact ? 'space-y-0.5' : ''} />
       </div>

@@ -1,6 +1,6 @@
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { RefreshCcw, Sparkles } from 'lucide-react';
+import { Crown, Gift, RefreshCcw, Sparkles } from 'lucide-react';
 import type { CreditPackage } from '@/services/finance';
 import type { PlayBillingProduct } from '@/services/playBilling';
 import { formatCurrency } from './FinanceHeader';
@@ -12,6 +12,14 @@ interface CreditTabProps {
   productsById: Record<string, PlayBillingProduct>;
   isStoreLoading: boolean;
   storeError: string | null;
+  vipActive: boolean;
+  vipClaimAvailable: boolean;
+  vipClaimedToday: boolean;
+  vipClaimLoading: boolean;
+  vipBonusAmount: number;
+  vipBonusDiamondCost: number;
+  vipNextClaimDateKey: string;
+  onClaimVipBonus: () => void;
 }
 
 export function CreditTab({
@@ -21,7 +29,17 @@ export function CreditTab({
   productsById,
   isStoreLoading,
   storeError,
+  vipActive,
+  vipClaimAvailable,
+  vipClaimedToday,
+  vipClaimLoading,
+  vipBonusAmount,
+  vipBonusDiamondCost,
+  vipNextClaimDateKey,
+  onClaimVipBonus,
 }: CreditTabProps) {
+  const vipCostLabel = vipBonusDiamondCost > 0 ? `${vipBonusDiamondCost} Elmas` : 'Ucretsiz';
+
   return (
     <div className="animate-in slide-in-from-bottom-4 fade-in duration-500">
       <div className="mb-6 rounded-xl border border-white/10 bg-gradient-to-r from-indigo-900/50 to-purple-900/50 p-6 text-center">
@@ -40,6 +58,55 @@ export function CreditTab({
           {storeError}
         </div>
       )}
+
+      <Card className="mb-6 overflow-hidden border-amber-400/20 bg-gradient-to-br from-amber-500/10 via-slate-900/70 to-emerald-500/10 shadow-xl backdrop-blur-sm">
+        <CardContent className="flex flex-col gap-4 p-6 md:flex-row md:items-center md:justify-between">
+          <div className="space-y-3">
+            <div className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-amber-400/15 text-amber-300">
+              <Crown className="h-5 w-5" />
+            </div>
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.24em] text-amber-200/80">
+                VIP Gunluk Bonus
+              </p>
+              <p className="mt-1 text-2xl font-black tracking-tight text-white">
+                {formatCurrency(vipBonusAmount)}
+              </p>
+              <p className="text-sm text-slate-300">
+                Aktif VIP uyeler gunde yalnizca 1 kez bu krediyi alabilir.
+              </p>
+            </div>
+          </div>
+
+          <div className="w-full max-w-sm space-y-3 rounded-2xl border border-white/10 bg-black/20 p-4">
+            <div className="flex items-center justify-between gap-3 text-sm">
+              <span className="text-slate-400">Maliyet</span>
+              <span className="font-semibold text-white">{vipCostLabel}</span>
+            </div>
+            <div className="flex items-center justify-between gap-3 text-sm">
+              <span className="text-slate-400">Durum</span>
+              <span className={vipActive ? 'font-semibold text-emerald-300' : 'font-semibold text-amber-200'}>
+                {vipActive ? (vipClaimedToday ? 'Bugun alindi' : 'Hazir') : 'VIP gerekli'}
+              </span>
+            </div>
+            <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-slate-300">
+              {vipClaimedToday
+                ? `Sonraki hak: ${vipNextClaimDateKey}`
+                : vipActive
+                  ? 'Bu bonus webde ve Androidde ayni server kuralina baglidir.'
+                  : 'Bonus sadece aktif VIP uyelere acilir.'}
+            </div>
+            <Button
+              className="w-full bg-amber-500 font-bold text-slate-950 hover:bg-amber-400"
+              onClick={onClaimVipBonus}
+              disabled={vipClaimLoading || !vipClaimAvailable}
+            >
+              {vipClaimLoading && <RefreshCcw className="mr-2 h-4 w-4 animate-spin" />}
+              {!vipActive ? 'VIP Gerekli' : vipClaimedToday ? 'Bugun Alindi' : '+2.000 Kredi Al'}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
 
       <div className="grid gap-4 sm:grid-cols-3">
         {packages.map((pack) => {

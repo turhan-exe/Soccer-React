@@ -9,14 +9,6 @@ service cloud.firestore {
     function isOwner(uid) {
       return isSignedIn() && request.auth.uid == uid;
     }
-    function isPremiumSponsorCatalogEntry(sponsorId) {
-      let sponsorPath = /databases/$(database)/documents/sponsorship_catalog/$(sponsorId);
-      return exists(sponsorPath) && (
-        get(sponsorPath).data.type == 'premium' ||
-        (get(sponsorPath).data.price is number && get(sponsorPath).data.price > 0)
-      );
-    }
-
     // --- USERS ---
     match /users/{uid} {
       allow read: if isSignedIn();
@@ -170,6 +162,10 @@ service cloud.firestore {
     match /rewardedAdSessions/{sessionId} {
       allow read: if isSignedIn() && resource.data.uid == request.auth.uid;
       allow write: if false;
+    }
+
+    match /rewardedAdDiagnostics/{diagnosticId} {
+      allow read, write: if false;
     }
 
     match /public_config/{documentId} {

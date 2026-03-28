@@ -15,7 +15,7 @@ import {
 } from '@/lib/contractNegotiation';
 import { completeLegendRental, getLegendIdFromPlayer } from '@/services/legends';
 import { auth } from '@/services/firebase';
-import { runRewardedAdFlow } from '@/services/rewardedAds';
+import { getRewardedAdFailureMessage, runRewardedAdFlow } from '@/services/rewardedAds';
 import { useAuth } from '@/contexts/AuthContext';
 import { useDiamonds } from '@/contexts/DiamondContext';
 import { Search, Save, Eye, X, ChevronLeft } from 'lucide-react';
@@ -45,7 +45,9 @@ import {
 import { ContractDecisionDialog } from '@/features/team-planning/dialogs/ContractDecisionDialog';
 import { RenamePlayerDialog } from '@/features/team-planning/dialogs/RenamePlayerDialog';
 import { SalaryNegotiationDialog } from '@/features/team-planning/dialogs/SalaryNegotiationDialog';
+import { LineupReadinessDialog } from '@/features/team-planning/dialogs/LineupReadinessDialog';
 import { PlayerDetailOverlay } from '@/features/team-planning/components/PlayerDetailOverlay';
+import KitUsageDialog from '@/components/kit/KitUsageDialog';
 import {
   addMonths,
   buildDisplayPlayer,
@@ -59,6 +61,8 @@ import {
   PlayerBaseline,
   getContractExpiration,
   getPlayerCondition,
+  getPlayerHealth,
+  getLineupReadinessIssues,
   getPlayerMotivation,
   getPlayerPower,
   getPositionLabel,
@@ -66,6 +70,7 @@ import {
   HOURS_IN_MS,
   isContractExpired,
   isRenameAdReady,
+  LINEUP_VITAL_THRESHOLD,
   metricOptions,
   MIN_SALARY_OFFER,
   normalizePlayers,
@@ -155,6 +160,10 @@ function TeamPlanningContent() {
   const [selectedSlotMeta, setSelectedSlotMeta] = useState<SelectedSlotMeta | null>(null);
   const [isListCollapsed, setIsListCollapsed] = useState(false);
   const [isDetailOverlayOpen, setIsDetailOverlayOpen] = useState(false);
+  const [isKitUsageOpen, setIsKitUsageOpen] = useState(false);
+  const [kitUsagePlayerId, setKitUsagePlayerId] = useState<string | null>(null);
+  const [isLineupReadinessOpen, setIsLineupReadinessOpen] = useState(false);
+  const [resumeLineupReadinessAfterKit, setResumeLineupReadinessAfterKit] = useState(false);
   /* isListCollapsed already declared above */
 
   const {
@@ -583,7 +592,7 @@ function TeamPlanningContent() {
         } else if (result.outcome === 'pending_verification') {
           toast.info('Reklam dogrulaniyor. Biraz sonra yeniden deneyin.');
         } else {
-          toast.error('Reklam gosterilemedi.');
+          toast.error(getRewardedAdFailureMessage(result.ad));
         }
         return;
       }
@@ -962,17 +971,22 @@ function TeamPlanningContent() {
         <div className="text-xs font-semibold">{player.name}</div>
         <PerformanceGauge
           label="Güç"
-          value={normalizeRatingTo100(calculatePowerIndex(player))}
+          value={getPlayerPower(player)}
+          variant="dark"
+        />
+        <PerformanceGauge
+          label="Sağlık"
+          value={getPlayerHealth(player)}
           variant="dark"
         />
         <PerformanceGauge
           label="Kondisyon"
-          value={clampPercentageValue((player.condition ?? 0) * 100)}
+          value={getPlayerCondition(player)}
           variant="dark"
         />
         <PerformanceGauge
           label="Motivasyon"
-          value={clampPercentageValue((player.motivation ?? 0) * 100)}
+          value={getPlayerMotivation(player)}
           variant="dark"
         />
         {player.originalOverall > player.overall ? (
@@ -1024,6 +1038,12 @@ function TeamPlanningContent() {
         toast.error('Kadro tamamlanmadı', {
           description: 'Kaydetmeden önce 11 oyuncuyu ilk 11 olarak belirleyin.',
         });
+        return;
+      }
+
+      const currentLineupReadinessIssues = getLineupReadinessIssues(startingEleven);
+      if (currentLineupReadinessIssues.length > 0) {
+        setIsLineupReadinessOpen(true);
         return;
       }
 
@@ -1790,6 +1810,84 @@ function TeamPlanningContent() {
     return displayPlayers.find(p => p.id === focusedPlayerId) ?? null;
   }, [displayPlayers, focusedPlayerId]);
 
+  const lineupReadinessIssues = useMemo(
+    () => getLineupReadinessIssues(startingEleven),
+    [startingEleven],
+  );
+
+  const handleBackNavigation = useCallback(() => {
+    const currentLineupReadinessIssues = getLineupReadinessIssues(startingEleven);
+    if (currentLineupReadinessIssues.length > 0) {
+      setIsLineupReadinessOpen(true);
+      return;
+    }
+
+    if (window.history.length > 1) {
+      navigate(-1);
+      return;
+    }
+
+    navigate('/');
+  }, [navigate, startingEleven]);
+
+  useEffect(() => {
+    if (isLineupReadinessOpen && lineupReadinessIssues.length === 0) {
+      setIsLineupReadinessOpen(false);
+    }
+  }, [isLineupReadinessOpen, lineupReadinessIssues.length]);
+
+  useEffect(() => {
+    if (isKitUsageOpen || !resumeLineupReadinessAfterKit) {
+      return;
+    }
+
+    setResumeLineupReadinessAfterKit(false);
+    if (lineupReadinessIssues.length > 0) {
+      setIsLineupReadinessOpen(true);
+    }
+  }, [isKitUsageOpen, lineupReadinessIssues, resumeLineupReadinessAfterKit]);
+
+  const openKitUsageForPlayer = useCallback((
+    playerId: string,
+    options?: { reopenLineupReadiness?: boolean },
+  ) => {
+    setKitUsagePlayerId(playerId);
+    setIsDetailOverlayOpen(false);
+    setIsLineupReadinessOpen(false);
+    setResumeLineupReadinessAfterKit(Boolean(options?.reopenLineupReadiness));
+    setIsKitUsageOpen(true);
+  }, []);
+
+  const handleOpenKitUsage = useCallback((playerId: string) => {
+    openKitUsageForPlayer(playerId);
+  }, [openKitUsageForPlayer]);
+
+  const handleKitUsageOpenChange = useCallback((open: boolean) => {
+    setIsKitUsageOpen(open);
+    if (!open) {
+      setKitUsagePlayerId(null);
+    }
+  }, []);
+
+  const handleKitApplied = useCallback((updatedPlayer: Player) => {
+    setFocusedPlayerId(updatedPlayer.id);
+    setPlayers(prev =>
+      normalizePlayers(
+        prev.map(player =>
+          player.id === updatedPlayer.id ? { ...player, ...updatedPlayer } : player,
+        ),
+      ),
+    );
+  }, []);
+
+  const handleOpenLineupIssueKitUsage = useCallback((playerId: string) => {
+    openKitUsageForPlayer(playerId, { reopenLineupReadiness: true });
+  }, [openKitUsageForPlayer]);
+
+  const handleBenchLineupIssuePlayer = (playerId: string) => {
+    movePlayer(playerId, 'bench');
+  };
+
   const selectedZoneDefinition = useMemo(() => {
     if (!selectedSlotMeta) {
       return null;
@@ -1844,6 +1942,9 @@ function TeamPlanningContent() {
         }
       } else {
         switch (metric) {
+          case 'health':
+            value = (player.health ?? 0) * 100;
+            break;
           case 'condition':
             value = (player.condition ?? 0) * 100;
             break;
@@ -2249,12 +2350,32 @@ function TeamPlanningContent() {
           className="flex flex-shrink-0 items-center justify-between border-b border-white/10 bg-black/30 px-5 py-0 backdrop-blur"
         >
           <div className="flex items-center gap-2.5">
-            <BackButton />
+            <BackButton onClick={handleBackNavigation} />
             <div>
               <h1 className="text-base font-semibold sm:text-lg">Takım Planı</h1>
               <p className="text-[11px] text-orange-100/70 sm:text-xs">
                 Formasyonunuzu yönetin ve kadronuzu düzenleyin
               </p>
+              <div className="mt-2 grid grid-cols-2 gap-1.5 sm:flex sm:flex-wrap">
+                {metricOptions.map((option) => {
+                  const isActive = selectedMetric === option.key;
+                  return (
+                    <button
+                      key={option.key}
+                      type="button"
+                      onClick={() => setSelectedMetric(option.key)}
+                      className={cn(
+                        'rounded-full border px-3 py-1 text-[10px] font-semibold tracking-wide transition sm:text-[11px]',
+                        isActive
+                          ? 'border-emerald-300 bg-emerald-400/20 text-emerald-50 shadow-[0_10px_30px_rgba(52,211,153,0.18)]'
+                          : 'border-white/15 bg-white/5 text-orange-50/80 hover:bg-white/10 hover:text-white',
+                      )}
+                    >
+                      {option.label}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           </div>
           <div className="flex items-center gap-1.5">
@@ -2697,11 +2818,29 @@ function TeamPlanningContent() {
         onMoveToBench={(id) => { movePlayer(id, 'bench'); setIsDetailOverlayOpen(false); }}
         onMoveToReserve={(id) => { movePlayer(id, 'reserve'); setIsDetailOverlayOpen(false); }}
         onRename={(id) => { setRenamePlayerId(id); setIsDetailOverlayOpen(false); }}
+        onUseKits={handleOpenKitUsage}
         onNegotiateSalary={(id) => { openSalaryNegotiation(id); setIsDetailOverlayOpen(false); }}
         onSellPlayer={(id) => { handleListForTransfer(id); setIsDetailOverlayOpen(false); }}
         onExtendContract={(id) => { handleExtendContract(id); setIsDetailOverlayOpen(false); }}
         onFirePlayer={(id) => { handleFirePlayer(id); setIsDetailOverlayOpen(false); }}
         onReleasePlayer={(id) => { handleReleaseContract(id); setIsDetailOverlayOpen(false); }}
+      />
+
+      <LineupReadinessDialog
+        open={isLineupReadinessOpen}
+        issues={lineupReadinessIssues}
+        thresholdPercent={Math.round(LINEUP_VITAL_THRESHOLD * 100)}
+        onOpenChange={setIsLineupReadinessOpen}
+        onUseKits={handleOpenLineupIssueKitUsage}
+        onBenchPlayer={handleBenchLineupIssuePlayer}
+      />
+
+      <KitUsageDialog
+        open={isKitUsageOpen}
+        kitType={null}
+        playerId={kitUsagePlayerId}
+        onApplied={handleKitApplied}
+        onOpenChange={handleKitUsageOpenChange}
       />
     </>
   );

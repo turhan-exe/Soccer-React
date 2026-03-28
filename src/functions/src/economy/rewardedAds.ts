@@ -19,9 +19,14 @@ const AD_MOB_VALIDATION_TOKEN = 'admob_validation_ping';
 
 const AD_MOB_KEYS_URL = 'https://www.gstatic.com/admob/reward/verifier-keys.json';
 
-type RewardPlacement = 'kit_reward' | 'training_finish' | 'player_rename';
+type RewardPlacement =
+  | 'kit_reward'
+  | 'training_finish'
+  | 'player_rename'
+  | 'youth_cooldown';
 type RewardSessionStatus = 'created' | 'verified' | 'claimed';
 type KitType = 'energy' | 'morale' | 'health';
+type RewardedAdDiagnosticStage = 'init' | 'load' | 'show' | 'ssv' | 'unknown';
 
 type RewardedSessionDoc = {
   uid: string;
@@ -41,6 +46,19 @@ type RewardedSessionDoc = {
   claimResult?: Record<string, unknown> | null;
 };
 
+type RewardedAdDiagnosticDoc = {
+  uid: string;
+  placement: RewardPlacement;
+  outcome: string;
+  sessionId?: string | null;
+  context?: Record<string, unknown> | null;
+  surfacedMessage?: string | null;
+  ad?: Record<string, unknown> | null;
+  error?: Record<string, unknown> | null;
+  debug?: Record<string, unknown> | null;
+  createdAt: FirebaseFirestore.FieldValue | FirebaseFirestore.Timestamp;
+};
+
 type VerifyingKeyCache = {
   expiresAt: number;
   keys: Map<number, string>;
@@ -49,8 +67,8 @@ type VerifyingKeyCache = {
 let verifyingKeyCache: VerifyingKeyCache | null = null;
 
 const KIT_LABELS: Record<KitType, string> = {
-  energy: 'Enerji Kiti',
-  morale: 'Moral Kiti',
+  energy: 'Kondisyon Kiti',
+  morale: 'Motivasyon Kiti',
   health: 'Saglik Kiti',
 };
 
@@ -67,6 +85,20 @@ const validateAuth = (context: functions.https.CallableContext): string => {
 
 const normalizeString = (value: unknown): string =>
   typeof value === 'string' ? value.trim() : '';
+
+const normalizeOptionalBoolean = (value: unknown): boolean | null =>
+  typeof value === 'boolean' ? value : null;
+
+const normalizeOptionalNumber = (value: unknown): number | null => {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value;
+  }
+  if (typeof value === 'string' && value.trim()) {
+    const parsed = Number(value.trim());
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+};
 
 const sanitizeJsonValue = (value: unknown, depth = 0): unknown => {
   if (depth > 3) {
@@ -113,10 +145,87 @@ const sanitizePlacement = (value: unknown): RewardPlacement => {
     placement !== 'kit_reward'
     && placement !== 'training_finish'
     && placement !== 'player_rename'
+    && placement !== 'youth_cooldown'
   ) {
     throw new functions.https.HttpsError('invalid-argument', 'Gecersiz reklam placement gonderildi.');
   }
   return placement;
+};
+
+const sanitizeDiagnosticStage = (value: unknown): RewardedAdDiagnosticStage => {
+  const stage = normalizeString(value);
+  if (stage === 'init' || stage === 'load' || stage === 'show' || stage === 'ssv') {
+    return stage;
+  }
+  return 'unknown';
+};
+
+const sanitizeDiagnosticError = (value: unknown): Record<string, unknown> | null => {
+  const raw = isRecord(value) ? value : null;
+  if (!raw) {
+    return null;
+  }
+
+  return {
+    stage: sanitizeDiagnosticStage(raw.stage),
+    code: normalizeOptionalNumber(raw.code),
+    domain: normalizeString(raw.domain).slice(0, 120) || null,
+    message: normalizeString(raw.message).slice(0, 300) || null,
+    responseInfo: normalizeString(raw.responseInfo).slice(0, 4000) || null,
+    cause: normalizeString(raw.cause).slice(0, 500) || null,
+    consentStatus: normalizeString(raw.consentStatus).slice(0, 64) || null,
+    privacyOptionsRequired: normalizeOptionalBoolean(raw.privacyOptionsRequired),
+    isTestDevice: normalizeOptionalBoolean(raw.isTestDevice),
+    loadedAtMs: normalizeOptionalNumber(raw.loadedAtMs),
+    timedOut: normalizeOptionalBoolean(raw.timedOut),
+  };
+};
+
+const sanitizeDiagnosticDebug = (value: unknown): Record<string, unknown> | null => {
+  const raw = isRecord(value) ? value : null;
+  if (!raw) {
+    return null;
+  }
+
+  return {
+    sdkReady: normalizeOptionalBoolean(raw.sdkReady),
+    mobileAdsInitialized: normalizeOptionalBoolean(raw.mobileAdsInitialized),
+    adLoaded: normalizeOptionalBoolean(raw.adLoaded),
+    adLoadInFlight: normalizeOptionalBoolean(raw.adLoadInFlight),
+    loadedAtMs: normalizeOptionalNumber(raw.loadedAtMs),
+    adAgeMs: normalizeOptionalNumber(raw.adAgeMs),
+    consentStatus: normalizeString(raw.consentStatus).slice(0, 64) || null,
+    privacyOptionsRequired: normalizeOptionalBoolean(raw.privacyOptionsRequired),
+    isTestDevice: normalizeOptionalBoolean(raw.isTestDevice),
+    admobUseTestIds: normalizeOptionalBoolean(raw.admobUseTestIds),
+    appVersionName: normalizeString(raw.appVersionName).slice(0, 64) || null,
+    versionCode: normalizeOptionalNumber(raw.versionCode),
+    installSource: normalizeString(raw.installSource).slice(0, 120) || null,
+    deviceModel: normalizeString(raw.deviceModel).slice(0, 160) || null,
+    sdkInt: normalizeOptionalNumber(raw.sdkInt),
+    networkType: normalizeString(raw.networkType).slice(0, 64) || null,
+    adUnitIdConfigured: normalizeOptionalBoolean(raw.adUnitIdConfigured),
+    lastLoadError: sanitizeDiagnosticError(raw.lastLoadError),
+    lastShowError: sanitizeDiagnosticError(raw.lastShowError),
+  };
+};
+
+const sanitizeDiagnosticAd = (value: unknown): Record<string, unknown> | null => {
+  const raw = isRecord(value) ? value : null;
+  if (!raw) {
+    return null;
+  }
+
+  const status = normalizeString(raw.status);
+  return {
+    status:
+      status === 'earned' || status === 'dismissed' || status === 'failed'
+        ? status
+        : 'unknown',
+    message: normalizeString(raw.message).slice(0, 300) || null,
+    responseCode: normalizeOptionalNumber(raw.responseCode),
+    debugMessage: normalizeString(raw.debugMessage).slice(0, 4000) || null,
+  };
 };
 
 const sanitizeRenameValue = (value: unknown): string => {
@@ -182,6 +291,8 @@ const getInventoryRef = (uid: string) => db.collection('users').doc(uid).collect
 const getActiveTrainingRef = (uid: string) => db.collection('users').doc(uid).collection('training').doc('active');
 
 const getTeamRef = (uid: string) => db.collection('teams').doc(uid);
+
+const getUserRef = (uid: string) => db.collection('users').doc(uid);
 
 const toMillis = (value: unknown): number | null => {
   if (value instanceof Timestamp) {
@@ -416,6 +527,8 @@ const claimTrainingReward = async (
   uid: string,
   sessionRef: FirebaseFirestore.DocumentReference,
 ): Promise<Record<string, unknown>> => {
+  const reductionPercent = 25;
+
   return db.runTransaction(async (tx) => {
     const [freshSessionSnap, trainingSnap] = await Promise.all([
       tx.get(sessionRef),
@@ -442,17 +555,102 @@ const claimTrainingReward = async (
     const elapsedSeconds = startedAtMs == null
       ? 0
       : Math.max(0, Math.floor((Date.now() - startedAtMs) / 1000));
-    const nextDurationSeconds = Math.max(elapsedSeconds, Math.min(currentDuration, elapsedSeconds));
+    const remainingSeconds = Math.max(currentDuration - elapsedSeconds, 0);
+    const reductionSeconds = Math.max(
+      1,
+      Math.floor(remainingSeconds * (reductionPercent / 100)),
+    );
+    const nextDurationSeconds = Math.max(
+      elapsedSeconds,
+      currentDuration - reductionSeconds,
+    );
+    const nextRemainingSeconds = Math.max(nextDurationSeconds - elapsedSeconds, 0);
     const reward = {
       type: 'training_finish',
-      completed: true,
+      completed: nextRemainingSeconds <= 0,
+      reductionPercent,
+      reductionSeconds: Math.min(reductionSeconds, remainingSeconds),
       durationSeconds: nextDurationSeconds,
+      remainingSeconds: nextRemainingSeconds,
     };
 
     tx.set(
       getActiveTrainingRef(uid),
       {
         durationSeconds: nextDurationSeconds,
+        endsAt: Timestamp.fromMillis(startedAtMs == null
+          ? Date.now()
+          : startedAtMs + nextDurationSeconds * 1000),
+        updatedAt: FieldValue.serverTimestamp(),
+      },
+      { merge: true },
+    );
+    tx.set(
+      sessionRef,
+      {
+        status: 'claimed',
+        claimedAt: FieldValue.serverTimestamp(),
+        claimResult: reward,
+      },
+      { merge: true },
+    );
+
+    return reward;
+  });
+};
+
+const claimYouthCooldownReward = async (
+  uid: string,
+  sessionRef: FirebaseFirestore.DocumentReference,
+): Promise<Record<string, unknown>> => {
+  const reductionPercent = 15;
+
+  return db.runTransaction(async (tx) => {
+    const [freshSessionSnap, userSnap] = await Promise.all([
+      tx.get(sessionRef),
+      tx.get(getUserRef(uid)),
+    ]);
+
+    const freshSession = freshSessionSnap.data() as RewardedSessionDoc | undefined;
+    if (!freshSession) {
+      throw new functions.https.HttpsError('not-found', 'Reklam oturumu bulunamadi.');
+    }
+    if (freshSession.status === 'claimed') {
+      return (freshSession.claimResult ?? {
+        type: 'youth_cooldown',
+        reductionPercent,
+        reductionMs: 0,
+        nextGenerateAtMs: Date.now(),
+        ready: true,
+      }) as Record<string, unknown>;
+    }
+    if (freshSession.status !== 'verified') {
+      throw new functions.https.HttpsError('failed-precondition', 'Odul henuz dogrulanmadi.');
+    }
+
+    const nowMs = Date.now();
+    const nextGenerateAtMs = toMillis(userSnap.get('youth.nextGenerateAt')) ?? nowMs;
+    const remainingMs = Math.max(nextGenerateAtMs - nowMs, 0);
+    const reductionMs = remainingMs <= 0
+      ? 0
+      : Math.max(60 * 1000, Math.floor(remainingMs * (reductionPercent / 100)));
+    const targetMs = remainingMs <= 0
+      ? nowMs
+      : Math.max(nowMs, nextGenerateAtMs - reductionMs);
+    const reward = {
+      type: 'youth_cooldown',
+      reductionPercent,
+      reductionMs: Math.min(reductionMs, remainingMs),
+      nextGenerateAtMs: targetMs,
+      ready: targetMs <= nowMs,
+    };
+
+    tx.set(
+      getUserRef(uid),
+      {
+        youth: {
+          nextGenerateAt: Timestamp.fromMillis(targetMs),
+        },
         updatedAt: FieldValue.serverTimestamp(),
       },
       { merge: true },
@@ -630,6 +828,8 @@ export const claimRewardedAdReward = functions
       reward = await claimKitReward(uid, sessionRef, session);
     } else if (session.placement === 'training_finish') {
       reward = await claimTrainingReward(uid, sessionRef);
+    } else if (session.placement === 'youth_cooldown') {
+      reward = await claimYouthCooldownReward(uid, sessionRef);
     } else {
       reward = await claimPlayerRenameReward(uid, sessionRef, session);
     }
@@ -640,6 +840,33 @@ export const claimRewardedAdReward = functions
       placement: session.placement,
       reward,
     };
+  });
+
+export const logRewardedAdDiagnostic = functions
+  .region(REGION)
+  .https.onCall(async (data, context) => {
+    const uid = validateAuth(context);
+    const placement = sanitizePlacement(data?.placement);
+    const outcome = normalizeString(data?.outcome).slice(0, 64) || 'unknown';
+    const sessionId = normalizeString(data?.sessionId) || null;
+    const surfacedMessage = normalizeString(data?.surfacedMessage).slice(0, 300) || null;
+    const diagnosticContext = sanitizeJsonValue(data?.context) as Record<string, unknown> | null;
+    const doc: RewardedAdDiagnosticDoc = {
+      uid,
+      placement,
+      outcome,
+      sessionId,
+      context: diagnosticContext,
+      surfacedMessage,
+      ad: sanitizeDiagnosticAd(data?.ad),
+      error: sanitizeDiagnosticError(data?.error),
+      debug: sanitizeDiagnosticDebug(data?.debug),
+      createdAt: FieldValue.serverTimestamp(),
+    };
+
+    await db.collection('rewardedAdDiagnostics').add(doc);
+
+    return { ok: true };
   });
 
 export const admobRewardedSsv = functions

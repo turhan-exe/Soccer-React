@@ -17,16 +17,57 @@ if (admobPropertiesFile.exists()) {
 def admobSampleAppId = "ca-app-pub-3940256099942544~3347511713"
 def admobSampleRewardedUnitId = "ca-app-pub-3940256099942544/5224354917"
 def admobUseTestIds = admobProperties.getProperty("ADMOB_USE_TEST_IDS", "true").toBoolean()
+def configuredAdmobAppId = admobProperties.getProperty("ADMOB_APP_ID_ANDROID", "").trim()
+def configuredRewardedUnitId = admobProperties.getProperty("ADMOB_REWARDED_UNIT_ID_ANDROID", "").trim()
 def admobAppId = admobUseTestIds
     ? admobSampleAppId
     : admobProperties.getProperty("ADMOB_APP_ID_ANDROID", admobSampleAppId)
 def admobRewardedUnitId = admobUseTestIds
     ? admobSampleRewardedUnitId
     : admobProperties.getProperty("ADMOB_REWARDED_UNIT_ID_ANDROID", admobSampleRewardedUnitId)
+def hasRealAdmobIds =
+    configuredAdmobAppId &&
+    configuredRewardedUnitId &&
+    configuredAdmobAppId != admobSampleAppId &&
+    configuredRewardedUnitId != admobSampleRewardedUnitId
 def appVersionFile = rootProject.file("../app.version.json")
 def appVersionConfig = appVersionFile.exists()
     ? new JsonSlurper().parse(appVersionFile)
     : [versionName: "1.0.13", versionCode: 2026032613]
+def mobileExcludedMatchViewerDir = file("$projectDir/src/main/assets/public/Unity/match-viewer")
+
+gradle.taskGraph.whenReady { taskGraph ->
+    def releaseRequested = taskGraph.allTasks.any { task ->
+        task.path.toLowerCase().contains("release")
+    }
+
+    if (!releaseRequested) {
+        return
+    }
+
+    if (!admobPropertiesFile.exists()) {
+        throw new GradleException("android/admob.properties is required for release builds.")
+    }
+
+    if (admobUseTestIds) {
+        throw new GradleException("Release builds cannot use AdMob test IDs. Set ADMOB_USE_TEST_IDS=false.")
+    }
+
+    if (!hasRealAdmobIds) {
+        throw new GradleException("Release builds require real AdMob app and rewarded unit IDs in android/admob.properties.")
+    }
+}
+
+tasks.matching { task ->
+    task.name == "mergeReleaseAssets"
+}.configureEach {
+    doFirst {
+        if (mobileExcludedMatchViewerDir.exists()) {
+            logger.lifecycle("Removing generated mobile asset folder from release bundle: ${mobileExcludedMatchViewerDir}")
+            delete mobileExcludedMatchViewerDir
+        }
+    }
+}
 
 android {
     namespace "com.nerbuss.fhsmanager"

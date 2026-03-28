@@ -1,21 +1,30 @@
 import { useEffect, useMemo, useState } from 'react';
+import { doc, onSnapshot, Timestamp } from 'firebase/firestore';
 import { toast } from 'sonner';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent } from '@/components/ui/card';
 import { useAuth } from '@/contexts/AuthContext';
+import { useInventory } from '@/contexts/InventoryContext';
 import { useClubFinance } from '@/hooks/useClubFinance';
 import { useCollection } from '@/hooks/useCollection';
 import {
   applySponsorEarnings,
   activateSponsor,
+  claimVipDailyCredits,
+  ClaimVipDailyCreditResponse,
   CreditPackage,
   ensureMonthlySalaryCharge,
+  getVipDailyCreditAvailability,
   SponsorCatalogEntry,
   StadiumLevel,
   STADIUM_LEVELS,
   syncTeamSalaries,
   upgradeStadiumLevel,
+  VIP_DAILY_CREDIT_AMOUNT,
+  VIP_DAILY_CREDIT_DIAMOND_COST,
+  type VipDailyCreditSummary,
 } from '@/services/finance';
+import { db } from '@/services/firebase';
 import {
   getPlayBillingUnavailableMessage,
   isNativeAndroidPlayBillingSupported,
@@ -45,8 +54,76 @@ const getErrorCode = (error: unknown): string =>
     ? String((error as { code?: unknown }).code ?? '')
     : '';
 
+const getErrorDetails = (error: unknown): Record<string, unknown> | null => {
+  if (typeof error !== 'object' || error === null || !('details' in error)) {
+    return null;
+  }
+
+  const details = (error as { details?: unknown }).details;
+  return typeof details === 'object' && details !== null
+    ? (details as Record<string, unknown>)
+    : null;
+};
+
 const getErrorMessage = (error: unknown, fallback: string): string =>
   error instanceof Error ? error.message : fallback;
+
+const readVipDailyCreditSummary = (value: unknown): VipDailyCreditSummary => {
+  const data = value && typeof value === 'object' ? (value as Record<string, unknown>) : {};
+  const rawLastClaimAt = data.lastClaimAt;
+  const lastClaimAt =
+    rawLastClaimAt instanceof Timestamp
+      ? rawLastClaimAt
+      : rawLastClaimAt && typeof rawLastClaimAt === 'object' && 'toDate' in rawLastClaimAt
+        ? (rawLastClaimAt as Timestamp)
+        : null;
+
+  return {
+    lastClaimDate: typeof data.lastClaimDate === 'string' ? data.lastClaimDate : null,
+    lastClaimAmount:
+      typeof data.lastClaimAmount === 'number' && Number.isFinite(data.lastClaimAmount)
+        ? data.lastClaimAmount
+        : null,
+    claimCostDiamonds:
+      typeof data.claimCostDiamonds === 'number' && Number.isFinite(data.claimCostDiamonds)
+        ? data.claimCostDiamonds
+        : null,
+    lastClaimAt,
+  };
+};
+
+const formatSponsorErrorMessage = (error: unknown, fallback: string): string => {
+  const details = getErrorDetails(error);
+  const nextPayoutAtRaw = typeof details?.nextPayoutAt === 'string' ? details.nextPayoutAt : '';
+  if (nextPayoutAtRaw) {
+    const nextPayoutAt = new Date(nextPayoutAtRaw);
+    if (!Number.isNaN(nextPayoutAt.getTime())) {
+      return `Bir sonraki sponsorluk odemesi ${new Intl.DateTimeFormat('tr-TR', {
+        day: '2-digit',
+        month: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+      }).format(nextPayoutAt)} tarihinde hazir olacak.`;
+    }
+  }
+
+  return getErrorMessage(error, fallback);
+};
+
+const formatVipDailyCreditErrorMessage = (error: unknown, fallback: string): string => {
+  const details = getErrorDetails(error);
+  if (details?.reason === 'already_claimed') {
+    return 'Bugunku VIP kredi bonusunu zaten aldin.';
+  }
+  if (details?.reason === 'vip_inactive') {
+    return 'Bu bonus sadece aktif VIP uyeler icin acik.';
+  }
+  if (details?.reason === 'insufficient_diamonds') {
+    return 'VIP kredi bonusu icin yeterli elmasin yok.';
+  }
+
+  return getErrorMessage(error, fallback);
+};
 
 const logSponsorActionError = ({
   action,
@@ -61,15 +138,16 @@ const logSponsorActionError = ({
   sponsorType?: SponsorCatalogEntry['type'];
   error: unknown;
 }) => {
-  console.error('[FinanceScreen] sponsor action failed', {
+  const payload = {
     action,
     path,
     sponsorId,
     sponsorType: sponsorType ?? null,
     code: getErrorCode(error) || null,
     message: getErrorMessage(error, 'Bilinmeyen sponsor hatasi.'),
-    rawError: error,
-  });
+    details: getErrorDetails(error),
+  };
+  console.error(`[FinanceScreen] sponsor action failed ${JSON.stringify(payload)}`);
 };
 
 const getPurchaseErrorMessage = (
@@ -100,6 +178,7 @@ const getPurchaseErrorMessage = (
 
 export default function FinanceSummaryScreen() {
   const { user } = useAuth();
+  const { vipActive } = useInventory();
   const [activeTab, setActiveTab] = useState('summary');
   const [isTeamOwner, setIsTeamOwner] = useState<boolean | null>(null);
   const [creditLoading, setCreditLoading] = useState<string | null>(null);
@@ -108,6 +187,7 @@ export default function FinanceSummaryScreen() {
   const [productsById, setProductsById] = useState<Record<string, PlayBillingProduct>>({});
   const [isStoreLoading, setIsStoreLoading] = useState(false);
   const [storeError, setStoreError] = useState<string | null>(null);
+  const [vipDailyCreditSummary, setVipDailyCreditSummary] = useState<VipDailyCreditSummary | null>(null);
   const {
     cashBalance: balance,
     expectedRevenue,
@@ -136,6 +216,18 @@ export default function FinanceSummaryScreen() {
     const ownerId = teamOwnerId;
     setIsTeamOwner(!ownerId || ownerId === user.id);
   }, [teamOwnerId, user]);
+
+  useEffect(() => {
+    if (!user) {
+      setVipDailyCreditSummary(null);
+      return;
+    }
+
+    return onSnapshot(doc(db, 'users', user.id), (snapshot) => {
+      const data = (snapshot.data() as { vipDailyCredit?: unknown } | undefined) ?? undefined;
+      setVipDailyCreditSummary(readVipDailyCreditSummary(data?.vipDailyCredit));
+    });
+  }, [user]);
 
   useEffect(() => {
     if (!user) {
@@ -325,6 +417,10 @@ export default function FinanceSummaryScreen() {
 
   const averageMatchIncome = expectedRevenue.matchEstimate;
   const dailyIncomeEstimate = expectedRevenue.projectedDailyIncome;
+  const vipDailyCreditAvailability = useMemo(
+    () => getVipDailyCreditAvailability(vipActive, vipDailyCreditSummary),
+    [vipActive, vipDailyCreditSummary],
+  );
 
   if (!user) {
     return (
@@ -467,7 +563,7 @@ export default function FinanceSummaryScreen() {
         error,
       });
       toast.error('Hata', {
-        description: getErrorMessage(error, 'Sponsor kazanci alinamadi.'),
+        description: formatSponsorErrorMessage(error, 'Sponsor kazanci alinamadi.'),
       });
     } finally {
       setSponsorLoading(null);
@@ -526,6 +622,22 @@ export default function FinanceSummaryScreen() {
     } catch (error) {
       toast.error('Hata', {
         description: getPurchaseErrorMessage(error, 'Kredi satin alinamadi.'),
+      });
+    } finally {
+      setCreditLoading(null);
+    }
+  };
+
+  const handleClaimVipDailyCredit = async () => {
+    setCreditLoading('vip-daily-credit');
+    try {
+      const claimed: ClaimVipDailyCreditResponse = await claimVipDailyCredits();
+      toast.success('VIP Bonusu Alindi', {
+        description: `${formatCurrency(claimed.amount)} kredi hesabina eklendi.`,
+      });
+    } catch (error) {
+      toast.error('Hata', {
+        description: formatVipDailyCreditErrorMessage(error, 'VIP kredi bonusu alinamadi.'),
       });
     } finally {
       setCreditLoading(null);
@@ -611,6 +723,14 @@ export default function FinanceSummaryScreen() {
                 productsById={productsById}
                 isStoreLoading={isStoreLoading}
                 storeError={storeError}
+                vipActive={vipActive}
+                vipClaimAvailable={vipDailyCreditAvailability.canClaim}
+                vipClaimedToday={vipDailyCreditAvailability.claimedToday}
+                vipClaimLoading={creditLoading === 'vip-daily-credit'}
+                vipBonusAmount={VIP_DAILY_CREDIT_AMOUNT}
+                vipBonusDiamondCost={VIP_DAILY_CREDIT_DIAMOND_COST}
+                vipNextClaimDateKey={vipDailyCreditAvailability.nextClaimDateKey}
+                onClaimVipBonus={handleClaimVipDailyCredit}
               />
             </TabsContent>
           </Tabs>

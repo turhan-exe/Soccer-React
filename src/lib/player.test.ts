@@ -32,6 +32,7 @@ test('assigns max stats based on roles without exceeding potential', () => {
     age: 20,
     height: 180,
     weight: 75,
+    health: 1,
     condition: 0.8,
     motivation: 0.8,
     injuryStatus: 'healthy',

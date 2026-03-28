@@ -37,6 +37,9 @@ const resolveTeamBalance = (
   return Math.max(0, Math.round(balanceSource));
 };
 
+const getSponsorCadenceMs = (cycle: 'daily' | 'weekly' | undefined): number =>
+  cycle === 'weekly' ? 7 * DAY_MS : DAY_MS;
+
 export const activateUserSponsor = functions
   .region('europe-west1')
   .https.onCall(async (data, context) => {
@@ -128,23 +131,43 @@ export const collectUserSponsorEarnings = functions
         throw new functions.https.HttpsError('failed-precondition', 'Sponsor odeme bilgisi eksik.');
       }
 
-      const cadenceMs = reward.cycle === 'weekly' ? 7 * DAY_MS : DAY_MS;
+      const cadenceMs = getSponsorCadenceMs(reward.cycle);
       const nowMs = Date.now();
       const activatedAtMs = sponsorData.activatedAt?.toMillis?.();
       const lastPayoutMs = sponsorData.lastPayoutAt?.toMillis?.();
       const nextPayoutAtMs = sponsorData.nextPayoutAt?.toMillis?.();
-      const lastPayoutAt = lastPayoutMs ?? activatedAtMs ?? nowMs;
+      const payoutBaseMs = lastPayoutMs ?? activatedAtMs ?? nowMs;
+      const derivedNextPayoutAtMs = payoutBaseMs + cadenceMs;
+      const nextEligibleAtMs =
+        typeof nextPayoutAtMs === 'number'
+          ? Math.max(nextPayoutAtMs, derivedNextPayoutAtMs)
+          : derivedNextPayoutAtMs;
 
-      if (nextPayoutAtMs && nowMs < nextPayoutAtMs) {
+      if (nowMs < nextEligibleAtMs) {
         throw new functions.https.HttpsError(
           'failed-precondition',
           'Bir sonraki sponsorluk odemesi henuz hazir degil.',
+          {
+            sponsorId,
+            sponsorName,
+            cycle: reward.cycle,
+            nextPayoutAt: new Date(nextEligibleAtMs).toISOString(),
+          },
         );
       }
 
-      const periods = Math.floor((nowMs - lastPayoutAt) / cadenceMs);
+      const periods = Math.floor((nowMs - payoutBaseMs) / cadenceMs);
       if (periods <= 0) {
-        throw new functions.https.HttpsError('failed-precondition', 'Bugun icin odeme yapildi.');
+        throw new functions.https.HttpsError(
+          'failed-precondition',
+          'Bir sonraki sponsorluk odemesi henuz hazir degil.',
+          {
+            sponsorId,
+            sponsorName,
+            cycle: reward.cycle,
+            nextPayoutAt: new Date(nextEligibleAtMs).toISOString(),
+          },
+        );
       }
 
       payout = periods * Number(reward.amount);

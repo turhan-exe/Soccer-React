@@ -1,6 +1,6 @@
 import { addDays } from 'date-fns';
 import { formatInTimeZone, fromZonedTime } from 'date-fns-tz';
-import { collection, getDocs, query, where } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, query, where } from 'firebase/firestore';
 
 import type {
   KnockoutMatch,
@@ -235,6 +235,42 @@ export async function fetchChampionsLeagueParticipants(): Promise<TournamentPart
       });
     })
   );
+
+  const lookupIds = Array.from(
+    new Set(
+      participants
+        .map((participant) => participant.teamId)
+        .filter((teamId) => typeof teamId === 'string' && teamId.trim().length > 0)
+    )
+  );
+
+  if (lookupIds.length > 0) {
+    const resolvedNames = new Map<string, string>();
+    await Promise.all(
+      lookupIds.map(async (teamId) => {
+        try {
+          const snap = await getDoc(doc(db, 'teams', teamId));
+          if (!snap.exists()) return;
+          const data = snap.data() as { name?: string };
+          const currentName = typeof data?.name === 'string' ? data.name.trim() : '';
+          if (currentName) {
+            resolvedNames.set(teamId, currentName);
+          }
+        } catch {
+          // Ignore lookup failures; completed-league listing should still render.
+        }
+      })
+    );
+
+    if (resolvedNames.size > 0) {
+      participants.forEach((participant) => {
+        const currentName = resolvedNames.get(participant.teamId);
+        if (currentName) {
+          participant.teamName = currentName;
+        }
+      });
+    }
+  }
 
   return sortParticipants(participants);
 }

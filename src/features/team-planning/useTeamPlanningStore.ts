@@ -8,7 +8,7 @@ import React, {
 } from 'react';
 import type { Player } from '@/types';
 
-export type MetricKey = 'power' | 'motivation' | 'condition';
+export type MetricKey = 'power' | 'health' | 'motivation' | 'condition';
 
 export type PlayerPosition = {
   x: number;

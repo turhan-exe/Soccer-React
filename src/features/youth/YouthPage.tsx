@@ -1,32 +1,67 @@
-import { useEffect, useState, useCallback } from 'react';
-import { doc, onSnapshot } from 'firebase/firestore';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { doc, getDocFromServer, onSnapshot } from 'firebase/firestore';
+import { toast } from 'sonner';
+
 import { useAuth } from '@/contexts/AuthContext';
 import { useDiamonds } from '@/contexts/DiamondContext';
 import { useInventory } from '@/contexts/InventoryContext';
-import { toast } from 'sonner';
+import { db } from '@/services/firebase';
 import {
-  listenYouthCandidates,
-  getYouthCandidates,
-  createYouthCandidate,
   acceptYouthCandidate,
+  createYouthCandidate,
+  getYouthCandidates,
+  listenYouthCandidates,
   releaseYouthCandidate,
-  YouthCandidate,
+  resetCooldownWithDiamonds,
+  YOUTH_AD_REDUCTION_PERCENT,
   YOUTH_COOLDOWN_MS,
   YOUTH_RESET_DIAMOND_COST,
-  resetCooldownWithDiamonds,
+  type YouthCandidate,
 } from '@/services/youth';
-import { db } from '@/services/firebase';
+import {
+  getRewardedAdFailureMessage,
+  runRewardedAdFlow,
+} from '@/services/rewardedAds';
 import { generateRandomName } from '@/lib/names';
 import { calculateOverall, getRoles, normalizeRatingTo100 } from '@/lib/player';
 import type { Player } from '@/types';
 
-import { YouthHeader } from './components/YouthHeader';
 import { YouthDashboard } from './components/YouthDashboard';
+import { YouthHeader } from './components/YouthHeader';
 import { YouthPlayerCard } from './components/YouthPlayerCard';
 import { YouthPlayerDetails } from './components/YouthPlayerDetails';
 
 const positions: Player['position'][] = ['GK', 'CB', 'LB', 'RB', 'CM', 'LM', 'RM', 'CAM', 'LW', 'RW', 'ST'];
+
 const randomAttr = () => parseFloat(Math.random().toFixed(3));
+
+const getRewardedTimestampMs = (reward: Record<string, unknown>): number | null => {
+  const raw = reward.nextGenerateAtMs;
+  return typeof raw === 'number' && Number.isFinite(raw) ? raw : null;
+};
+
+const getRewardedReductionMs = (reward: Record<string, unknown>): number | null => {
+  const raw = reward.reductionMs;
+  return typeof raw === 'number' && Number.isFinite(raw) ? raw : null;
+};
+
+const formatRewardDuration = (ms: number): string => {
+  const totalSeconds = Math.max(0, Math.floor(ms / 1000));
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+
+  if (hours > 0) {
+    return `${hours} sa ${minutes} dk`;
+  }
+
+  if (minutes > 0) {
+    return `${minutes} dk`;
+  }
+
+  return `${Math.max(1, seconds)} sn`;
+};
+
 const generatePlayer = (): Player => {
   const position = positions[Math.floor(Math.random() * positions.length)];
   const attributes = {
@@ -48,6 +83,7 @@ const generatePlayer = (): Player => {
   } as Player['attributes'];
   const overall = calculateOverall(position, attributes);
   const potential = Math.min(1, overall + Math.random() * (1 - overall));
+
   return {
     id: crypto.randomUUID(),
     name: generateRandomName(),
@@ -60,8 +96,9 @@ const generatePlayer = (): Player => {
     height: 180,
     weight: 75,
     squadRole: 'youth',
-    condition: 100,
-    motivation: 100,
+    health: 1,
+    condition: 1,
+    motivation: 1,
   };
 };
 
@@ -72,13 +109,16 @@ const YouthPage = () => {
   const [candidates, setCandidates] = useState<YouthCandidate[]>([]);
   const [nextGenerateAt, setNextGenerateAt] = useState<Date | null>(null);
   const [canGenerate, setCanGenerate] = useState(false);
-  const [countdown, setCountdown] = useState<string>('—');
+  const [countdown, setCountdown] = useState<string>('-');
   const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null);
+  const [isWatchingAd, setIsWatchingAd] = useState(false);
+  const optimisticRewardedNextGenerateAtMsRef = useRef<number | null>(null);
+  const optimisticRewardedExpiryMsRef = useRef<number>(0);
   const youthCooldownMs = Math.round(YOUTH_COOLDOWN_MS * vipDurationMultiplier);
 
   useEffect(() => {
     if (!user?.id) return;
-    getYouthCandidates(user.id).then(setCandidates).catch(console.warn);
+    void getYouthCandidates(user.id).then(setCandidates).catch(console.warn);
     return listenYouthCandidates(user.id, setCandidates);
   }, [user?.id]);
 
@@ -86,10 +126,35 @@ const YouthPage = () => {
     if (!user?.id) return;
     try {
       const ref = doc(db, 'users', user.id);
-      return onSnapshot(ref, (snap) => {
+      return onSnapshot(ref, snap => {
         const data = snap.data() as { youth?: { nextGenerateAt?: { toDate: () => Date } } } | undefined;
-        const ts = data?.youth?.nextGenerateAt;
-        setNextGenerateAt(ts ? ts.toDate() : null);
+        const timestamp = data?.youth?.nextGenerateAt;
+        const nextGenerateAtMs = timestamp ? timestamp.toDate().getTime() : null;
+        const optimisticMs = optimisticRewardedNextGenerateAtMsRef.current;
+        const optimisticStillActive =
+          optimisticMs !== null && Date.now() < optimisticRewardedExpiryMsRef.current;
+
+        if (
+          optimisticStillActive
+          && nextGenerateAtMs !== null
+          && nextGenerateAtMs > optimisticMs
+        ) {
+          return;
+        }
+
+        if (
+          optimisticMs !== null
+          && (
+            nextGenerateAtMs === null
+            || nextGenerateAtMs <= optimisticMs
+            || !optimisticStillActive
+          )
+        ) {
+          optimisticRewardedNextGenerateAtMsRef.current = null;
+          optimisticRewardedExpiryMsRef.current = 0;
+        }
+
+        setNextGenerateAt(nextGenerateAtMs === null ? null : new Date(nextGenerateAtMs));
       });
     } catch (err) {
       console.warn(err);
@@ -100,35 +165,38 @@ const YouthPage = () => {
     const updateState = () => {
       if (!nextGenerateAt) {
         setCanGenerate(true);
-        setCountdown('Hazır');
+        setCountdown('Hazir');
         return;
       }
 
-      const now = Date.now();
-      const target = nextGenerateAt.getTime();
-      const diff = target - now;
-
+      const diff = nextGenerateAt.getTime() - Date.now();
       if (diff <= 0) {
         setCanGenerate(true);
-        setCountdown('Hazır');
-      } else {
-        setCanGenerate(false);
-        const totalSeconds = Math.floor(diff / 1000);
-        const hours = Math.floor(totalSeconds / 3600);
-        const minutes = Math.floor((totalSeconds % 3600) / 60);
-        const seconds = totalSeconds % 60;
-
-        if (hours > 0) {
-          setCountdown(`${hours}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`);
-        } else {
-          setCountdown(`${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`);
-        }
+        setCountdown('Hazir');
+        return;
       }
+
+      setCanGenerate(false);
+      const totalSeconds = Math.floor(diff / 1000);
+      const hours = Math.floor(totalSeconds / 3600);
+      const minutes = Math.floor((totalSeconds % 3600) / 60);
+      const seconds = totalSeconds % 60;
+
+      if (hours > 0) {
+        setCountdown(
+          `${hours}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`,
+        );
+        return;
+      }
+
+      setCountdown(
+        `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`,
+      );
     };
 
     updateState();
-    const id = setInterval(updateState, 1000);
-    return () => clearInterval(id);
+    const intervalId = setInterval(updateState, 1000);
+    return () => clearInterval(intervalId);
   }, [nextGenerateAt]);
 
   const handleGenerate = async () => {
@@ -138,12 +206,12 @@ const YouthPage = () => {
       const candidate = await createYouthCandidate(user.id, player, {
         durationMultiplier: vipDurationMultiplier,
       });
-      setCandidates((prev) => [candidate, ...prev]);
+      setCandidates(prev => [candidate, ...prev]);
       setNextGenerateAt(new Date(Date.now() + youthCooldownMs));
-      toast.success('Oyuncu üretildi');
+      toast.success('Oyuncu uretildi');
     } catch (err) {
       console.warn(err);
-      toast.error((err as Error).message || 'İşlem başarısız');
+      toast.error((err as Error).message || 'Islem basarisiz');
     }
   };
 
@@ -153,26 +221,93 @@ const YouthPage = () => {
       toast.error('Yetersiz elmas');
       return;
     }
+
     try {
       await resetCooldownWithDiamonds(user.id);
       setNextGenerateAt(new Date());
-      toast.success('Süre sıfırlandı');
-      // Optionally trigger generation automatically or let user click again
+      toast.success('Sure sifirlandi');
     } catch (err) {
       console.warn(err);
-      toast.error('Elmas ile hızlandırma başarısız');
+      toast.error('Elmas ile hizlandirma basarisiz');
     }
   };
+
+  const handleWatchAd = useCallback(async () => {
+    if (!user?.id || canGenerate || isWatchingAd) {
+      return;
+    }
+
+    setIsWatchingAd(true);
+    try {
+      const result = await runRewardedAdFlow({
+        userId: user.id,
+        placement: 'youth_cooldown',
+        context: {
+          surface: 'youth',
+        },
+      });
+
+      if (result.outcome === 'claimed' || result.outcome === 'already_claimed') {
+        const nextGenerateAtMs = getRewardedTimestampMs(result.claim.reward);
+        const reductionMs = getRewardedReductionMs(result.claim.reward);
+        if (nextGenerateAtMs !== null) {
+          optimisticRewardedNextGenerateAtMsRef.current = nextGenerateAtMs;
+          optimisticRewardedExpiryMsRef.current = Date.now() + 30_000;
+          setNextGenerateAt(new Date(nextGenerateAtMs));
+        }
+
+        try {
+          const latestUserSnap = await getDocFromServer(doc(db, 'users', user.id));
+          const latestTimestamp = latestUserSnap.get('youth.nextGenerateAt');
+          const latestNextGenerateAtMs =
+            typeof latestTimestamp?.toDate === 'function'
+              ? latestTimestamp.toDate().getTime()
+              : null;
+          if (latestNextGenerateAtMs !== null) {
+            optimisticRewardedNextGenerateAtMsRef.current = null;
+            optimisticRewardedExpiryMsRef.current = 0;
+            setNextGenerateAt(new Date(latestNextGenerateAtMs));
+          }
+        } catch (error) {
+          console.warn('[YouthPage] failed to refresh youth cooldown after rewarded claim', error);
+        }
+
+        toast.success(
+          reductionMs && reductionMs > 0
+            ? `Kalan sure ${formatRewardDuration(reductionMs)} azaltildi`
+            : 'Kalan sure %15 azaltildi',
+        );
+        return;
+      }
+
+      if (result.outcome === 'dismissed') {
+        toast.info('Reklam tamamlanmadi.');
+        return;
+      }
+
+      if (result.outcome === 'pending_verification') {
+        toast.info('Reklam dogrulaniyor. Biraz sonra tekrar deneyin.');
+        return;
+      }
+
+      toast.error(getRewardedAdFailureMessage(result.ad));
+    } catch (err) {
+      console.warn(err);
+      toast.error(getRewardedAdFailureMessage(err));
+    } finally {
+      setIsWatchingAd(false);
+    }
+  }, [canGenerate, isWatchingAd, user?.id]);
 
   const handleAccept = async (id: string) => {
     if (!user?.id) return;
     try {
       await acceptYouthCandidate(user.id, id);
-      setCandidates((prev) => prev.filter((c) => c.id !== id));
-      toast.success('Oyuncu takıma eklendi');
+      setCandidates(prev => prev.filter(candidate => candidate.id !== id));
+      toast.success('Oyuncu takima eklendi');
     } catch (err) {
       console.warn(err);
-      toast.error('İşlem başarısız');
+      toast.error('Islem basarisiz');
     }
   };
 
@@ -180,16 +315,16 @@ const YouthPage = () => {
     if (!user?.id) return;
     try {
       await releaseYouthCandidate(user.id, id);
-      setCandidates((prev) => prev.filter((c) => c.id !== id));
-      toast.success('Oyuncu serbest bırakıldı');
+      setCandidates(prev => prev.filter(candidate => candidate.id !== id));
+      toast.success('Oyuncu serbest birakildi');
     } catch (err) {
       console.warn(err);
-      toast.error('İşlem başarısız');
+      toast.error('Islem basarisiz');
     }
   };
 
   if (!user) {
-    return <div className="p-4">Giriş yapmalısın</div>;
+    return <div className="p-4">Giris yapmalisin</div>;
   }
 
   const candidateCount = candidates.length;
@@ -197,18 +332,18 @@ const YouthPage = () => {
     candidateCount === 0
       ? 0
       : normalizeRatingTo100(
-        candidates.reduce((acc, curr) => acc + curr.player.overall, 0) / candidateCount,
+        candidates.reduce((accumulator, candidate) => accumulator + candidate.player.overall, 0) / candidateCount,
       );
   const topPotential =
     candidateCount === 0
       ? 0
-      : normalizeRatingTo100(Math.max(...candidates.map((c) => c.player.potential)));
+      : normalizeRatingTo100(Math.max(...candidates.map(candidate => candidate.player.potential)));
 
   return (
     <div className="relative min-h-screen bg-[#14151f] p-4 font-sans text-slate-100">
       <YouthHeader />
 
-      <div className="max-w-7xl mx-auto">
+      <div className="mx-auto max-w-7xl">
         <YouthDashboard
           candidateCount={candidateCount}
           averageOverall={averageOverall}
@@ -216,30 +351,38 @@ const YouthPage = () => {
           canGenerate={canGenerate}
           onGenerate={handleGenerate}
           onReset={handleReset}
+          onWatchAd={handleWatchAd}
+          canWatchAd={!canGenerate && !isWatchingAd}
+          isWatchingAd={isWatchingAd}
           nextGenerateTime={countdown}
           diamondCost={YOUTH_RESET_DIAMOND_COST}
+          adReductionPercent={Math.round(YOUTH_AD_REDUCTION_PERCENT * 100)}
         />
 
         <section className="mb-8">
           <div className="mb-4 px-1">
             <h2 className="text-xl font-bold text-white">Oyuncu Havuzu</h2>
-            <p className="text-sm text-slate-400">Gelişime hazır genç yetenekleri filtrele ve doğru zamanda A takıma yükselt.</p>
+            <p className="text-sm text-slate-400">
+              Gelisime hazir genc yetenekleri filtrele ve dogru zamanda A takima yukselt.
+            </p>
           </div>
 
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {candidates.map((candidate) => (
+            {candidates.map(candidate => (
               <YouthPlayerCard
                 key={candidate.id}
                 candidate={candidate}
                 onAccept={handleAccept}
                 onRelease={handleRelease}
-                onViewDetails={(c) => setSelectedPlayer(c.player)}
+                onViewDetails={current => setSelectedPlayer(current.player)}
               />
             ))}
             {candidates.length === 0 && (
-              <div className="col-span-full py-12 text-center text-slate-500 bg-white/5 rounded-[32px] border border-dashed border-white/10">
-                <p>Henüz aday bulunmuyor.</p>
-                <p className="text-xs mt-1 opacity-60">"Yetenek Ara" butonunu kullanarak yeni yetenekler keşfedin.</p>
+              <div className="col-span-full rounded-[32px] border border-dashed border-white/10 bg-white/5 py-12 text-center text-slate-500">
+                <p>Henuz aday bulunmuyor.</p>
+                <p className="mt-1 text-xs opacity-60">
+                  "Yetenek Ara" butonunu kullanarak yeni yetenekler kesfedin.
+                </p>
               </div>
             )}
           </div>

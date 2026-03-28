@@ -1,11 +1,23 @@
+import { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { RefreshCcw, HandCoins } from 'lucide-react';
-import type { UserSponsorDoc, SponsorCatalogEntry } from '@/services/finance';
+import {
+  getSponsorPayoutAvailability,
+  type UserSponsorDoc,
+  type SponsorCatalogEntry,
+} from '@/services/finance';
 import type { PlayBillingProduct } from '@/services/playBilling';
 import { formatCurrency } from './FinanceHeader';
 import SponsorCatalog from '../SponsorCatalog';
+
+const sponsorPayoutFormatter = new Intl.DateTimeFormat('tr-TR', {
+  day: '2-digit',
+  month: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+});
 
 interface SponsorTabProps {
   sponsors: UserSponsorDoc[];
@@ -33,6 +45,17 @@ export function SponsorTab({
   storeError,
 }: SponsorTabProps) {
   const activeSponsorId = sponsors.find((item) => item.active)?.id ?? null;
+  const [nowMs, setNowMs] = useState(() => Date.now());
+
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      setNowMs(Date.now());
+    }, 30_000);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, []);
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -52,61 +75,87 @@ export function SponsorTab({
           )}
 
           {sponsors.map((sponsor) => (
-            <div
-              key={sponsor.id}
-              className={`relative overflow-hidden rounded-xl border p-4 transition-all ${
-                sponsor.active
-                  ? 'border-emerald-500/30 bg-gradient-to-br from-emerald-500/10 to-slate-900/50'
-                  : 'border-white/10 bg-slate-900/40'
-              }`}
-            >
-              <div className="flex items-start justify-between">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <p className="text-lg font-bold text-white">{sponsor.name}</p>
-                    <Badge
-                      variant="outline"
-                      className={`text-[10px] uppercase tracking-wider ${
-                        sponsor.type === 'premium'
-                          ? 'border-amber-500/50 text-amber-400'
-                          : 'border-emerald-500/50 text-emerald-400'
-                      }`}
-                    >
-                      {sponsor.type}
-                    </Badge>
+            (() => {
+              const payoutAvailability = sponsor.active
+                ? getSponsorPayoutAvailability(sponsor, nowMs)
+                : null;
+              const canCollect = sponsor.active && payoutAvailability?.canCollect === true;
+              const nextPayoutLabel =
+                sponsor.active && payoutAvailability?.nextPayoutAt
+                  ? canCollect
+                    ? 'Odeme hazir'
+                    : `Sonraki odeme: ${sponsorPayoutFormatter.format(payoutAvailability.nextPayoutAt)}`
+                  : null;
+
+              return (
+                <div
+                  key={sponsor.id}
+                  className={`relative overflow-hidden rounded-xl border p-4 transition-all ${
+                    sponsor.active
+                      ? 'border-emerald-500/30 bg-gradient-to-br from-emerald-500/10 to-slate-900/50'
+                      : 'border-white/10 bg-slate-900/40'
+                  }`}
+                >
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <p className="text-lg font-bold text-white">{sponsor.name}</p>
+                        <Badge
+                          variant="outline"
+                          className={`text-[10px] uppercase tracking-wider ${
+                            sponsor.type === 'premium'
+                              ? 'border-amber-500/50 text-amber-400'
+                              : 'border-emerald-500/50 text-emerald-400'
+                          }`}
+                        >
+                          {sponsor.type}
+                        </Badge>
+                      </div>
+                      <div className="mt-1 flex items-baseline gap-1">
+                        <p className="font-mono text-2xl font-bold text-white">
+                          {formatCurrency(sponsor.reward.amount)}
+                        </p>
+                        <p className="text-xs text-slate-400">
+                          / {sponsor.reward.cycle === 'daily' ? 'Gunluk' : 'Haftalik'}
+                        </p>
+                      </div>
+                    </div>
+                    {sponsor.active && (
+                      <Badge className="border-none bg-emerald-500 text-white hover:bg-emerald-600">
+                        AKTIF
+                      </Badge>
+                    )}
                   </div>
-                  <div className="mt-1 flex items-baseline gap-1">
-                    <p className="font-mono text-2xl font-bold text-white">
-                      {formatCurrency(sponsor.reward.amount)}
-                    </p>
-                    <p className="text-xs text-slate-400">
-                      / {sponsor.reward.cycle === 'daily' ? 'Gunluk' : 'Haftalik'}
-                    </p>
+
+                  <div className="mt-4 flex items-center justify-between gap-4 text-xs text-slate-500">
+                    <span>
+                      Baslangic: {sponsor.activatedAt?.toDate?.().toLocaleDateString?.('tr-TR') ?? '-'}
+                    </span>
+                    {nextPayoutLabel && (
+                      <span className={canCollect ? 'text-emerald-300' : 'text-amber-300'}>
+                        {nextPayoutLabel}
+                      </span>
+                    )}
                   </div>
+
+                  <Button
+                    size="sm"
+                    className={`mt-4 w-full font-bold tracking-wide ${
+                      sponsor.active ? 'bg-emerald-500 text-white hover:bg-emerald-600' : 'bg-slate-700'
+                    }`}
+                    onClick={() => onCollect(sponsor.id)}
+                    disabled={loadingId === sponsor.id || !canCollect}
+                  >
+                    {loadingId === sponsor.id && <RefreshCcw className="mr-2 h-3 w-3 animate-spin" />}
+                    {!sponsor.active
+                      ? 'Suresi Doldu'
+                      : canCollect
+                        ? 'Geliri Tahsil Et'
+                        : 'Odeme Hazir Degil'}
+                  </Button>
                 </div>
-                {sponsor.active && (
-                  <Badge className="border-none bg-emerald-500 text-white hover:bg-emerald-600">
-                    AKTIF
-                  </Badge>
-                )}
-              </div>
-
-              <div className="mt-4 flex items-center justify-between text-xs text-slate-500">
-                <span>Baslangic: {sponsor.activatedAt?.toDate?.().toLocaleDateString?.('tr-TR') ?? '-'}</span>
-              </div>
-
-              <Button
-                size="sm"
-                className={`mt-4 w-full font-bold tracking-wide ${
-                  sponsor.active ? 'bg-emerald-500 text-white hover:bg-emerald-600' : 'bg-slate-700'
-                }`}
-                onClick={() => onCollect(sponsor.id)}
-                disabled={loadingId === sponsor.id || !sponsor.active}
-              >
-                {loadingId === sponsor.id && <RefreshCcw className="mr-2 h-3 w-3 animate-spin" />}
-                {sponsor.active ? 'Geliri Tahsil Et' : 'Suresi Doldu'}
-              </Button>
-            </div>
+              );
+            })()
           ))}
         </CardContent>
       </Card>

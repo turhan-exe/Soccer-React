@@ -119,6 +119,7 @@ export async function getTrainingHistory(
 
 export const TRAINING_FINISH_COST = 80;
 export const TRAINING_BOOST_COST = 35;
+export const TRAINING_AD_REDUCTION_PERCENT = 0.25;
 
 export async function finishTrainingWithDiamonds(
   uid: string,
@@ -228,7 +229,10 @@ export async function reduceTrainingTimeWithAd(
         throw new Error('Antrenman zaten tamamlanmış');
       }
 
-      const reductionSeconds = remainingSeconds;
+      const reductionSeconds = Math.max(
+        1,
+        Math.floor(remainingSeconds * TRAINING_AD_REDUCTION_PERCENT),
+      );
       const newDurationSeconds = Math.max(
         elapsedSeconds,
         data.durationSeconds - reductionSeconds,
@@ -248,6 +252,127 @@ export async function reduceTrainingTimeWithAd(
   }
 }
 
+async function consumeActiveTrainingSession(
+  uid: string,
+): Promise<ActiveTrainingSession | null> {
+  return runTransaction(db, async (tx) => {
+    const ref = trainingDoc(uid);
+    const snap = await tx.get(ref);
+    if (!snap.exists()) {
+      return null;
+    }
+
+    const session = snap.data() as ActiveTrainingSession;
+    tx.delete(ref);
+    return session;
+  });
+}
+
+export interface CompleteTrainingSessionOptions {
+  session?: ActiveTrainingSession | null;
+  viewed?: boolean;
+  consumeActive?: boolean;
+}
+
+export interface CompleteTrainingSessionResult {
+  players: Player[];
+  records: TrainingHistoryRecord[];
+  session: ActiveTrainingSession | null;
+}
+
+export async function completeTrainingSession(
+  uid: string,
+  options: CompleteTrainingSessionOptions = {},
+): Promise<CompleteTrainingSessionResult> {
+  const consumeActive = options.consumeActive !== false;
+  const session =
+    options.session ?? (consumeActive ? await consumeActiveTrainingSession(uid) : null);
+  const team = await getTeam(uid);
+  const currentPlayers = team?.players ?? [];
+
+  if (!session) {
+    return {
+      players: currentPlayers,
+      records: [],
+      session: null,
+    };
+  }
+
+  if (!team) {
+    return {
+      players: [],
+      records: [],
+      session,
+    };
+  }
+
+  const sessionPlayers = session.playerIds
+    .map((id) => team.players.find((player) => player.id === id))
+    .filter((player): player is Player => Boolean(player));
+
+  const sessionTrainings = session.trainingIds
+    .map((id) => trainings.find((training) => training.id === id))
+    .filter((training): training is Training => Boolean(training));
+
+  if (sessionPlayers.length === 0 || sessionTrainings.length === 0) {
+    if (!consumeActive) {
+      try {
+        await clearActiveTraining(uid);
+      } catch (error) {
+        console.warn('[training.completeTrainingSession] clear active failed', error);
+      }
+    }
+
+    return {
+      players: team.players,
+      records: [],
+      session,
+    };
+  }
+
+  const { updatedPlayers, records } = runTrainingSimulation(
+    sessionPlayers,
+    sessionTrainings,
+  );
+
+  const mergedPlayers = team.players.map((player) => {
+    const updated = updatedPlayers.find((candidate) => candidate.id === player.id);
+    return updated ?? player;
+  });
+
+  await saveTeamPlayers(uid, mergedPlayers);
+
+  const completionTime = Timestamp.now();
+  const persistedRecords: TrainingHistoryRecord[] = [];
+
+  for (const record of records) {
+    const nextRecord: TrainingHistoryRecord = {
+      ...record,
+      completedAt: completionTime,
+      viewed: options.viewed ?? false,
+    };
+    const recordId = await addTrainingRecord(uid, nextRecord);
+    persistedRecords.push({
+      ...nextRecord,
+      id: recordId,
+    });
+  }
+
+  if (!consumeActive) {
+    try {
+      await clearActiveTraining(uid);
+    } catch (error) {
+      console.warn('[training.completeTrainingSession] clear active failed', error);
+    }
+  }
+
+  return {
+    players: mergedPlayers,
+    records: persistedRecords,
+    session,
+  };
+}
+
 export async function finalizeExpiredTrainingSession(uid: string): Promise<boolean> {
   const session = await getActiveTraining(uid);
   if (!session) {
@@ -265,61 +390,9 @@ export async function finalizeExpiredTrainingSession(uid: string): Promise<boole
   }
 
   try {
-    const team = await getTeam(uid);
-    if (!team) {
-      await clearActiveTraining(uid);
-      return true;
-    }
-
-    const sessionPlayers = session.playerIds
-      .map(id => team.players.find(player => player.id === id))
-      .filter((player): player is Player => Boolean(player));
-
-    const sessionTrainings = session.trainingIds
-      .map(id => trainings.find(training => training.id === id))
-      .filter((training): training is Training => Boolean(training));
-
-    if (sessionPlayers.length === 0 || sessionTrainings.length === 0) {
-      await clearActiveTraining(uid);
-      return true;
-    }
-
-    const { updatedPlayers, records } = runTrainingSimulation(
-      sessionPlayers,
-      sessionTrainings,
-    );
-
-    const mergedPlayers = team.players.map(player => {
-      const updated = updatedPlayers.find(p => p.id === player.id);
-      return updated ?? player;
+    await completeTrainingSession(uid, {
+      viewed: false,
     });
-
-    try {
-      await saveTeamPlayers(uid, mergedPlayers);
-    } catch (error) {
-      console.warn('[training.finalizeExpiredTrainingSession] save players failed', error);
-    }
-
-    const completionTime = Timestamp.now();
-
-    for (const record of records) {
-      try {
-        await addTrainingRecord(uid, {
-          ...record,
-          completedAt: completionTime,
-          viewed: false,
-        });
-      } catch (error) {
-        console.warn('[training.finalizeExpiredTrainingSession] record persist failed', error);
-      }
-    }
-
-    try {
-      await clearActiveTraining(uid);
-    } catch (error) {
-      console.warn('[training.finalizeExpiredTrainingSession] clear active failed', error);
-    }
-
     return true;
   } catch (error) {
     console.warn('[training.finalizeExpiredTrainingSession] failed', error);

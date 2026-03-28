@@ -60,6 +60,7 @@ const player: Player = {
   height: 180,
   weight: 70,
   squadRole: 'youth',
+  health: 1,
   condition: 0.7,
   motivation: 0.7,
   injuryStatus: 'healthy',

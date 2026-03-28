@@ -589,43 +589,46 @@ export async function getFixturesForTeamSlotAware(
 }
 
 /** Ligdeki takımları getir */
-function needsHumanNameLookup(id: string, name?: string | null): boolean {
-  if (!id || id.startsWith('slot-')) return false;
-  const label = (name ?? '').trim();
-  if (!label) return true;
-  if (/^bot\b/i.test(label)) return false;
-  if (/^slot\b/i.test(label)) return true;
-  return label === id;
+function shouldResolveCurrentTeamName(id: string): boolean {
+  return typeof id === 'string' && id.trim().length > 0 && !id.startsWith('slot-');
 }
 
-async function hydrateTeamNames(
-  teams: { id: string; name: string; logo?: string | null }[]
-): Promise<{ id: string; name: string; logo?: string | null }[]> {
-  const lookupIds = Array.from(
-    new Set(
-      teams.filter((team) => needsHumanNameLookup(team.id, team.name)).map((team) => team.id)
-    )
-  );
-  if (lookupIds.length === 0) return teams;
-
+async function resolveCurrentTeamInfo(
+  teamIds: string[]
+): Promise<Map<string, { name: string; logo: string | null }>> {
+  const lookupIds = Array.from(new Set(teamIds.filter(shouldResolveCurrentTeamName)));
   const resolved = new Map<string, { name: string; logo: string | null }>();
+
+  if (lookupIds.length === 0) {
+    return resolved;
+  }
+
   await Promise.all(
     lookupIds.map(async (teamId) => {
       try {
         const snap = await getDoc(doc(db, 'teams', teamId));
         if (!snap.exists()) return;
         const data = snap.data() as { name?: string; logo?: string | null };
-        const friendly = (data?.name ?? '').trim();
+        const friendlyName = typeof data?.name === 'string' ? data.name.trim() : '';
         const logo = data?.logo || null;
-        if (friendly || logo) {
-          resolved.set(teamId, { name: friendly, logo });
-        }
+        if (!friendlyName && !logo) return;
+        resolved.set(teamId, {
+          name: friendlyName,
+          logo,
+        });
       } catch {
-        // Silent: network/cache errors should not break fixtures view.
+        // Silent: network/cache errors should not break fixtures or standings rendering.
       }
     })
   );
 
+  return resolved;
+}
+
+async function hydrateTeamNames(
+  teams: { id: string; name: string; logo?: string | null }[]
+): Promise<{ id: string; name: string; logo?: string | null }[]> {
+  const resolved = await resolveCurrentTeamInfo(teams.map((team) => team.id));
   if (resolved.size === 0) return teams;
   return teams.map((team) => {
     if (resolved.has(team.id)) {
@@ -637,6 +640,21 @@ async function hydrateTeamNames(
       };
     }
     return team;
+  });
+}
+
+async function hydrateStandingsNames(rows: Standing[]): Promise<Standing[]> {
+  const resolved = await resolveCurrentTeamInfo(rows.map((row) => row.teamId));
+  if (resolved.size === 0) return rows;
+
+  return rows.map((row) => {
+    const info = resolved.get(row.teamId);
+    if (!info?.name) return row;
+    if (row.name === info.name) return row;
+    return {
+      ...row,
+      name: info.name,
+    };
   });
 }
 
@@ -801,7 +819,8 @@ export function listenStandings(
     void (async () => {
       const rows: Standing[] = snap.docs.map((d) => buildStandingFromSlot(d.data() as Record<string, unknown>, d.id));
       const merged = await mergeStandingsWithSlots(leagueId, rows);
-      cb(merged);
+      const hydrated = await hydrateStandingsNames(merged);
+      cb(hydrated);
     })();
   });
 }
@@ -927,7 +946,8 @@ export async function listLeagueStandings(
   const snap = await getDocs(col);
 
   const rows: Standing[] = snap.docs.map((d) => buildStandingFromSlot(d.data() as Record<string, unknown>, d.id));
-  return mergeStandingsWithSlots(leagueId, rows);
+  const merged = await mergeStandingsWithSlots(leagueId, rows);
+  return hydrateStandingsNames(merged);
 }
 
 // Get league via top-level teams/{teamId}.leagueId (slot-based flow)
@@ -954,12 +974,21 @@ export async function getFixturesByLeagueAndSlotMap(
   mySlotIndex: number
 ): Promise<Array<Fixture & { opponentName: string; home: boolean }>> {
   const slotsSnap = await getDocs(collection(db, 'leagues', leagueId, 'slots'));
+  const slotRows = slotsSnap.docs.map((d) => d.data() as any);
+  const resolvedTeams = await resolveCurrentTeamInfo(
+    slotRows
+      .map((slot) => (typeof slot.teamId === 'string' ? slot.teamId : ''))
+      .filter(Boolean)
+  );
   const nameBySlot = new Map<number, string>();
   const teamIdBySlot = new Map<number, string | null>();
-  slotsSnap.docs.forEach((d) => {
-    const s = d.data() as any;
+  slotRows.forEach((s) => {
+    const currentName =
+      typeof s.teamId === 'string' && resolvedTeams.has(s.teamId)
+        ? resolvedTeams.get(s.teamId)?.name
+        : null;
     const name = s.teamId || `Bot ${s.botId || s.slotIndex}`;
-    nameBySlot.set(s.slotIndex, name);
+    nameBySlot.set(s.slotIndex, currentName || name);
     teamIdBySlot.set(s.slotIndex, s.teamId || null);
   });
   const fxSnap = await getDocs(collection(db, 'leagues', leagueId, 'fixtures'));

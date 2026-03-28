@@ -1,6 +1,15 @@
+import { Timestamp } from 'firebase/firestore';
 import { describe, expect, it } from 'vitest';
 import type { Player } from '@/types';
-import { getExpectedRevenue, getMatchRevenueEstimate, resolveCanonicalClubBalance } from './finance';
+import {
+  applyUnderpaidSalaryPenaltyForMonth,
+  getExpectedRevenue,
+  getIstanbulDateKey,
+  getMatchRevenueEstimate,
+  getSponsorPayoutAvailability,
+  getVipDailyCreditAvailability,
+  resolveCanonicalClubBalance,
+} from './finance';
 import { INITIAL_CLUB_BALANCE } from '@/lib/clubFinance';
 
 const createPlayer = (id: number, overall: number, squadRole: Player['squadRole'] = 'starting'): Player => ({
@@ -30,6 +39,7 @@ const createPlayer = (id: number, overall: number, squadRole: Player['squadRole'
   age: 24,
   height: 180,
   weight: 75,
+  health: 1,
   condition: 1,
   motivation: 1,
   squadRole,
@@ -107,6 +117,16 @@ describe('finance revenue model', () => {
     expect(balance).toBe(INITIAL_CLUB_BALANCE);
   });
 
+  it('prefers finance balance when team budget is stale at zero', () => {
+    const balance = resolveCanonicalClubBalance(
+      { transferBudget: 0, budget: 0 },
+      { balance: 10000 },
+      { hasHistory: true },
+    );
+
+    expect(balance).toBe(10000);
+  });
+
   it('projects monthly expense and net together with revenue', () => {
     const team = Array.from({ length: 11 }, (_, index) => createPlayer(index, 65));
     const revenue = getExpectedRevenue(
@@ -118,5 +138,76 @@ describe('finance revenue model', () => {
 
     expect(revenue.projectedMonthlyExpense).toBe(40000);
     expect(revenue.projectedMonthlyNet).toBe(revenue.monthly - revenue.projectedMonthlyExpense);
+  });
+
+  it('keeps daily sponsor payout locked until the next payout time', () => {
+    const availability = getSponsorPayoutAvailability(
+      {
+        reward: { amount: 10000, cycle: 'daily' },
+        activatedAt: Timestamp.fromMillis(1_000),
+        lastPayoutAt: null,
+        nextPayoutAt: null,
+      },
+      1_000 + 60_000,
+    );
+
+    expect(availability.canCollect).toBe(false);
+    expect(availability.nextPayoutAt?.getTime()).toBe(1_000 + 24 * 60 * 60 * 1000);
+  });
+
+  it('marks daily sponsor payout collectible after one full day', () => {
+    const availability = getSponsorPayoutAvailability(
+      {
+        reward: { amount: 10000, cycle: 'daily' },
+        activatedAt: Timestamp.fromMillis(1_000),
+        lastPayoutAt: null,
+        nextPayoutAt: null,
+      },
+      1_000 + 24 * 60 * 60 * 1000,
+    );
+
+    expect(availability.canCollect).toBe(true);
+    expect(availability.remainingMs).toBe(0);
+  });
+
+  it('locks vip daily credit after a same-day Istanbul claim', () => {
+    const availability = getVipDailyCreditAvailability(
+      true,
+      { lastClaimDate: '2026-03-28' },
+      new Date('2026-03-27T21:05:00.000Z'),
+    );
+
+    expect(availability.claimedToday).toBe(true);
+    expect(availability.canClaim).toBe(false);
+    expect(availability.todayKey).toBe('2026-03-28');
+    expect(availability.nextClaimDateKey).toBe('2026-03-29');
+  });
+
+  it('keeps Istanbul day key stable until UTC+3 midnight', () => {
+    expect(getIstanbulDateKey(new Date('2026-03-27T20:59:59.000Z'))).toBe('2026-03-27');
+    expect(getIstanbulDateKey(new Date('2026-03-27T21:00:00.000Z'))).toBe('2026-03-28');
+  });
+
+  it('applies the underpaid motivation penalty once per month and tracks state', () => {
+    const player = createPlayer(1, 0.8);
+    player.contract = {
+      expiresAt: '2099-01-01T00:00:00.000Z',
+      status: 'active',
+      salary: 100,
+    };
+    player.motivation = 0.8;
+
+    const firstMonth = applyUnderpaidSalaryPenaltyForMonth([player], '2026-03');
+    const penalizedPlayer = firstMonth.players[0];
+
+    expect(firstMonth.changed).toBe(true);
+    expect(firstMonth.penalizedPlayerIds).toEqual(['p-1']);
+    expect(penalizedPlayer.motivation).toBe(0.75);
+    expect(penalizedPlayer.motivationState?.underpaidActive).toBe(true);
+    expect(penalizedPlayer.motivationState?.underpaidLastAppliedMonth).toBe('2026-03');
+
+    const repeatedMonth = applyUnderpaidSalaryPenaltyForMonth(firstMonth.players, '2026-03');
+    expect(repeatedMonth.penalizedPlayerIds).toEqual([]);
+    expect(repeatedMonth.players[0].motivation).toBe(0.75);
   });
 });

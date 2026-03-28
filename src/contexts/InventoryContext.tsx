@@ -6,17 +6,20 @@ import React, {
   useMemo,
   useState,
 } from 'react';
+import { doc, getDoc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { toast } from 'sonner';
 import { BatteryCharging, Gift, HeartPulse, Smile } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
 import { useAuth } from '@/contexts/AuthContext';
 import { useDiamonds } from '@/contexts/DiamondContext';
+import { db } from '@/services/firebase';
 import { KIT_CONFIG } from '@/lib/kits';
 import type { KitType } from '@/types';
 import {
   applyKitToPlayerInInventory,
   DEFAULT_KIT_INVENTORY,
+  grantDailyRewardKits,
   getUserConsumables,
   grantKits,
   listenUserConsumables,
@@ -45,7 +48,7 @@ export const VIP_PLAN_CONFIG: Record<VipPlan, VipPlanConfig> = {
     durationDays: 30,
     diamondCost: 2800,
     perks: [
-      'Gunluk +1 enerji, moral ve saglik kiti',
+      'Gunluk +1 kondisyon, motivasyon ve saglik kiti',
       '%5 sure kisalmasi',
       'Her ay 1 yildiz oyuncu karti',
     ],
@@ -56,7 +59,7 @@ export const VIP_PLAN_CONFIG: Record<VipPlan, VipPlanConfig> = {
     durationDays: 180,
     diamondCost: 15000,
     perks: [
-      'Gunluk +1 enerji, moral ve saglik kiti',
+      'Gunluk +1 kondisyon, motivasyon ve saglik kiti',
       '%5 sure kisalmasi',
       'Her ay 1 yildiz oyuncu karti',
       'Aninda 2 yildiz oyuncu karti',
@@ -69,7 +72,7 @@ export const VIP_PLAN_CONFIG: Record<VipPlan, VipPlanConfig> = {
     durationDays: 365,
     diamondCost: 28000,
     perks: [
-      'Gunluk +1 enerji, moral ve saglik kiti',
+      'Gunluk +1 kondisyon, motivasyon ve saglik kiti',
       '%5 sure kisalmasi',
       'Her ay 2 yildiz oyuncu karti',
       'Aninda 3 yildiz oyuncu karti',
@@ -134,9 +137,9 @@ export interface InventoryContextValue {
 
 const KIT_TYPES: KitType[] = ['energy', 'morale', 'health'];
 const KIT_REWARD_META: Record<KitType, { label: string; icon: LucideIcon; accent: string }> = {
-  energy: { label: 'Enerji Kiti', icon: BatteryCharging, accent: 'text-emerald-300' },
-  morale: { label: 'Moral Kiti', icon: Smile, accent: 'text-amber-300' },
-  health: { label: 'Saglik Kiti', icon: HeartPulse, accent: 'text-rose-300' },
+  energy: { label: 'Kondisyon Kiti', icon: BatteryCharging, accent: 'text-emerald-300' },
+  morale: { label: 'Motivasyon Kiti', icon: Smile, accent: 'text-amber-300' },
+  health: { label: 'Sağlık Kiti', icon: HeartPulse, accent: 'text-rose-300' },
 };
 
 type RewardToastConfig = {
@@ -209,7 +212,25 @@ const DEFAULT_META_STATE: InventoryMetaState = {
   vip: { ...DEFAULT_VIP_STATE },
 };
 
-const formatDateKey = (date: Date): string => date.toISOString().split('T')[0] ?? '';
+const istanbulDateKeyFormatter = new Intl.DateTimeFormat('en-US', {
+  timeZone: 'Europe/Istanbul',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+});
+
+const getDatePartValue = (
+  parts: Intl.DateTimeFormatPart[],
+  type: 'year' | 'month' | 'day',
+): string => parts.find((part) => part.type === type)?.value ?? '';
+
+const formatDateKey = (date: Date): string => {
+  const parts = istanbulDateKeyFormatter.formatToParts(date);
+  const year = getDatePartValue(parts, 'year');
+  const month = getDatePartValue(parts, 'month');
+  const day = getDatePartValue(parts, 'day');
+  return `${year}-${month}-${day}`;
+};
 const formatMonthKey = (date: Date): string =>
   `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
 
@@ -331,6 +352,43 @@ const normalizePersistedInventory = (raw: string | null): PersistedInventoryStor
   }
 };
 
+const userMetaRef = (uid: string) => doc(db, 'users', uid);
+
+const hasMeaningfulVipState = (vip: VipState): boolean =>
+  Boolean(vip.isActive)
+  || Boolean(vip.plan)
+  || Boolean(vip.activatedAt)
+  || Boolean(vip.expiresAt)
+  || Boolean(vip.lastMonthlyStarCardDate)
+  || (vip.starCardCredits ?? 0) > 0
+  || Boolean(vip.nostalgiaFreeClaimedAt)
+  || (vip.nostalgiaFreeTokens ?? 0) > 0;
+
+const persistUserVipState = async (uid: string, vip: VipState): Promise<void> => {
+  await setDoc(
+    userMetaRef(uid),
+    {
+      vip: sanitizeVip(vip),
+      vipUpdatedAt: serverTimestamp(),
+    },
+    { merge: true },
+  );
+};
+
+const persistLastDailyRewardDate = async (
+  uid: string,
+  lastDailyRewardDate: string,
+): Promise<void> => {
+  await setDoc(
+    userMetaRef(uid),
+    {
+      lastDailyRewardDate,
+      dailyRewardUpdatedAt: serverTimestamp(),
+    },
+    { merge: true },
+  );
+};
+
 const InventoryContext = createContext<InventoryContextValue | undefined>(undefined);
 
 export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -369,9 +427,50 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
     const bootstrap = async () => {
       try {
-        const remote = await getUserConsumables(user.id);
+        const [remote, userSnap] = await Promise.all([
+          getUserConsumables(user.id),
+          getDoc(userMetaRef(user.id)),
+        ]);
         if (!isMounted) {
           return;
+        }
+
+        const remoteUserData =
+          (userSnap.data() as {
+            vip?: Partial<VipState> | null;
+            lastDailyRewardDate?: string | null;
+          } | undefined) ?? undefined;
+        const remoteVipCandidate = remoteUserData?.vip;
+        const remoteDailyRewardDate =
+          typeof remoteUserData?.lastDailyRewardDate === 'string'
+            ? remoteUserData.lastDailyRewardDate
+            : null;
+        const hasRemoteVipState =
+          remoteVipCandidate != null &&
+          typeof remoteVipCandidate === 'object' &&
+          Object.keys(remoteVipCandidate as Record<string, unknown>).length > 0;
+
+        if (!hasRemoteVipState && hasMeaningfulVipState(persisted.vip)) {
+          await persistUserVipState(user.id, persisted.vip).catch((error) => {
+            console.warn('[InventoryProvider] failed to migrate vip state to Firestore', error);
+          });
+        }
+
+        if (!remoteDailyRewardDate && persisted.lastDailyRewardDate) {
+          await persistLastDailyRewardDate(user.id, persisted.lastDailyRewardDate).catch((error) => {
+            console.warn('[InventoryProvider] failed to migrate daily reward date to Firestore', error);
+          });
+        }
+
+        const effectiveVip = hasRemoteVipState
+          ? sanitizeVip(remoteVipCandidate ?? undefined)
+          : sanitizeVip(persisted.vip);
+        if (isMounted) {
+          setMeta((previous) => ({
+            ...previous,
+            lastDailyRewardDate: remoteDailyRewardDate ?? previous.lastDailyRewardDate,
+            vip: effectiveVip,
+          }));
         }
 
         if (remote) {
@@ -503,8 +602,17 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       ? { energy: 1, morale: 1, health: 1 }
       : { [KIT_TYPES[Math.floor(Math.random() * KIT_TYPES.length)]]: 1 };
 
-    void grantKits(user.id, rewards)
-      .then(() => {
+    void grantDailyRewardKits(user.id, rewards, todayKey)
+      .then((result) => {
+        if (!result.claimed) {
+          setMeta((previous) => ({
+            ...previous,
+            lastDailyRewardDate: result.lastDailyRewardDate,
+            vip: vipState,
+          }));
+          return;
+        }
+
         setMeta((previous) => ({
           ...previous,
           lastDailyRewardDate: todayKey,
@@ -514,7 +622,7 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         if (vipIsActive) {
           showKitRewardToast({
             title: 'VIP gunluk bonusu',
-            subtitle: 'Enerji, moral ve saglik kitlerinden birer adet eklendi.',
+            subtitle: 'Kondisyon, motivasyon ve saglik kitlerinden birer adet eklendi.',
             kits: KIT_TYPES.map((type) => ({ type, amount: 1 })),
           });
           return;
@@ -599,6 +707,8 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           nextVip.nostalgiaFreeAvailable = nextVip.nostalgiaFreeTokens > 0;
         }
 
+        await persistUserVipState(user.id, nextVip);
+
         setMeta((previous) => ({
           ...previous,
           vip: nextVip,
@@ -611,7 +721,7 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         if (shouldGrantKits) {
           showKitRewardToast({
             title: 'VIP bonus hediyesi',
-            subtitle: `Enerji, moral ve saglik kitlerinden ${activationBonus.kitAmount} adet kazandin.`,
+            subtitle: `Kondisyon, motivasyon ve saglik kitlerinden ${activationBonus.kitAmount} adet kazandin.`,
             kits: KIT_TYPES.map((type) => ({ type, amount: activationBonus.kitAmount })),
           });
         }
@@ -654,16 +764,21 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       return;
     }
 
+    const nextVip = {
+      ...sanitizeVip(meta.vip),
+      isActive: false,
+      expiresAt: null,
+      plan: null,
+      nostalgiaFreeAvailable: false,
+    };
+
     setMeta((previous) => ({
       ...previous,
-      vip: {
-        ...sanitizeVip(previous.vip),
-        isActive: false,
-        expiresAt: null,
-        plan: null,
-        nostalgiaFreeAvailable: false,
-      },
+      vip: nextVip,
     }));
+    void persistUserVipState(user.id, nextVip).catch((error) => {
+      console.warn('[InventoryProvider] failed to persist vip deactivation', error);
+    });
 
     toast.success('VIP uyeligi devre disi birakildi.');
   }, [meta.vip, user]);
@@ -689,19 +804,26 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }
 
     const grantedAmount = currentVipStatus.plan === 'yearly' ? 2 : 1;
+    let nextVipState: VipState | null = null;
 
     setMeta((previous) => {
       const vipState = sanitizeVip(previous.vip);
       const claimAmount = vipState.plan === 'yearly' ? 2 : 1;
+      nextVipState = {
+        ...vipState,
+        lastMonthlyStarCardDate: new Date().toISOString(),
+        starCardCredits: (vipState.starCardCredits ?? 0) + claimAmount,
+      };
       return {
         ...previous,
-        vip: {
-          ...vipState,
-          lastMonthlyStarCardDate: new Date().toISOString(),
-          starCardCredits: (vipState.starCardCredits ?? 0) + claimAmount,
-        },
+        vip: nextVipState,
       };
     });
+    if (nextVipState) {
+      void persistUserVipState(user.id, nextVipState).catch((error) => {
+        console.warn('[InventoryProvider] failed to persist monthly star card claim', error);
+      });
+    }
 
     const message =
       grantedAmount === 1
@@ -711,6 +833,7 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   }, [meta.vip, user]);
 
   const consumeVipNostalgiaReward = useCallback(() => {
+    let nextVipState: VipState | null = null;
     setMeta((previous) => {
       const vipState = sanitizeVip(previous.vip);
       if (!vipState.nostalgiaFreeAvailable) {
@@ -721,17 +844,23 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         return previous;
       }
       const nextTokens = currentTokens - 1;
+      nextVipState = {
+        ...vipState,
+        nostalgiaFreeTokens: nextTokens,
+        nostalgiaFreeAvailable: nextTokens > 0,
+        nostalgiaFreeClaimedAt: new Date().toISOString(),
+      };
       return {
         ...previous,
-        vip: {
-          ...vipState,
-          nostalgiaFreeTokens: nextTokens,
-          nostalgiaFreeAvailable: nextTokens > 0,
-          nostalgiaFreeClaimedAt: new Date().toISOString(),
-        },
+        vip: nextVipState,
       };
     });
-  }, []);
+    if (user?.id && nextVipState) {
+      void persistUserVipState(user.id, nextVipState).catch((error) => {
+        console.warn('[InventoryProvider] failed to persist nostalgia reward consumption', error);
+      });
+    }
+  }, [user?.id]);
 
   const lastDailyRewardDate = meta.lastDailyRewardDate;
   const vipStatus = useMemo(() => sanitizeVip(meta.vip), [meta.vip]);

@@ -63,7 +63,7 @@ import { KIT_CONFIG, formatKitEffect } from '@/lib/kits';
 import KitUsageDialog from '@/components/kit/KitUsageDialog';
 import { toast } from 'sonner';
 import { normalizeRatingTo100 } from '@/lib/player';
-import { runRewardedAdFlow } from '@/services/rewardedAds';
+import { getRewardedAdFailureMessage, runRewardedAdFlow } from '@/services/rewardedAds';
 import '@/styles/nostalgia-theme.css';
 import { useSwipeDownReveal, SWIPE_DOWN_DEFAULTS } from '@/hooks/useSwipeDownReveal';
 
@@ -605,11 +605,11 @@ const TopBar = forwardRef<TopBarHandle, TopBarProps>(
           } else if (result.outcome === 'pending_verification') {
             toast.info('Reklam odulu dogrulaniyor. Birazdan envanterine yansiyacak.');
           } else {
-            toast.error('Reklam gosterilemedi.');
+            toast.error(getRewardedAdFailureMessage(result.ad));
           }
         } catch (error) {
           console.warn('[TopBar] rewarded kit failed', error);
-          toast.error('Odullu reklam baslatilamadi.');
+          toast.error(getRewardedAdFailureMessage(error));
         } finally {
           setIsRewardingKit(false);
         }
