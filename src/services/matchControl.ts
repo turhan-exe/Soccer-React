@@ -859,8 +859,9 @@ export function buildUnityRuntimeTeamPayload(team: ClubTeam | null | undefined):
       age: 20,
       height: 180,
       weight: 75,
-      condition: 100,
-      motivation: 100,
+      health: 1,
+      condition: 1,
+      motivation: 1,
       squadRole: 'starting',
     };
     lineupPlayers.push(botPlayer);
@@ -896,8 +897,9 @@ export function buildUnityRuntimeTeamPayload(team: ClubTeam | null | undefined):
       age: 20,
       height: 180,
       weight: 75,
-      condition: 100,
-      motivation: 100,
+      health: 1,
+      condition: 1,
+      motivation: 1,
       squadRole: 'bench',
     };
     benchPlayers.push(botPlayer);

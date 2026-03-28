@@ -3,14 +3,11 @@ import { useParams } from 'react-router-dom';
 import { listenStandings, getLeagueTeams } from '@/services/leagues';
 import type { Standing } from '@/types';
 import { PagesHeader } from '@/components/layout/PagesHeader';
-import { doc, getDoc } from 'firebase/firestore';
-import { db } from '@/services/firebase';
 import { Shield } from 'lucide-react';
 
 export default function LeagueDetailPage() {
   const { leagueId } = useParams();
   const [rows, setRows] = useState<Standing[]>([]);
-  const [resolvedNames, setResolvedNames] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (!leagueId) return;
@@ -37,31 +34,12 @@ export default function LeagueDetailPage() {
           (row, index, self) => index === self.findIndex((item) => item.teamId === row.teamId),
         );
         setRows(uniqueRows);
-
-        uniqueRows.forEach(async (r) => {
-          const rawName = r.name || r.teamId;
-          if (rawName === r.teamId && r.teamId.length > 15 && !r.teamId.startsWith('slot-')) {
-            try {
-              const snap = await getDoc(doc(db, 'teams', r.teamId));
-              if (snap.exists()) {
-                const data = snap.data();
-                if (data?.name) {
-                  setResolvedNames((prev) => ({ ...prev, [r.teamId]: data.name }));
-                }
-              }
-            } catch {
-              console.warn('Failed to resolve team name', r.teamId);
-            }
-          }
-        });
       }
     });
     return unsub;
   }, [leagueId]);
 
   const formatName = (row: Standing) => {
-    if (resolvedNames[row.teamId]) return resolvedNames[row.teamId];
-
     const raw = row.name || row.teamId;
     if (raw.toLowerCase().startsWith('bot ')) {
       const parts = raw.split(' ');

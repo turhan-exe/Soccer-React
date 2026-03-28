@@ -38,6 +38,7 @@ const playerInitials = (name: string): string =>
     .join('');
 
 export function PlayerStatusCard({ player, className }: PlayerStatusCardProps) {
+  const health = clampPerformanceGauge(player.health, 1);
   const condition = clampPerformanceGauge(player.condition);
   const motivation = clampPerformanceGauge(player.motivation);
 
@@ -91,6 +92,7 @@ export function PlayerStatusCard({ player, className }: PlayerStatusCardProps) {
 
       <div className="mt-4 space-y-3">
         <PerformanceGauge label="Güç" value={power} />
+        <PerformanceGauge label="Sağlık" value={health} />
         <PerformanceGauge label="Kondisyon" value={condition} />
         <PerformanceGauge label="Motivasyon" value={motivation} />
       </div>

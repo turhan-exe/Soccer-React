@@ -80,6 +80,7 @@ function buildRoster(botId: string, rating?: number) {
       ageUpdatedAt: new Date().toISOString(),
       height: Math.round(170 + rand() * 25),
       weight: Math.round(65 + rand() * 20),
+      health: 1,
       condition: Number((0.7 + rand() * 0.3).toFixed(3)),
       motivation: Number((0.7 + rand() * 0.3).toFixed(3)),
       injuryStatus: 'healthy',

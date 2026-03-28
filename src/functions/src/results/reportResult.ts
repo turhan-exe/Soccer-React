@@ -2,6 +2,7 @@ import * as functions from 'firebase-functions/v1';
 import '../_firebase.js';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import {
+  applyLeagueLineupMotivationEffects,
   applyLeagueMatchRevenueInTx,
   applyStandingResultInTx,
   resolveFixtureRevenueTeamIds,
@@ -75,6 +76,16 @@ export const reportResult = functions.region('europe-west1').https.onRequest(asy
       }
       await applyLeagueMatchRevenueInTx(tx, fixtureRef, cur, resolvedTeamIds);
     });
+
+    try {
+      await applyLeagueLineupMotivationEffects(leagueId, matchId);
+    } catch (error: any) {
+      functions.logger.warn('[RESULT] lineup motivation skipped', {
+        leagueId,
+        matchId,
+        error: error?.message || String(error),
+      });
+    }
 
     functions.logger.info('[RESULT] Finalized via HTTP', { leagueId, matchId, score, replayPath });
     res.json({ ok: true });

@@ -11,6 +11,12 @@ import {
 
 const db = getFirestore();
 const INITIAL_CLUB_BALANCE = 50_000;
+const DEFAULT_VITAL_GAUGE = 0.75;
+const DEFAULT_HEALTHY_HEALTH = 1;
+const DEFAULT_INJURED_HEALTH = 0.5;
+const LEAGUE_BENCH_MOTIVATION_PENALTY = 0.05;
+const LEAGUE_SQUAD_OUT_MOTIVATION_PENALTY = 0.08;
+const LEAGUE_LINEUP_EFFECTS_VERSION = 1;
 
 type ResolvedRevenueTeamIds = Partial<Record<RevenueSide, string | null>>;
 
@@ -38,6 +44,7 @@ const financeDoc = (uid: string) => db.collection('finance').doc(uid);
 const financeHistoryCollection = (uid: string) => db.collection('finance').doc('history').collection(uid);
 const teamDoc = (teamId: string) => db.collection('teams').doc(teamId);
 const teamStadiumDoc = (teamId: string) => db.doc(`teams/${teamId}/stadium/state`);
+const matchPlanDoc = (matchId: string) => db.doc(`matchPlans/${matchId}`);
 
 const normalizeTeamId = (value: unknown): string | null => {
   if (typeof value !== 'string') {
@@ -48,6 +55,131 @@ const normalizeTeamId = (value: unknown): string | null => {
 };
 
 const isSlotTeamId = (teamId: string): boolean => teamId.startsWith('slot-');
+
+const clampGauge = (value: unknown, fallback = DEFAULT_VITAL_GAUGE): number => {
+  const numeric = typeof value === 'number' ? value : Number(value);
+  if (!Number.isFinite(numeric)) {
+    return fallback;
+  }
+  return Math.max(0, Math.min(1, Number(numeric.toFixed(3))));
+};
+
+const normalizeInjuryStatus = (value: unknown): 'healthy' | 'injured' =>
+  value === 'injured' ? 'injured' : 'healthy';
+
+const resolveHealth = (value: unknown, injuryStatus: 'healthy' | 'injured'): number => {
+  const numeric = typeof value === 'number' ? value : Number(value);
+  if (Number.isFinite(numeric)) {
+    return clampGauge(numeric, DEFAULT_HEALTHY_HEALTH);
+  }
+  return injuryStatus === 'injured'
+    ? DEFAULT_INJURED_HEALTH
+    : DEFAULT_HEALTHY_HEALTH;
+};
+
+const asPlayerIdSet = (value: unknown): Set<string> =>
+  new Set(
+    Array.isArray(value)
+      ? value
+          .map((entry) => (typeof entry === 'string' || typeof entry === 'number' ? String(entry) : ''))
+          .filter(Boolean)
+      : [],
+  );
+
+const normalizeRosterPlayers = (players: unknown[]): Record<string, unknown>[] => {
+  let starters = 0;
+
+  return players.map((entry) => {
+    const player = entry && typeof entry === 'object' ? { ...(entry as Record<string, unknown>) } : {};
+    const injuryStatus = normalizeInjuryStatus(player.injuryStatus);
+    const normalized = {
+      ...player,
+      id: typeof player.id === 'string' || typeof player.id === 'number' ? String(player.id) : '',
+      health: resolveHealth(player.health, injuryStatus),
+      condition: clampGauge(player.condition),
+      motivation: clampGauge(player.motivation),
+      injuryStatus,
+      squadRole: player.squadRole === 'starting' || player.squadRole === 'bench' || player.squadRole === 'reserve'
+        ? player.squadRole
+        : 'reserve',
+    };
+
+    if (normalized.squadRole !== 'starting') {
+      return normalized;
+    }
+
+    starters += 1;
+    if (starters <= 11) {
+      return normalized;
+    }
+
+    return {
+      ...normalized,
+      squadRole: 'bench',
+    };
+  });
+};
+
+type LeagueLineupPenaltySummary = {
+  changed: boolean;
+  benchPenalties: number;
+  squadOutPenalties: number;
+  players: Record<string, unknown>[];
+};
+
+const applyLineupPenaltyToRoster = (
+  players: Record<string, unknown>[],
+  starters: Set<string>,
+  subs: Set<string>,
+): LeagueLineupPenaltySummary => {
+  let changed = false;
+  let benchPenalties = 0;
+  let squadOutPenalties = 0;
+
+  const nextPlayers = players.map((player) => {
+    const playerId = typeof player.id === 'string' ? player.id : '';
+    if (!playerId) {
+      return player;
+    }
+
+    if (player.injuryStatus === 'injured') {
+      return player;
+    }
+
+    if (starters.has(playerId)) {
+      return player;
+    }
+
+    if (subs.has(playerId)) {
+      benchPenalties += 1;
+      changed = true;
+      return {
+        ...player,
+        motivation: clampGauge(
+          (typeof player.motivation === 'number' ? player.motivation : DEFAULT_VITAL_GAUGE) -
+            LEAGUE_BENCH_MOTIVATION_PENALTY,
+        ),
+      };
+    }
+
+    squadOutPenalties += 1;
+    changed = true;
+    return {
+      ...player,
+      motivation: clampGauge(
+        (typeof player.motivation === 'number' ? player.motivation : DEFAULT_VITAL_GAUGE) -
+          LEAGUE_SQUAD_OUT_MOTIVATION_PENALTY,
+      ),
+    };
+  });
+
+  return {
+    changed,
+    benchPenalties,
+    squadOutPenalties,
+    players: nextPlayers,
+  };
+};
 
 const extractSlotReference = (teamId: unknown, fallbackSlot: unknown): unknown => {
   const normalizedTeamId = normalizeTeamId(teamId);
@@ -326,4 +458,117 @@ export async function applyLeagueMatchRevenueInTx(
     skippedSides: plan.skippedSides,
     nextAppliedSides: plan.nextAppliedSides,
   };
+}
+
+export async function applyLeagueLineupMotivationEffects(
+  leagueId: string,
+  fixtureId: string,
+): Promise<{ status: string; benchPenalties: number; squadOutPenalties: number }> {
+  const fixtureRef = db.doc(`leagues/${leagueId}/fixtures/${fixtureId}`);
+
+  return db.runTransaction(async (tx) => {
+    const fixtureSnap = await tx.get(fixtureRef);
+    if (!fixtureSnap.exists) {
+      return { status: 'missing_fixture', benchPenalties: 0, squadOutPenalties: 0 };
+    }
+
+    const fixture = (fixtureSnap.data() as Record<string, unknown>) ?? {};
+    const playerEffects =
+      fixture.playerEffects && typeof fixture.playerEffects === 'object'
+        ? (fixture.playerEffects as Record<string, unknown>)
+        : {};
+    const currentStatus =
+      typeof playerEffects.lineupMotivationStatus === 'string'
+        ? String(playerEffects.lineupMotivationStatus)
+        : null;
+
+    if (currentStatus) {
+      return { status: currentStatus, benchPenalties: 0, squadOutPenalties: 0 };
+    }
+
+    const planSnap = await tx.get(matchPlanDoc(fixtureId));
+    if (!planSnap.exists) {
+      console.warn('[leagueLineupMotivation] match plan missing', { leagueId, fixtureId });
+      tx.set(
+        fixtureRef,
+        {
+          playerEffects: {
+            lineupMotivationStatus: 'skipped_missing_match_plan',
+            lineupMotivationVersion: LEAGUE_LINEUP_EFFECTS_VERSION,
+            lineupMotivationUpdatedAt: FieldValue.serverTimestamp(),
+          },
+        },
+        { merge: true },
+      );
+      return { status: 'skipped_missing_match_plan', benchPenalties: 0, squadOutPenalties: 0 };
+    }
+
+    const plan = (planSnap.data() as Record<string, unknown>) ?? {};
+    const sides = [
+      {
+        side: 'home',
+        teamId: normalizeTeamId((plan.home as { teamId?: unknown } | undefined)?.teamId) ?? normalizeTeamId(fixture.homeTeamId),
+        starters: asPlayerIdSet((plan.home as { starters?: unknown } | undefined)?.starters),
+        subs: asPlayerIdSet((plan.home as { subs?: unknown } | undefined)?.subs),
+      },
+      {
+        side: 'away',
+        teamId: normalizeTeamId((plan.away as { teamId?: unknown } | undefined)?.teamId) ?? normalizeTeamId(fixture.awayTeamId),
+        starters: asPlayerIdSet((plan.away as { starters?: unknown } | undefined)?.starters),
+        subs: asPlayerIdSet((plan.away as { subs?: unknown } | undefined)?.subs),
+      },
+    ];
+
+    let benchPenalties = 0;
+    let squadOutPenalties = 0;
+    let appliedToAnyTeam = false;
+
+    for (const side of sides) {
+      if (!side.teamId) {
+        continue;
+      }
+
+      const teamRef = teamDoc(side.teamId);
+      const teamSnap = await tx.get(teamRef);
+      if (!teamSnap.exists) {
+        console.warn('[leagueLineupMotivation] team missing', { leagueId, fixtureId, side: side.side, teamId: side.teamId });
+        continue;
+      }
+
+      const teamData = (teamSnap.data() as { players?: unknown[] } | undefined) ?? undefined;
+      const rawPlayers = Array.isArray(teamData?.players) ? teamData.players : [];
+      const normalizedPlayers = normalizeRosterPlayers(rawPlayers);
+      const summary = applyLineupPenaltyToRoster(normalizedPlayers, side.starters, side.subs);
+      const rosterChanged =
+        summary.changed || JSON.stringify(rawPlayers) !== JSON.stringify(summary.players);
+
+      benchPenalties += summary.benchPenalties;
+      squadOutPenalties += summary.squadOutPenalties;
+
+      if (rosterChanged) {
+        tx.set(teamRef, { players: summary.players }, { merge: true });
+        appliedToAnyTeam = true;
+      }
+    }
+
+    tx.set(
+      fixtureRef,
+      {
+        playerEffects: {
+          lineupMotivationStatus: appliedToAnyTeam ? 'applied' : 'applied_no_changes',
+          lineupMotivationVersion: LEAGUE_LINEUP_EFFECTS_VERSION,
+          lineupMotivationUpdatedAt: FieldValue.serverTimestamp(),
+          lineupMotivationBenchCount: benchPenalties,
+          lineupMotivationSquadOutCount: squadOutPenalties,
+        },
+      },
+      { merge: true },
+    );
+
+    return {
+      status: appliedToAnyTeam ? 'applied' : 'applied_no_changes',
+      benchPenalties,
+      squadOutPenalties,
+    };
+  });
 }

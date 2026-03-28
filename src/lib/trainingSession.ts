@@ -1,4 +1,5 @@
 import { calculateOverall } from '@/lib/player';
+import { applyTrainingVitalsLoss } from '@/lib/playerVitals';
 import type { Player, Training } from '@/types';
 
 export type TrainingSimulationRecord = {
@@ -77,7 +78,7 @@ export function runTrainingSimulation(
       });
     }
 
-    updatedPlayers.push(snapshot);
+    updatedPlayers.push(applyTrainingVitalsLoss(snapshot));
   }
 
   return { updatedPlayers, records };

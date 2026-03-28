@@ -7,6 +7,7 @@ import { log } from '../logger.js';
 import { sendSlack } from '../notify/slack.js';
 import { enqueueRenderJob } from '../replay/renderJob.js';
 import {
+  applyLeagueLineupMotivationEffects,
   applyLeagueMatchRevenueInTx,
   applyStandingResultInTx,
   resolveFixtureRevenueTeamIds,
@@ -136,6 +137,16 @@ export const onResultFinalize = functions
         }
         await applyLeagueMatchRevenueInTx(tx, fxRef, cur, resolvedTeamIds);
       });
+
+      try {
+        await applyLeagueLineupMotivationEffects(leagueId, matchId);
+      } catch (error: any) {
+        log.warn('lineup motivation effects skipped', {
+          leagueId,
+          matchId,
+          error: error?.message || String(error),
+        });
+      }
 
       // Log sim duration metrics (if startedAt exists)
       try {

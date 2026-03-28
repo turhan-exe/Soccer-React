@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/utils';
 import {
-  YOUTH_AD_REDUCTION_MS,
+  YOUTH_AD_REDUCTION_PERCENT,
   YOUTH_RESET_DIAMOND_COST,
 } from '@/services/youth';
 
@@ -57,6 +57,7 @@ const CooldownPanel: React.FC<Props> = ({
     .padStart(2, '0');
 
   const canGenerate = remaining === 0;
+  const reductionPercent = Math.round(YOUTH_AD_REDUCTION_PERCENT * 100);
 
   return (
     <Card
@@ -66,14 +67,14 @@ const CooldownPanel: React.FC<Props> = ({
       )}
     >
       <CardHeader className="pb-4">
-        <CardTitle className="text-xl font-semibold text-white">Oyuncu Üretimi</CardTitle>
+        <CardTitle className="text-xl font-semibold text-white">Oyuncu Uretimi</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4 text-sm text-slate-200">
         <Progress value={progress} className="h-2 bg-white/10" />
         <div className="space-y-4">
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <span className="font-medium text-white">
-              Sonraki üretim: {hours}:{minutes}:{seconds}
+              Sonraki uretim: {hours}:{minutes}:{seconds}
             </span>
             <div className="flex flex-wrap items-center justify-end gap-2">
               <Button
@@ -84,7 +85,7 @@ const CooldownPanel: React.FC<Props> = ({
                 data-testid="youth-watch-ad"
                 className="border-white/20 bg-transparent text-cyan-100 hover:border-cyan-400/60 hover:bg-cyan-500/20 hover:text-white"
               >
-                Reklam İzle (-12 saat)
+                Reklam Izle (-%{reductionPercent} Sure)
               </Button>
               <Button
                 onClick={onReset}
@@ -94,14 +95,14 @@ const CooldownPanel: React.FC<Props> = ({
                 data-testid="youth-reset"
                 className="border border-transparent bg-gradient-to-r from-emerald-500 to-cyan-500 text-slate-950 shadow-lg shadow-emerald-500/20 hover:from-emerald-400 hover:to-cyan-400"
               >
-                Hemen Al (💎{YOUTH_RESET_DIAMOND_COST})
+                Hemen Al ({YOUTH_RESET_DIAMOND_COST})
               </Button>
             </div>
           </div>
           <p className="leading-relaxed text-slate-300">
-            Altyapı oyuncuları haftada bir gelir. Reklam izleyerek bekleme süresini{' '}
-            {(YOUTH_AD_REDUCTION_MS / 3600000).toFixed(0)} saat kısaltabilir veya elmas
-            kullanarak hemen yeni oyuncu alabilirsin.
+            Altyapi oyunculari haftada bir gelir. Reklam izleyerek kalan bekleme suresini
+            {' '}%{reductionPercent} azaltabilir veya elmas kullanarak hemen yeni oyuncu
+            alabilirsin.
           </p>
         </div>
       </CardContent>
@@ -110,4 +111,3 @@ const CooldownPanel: React.FC<Props> = ({
 };
 
 export default CooldownPanel;
-

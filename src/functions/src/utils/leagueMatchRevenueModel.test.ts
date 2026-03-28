@@ -38,6 +38,7 @@ const createPlayer = (
   age: 24,
   height: 180,
   weight: 75,
+  health: 1,
   condition: 1,
   motivation: 1,
   squadRole,

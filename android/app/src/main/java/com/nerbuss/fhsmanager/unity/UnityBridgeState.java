@@ -154,10 +154,16 @@ public final class UnityBridgeState {
 
           try {
             if (currentUnityActivity != null && currentUnityActivity != hostActivity) {
-              Log.d(
-                  TAG,
-                  "requestReturnToMainShell: finishing current Unity child activity and letting host return to shell.");
-              finishActivitySafely(currentUnityActivity);
+              if (tryRequestEmbeddedUnityShellReturn(currentUnityActivity)) {
+                Log.d(
+                    TAG,
+                    "requestReturnToMainShell: requesting embedded Unity child unload for shell return.");
+              } else {
+                Log.d(
+                    TAG,
+                    "requestReturnToMainShell: finishing current Unity child activity and letting host return to shell.");
+                finishActivitySafely(currentUnityActivity);
+              }
               return;
             }
           } catch (Throwable ignored) {
@@ -222,6 +228,19 @@ public final class UnityBridgeState {
 
     String className = activity.getClass().getName();
     return className != null && className.startsWith("com.unity3d.player.");
+  }
+
+  private static boolean tryRequestEmbeddedUnityShellReturn(Activity activity) {
+    if (activity == null) {
+      return false;
+    }
+
+    try {
+      activity.getClass().getMethod("requestReturnToShell").invoke(activity);
+      return true;
+    } catch (Throwable ignored) {
+      return false;
+    }
   }
 
   private static void finishActivitySafely(Activity activity) {

@@ -8,11 +8,8 @@ import {
   buildSponsorActivationMutations,
 } from './sponsorActivation.js';
 import {
-  buildSponsorProductId,
   getSponsorCatalogConfig,
   normalizeSponsorString,
-  type SponsorCatalogConfig,
-  type SponsorRewardCycle,
 } from './sponsorCatalog.js';
 
 const db = getFirestore();

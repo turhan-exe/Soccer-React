@@ -80,7 +80,8 @@ import iconMatchPreview from '@/assets/menu/icon_match_preview.png';
 import iconFixtures from '@/assets/menu/icon_fixtures.png';
 
 import GlobalChatWidget from '@/features/chat/GlobalChatWidget';
-import { runRewardedAdFlow } from '@/services/rewardedAds';
+import KitUsageDialog from '@/components/kit/KitUsageDialog';
+import { getRewardedAdFailureMessage, runRewardedAdFlow } from '@/services/rewardedAds';
 import '@/styles/nostalgia-theme.css';
 
 const KIT_ICONS: Record<KitType, { icon: any; color: string }> = {
@@ -256,6 +257,8 @@ export default function MainMenu() {
   const currentKitType = kitCount > 0 ? kitTypes[currentKitIndex % kitCount] : null;
   const [isKitMenuOpen, setIsKitMenuOpen] = useState(false);
   const [isRewardingKit, setIsRewardingKit] = useState(false);
+  const [activeKit, setActiveKit] = useState<KitType | null>(null);
+  const [isUsageOpen, setIsUsageOpen] = useState(false);
 
   // Auto-cycle kits every 5 seconds
   useEffect(() => {
@@ -296,11 +299,11 @@ export default function MainMenu() {
         } else if (result.outcome === 'pending_verification') {
           toast.info('Reklam odulu dogrulaniyor. Birazdan envanterine yansiyacak.');
         } else {
-          toast.error('Reklam gosterilemedi.');
+          toast.error(getRewardedAdFailureMessage(result.ad));
         }
       } catch (error) {
         console.warn('[MainMenu] rewarded kit failed', error);
-        toast.error('Odullu reklam baslatilamadi.');
+        toast.error(getRewardedAdFailureMessage(error));
       } finally {
         setIsRewardingKit(false);
       }
@@ -319,11 +322,16 @@ export default function MainMenu() {
       toast.error('Stokta yeterli kit bulunmuyor.');
       return;
     }
-    // Logic to actually "use" the kit would go here, 
-    // but original TopBar only set active state. 
-    // For now we just close and maybe toast.
-    toast.info(`${KIT_CONFIG[type].label} kullanildi (Demo)`);
     setIsKitMenuOpen(false);
+    setActiveKit(type);
+    setIsUsageOpen(true);
+  };
+
+  const handleUsageOpenChange = (open: boolean) => {
+    setIsUsageOpen(open);
+    if (!open) {
+      setActiveKit(null);
+    }
   };
 
   // --- Rank Fetching ---
@@ -1121,6 +1129,7 @@ export default function MainMenu() {
 
 
       <GlobalChatWidget />
+      <KitUsageDialog open={isUsageOpen} kitType={activeKit} onOpenChange={handleUsageOpenChange} />
     </div>
   );
 }

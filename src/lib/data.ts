@@ -21,7 +21,7 @@ const createAttributes = (attrs: Partial<Player['attributes']>): Player['attribu
 });
 
 const defaultPhysical = { height: 180, weight: 75 };
-const defaultVitals = { condition: 0.82, motivation: 0.78, injuryStatus: 'healthy' as const };
+const defaultVitals = { health: 1, condition: 0.82, motivation: 0.78, injuryStatus: 'healthy' as const };
 
 const rawMockPlayers: Omit<Player, 'potential'>[] = [
   {

@@ -26,7 +26,14 @@ import { BackButton } from '@/components/ui/back-button';
 import { useAuth } from '@/contexts/AuthContext';
 import { useDiamonds } from '@/contexts/DiamondContext';
 import { useInventory } from '@/contexts/InventoryContext';
-import { isRewardedAdsSupported, showRewardedAdsPrivacyOptions } from '@/services/rewardedAds';
+import {
+  getRewardedAdFailureMessage,
+  getRewardedAdsDebugInfo,
+  isRewardedAdsSupported,
+  openRewardedAdsAdInspector,
+  showRewardedAdsPrivacyOptions,
+  type RewardedAdsDebugInfo,
+} from '@/services/rewardedAds';
 import { updateTeamLogo, renameClubWithDiamonds, renameStadiumWithDiamonds, getTeam } from '@/services/team';
 import { setNativePushPreference } from '@/services/pushNotifications';
 import { updateUserContactInfo, updateUserNotificationPreferences } from '@/services/users';
@@ -90,6 +97,9 @@ export default function SettingsPage() {
   const [isSavingContact, setIsSavingContact] = useState(false);
   const [isSavingPushPreference, setIsSavingPushPreference] = useState(false);
   const [isOpeningAdPrivacyOptions, setIsOpeningAdPrivacyOptions] = useState(false);
+  const [rewardedAdsDebugInfo, setRewardedAdsDebugInfo] = useState<RewardedAdsDebugInfo | null>(null);
+  const [isLoadingRewardedAdsDebugInfo, setIsLoadingRewardedAdsDebugInfo] = useState(false);
+  const [isOpeningAdInspector, setIsOpeningAdInspector] = useState(false);
   const navigate = useNavigate();
   const {
     lastDailyRewardDate,
@@ -138,6 +148,10 @@ export default function SettingsPage() {
   const hasContactChanges =
     normalizedPhoneInput !== normalizedStoredPhone || normalizedCryptoInput !== normalizedStoredCrypto;
   const pushEnabled = user?.notificationPrefs?.pushEnabled !== false;
+  const showRewardedAdsDebugTools =
+    Capacitor.isNativePlatform()
+    && Capacitor.getPlatform() === 'android'
+    && (import.meta.env.DEV || import.meta.env.VITE_ENABLE_TEST_BUTTONS === '1');
 
   useEffect(() => {
     setLogoPreview(user?.teamLogo ?? null);
@@ -419,6 +433,58 @@ export default function SettingsPage() {
     }
   };
 
+  const handleRefreshRewardedAdsDebugInfo = async () => {
+    if (!isRewardedAdsSupported()) {
+      toast.info('Reklam debug bilgisi yalnizca Android uygulamasinda okunabilir.');
+      return;
+    }
+
+    setIsLoadingRewardedAdsDebugInfo(true);
+    try {
+      const info = await getRewardedAdsDebugInfo();
+      setRewardedAdsDebugInfo(info);
+      toast.success('Reklam debug bilgisi yenilendi.');
+    } catch (error) {
+      console.error('[Settings] Failed to load rewarded ads debug info', error);
+      toast.error(getRewardedAdFailureMessage(error));
+    } finally {
+      setIsLoadingRewardedAdsDebugInfo(false);
+    }
+  };
+
+  const handleOpenAdInspector = async () => {
+    if (!isRewardedAdsSupported()) {
+      toast.info('Ad Inspector yalnizca Android uygulamasinda acilabilir.');
+      return;
+    }
+
+    setIsOpeningAdInspector(true);
+    try {
+      const result = await openRewardedAdsAdInspector();
+      if (result.debug) {
+        setRewardedAdsDebugInfo(result.debug);
+      }
+      if (result.opened) {
+        toast.success('Ad Inspector kapatildi. Gerekirse debug bilgisini yenile.');
+      } else {
+        toast.error(getRewardedAdFailureMessage(result.error));
+      }
+    } catch (error) {
+      console.error('[Settings] Failed to open ad inspector', error);
+      toast.error(getRewardedAdFailureMessage(error));
+    } finally {
+      setIsOpeningAdInspector(false);
+    }
+  };
+
+  const formatDebugTimestamp = (value: number | null) => {
+    if (!value || !Number.isFinite(value)) {
+      return '-';
+    }
+
+    return new Date(value).toLocaleString('tr-TR');
+  };
+
   const cardBaseClass = 'border-white/10 bg-slate-900/60 text-slate-100 backdrop-blur-lg';
   const showLeagueBotCleanup = false;
   const isAdmin = user?.role === 'admin';
@@ -661,7 +727,7 @@ export default function SettingsPage() {
                     <div>
                       <p className="font-semibold text-slate-100">Gunluk giris odulu</p>
                       <p className="text-sm text-slate-300">
-                        Her giriste enerji, moral veya saglik kitlerinden biri otomatik olarak eklenir.
+                        Her gun sadece bir kez kondisyon, motivasyon veya saglik kitlerinden biri otomatik olarak eklenir.
                       </p>
                       <p className="mt-2 text-xs text-slate-400">
                         Son odul tarihi:{' '}
@@ -692,7 +758,7 @@ export default function SettingsPage() {
                         </p>
                       </div>
                       <div className="text-sm text-slate-300">
-                        <p>- Gunluk +1 enerji, moral ve saglik kiti</p>
+                        <p>- Gunluk +1 kondisyon, motivasyon ve saglik kiti</p>
                         <p>- Sureler %{vipDurationPercent} kisalir</p>
                         <p>- Ayda 1 yildiz oyuncu karti</p>
                       </div>
@@ -907,6 +973,93 @@ export default function SettingsPage() {
                     )}
                     Reklam gizlilik tercihleri
                   </Button>
+
+                  {showRewardedAdsDebugTools ? (
+                    <div className="rounded-xl border border-cyan-400/20 bg-cyan-500/5 p-3">
+                      <p className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-cyan-200">
+                        Rewarded Ads Debug
+                      </p>
+                      <div className="space-y-2">
+                        <Button
+                          variant="outline"
+                          className="w-full justify-start border-cyan-400/30 bg-cyan-500/10 text-cyan-100 hover:bg-cyan-500/20"
+                          onClick={handleRefreshRewardedAdsDebugInfo}
+                          disabled={isLoadingRewardedAdsDebugInfo}
+                        >
+                          {isLoadingRewardedAdsDebugInfo ? (
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          ) : (
+                            <Settings className="mr-2 h-4 w-4" />
+                          )}
+                          Reklam debug bilgisini yenile
+                        </Button>
+                        <Button
+                          variant="outline"
+                          className="w-full justify-start border-cyan-400/30 bg-cyan-500/10 text-cyan-100 hover:bg-cyan-500/20"
+                          onClick={handleOpenAdInspector}
+                          disabled={isOpeningAdInspector}
+                        >
+                          {isOpeningAdInspector ? (
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          ) : (
+                            <ShieldCheck className="mr-2 h-4 w-4" />
+                          )}
+                          Ad Inspector ac
+                        </Button>
+                      </div>
+
+                      {rewardedAdsDebugInfo ? (
+                        <div className="mt-3 grid gap-2 text-xs text-slate-200 sm:grid-cols-2">
+                          <div className="rounded-lg border border-white/10 bg-slate-950/50 p-2">
+                            <p className="text-slate-400">Version Code</p>
+                            <p className="font-medium">{rewardedAdsDebugInfo.versionCode ?? '-'}</p>
+                          </div>
+                          <div className="rounded-lg border border-white/10 bg-slate-950/50 p-2">
+                            <p className="text-slate-400">Install Source</p>
+                            <p className="font-medium">{rewardedAdsDebugInfo.installSource || '-'}</p>
+                          </div>
+                          <div className="rounded-lg border border-white/10 bg-slate-950/50 p-2">
+                            <p className="text-slate-400">Device</p>
+                            <p className="font-medium">
+                              {rewardedAdsDebugInfo.deviceModel || '-'} / SDK {rewardedAdsDebugInfo.sdkInt ?? '-'}
+                            </p>
+                          </div>
+                          <div className="rounded-lg border border-white/10 bg-slate-950/50 p-2">
+                            <p className="text-slate-400">Network</p>
+                            <p className="font-medium">{rewardedAdsDebugInfo.networkType || '-'}</p>
+                          </div>
+                          <div className="rounded-lg border border-white/10 bg-slate-950/50 p-2">
+                            <p className="text-slate-400">Consent</p>
+                            <p className="font-medium">{rewardedAdsDebugInfo.consentStatus || '-'}</p>
+                          </div>
+                          <div className="rounded-lg border border-white/10 bg-slate-950/50 p-2">
+                            <p className="text-slate-400">Ad Cache</p>
+                            <p className="font-medium">
+                              {rewardedAdsDebugInfo.adLoaded ? 'Hazir' : 'Bos'}
+                              {rewardedAdsDebugInfo.adAgeMs != null ? ` / ${Math.round(rewardedAdsDebugInfo.adAgeMs / 1000)} sn` : ''}
+                            </p>
+                          </div>
+                          <div className="rounded-lg border border-white/10 bg-slate-950/50 p-2 sm:col-span-2">
+                            <p className="text-slate-400">Loaded At</p>
+                            <p className="font-medium">{formatDebugTimestamp(rewardedAdsDebugInfo.loadedAtMs)}</p>
+                          </div>
+                          {(rewardedAdsDebugInfo.lastLoadError || rewardedAdsDebugInfo.lastShowError) ? (
+                            <div className="rounded-lg border border-amber-400/20 bg-amber-500/5 p-2 text-amber-100 sm:col-span-2">
+                              <p className="text-[11px] uppercase tracking-[0.18em] text-amber-300">Son Hata</p>
+                              <p className="mt-1">
+                                {rewardedAdsDebugInfo.lastShowError?.message || rewardedAdsDebugInfo.lastLoadError?.message || '-'}
+                              </p>
+                              <p className="mt-1 text-[11px] text-amber-200/80">
+                                Stage: {rewardedAdsDebugInfo.lastShowError?.stage || rewardedAdsDebugInfo.lastLoadError?.stage || '-'}
+                                {' • '}
+                                Code: {rewardedAdsDebugInfo.lastShowError?.code ?? rewardedAdsDebugInfo.lastLoadError?.code ?? '-'}
+                              </p>
+                            </div>
+                          ) : null}
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : null}
 
                   {isAdmin ? (
                     <div className="border-t border-white/10 pt-4">

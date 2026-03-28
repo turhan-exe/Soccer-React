@@ -1,5 +1,5 @@
 import { Button } from '@/components/ui/button';
-import { Gem } from 'lucide-react';
+import { Gem, Clapperboard } from 'lucide-react';
 
 interface YouthDashboardProps {
   candidateCount: number;
@@ -8,8 +8,12 @@ interface YouthDashboardProps {
   canGenerate: boolean;
   onGenerate: () => void;
   onReset?: () => void;
+  onWatchAd?: () => void;
+  canWatchAd?: boolean;
+  isWatchingAd?: boolean;
   nextGenerateTime: string;
   diamondCost?: number;
+  adReductionPercent?: number;
 }
 
 export function YouthDashboard({
@@ -19,8 +23,12 @@ export function YouthDashboard({
   canGenerate,
   onGenerate,
   onReset,
+  onWatchAd,
+  canWatchAd = false,
+  isWatchingAd = false,
   nextGenerateTime,
   diamondCost = 100,
+  adReductionPercent = 15,
 }: YouthDashboardProps) {
   const handleAction = () => {
     if (canGenerate) {
@@ -33,9 +41,9 @@ export function YouthDashboard({
   return (
     <div className="mb-8">
       <div className="mb-6 px-1">
-        <h1 className="mb-2 text-2xl font-bold text-white">Altyapı Merkezi</h1>
+        <h1 className="mb-2 text-2xl font-bold text-white">Altyapi Merkezi</h1>
         <p className="text-sm text-slate-400">
-          Kadron için umut vadeden bir oyuncu seni bekliyor. En yüksek potansiyel{' '}
+          Kadron icin umut vadeden bir oyuncu seni bekliyor. En yuksek potansiyel{' '}
           {topPotential > 0 ? topPotential : '81'}.
         </p>
       </div>
@@ -46,7 +54,7 @@ export function YouthDashboard({
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-bold text-purple-400">Genel Durum</h2>
           </div>
-          <p className="mt-1 text-xs text-slate-500">Şu anda aktif ilan bulunmamakta.</p>
+          <p className="mt-1 text-xs text-slate-500">Su anda aktif ilan bulunmamakta.</p>
         </div>
 
         <div className="p-8">
@@ -62,20 +70,20 @@ export function YouthDashboard({
               </p>
             </div>
             <div>
-              <p className="mb-1 text-xs font-medium text-slate-400">Yüksek Potansiyel</p>
+              <p className="mb-1 text-xs font-medium text-slate-400">Yuksek Potansiyel</p>
               <p className="mb-0.5 text-xl font-bold text-white">
                 {topPotential > 0 ? topPotential : '5'} Potansiyel
               </p>
             </div>
             <div>
-              <p className="mb-1 text-xs font-medium text-slate-400">Yeni Üretim</p>
+              <p className="mb-1 text-xs font-medium text-slate-400">Yeni Uretim</p>
               <p className="mb-0.5 font-mono text-xl font-bold text-emerald-400">
                 {nextGenerateTime}
               </p>
             </div>
           </div>
 
-          <div className="flex justify-center">
+          <div className="flex flex-col items-center gap-4">
             <Button
               onClick={handleAction}
               className="group relative overflow-hidden rounded-full border border-white/10 bg-slate-900 px-12 py-6 transition-all hover:bg-slate-800"
@@ -97,6 +105,25 @@ export function YouthDashboard({
               </span>
               <div className="absolute inset-0 rounded-full border-2 border-transparent transition-colors group-hover:border-purple-500/30" />
             </Button>
+
+            {!canGenerate && onWatchAd && (
+              <div className="flex flex-col items-center gap-2">
+                <Button
+                  onClick={onWatchAd}
+                  variant="outline"
+                  disabled={!canWatchAd}
+                  className="border-cyan-500/30 bg-cyan-500/10 text-cyan-100 hover:border-cyan-400/60 hover:bg-cyan-500/20 hover:text-white"
+                >
+                  <Clapperboard className="mr-2 h-4 w-4" />
+                  {isWatchingAd
+                    ? 'Reklam Yukleniyor...'
+                    : `Reklam Izle (-%${adReductionPercent} Sure)`}
+                </Button>
+                <p className="text-center text-xs text-slate-400">
+                  Reklam odulu kalan bekleme suresini %{adReductionPercent} azaltir.
+                </p>
+              </div>
+            )}
           </div>
         </div>
       </div>

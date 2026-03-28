@@ -1,5 +1,9 @@
 import { clampPerformanceGauge } from '@/components/ui/performance-gauge';
 import { calculatePowerIndex } from '@/lib/player';
+import {
+  normalizePlayerVitals,
+  normalizeTeamPlayers as normalizePlayerVitalsList,
+} from '@/lib/playerVitals';
 import { CustomFormationMap, Player, Position } from '@/types';
 // Moved from Pitch.tsx to avoid circular dependency with slotZones.ts
 export type PitchSlot = {
@@ -20,11 +24,13 @@ export const PLAYER_RENAME_DIAMOND_COST = 45;
 export const PLAYER_RENAME_AD_COOLDOWN_HOURS = 24;
 export const CONTRACT_EXTENSION_MONTHS = 18;
 export const MIN_SALARY_OFFER = 0;
+export const LINEUP_VITAL_THRESHOLD = 0.6;
 
 export const HOURS_IN_MS = 60 * 60 * 1000;
 
 export const metricOptions: Array<{ key: MetricKey; label: string }> = [
-  { key: 'power', label: 'GÜCÜ' },
+  { key: 'power', label: 'GÜÇ' },
+  { key: 'health', label: 'SAĞLIK' },
   { key: 'motivation', label: 'MOTİVASYON' },
   { key: 'condition', label: 'KONDİSYON' },
 ];
@@ -103,6 +109,20 @@ export type DisplayPlayer = Player & {
   assignedOverall: number;
   isOutOfPosition: boolean;
   skillTags: SkillTagMap;
+};
+
+export type LineupVitalKey = 'health' | 'condition' | 'motivation';
+
+export type LineupVitalIssue = {
+  key: LineupVitalKey;
+  label: string;
+  value: number;
+  threshold: number;
+};
+
+export type LineupReadinessIssue = {
+  player: Player;
+  failingVitals: LineupVitalIssue[];
 };
 
 const POSITION_ATTRIBUTE_WEIGHTS: Record<
@@ -546,36 +566,17 @@ export function normalizePlayer(player: Player): Player {
     return details;
   };
 
+  const normalizedVitals = normalizePlayerVitals(player);
+
   return {
-    ...player,
-    condition: clampPerformanceGauge(player.condition, DEFAULT_GAUGE_VALUE),
-    motivation: clampPerformanceGauge(player.motivation, DEFAULT_GAUGE_VALUE),
-    injuryStatus: player.injuryStatus ?? 'healthy',
+    ...normalizedVitals,
     contract: player.contract ?? fallbackContract(),
     rename: player.rename ?? fallbackRename(),
   };
 }
 
 export function normalizePlayers(list: Player[]): Player[] {
-  let startingCount = 0;
-
-  return list.map(player => {
-    const normalizedPlayer = normalizePlayer(player);
-    if (normalizedPlayer.squadRole !== 'starting') {
-      return normalizedPlayer;
-    }
-
-    startingCount += 1;
-    if (startingCount <= 11) {
-      return normalizedPlayer;
-    }
-
-    // Defensive guard: corrupted roster data must never keep more than 11 starters.
-    return {
-      ...normalizedPlayer,
-      squadRole: 'bench',
-    };
-  });
+  return normalizePlayerVitalsList(list).map(normalizePlayer);
 }
 
 export type PromoteToStartingResult = {
@@ -750,6 +751,46 @@ export function getPlayerCondition(player: Player): number {
 
 export function getPlayerMotivation(player: Player): number {
   return clampPerformanceGauge(player.motivation, DEFAULT_GAUGE_VALUE);
+}
+
+export function getPlayerHealth(player: Player): number {
+  return clampPerformanceGauge(player.health, 1);
+}
+
+const LINEUP_VITAL_LABELS: Record<LineupVitalKey, string> = {
+  health: 'Saglik',
+  condition: 'Kondisyon',
+  motivation: 'Motivasyon',
+};
+
+export function getLineupReadinessIssues(
+  players: Player[],
+  threshold = LINEUP_VITAL_THRESHOLD,
+): LineupReadinessIssue[] {
+  return players
+    .filter(player => player.squadRole === 'starting')
+    .map((player) => {
+      const vitals: Record<LineupVitalKey, number> = {
+        health: getPlayerHealth(player),
+        condition: getPlayerCondition(player),
+        motivation: getPlayerMotivation(player),
+      };
+
+      const failingVitals = (Object.entries(vitals) as Array<[LineupVitalKey, number]>)
+        .filter(([, value]) => value < threshold)
+        .map(([key, value]) => ({
+          key,
+          label: LINEUP_VITAL_LABELS[key],
+          value,
+          threshold,
+        }));
+
+      return {
+        player,
+        failingVitals,
+      };
+    })
+    .filter(issue => issue.failingVitals.length > 0);
 }
 
 export function getPlayerPower(player: Player): number {

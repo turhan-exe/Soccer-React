@@ -102,7 +102,7 @@ const VipStorePage: React.FC = () => {
             <div className="rounded-lg border border-white/10 bg-white/5 p-4">
               <p className="text-xs uppercase tracking-wide text-slate-400">Ayricaliklar</p>
               <ul className="mt-2 list-disc space-y-1 pl-5 text-sm">
-                <li>Gunluk +1 enerji, moral ve saglik kiti</li>
+                <li>Gunluk +1 kondisyon, motivasyon ve saglik kiti</li>
                 <li>%5 antrenman ve sure kisalmasi</li>
                 <li>Her ay en az 1 yildiz oyuncu karti (yillik pakette 2 adet)</li>
                 <li>Planina gore ekstra kit ve oyuncu bonuslari</li>

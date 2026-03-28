@@ -9,6 +9,12 @@ import {
 } from 'firebase/firestore';
 
 import { KIT_CONFIG } from '@/lib/kits';
+import {
+  clampVitalGauge,
+  HEALTH_KIT_MINIMUM_AFTER_HEAL,
+  normalizeTeamPlayers,
+  resolvePlayerHealth,
+} from '@/lib/playerVitals';
 import type { ClubTeam, KitType, Player } from '@/types';
 import { db } from '@/services/firebase';
 
@@ -48,14 +54,6 @@ export const sanitizeKitInventory = (value: unknown): KitInventory => {
   };
 };
 
-const clampGauge = (value: number): number => {
-  if (!Number.isFinite(value)) return 0.75;
-  const normalized = Number(value.toFixed(3));
-  if (normalized < 0) return 0;
-  if (normalized > 1) return 1;
-  return normalized;
-};
-
 const readGauge = (value: number | undefined | null): number => {
   if (typeof value === 'number' && Number.isFinite(value)) {
     return value;
@@ -63,30 +61,20 @@ const readGauge = (value: number | undefined | null): number => {
   return 0.75;
 };
 
-const normalizePlayers = (players: Player[]): Player[] => {
-  let starters = 0;
-  return players.map((player) => {
-    const normalized: Player = {
-      ...player,
-      condition: clampGauge(readGauge(player.condition)),
-      motivation: clampGauge(readGauge(player.motivation)),
-      injuryStatus: player.injuryStatus ?? 'healthy',
-    };
+const sanitizeFirestoreData = <T>(value: T): T => {
+  if (Array.isArray(value)) {
+    return value.map((item) => sanitizeFirestoreData(item)) as unknown as T;
+  }
 
-    if (normalized.squadRole !== 'starting') {
-      return normalized;
-    }
+  if (value && typeof value === 'object') {
+    const entries = Object.entries(value as Record<string, unknown>)
+      .filter(([, itemValue]) => itemValue !== undefined)
+      .map(([key, itemValue]) => [key, sanitizeFirestoreData(itemValue)] as const);
 
-    starters += 1;
-    if (starters <= 11) {
-      return normalized;
-    }
+    return Object.fromEntries(entries) as T;
+  }
 
-    return {
-      ...normalized,
-      squadRole: 'bench',
-    };
-  });
+  return value;
 };
 
 const readConsumables = (raw: unknown): ConsumablesInventoryDoc => {
@@ -167,6 +155,70 @@ export async function grantKits(
   });
 
   return nextInventory;
+}
+
+export async function grantDailyRewardKits(
+  uid: string,
+  rewards: Partial<Record<KitType, number>>,
+  dateKey: string,
+): Promise<{ claimed: boolean; kits: KitInventory; lastDailyRewardDate: string }> {
+  return runTransaction(db, async (tx) => {
+    const currentUserRef = userRef(uid);
+    const currentInventoryRef = inventoryRef(uid);
+    const [userSnap, inventorySnap] = await Promise.all([
+      tx.get(currentUserRef),
+      tx.get(currentInventoryRef),
+    ]);
+
+    const lastDailyRewardDate =
+      typeof userSnap.data()?.lastDailyRewardDate === 'string'
+        ? userSnap.data()?.lastDailyRewardDate
+        : null;
+
+    const currentKits = inventorySnap.exists()
+      ? readConsumables(inventorySnap.data()).kits
+      : DEFAULT_KIT_INVENTORY;
+
+    if (lastDailyRewardDate === dateKey) {
+      return {
+        claimed: false,
+        kits: currentKits,
+        lastDailyRewardDate: dateKey,
+      };
+    }
+
+    const nextKits: KitInventory = { ...currentKits };
+    (Object.entries(rewards) as Array<[KitType, number | undefined]>).forEach(([type, amount]) => {
+      const safeAmount = sanitizeCount(amount);
+      if (safeAmount <= 0) {
+        return;
+      }
+      nextKits[type] = sanitizeCount((nextKits[type] ?? 0) + safeAmount);
+    });
+
+    tx.set(
+      currentInventoryRef,
+      {
+        kits: nextKits,
+        updatedAt: serverTimestamp(),
+      },
+      { merge: true },
+    );
+    tx.set(
+      currentUserRef,
+      {
+        lastDailyRewardDate: dateKey,
+        dailyRewardUpdatedAt: serverTimestamp(),
+      },
+      { merge: true },
+    );
+
+    return {
+      claimed: true,
+      kits: nextKits,
+      lastDailyRewardDate: dateKey,
+    };
+  });
 }
 
 export async function spendDiamondsAndGrantKit(
@@ -250,10 +302,19 @@ export async function applyKitToPlayerInInventory(
 
     const player = players[playerIndex] as Player;
     const config = KIT_CONFIG[type];
+    const currentHealth = resolvePlayerHealth(player.health, player.injuryStatus);
+    const nextHealth =
+      config.healsInjury
+        ? Math.max(
+            HEALTH_KIT_MINIMUM_AFTER_HEAL,
+            clampVitalGauge(currentHealth + config.healthDelta, 1),
+          )
+        : clampVitalGauge(currentHealth + config.healthDelta, 1);
     const nextPlayer: Player = {
       ...player,
-      condition: clampGauge(readGauge(player.condition) + config.conditionDelta),
-      motivation: clampGauge(readGauge(player.motivation) + config.motivationDelta),
+      health: nextHealth,
+      condition: clampVitalGauge(readGauge(player.condition) + config.conditionDelta),
+      motivation: clampVitalGauge(readGauge(player.motivation) + config.motivationDelta),
       injuryStatus: config.healsInjury ? 'healthy' : player.injuryStatus ?? 'healthy',
     };
 
@@ -263,7 +324,11 @@ export async function applyKitToPlayerInInventory(
       [type]: Math.max(0, available - 1),
     };
 
-    tx.set(currentTeamRef, { players: normalizePlayers(players) }, { merge: true });
+    tx.set(
+      currentTeamRef,
+      { players: sanitizeFirestoreData(normalizeTeamPlayers(players)) },
+      { merge: true },
+    );
     tx.set(
       currentInventoryRef,
       {

@@ -9,15 +9,29 @@ import {
   serverTimestamp,
   setDoc,
   Timestamp,
-  writeBatch,
 } from 'firebase/firestore';
 import { db } from './firebase';
 import type { Player } from '@/types';
+import { buildSalaryNegotiationProfile } from '@/lib/contractNegotiation';
 import { resolvePlayerSalary, shouldRefreshLegacySalary } from '@/lib/salary';
+import {
+  clampVitalGauge,
+  normalizeTeamPlayers,
+  UNDERPAID_MOTIVATION_PENALTY,
+  UNDERPAID_SALARY_RECOVERY_THRESHOLD,
+  UNDERPAID_SALARY_THRESHOLD,
+} from '@/lib/playerVitals';
 import { normalizeRatingTo100 } from '@/lib/player';
 import { INITIAL_CLUB_BALANCE, normalizeClubBalance } from '@/lib/clubFinance';
 
-export type FinanceHistoryCategory = 'match' | 'sponsor' | 'loan' | 'salary' | 'stadium' | 'transfer';
+export type FinanceHistoryCategory =
+  | 'match'
+  | 'sponsor'
+  | 'loan'
+  | 'salary'
+  | 'stadium'
+  | 'transfer'
+  | 'vip';
 
 export interface FinanceHistoryEntry {
   id: string;
@@ -95,6 +109,12 @@ export interface UserSponsorDoc {
   nextPayoutAt?: Timestamp | null;
 }
 
+export interface SponsorPayoutAvailability {
+  canCollect: boolean;
+  nextPayoutAt: Date | null;
+  remainingMs: number;
+}
+
 export interface ActivateUserSponsorResponse {
   sponsorId: string;
   sponsorName: string;
@@ -106,6 +126,30 @@ export interface CollectUserSponsorEarningsResponse {
   sponsorId: string;
   sponsorName: string;
   payout: number;
+}
+
+export interface VipDailyCreditSummary {
+  lastClaimDate: string | null;
+  lastClaimAmount?: number | null;
+  claimCostDiamonds?: number | null;
+  lastClaimAt?: Timestamp | null;
+}
+
+export interface VipDailyCreditAvailability {
+  canClaim: boolean;
+  claimedToday: boolean;
+  todayKey: string;
+  nextClaimDateKey: string;
+}
+
+export interface ClaimVipDailyCreditResponse {
+  claimDate: string;
+  amount: number;
+  diamondCost: number;
+  mode: 'free' | 'diamond';
+  balance: number;
+  diamondBalance: number;
+  nextClaimDate: string;
 }
 
 export interface TeamSalaryRecord {
@@ -127,6 +171,15 @@ const MATCHES_PER_MONTH = 4;
 const DEFAULT_TEAM_STRENGTH = 58;
 const MIN_STARTERS_FOR_REAL_STRENGTH = 8;
 const REVENUE_ROUNDING_UNIT = 50;
+export const VIP_DAILY_CREDIT_AMOUNT = 2_000;
+export const VIP_DAILY_CREDIT_DIAMOND_COST = 0;
+
+const istanbulDateKeyFormatter = new Intl.DateTimeFormat('en-US', {
+  timeZone: 'Europe/Istanbul',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+});
 
 const financeDoc = (uid: string) => doc(db, 'finance', uid);
 const historyCollection = (uid: string) => collection(db, 'finance', 'history', uid);
@@ -135,7 +188,6 @@ const teamDoc = (teamId: string) => doc(db, 'teams', teamId);
 const teamStadiumDoc = (teamId: string) => doc(db, 'teams', teamId, 'stadium', 'state');
 const teamSalariesDoc = (teamId: string) => doc(db, 'teams', teamId, 'salaries', 'current');
 const teamSalariesScheduleDoc = (teamId: string) => doc(db, 'teams', teamId, 'salaries', 'schedule');
-const sponsorshipCollection = (uid: string) => collection(db, 'users', uid, 'sponsorships');
 const financeHistoryPreviewQuery = (uid: string) => query(historyCollection(uid), limit(1));
 
 export { getSalaryForOverall } from '@/lib/salary';
@@ -169,6 +221,22 @@ type FinanceBalanceSource = {
 const hasFiniteValue = (value: unknown): value is number =>
   typeof value === 'number' && Number.isFinite(value);
 
+const getDatePartValue = (
+  parts: Intl.DateTimeFormatPart[],
+  type: 'year' | 'month' | 'day',
+): string => parts.find((part) => part.type === type)?.value ?? '';
+
+export const getIstanbulDateKey = (date = new Date()): string => {
+  const parts = istanbulDateKeyFormatter.formatToParts(date);
+  const year = getDatePartValue(parts, 'year');
+  const month = getDatePartValue(parts, 'month');
+  const day = getDatePartValue(parts, 'day');
+  return `${year}-${month}-${day}`;
+};
+
+export const getNextIstanbulDateKey = (date = new Date()): string =>
+  getIstanbulDateKey(new Date(date.getTime() + DAY_MS));
+
 export const resolveCanonicalClubBalance = (
   teamData?: TeamBudgetSource | null,
   financeData?: FinanceBalanceSource | null,
@@ -195,6 +263,17 @@ export const resolveCanonicalClubBalance = (
     return INITIAL_CLUB_BALANCE;
   }
 
+  const teamLooksStaleAtZero =
+    hasHistory &&
+    financeBalance != null &&
+    financeBalance > 0 &&
+    transferBudget === 0 &&
+    (budget == null || budget === 0);
+
+  if (teamLooksStaleAtZero) {
+    return financeBalance;
+  }
+
   if (transferBudget != null) {
     return transferBudget;
   }
@@ -208,6 +287,64 @@ export const resolveCanonicalClubBalance = (
   }
 
   return INITIAL_CLUB_BALANCE;
+};
+
+const resolveTimestampMillis = (
+  value?: Pick<Timestamp, 'toMillis'> | null,
+): number | null => {
+  if (!value || typeof value.toMillis !== 'function') {
+    return null;
+  }
+
+  const millis = value.toMillis();
+  return Number.isFinite(millis) ? millis : null;
+};
+
+export const getSponsorCadenceMs = (cycle: SponsorReward['cycle']): number =>
+  cycle === 'weekly' ? 7 * DAY_MS : DAY_MS;
+
+export const getSponsorPayoutAvailability = (
+  sponsor: Pick<UserSponsorDoc, 'activatedAt' | 'lastPayoutAt' | 'nextPayoutAt' | 'reward'>,
+  nowMs = Date.now(),
+): SponsorPayoutAvailability => {
+  const cadenceMs = getSponsorCadenceMs(sponsor.reward.cycle);
+  const activatedAtMs = resolveTimestampMillis(sponsor.activatedAt);
+  const lastPayoutAtMs = resolveTimestampMillis(sponsor.lastPayoutAt ?? null);
+  const explicitNextPayoutAtMs = resolveTimestampMillis(sponsor.nextPayoutAt ?? null);
+  const payoutBaseMs = lastPayoutAtMs ?? activatedAtMs;
+  const nextPayoutAtMs =
+    explicitNextPayoutAtMs ??
+    (payoutBaseMs != null ? payoutBaseMs + cadenceMs : null);
+
+  if (nextPayoutAtMs == null) {
+    return {
+      canCollect: false,
+      nextPayoutAt: null,
+      remainingMs: 0,
+    };
+  }
+
+  return {
+    canCollect: nowMs >= nextPayoutAtMs,
+    nextPayoutAt: new Date(nextPayoutAtMs),
+    remainingMs: Math.max(0, nextPayoutAtMs - nowMs),
+  };
+};
+
+export const getVipDailyCreditAvailability = (
+  vipActive: boolean,
+  summary?: VipDailyCreditSummary | null,
+  now = new Date(),
+): VipDailyCreditAvailability => {
+  const todayKey = getIstanbulDateKey(now);
+  const claimedToday = (summary?.lastClaimDate?.trim() ?? '') === todayKey;
+
+  return {
+    canClaim: vipActive && !claimedToday,
+    claimedToday,
+    todayKey,
+    nextClaimDateKey: getNextIstanbulDateKey(now),
+  };
 };
 
 const isRevenueEligiblePlayer = (player: Player): boolean => {
@@ -349,8 +486,12 @@ const buildSalaryState = (
   players: Player[],
 ): { records: TeamSalaryRecord[]; normalizedPlayers: Player[]; changed: boolean } => {
   let changed = false;
+  const roster = normalizeTeamPlayers(players);
+  if (JSON.stringify(roster) !== JSON.stringify(players)) {
+    changed = true;
+  }
 
-  const normalizedPlayers = players.map((player) => {
+  const normalizedPlayers = roster.map((player) => {
     const overall = typeof player.overall === 'number' ? player.overall : 0;
     const resolvedSalary = resolvePlayerSalary(player);
     const shouldPersistSalary =
@@ -381,6 +522,77 @@ const buildSalaryState = (
   }));
 
   return { records, normalizedPlayers, changed };
+};
+
+export const applyUnderpaidSalaryPenaltyForMonth = (
+  players: Player[],
+  monthKey: string,
+): { players: Player[]; changed: boolean; penalizedPlayerIds: string[] } => {
+  let changed = false;
+  const penalizedPlayerIds: string[] = [];
+
+  const adjustedPlayers = players.map((player) => {
+    const contractStatus = player.contract?.status ?? 'active';
+    if (!player.contract || contractStatus === 'expired' || contractStatus === 'released') {
+      return player;
+    }
+
+    const demand = Math.max(1, buildSalaryNegotiationProfile(player).demand);
+    const salary = Math.max(0, resolvePlayerSalary(player));
+    const ratio = salary / demand;
+    const currentState = player.motivationState ?? {};
+    let nextState = currentState;
+    let nextMotivation = player.motivation;
+    let playerChanged = false;
+
+    if (ratio < UNDERPAID_SALARY_THRESHOLD) {
+      if (currentState.underpaidLastAppliedMonth !== monthKey) {
+        nextMotivation = clampVitalGauge(
+          player.motivation - UNDERPAID_MOTIVATION_PENALTY,
+        );
+        penalizedPlayerIds.push(player.id);
+        playerChanged = true;
+      }
+
+      if (
+        currentState.underpaidActive !== true ||
+        currentState.underpaidLastAppliedMonth !== monthKey
+      ) {
+        nextState = {
+          ...currentState,
+          underpaidActive: true,
+          underpaidLastAppliedMonth: monthKey,
+        };
+        playerChanged = true;
+      }
+    } else if (ratio >= UNDERPAID_SALARY_RECOVERY_THRESHOLD) {
+      if (currentState.underpaidActive) {
+        nextState = {
+          ...currentState,
+          underpaidActive: false,
+        };
+        playerChanged = true;
+      }
+    }
+
+    if (!playerChanged && nextState === currentState && nextMotivation === player.motivation) {
+      return player;
+    }
+
+    changed = true;
+
+    return {
+      ...player,
+      motivation: nextMotivation,
+      motivationState: nextState,
+    };
+  });
+
+  return {
+    players: normalizeTeamPlayers(adjustedPlayers),
+    changed,
+    penalizedPlayerIds,
+  };
 };
 
 export async function syncTeamSalaries(teamId: string): Promise<TeamSalariesDoc> {
@@ -439,6 +651,10 @@ export async function ensureMonthlySalaryCharge(teamId: string): Promise<number 
 
     const teamData = teamSnap.data() as { players?: Player[]; budget?: number; transferBudget?: number } | undefined;
     const computedSalaryState = buildSalaryState(teamData?.players ?? []);
+    const salaryMotivationState = applyUnderpaidSalaryPenaltyForMonth(
+      computedSalaryState.normalizedPlayers,
+      monthKey,
+    );
     const salaryRecords = computedSalaryState.records.length
       ? computedSalaryState.records
       : (salariesSnap.exists()
@@ -469,11 +685,11 @@ export async function ensureMonthlySalaryCharge(teamId: string): Promise<number 
       },
       { merge: true },
     );
-    if (computedSalaryState.changed) {
+    if (computedSalaryState.changed || salaryMotivationState.changed) {
       tx.set(
         teamRef,
         {
-          players: computedSalaryState.normalizedPlayers,
+          players: salaryMotivationState.players,
         },
         { merge: true },
       );
@@ -640,6 +856,14 @@ export async function recordCreditPurchase(teamId: string, pack: CreditPackage):
 export async function activateSponsor(
   sponsor: SponsorCatalogEntry,
 ): Promise<ActivateUserSponsorResponse> {
+  const [{ httpsCallable }, { functions }] = await Promise.all([
+    import('firebase/functions'),
+    import('./firebase'),
+  ]);
+  const activateUserSponsorCallable = httpsCallable<
+    { sponsorId: string },
+    ActivateUserSponsorResponse
+  >(functions, 'activateUserSponsor');
   const response = await activateUserSponsorCallable({ sponsorId: sponsor.id });
   return response.data;
 }
@@ -647,6 +871,14 @@ export async function activateSponsor(
 export async function applySponsorEarnings(
   sponsorId: string,
 ): Promise<CollectUserSponsorEarningsResponse> {
+  const [{ httpsCallable }, { functions }] = await Promise.all([
+    import('firebase/functions'),
+    import('./firebase'),
+  ]);
+  const collectUserSponsorEarningsCallable = httpsCallable<
+    { sponsorId: string },
+    CollectUserSponsorEarningsResponse
+  >(functions, 'collectUserSponsorEarnings');
   const response = await collectUserSponsorEarningsCallable({ sponsorId });
   return response.data;
 
@@ -701,6 +933,19 @@ export async function applySponsorEarnings(
 
   return payout;
   */
+}
+
+export async function claimVipDailyCredits(): Promise<ClaimVipDailyCreditResponse> {
+  const [{ httpsCallable }, { functions }] = await Promise.all([
+    import('firebase/functions'),
+    import('./firebase'),
+  ]);
+  const claimVipDailyCreditsCallable = httpsCallable<
+    Record<string, never>,
+    ClaimVipDailyCreditResponse
+  >(functions, 'claimVipDailyCredits');
+  const response = await claimVipDailyCreditsCallable({});
+  return response.data;
 }
 
 export function getExpectedRevenue(

@@ -35,7 +35,7 @@ export type YouthCandidate = {
 
 export const YOUTH_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000; // 1 hafta
 export const YOUTH_RESET_DIAMOND_COST = 160;
-export const YOUTH_AD_REDUCTION_MS = 12 * 60 * 60 * 1000; // 12 saat
+export const YOUTH_AD_REDUCTION_PERCENT = 0.15;
 
 interface UserDoc {
   diamondBalance?: number;
@@ -252,7 +252,12 @@ export async function reduceCooldownWithAd(uid: string): Promise<void> {
       if (!nextAt || nextAt <= now) {
         return now;
       }
-      const reduced = new Date(nextAt.getTime() - YOUTH_AD_REDUCTION_MS);
+      const remainingMs = nextAt.getTime() - now.getTime();
+      const reductionMs = Math.max(
+        60 * 1000,
+        Math.floor(remainingMs * YOUTH_AD_REDUCTION_PERCENT),
+      );
+      const reduced = new Date(nextAt.getTime() - reductionMs);
       return reduced <= now ? now : reduced;
     })();
     tx.set(

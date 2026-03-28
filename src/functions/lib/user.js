@@ -53,17 +53,14 @@ export const syncTeamName = functions
         .collectionGroup('teams')
         .where('teamId', '==', teamId)
         .get();
-    if (memberships.empty)
-        return;
+    const leagueRefs = new Map();
     let batch = db.batch();
     let ops = 0;
     for (const d of memberships.docs) {
         // Update mirrored team name under league
         batch.set(d.ref, { name: newName, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
         const leagueRef = d.ref.parent.parent;
-        // Update standings name as well
-        const standingRef = leagueRef.collection('standings').doc(teamId);
-        batch.set(standingRef, { name: newName, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+        leagueRefs.set(leagueRef.id, leagueRef);
         ops++;
         if (ops >= 450) {
             await batch.commit();
@@ -73,6 +70,37 @@ export const syncTeamName = functions
     }
     if (ops > 0) {
         await batch.commit();
+    }
+    if (leagueRefs.size === 0)
+        return;
+    for (const leagueRef of leagueRefs.values()) {
+        const [standingsSnap, slotsSnap] = await Promise.all([
+            leagueRef.collection('standings').where('teamId', '==', teamId).get(),
+            leagueRef.collection('slots').where('teamId', '==', teamId).get(),
+        ]);
+        let innerBatch = db.batch();
+        let innerOps = 0;
+        for (const standingDoc of standingsSnap.docs) {
+            innerBatch.set(standingDoc.ref, { name: newName, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+            innerOps++;
+            if (innerOps >= 450) {
+                await innerBatch.commit();
+                innerBatch = db.batch();
+                innerOps = 0;
+            }
+        }
+        for (const slotDoc of slotsSnap.docs) {
+            innerBatch.set(slotDoc.ref, { name: newName, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+            innerOps++;
+            if (innerOps >= 450) {
+                await innerBatch.commit();
+                innerBatch = db.batch();
+                innerOps = 0;
+            }
+        }
+        if (innerOps > 0) {
+            await innerBatch.commit();
+        }
     }
 });
 const INACTIVITY_MONTHS = 6;

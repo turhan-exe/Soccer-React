@@ -32,25 +32,24 @@ import {
 import { BackButton } from '@/components/ui/back-button';
 import { trainings } from '@/lib/data';
 import { calculateSessionDurationMinutes } from '@/lib/trainingDuration';
-import { runTrainingSimulation } from '@/lib/trainingSession';
 import { cn } from '@/lib/utils';
 import { Player, Training } from '@/types';
 import { formatRatingLabel } from '@/lib/player';
 import { useAuth } from '@/contexts/AuthContext';
 import { useDiamonds } from '@/contexts/DiamondContext';
 import { useTheme } from '@/contexts/ThemeContext';
-import { getTeam, saveTeamPlayers } from '@/services/team';
+import { getTeam } from '@/services/team';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { PlayerStatusCard } from '@/components/ui/player-status-card';
 import {
-  addTrainingRecord,
   getTrainingHistory,
   ActiveTrainingSession,
   getActiveTraining,
   setActiveTraining,
-  clearActiveTraining,
+  completeTrainingSession,
   TrainingHistoryRecord,
   TRAINING_FINISH_COST,
+  TRAINING_AD_REDUCTION_PERCENT,
   finishTrainingWithDiamonds,
   markTrainingRecordsViewed,
 } from '@/services/training';
@@ -67,7 +66,11 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useInventory } from '@/contexts/InventoryContext';
-import { runRewardedAdFlow } from '@/services/rewardedAds';
+import {
+  addRewardedAdLifecycleListener,
+  getRewardedAdFailureMessage,
+  runRewardedAdFlow,
+} from '@/services/rewardedAds';
 
 const EXTRA_ASSIGNMENT_DIAMOND_COST = 20;
 const FINISH_COST_PER_ASSIGNMENT = 18;
@@ -78,6 +81,9 @@ interface ActiveBulkSession {
   durationSeconds: number;
   startedAt: Timestamp;
 }
+
+const toFiniteNumber = (value: unknown): number | null =>
+  typeof value === 'number' && Number.isFinite(value) ? value : null;
 
 export default function TrainingPage() {
   const navigate = useNavigate();
@@ -115,6 +121,7 @@ export default function TrainingPage() {
   const completionTriggeredRef = useRef(false);
   const completeSessionRef = useRef<(() => Promise<void>) | null>(null);
   const activeSessionRef = useRef<ActiveBulkSession | null>(null);
+  const timeLeftRef = useRef(0);
 
   const triggerCompletion = useCallback(() => {
     if (completionTriggeredRef.current) {
@@ -276,6 +283,10 @@ export default function TrainingPage() {
     };
   }, []);
 
+  useEffect(() => {
+    timeLeftRef.current = timeLeft;
+  }, [timeLeft]);
+
   const completeSession = useCallback(async () => {
     completionTriggeredRef.current = true;
 
@@ -294,8 +305,9 @@ export default function TrainingPage() {
       return;
     }
 
+    let persistedSession = null;
     try {
-      const persistedSession = await getActiveTraining(user.id);
+      persistedSession = await getActiveTraining(user.id);
       if (!persistedSession) {
         const [team, records] = await Promise.all([
           getTeam(user.id),
@@ -316,62 +328,39 @@ export default function TrainingPage() {
       console.warn('Sunucu antrenman durumu kontrol edilemedi', error);
     }
 
-    const { updatedPlayers: sessionUpdatedPlayers, records } = runTrainingSimulation(
-      session.players,
-      session.trainings,
-    );
-
-    const mergedPlayers = players.map(player => {
-      const updated = sessionUpdatedPlayers.find(p => p.id === player.id);
-      return updated ?? player;
-    });
-
-    setPlayers(mergedPlayers);
-
-    if (user) {
-      try {
-        await saveTeamPlayers(user.id, mergedPlayers);
-      } catch (err) {
-        console.warn('Oyuncular kaydedilirken hata oluştu', err);
-      }
-
-      const createdRecords: TrainingHistoryRecord[] = [];
-      const completionTime = Timestamp.now();
-
-      for (const record of records) {
-        try {
-          const recordId = await addTrainingRecord(user.id, {
-            ...record,
-            completedAt: completionTime,
-            viewed: true,
-          });
-          createdRecords.push({
-            ...record,
-            id: recordId,
-            completedAt: completionTime,
-            viewed: true,
-          });
-        } catch (err) {
-          console.warn('Antrenman kaydı eklenemedi', err);
-        }
-      }
-
-      try {
-        await clearActiveTraining(user.id);
-      } catch (err) {
-        console.warn('Aktif antrenman temizlenemedi', err);
-      }
-
-      setHistory(prev => [...prev, ...createdRecords]);
+    let result;
+    try {
+      result = await completeTrainingSession(user.id, {
+        viewed: true,
+      });
+    } catch (error) {
+      console.warn('Antrenman tamamlanamadi', error);
+      const [team, records] = await Promise.all([
+        getTeam(user.id),
+        getTrainingHistory(user.id),
+      ]);
+      setPlayers(team?.players || []);
+      setHistory(records);
+      setIsTraining(false);
+      setTimeLeft(0);
+      setActiveSessionSafe(null);
+      setPendingActiveSession(null);
+      setSelectedPlayers([]);
+      setSelectedTrainings([]);
+      toast.error('Antrenman sonucu kaydedilemedi');
+      return;
     }
+
+    setPlayers(result.players);
+    setHistory(prev => [...prev, ...result.records]);
     setIsTraining(false);
     setTimeLeft(0);
     setActiveSessionSafe(null);
     setPendingActiveSession(null);
     setSelectedPlayers([]);
     setSelectedTrainings([]);
-    toast.success(`Antrenman tamamlandı (${records.length} işlem)`);
-  }, [players, setActiveSessionSafe, user]);
+    toast.success(`Antrenman tamamlandı (${result.records.length} işlem)`);
+  }, [setActiveSessionSafe, user]);
 
   useEffect(() => {
     completeSessionRef.current = completeSession;
@@ -637,8 +626,21 @@ export default function TrainingPage() {
 
     setIsFinishingWithDiamonds(true);
     try {
-      await finishTrainingWithDiamonds(user.id, cost);
-      await completeSession();
+      const session = await finishTrainingWithDiamonds(user.id, cost);
+      const result = await completeTrainingSession(user.id, {
+        session,
+        viewed: true,
+        consumeActive: false,
+      });
+      setPlayers(result.players);
+      setHistory(prev => [...prev, ...result.records]);
+      setIsTraining(false);
+      setTimeLeft(0);
+      setActiveSessionSafe(null);
+      setPendingActiveSession(null);
+      setSelectedPlayers([]);
+      setSelectedTrainings([]);
+      toast.success(`Antrenman tamamlandı (${result.records.length} işlem)`);
     } catch (err) {
       console.warn('Antrenman elmasla tamamlanamadı', err);
       toast.error('Elmasla bitirme başarısız');
@@ -660,13 +662,37 @@ export default function TrainingPage() {
       return;
     }
 
-    const remainingBeforeAd = timeLeft;
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-      intervalRef.current = null;
-    }
+    const remainingBeforeAd = timeLeftRef.current;
+    let adWasShown = false;
+    let pausedRemaining = remainingBeforeAd;
+    const resumeCountdownIfNeeded = () => {
+      if (!adWasShown) {
+        return;
+      }
+
+      if (pausedRemaining > 0) {
+        startCountdown(pausedRemaining);
+        return;
+      }
+
+      if (isTraining) {
+        triggerCompletion();
+      }
+    };
 
     setIsWatchingAd(true);
+    const lifecycleHandle = await addRewardedAdLifecycleListener((event) => {
+      if (event.status !== 'showing' || adWasShown) {
+        return;
+      }
+
+      adWasShown = true;
+      pausedRemaining = Math.max(timeLeftRef.current, 0);
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+    });
     try {
       const result = await runRewardedAdFlow({
         userId: user.id,
@@ -684,35 +710,85 @@ export default function TrainingPage() {
       });
 
       if (result.outcome === 'claimed' || result.outcome === 'already_claimed') {
-        setTimeLeft(0);
+        const reward = result.claim.reward;
+        const reducedDurationSeconds = toFiniteNumber(reward.durationSeconds);
+        const remainingAfterAd = toFiniteNumber(reward.remainingSeconds);
+        const isCompleted = reward.completed === true;
 
-        toast.success('Antrenman reklam odulu ile tamamlandi');
-        await completeSession();
+        if (activeSessionRef.current && reducedDurationSeconds !== null) {
+          setActiveSessionSafe({
+            ...activeSessionRef.current,
+            durationSeconds: reducedDurationSeconds,
+          });
+        }
+
+        if (isCompleted || remainingAfterAd === 0) {
+          setTimeLeft(0);
+          await completeSession();
+          return;
+        }
+
+        if (remainingAfterAd !== null) {
+          startCountdown(remainingAfterAd);
+          toast.success('Kalan sure %25 azaltildi');
+          return;
+        }
+
+        if (user) {
+          const refreshedSession = await getActiveTraining(user.id);
+          if (refreshedSession && activeSessionRef.current) {
+            const elapsedSeconds = Math.floor(
+              (Date.now() - refreshedSession.startAt.toDate().getTime()) / 1000,
+            );
+            const refreshedRemaining = Math.max(
+              refreshedSession.durationSeconds - elapsedSeconds,
+              0,
+            );
+
+            setActiveSessionSafe({
+              ...activeSessionRef.current,
+              durationSeconds: refreshedSession.durationSeconds,
+              startedAt: refreshedSession.startAt,
+            });
+
+            if (refreshedRemaining <= 0) {
+              setTimeLeft(0);
+              await completeSession();
+            } else {
+              startCountdown(refreshedRemaining);
+              toast.success('Kalan sure %25 azaltildi');
+            }
+            return;
+          }
+        }
+
+        toast.success('Kalan sure %25 azaltildi');
         return;
       }
 
       if (result.outcome === 'dismissed') {
         toast.info('Reklam tamamlanmadi, antrenman devam ediyor.');
-        startCountdown(remainingBeforeAd);
+        resumeCountdownIfNeeded();
         return;
       }
 
       if (result.outcome === 'pending_verification') {
         toast.info('Reklam dogrulaniyor. Biraz sonra yeniden deneyin.');
-        startCountdown(remainingBeforeAd);
+        resumeCountdownIfNeeded();
         return;
       }
 
-      toast.error('Reklam gosterilemedi.');
-      startCountdown(remainingBeforeAd);
+      toast.error(getRewardedAdFailureMessage(result.ad));
+      resumeCountdownIfNeeded();
       return;
     } catch (err) {
-      console.warn('Antrenman reklamla hızlandırılamadı', err);
-      toast.error((err as Error).message || 'Reklam izleme başarısız');
-      if (isTraining && remainingBeforeAd > 0) {
-        startCountdown(remainingBeforeAd);
+      console.warn('Antrenman reklamla hizlandirilamadi', err);
+      toast.error(getRewardedAdFailureMessage(err));
+      if (isTraining) {
+        resumeCountdownIfNeeded();
       }
     } finally {
+      await lifecycleHandle?.remove();
       setIsWatchingAd(false);
     }
   };
@@ -1262,7 +1338,7 @@ export default function TrainingPage() {
                           className={secondaryActionClass}
                           disabled={isWatchingAd}
                         >
-                          <Clapperboard className="mr-2 h-4 w-4" /> {isWatchingAd ? 'Video Yükleniyor...' : 'Reklam İzle (Hemen Bitir)'}
+                          <Clapperboard className="mr-2 h-4 w-4" /> {isWatchingAd ? 'Video Yükleniyor...' : `Reklam İzle (-%${Math.round(TRAINING_AD_REDUCTION_PERCENT * 100)} Süre)`}
                         </Button>
                       </>
                     )}
