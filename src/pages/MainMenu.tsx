@@ -318,10 +318,6 @@ export default function MainMenu() {
   };
 
   const handleUse = (type: KitType) => {
-    if ((kits[type] ?? 0) <= 0) {
-      toast.error('Stokta yeterli kit bulunmuyor.');
-      return;
-    }
     setIsKitMenuOpen(false);
     setActiveKit(type);
     setIsUsageOpen(true);
@@ -868,8 +864,21 @@ export default function MainMenu() {
                             </Button>
                             <Button variant="outline" size="sm" className="h-8 text-xs border-white/10 hover:bg-white/5" disabled={isProcessing || isRewardingKit} onClick={() => handlePurchase(currentKitType, 'diamonds')}>{config.diamondCost} Elmas</Button>
                           </div>
-                          <Button variant="default" size="sm" className="w-full mt-2 bg-emerald-600 hover:bg-emerald-500 text-white" disabled={count === 0} onClick={() => handleUse(currentKitType)}>
-                            {count === 0 ? 'Stok Yok' : 'Kullan'}
+                          <Button
+                            variant="default"
+                            size="sm"
+                            className="w-full mt-2 bg-emerald-600 hover:bg-emerald-500 text-white"
+                            disabled={isProcessing || isRewardingKit}
+                            onClick={() => {
+                              if (count === 0) {
+                                setIsKitMenuOpen(false);
+                                void handlePurchase(currentKitType, 'ad');
+                                return;
+                              }
+                              handleUse(currentKitType);
+                            }}
+                          >
+                            {count === 0 ? 'Reklam İzle (+1)' : 'Kullan'}
                           </Button>
                         </>
                       );
@@ -1129,7 +1138,12 @@ export default function MainMenu() {
 
 
       <GlobalChatWidget />
-      <KitUsageDialog open={isUsageOpen} kitType={activeKit} onOpenChange={handleUsageOpenChange} />
+      <KitUsageDialog
+        open={isUsageOpen}
+        kitType={activeKit}
+        surface="mainmenu"
+        onOpenChange={handleUsageOpenChange}
+      />
     </div>
   );
 }

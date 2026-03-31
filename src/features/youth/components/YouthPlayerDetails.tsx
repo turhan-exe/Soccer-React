@@ -1,63 +1,314 @@
+import { useState } from 'react';
 import {
-    Dialog,
-    DialogContent,
-    DialogHeader,
-    DialogTitle,
+  Dialog,
+  DialogContent,
+  DialogTitle,
 } from '@/components/ui/dialog';
-import { Player } from '@/types';
-import { ChevronDown, ChevronLeft } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { PerformanceGauge } from '@/components/ui/performance-gauge';
+import { StatBar } from '@/components/ui/stat-bar';
+import type { Player } from '@/types';
+import {
+  getYouthAvatarUrl,
+  getYouthDevelopmentGap,
+  getYouthDevelopmentLabel,
+  getYouthOverall,
+  getYouthPotential,
+  getYouthReadiness,
+  getYouthRoleSummary,
+  toPercent,
+} from '@/features/youth/youthPlayerPresentation';
+import { HeartPulse, ShieldPlus, Sparkles, UserRound, X, Zap } from 'lucide-react';
 
 interface YouthPlayerDetailsProps {
-    player: Player | null;
-    isOpen: boolean;
-    onClose: () => void;
+  player: Player | null;
+  isOpen: boolean;
+  onClose: () => void;
 }
 
+const ATTRIBUTE_ROWS: Array<{ key: keyof Player['attributes']; label: string }> = [
+  { key: 'strength', label: 'Güç' },
+  { key: 'acceleration', label: 'Hızlanma' },
+  { key: 'topSpeed', label: 'Maksimum Hız' },
+  { key: 'dribbleSpeed', label: 'Top Sürme Hızı' },
+  { key: 'jump', label: 'Sıçrama' },
+  { key: 'tackling', label: 'Müdahale' },
+  { key: 'ballKeeping', label: 'Top Saklama' },
+  { key: 'passing', label: 'Pas' },
+  { key: 'longBall', label: 'Uzun Top' },
+  { key: 'agility', label: 'Çeviklik' },
+  { key: 'shooting', label: 'Şut' },
+  { key: 'shootPower', label: 'Şut Gücü' },
+  { key: 'positioning', label: 'Pozisyon Alma' },
+  { key: 'reaction', label: 'Refleks' },
+  { key: 'ballControl', label: 'Top Kontrolü' },
+];
+
+const OverviewCard = ({
+  label,
+  value,
+  accent,
+}: {
+  label: string;
+  value: string | number;
+  accent: string;
+}) => (
+  <div className="rounded-2xl border border-white/10 bg-slate-950/55 px-4 py-3">
+    <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">{label}</p>
+    <p className={`mt-1 text-2xl font-black ${accent}`}>{value}</p>
+  </div>
+);
+
+const DetailInfoRow = ({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) => (
+  <div className="flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+    <span className="text-sm text-slate-400">{label}</span>
+    <span className="text-right text-sm font-semibold text-white">{value}</span>
+  </div>
+);
+
 export function YouthPlayerDetails({ player, isOpen, onClose }: YouthPlayerDetailsProps) {
-    if (!player) return null;
+  const [avatarFailed, setAvatarFailed] = useState(false);
+  const avatarUrl = player ? getYouthAvatarUrl(player) : '';
+  const initials = player
+    ? player.name
+        .split(' ')
+        .filter(Boolean)
+        .slice(0, 2)
+        .map(part => part[0]?.toUpperCase() ?? '')
+        .join('')
+    : '';
 
-    const attributes = [
-        { label: 'Hız', value: Math.round(player.attributes.topSpeed * 20), color: 'text-yellow-400' }, // Scaled dummy
-        { label: 'Şut', value: Math.round(player.attributes.shooting * 20), color: 'text-emerald-400' },
-        { label: 'İvme', value: Math.round(player.attributes.acceleration * 20), color: 'text-yellow-400' },
-        { label: 'Top Sürme', value: Math.round(player.attributes.dribbleSpeed * 20), color: 'text-emerald-400' },
-        { label: 'Zıplama', value: Math.round(player.attributes.jump * 20), color: 'text-yellow-400' },
-        { label: 'Savunma', value: Math.round(player.attributes.tackling * 20), color: 'text-yellow-400' },
-        { label: 'Top Saklama', value: Math.round(player.attributes.ballKeeping * 20), color: 'text-yellow-400' },
-    ];
+  if (!player) {
+    return null;
+  }
 
-    return (
-        <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-            <DialogContent className="max-w-[320px] border-none bg-transparent shadow-none p-0 overflow-hidden">
-                <div className="bg-[#1a1b2e] rounded-[24px] border border-white/10 p-5 relative overflow-hidden">
-                    <div className="flex items-center justify-between mb-4">
-                        <h2 className="text-base font-bold text-white">Oyuncu Detayları</h2>
-                        <Button variant="ghost" size="icon" onClick={onClose} className="h-6 w-6 text-slate-400 hover:text-white">
-                            <ChevronDown className="h-4 w-4" />
-                        </Button>
+  const overall = getYouthOverall(player);
+  const potential = getYouthPotential(player);
+  const readiness = getYouthReadiness(player);
+  const developmentGap = getYouthDevelopmentGap(player);
+  const developmentLabel = getYouthDevelopmentLabel(developmentGap);
+  const { primaryRole, secondaryRoles } = getYouthRoleSummary(player);
+
+  return (
+    <Dialog open={isOpen} onOpenChange={open => !open && onClose()}>
+      <DialogContent className="flex max-h-[calc(var(--app-viewport-height,100dvh)-1rem)] w-[calc(100vw-1rem)] max-w-[min(960px,calc(100vw-1rem))] flex-col overflow-hidden border border-white/10 bg-[linear-gradient(160deg,rgba(14,21,45,0.98),rgba(7,12,26,0.98))] p-0 text-slate-100 shadow-[0_30px_100px_rgba(0,0,0,0.55)] [&>button:last-child]:hidden">
+        <DialogTitle className="sr-only">Altyapı Oyuncu Detayı</DialogTitle>
+
+        <div className="relative flex min-h-0 flex-1 flex-col">
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(56,189,248,0.15),transparent_30%),radial-gradient(circle_at_bottom_right,rgba(168,85,247,0.18),transparent_26%)]" />
+
+          <div className="relative shrink-0 border-b border-white/10 p-4 sm:p-6">
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex min-w-0 flex-1 flex-col gap-4 md:flex-row">
+                <div className="h-24 w-24 shrink-0 overflow-hidden rounded-[26px] border border-cyan-300/20 bg-slate-950/80 shadow-[0_18px_40px_rgba(34,211,238,0.16)] sm:h-28 sm:w-28">
+                  {!avatarFailed ? (
+                    <img
+                      src={avatarUrl}
+                      alt={`${player.name} avatarı`}
+                      className="h-full w-full object-cover"
+                      onError={() => setAvatarFailed(true)}
+                    />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-cyan-500 to-violet-500 text-4xl font-black text-white">
+                      {initials || 'A'}
                     </div>
-
-                    <div className="space-y-1.5">
-                        {attributes.map((attr) => (
-                            <div key={attr.label} className="flex items-center justify-between bg-white/5 rounded-lg px-3 py-1.5 border border-white/5">
-                                <span className="text-slate-300 font-medium text-xs">{attr.label}</span>
-                                <div className="flex items-center gap-2">
-                                    <ChevronLeft className="h-2.5 w-2.5 text-yellow-500 fill-current" />
-                                    <span className={`text-sm font-bold font-mono ${attr.color}`}>{attr.value}</span>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-
-                    <div className="flex justify-center mt-3">
-                        <ChevronDown className="h-4 w-4 text-slate-600 animate-bounce" />
-                    </div>
-
-                    {/* Background Blob */}
-                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-full bg-indigo-500/5 blur-3xl pointer-events-none -z-10" />
+                  )}
                 </div>
-            </DialogContent>
-        </Dialog>
-    );
+
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs uppercase tracking-[0.24em] text-cyan-300">Altyapı Oyuncu Profili</p>
+                  <h2 className="mt-2 text-3xl font-black text-white">{player.name}</h2>
+                  <p className="mt-1 text-sm font-medium leading-6 text-cyan-100">{primaryRole}</p>
+
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <Badge className="border-cyan-400/25 bg-cyan-500/10 text-cyan-100 hover:bg-cyan-500/10">
+                      Ana Rol: {primaryRole}
+                    </Badge>
+                    {secondaryRoles.length > 0 ? (
+                      secondaryRoles.map(role => (
+                        <Badge
+                          key={`${player.id}-${role}`}
+                          variant="outline"
+                          className="border-white/15 bg-white/5 text-slate-200"
+                        >
+                          {role}
+                        </Badge>
+                      ))
+                    ) : (
+                      <Badge
+                        variant="outline"
+                        className="border-white/15 bg-white/5 text-slate-300"
+                      >
+                        Yan Rol Yok
+                      </Badge>
+                    )}
+                  </div>
+
+                  <div className="mt-4 grid grid-cols-2 gap-3 xl:grid-cols-4">
+                    <OverviewCard label="Yaş" value={player.age} accent="text-white" />
+                    <OverviewCard label="Güç" value={overall} accent="text-amber-300" />
+                    <OverviewCard label="Ulaşabileceği Güç" value={potential} accent="text-cyan-300" />
+                    <OverviewCard label="Kalan Gelişim" value={`+${developmentGap}`} accent="text-emerald-300" />
+                  </div>
+                </div>
+              </div>
+
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={onClose}
+                className="h-10 w-10 shrink-0 rounded-full border border-white/10 bg-white/5 text-slate-300 hover:bg-white/10 hover:text-white"
+              >
+                <X className="h-5 w-5" />
+              </Button>
+            </div>
+          </div>
+
+          <Tabs defaultValue="durum" className="relative flex min-h-0 flex-1 flex-col">
+            <div className="shrink-0 border-b border-white/10 px-4 py-3 sm:px-6">
+              <TabsList className="grid h-auto w-full grid-cols-3 rounded-[20px] border border-white/10 bg-slate-950/70 p-1">
+                <TabsTrigger value="durum" className="rounded-2xl py-3 text-sm font-semibold text-slate-400 data-[state=active]:bg-cyan-500/12 data-[state=active]:text-cyan-100 data-[state=active]:shadow-none">
+                  Durum
+                </TabsTrigger>
+                <TabsTrigger value="yetenekler" className="rounded-2xl py-3 text-sm font-semibold text-slate-400 data-[state=active]:bg-violet-500/12 data-[state=active]:text-violet-100 data-[state=active]:shadow-none">
+                  Yetenekler
+                </TabsTrigger>
+                <TabsTrigger value="profil" className="rounded-2xl py-3 text-sm font-semibold text-slate-400 data-[state=active]:bg-emerald-500/12 data-[state=active]:text-emerald-100 data-[state=active]:shadow-none">
+                  Profil
+                </TabsTrigger>
+              </TabsList>
+            </div>
+
+            <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6 sm:py-5">
+              <TabsContent value="durum" className="mt-0 space-y-4">
+                <div className="grid gap-3 md:grid-cols-2">
+                  <div className="rounded-[24px] border border-white/10 bg-white/5 p-4">
+                    <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-cyan-100">
+                      <Zap className="h-4 w-4 text-cyan-300" />
+                      Performans Özeti
+                    </div>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <PerformanceGauge
+                        label="Güç"
+                        value={overall / 100}
+                        variant="dark"
+                        className="rounded-2xl border border-white/10 bg-slate-950/55 p-3"
+                      />
+                      <PerformanceGauge
+                        label="Ulaşabileceği Güç"
+                        value={potential / 100}
+                        variant="dark"
+                        className="rounded-2xl border border-white/10 bg-slate-950/55 p-3"
+                      />
+                      <PerformanceGauge
+                        label="Enerji"
+                        value={player.condition}
+                        variant="dark"
+                        className="rounded-2xl border border-white/10 bg-slate-950/55 p-3"
+                      />
+                      <PerformanceGauge
+                        label="Moral"
+                        value={player.motivation}
+                        variant="dark"
+                        className="rounded-2xl border border-white/10 bg-slate-950/55 p-3"
+                      />
+                      <PerformanceGauge
+                        label="Sağlık"
+                        value={player.health}
+                        variant="dark"
+                        className="rounded-2xl border border-white/10 bg-slate-950/55 p-3"
+                      />
+                      <PerformanceGauge
+                        label="Hazır Oluş"
+                        value={readiness / 100}
+                        variant="dark"
+                        className="rounded-2xl border border-white/10 bg-slate-950/55 p-3"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="rounded-[24px] border border-white/10 bg-white/5 p-4">
+                    <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-violet-100">
+                      <Sparkles className="h-4 w-4 text-violet-300" />
+                      Oyuncu Özeti
+                    </div>
+                    <div className="space-y-3">
+                      <DetailInfoRow label="Potansiyel Seviyesi" value={developmentLabel} />
+                      <DetailInfoRow label="Kalan Gelişim" value={`+${developmentGap}`} />
+                      <DetailInfoRow label="Enerji" value={`%${toPercent(player.condition)}`} />
+                      <DetailInfoRow label="Moral" value={`%${toPercent(player.motivation)}`} />
+                      <DetailInfoRow label="Sağlık" value={`%${toPercent(player.health)}`} />
+                    </div>
+                  </div>
+                </div>
+              </TabsContent>
+
+              <TabsContent value="yetenekler" className="mt-0">
+                <div className="rounded-[24px] border border-white/10 bg-white/5 p-4">
+                  <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-violet-100">
+                    <ShieldPlus className="h-4 w-4 text-violet-300" />
+                    Teknik ve Fiziksel Yetenekler
+                  </div>
+                  <div className="grid gap-3 md:grid-cols-2">
+                    {ATTRIBUTE_ROWS.map(attribute => (
+                      <StatBar
+                        key={attribute.key}
+                        label={attribute.label}
+                        value={player.attributes[attribute.key]}
+                        className="rounded-2xl border border-white/8 bg-slate-950/45 p-3"
+                      />
+                    ))}
+                  </div>
+                </div>
+              </TabsContent>
+
+              <TabsContent value="profil" className="mt-0">
+                <div className="grid gap-4 lg:grid-cols-[1.05fr_0.95fr]">
+                  <div className="rounded-[24px] border border-white/10 bg-white/5 p-4">
+                    <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-emerald-100">
+                      <UserRound className="h-4 w-4 text-emerald-300" />
+                      Oyuncu Profili
+                    </div>
+                    <div className="space-y-3">
+                      <DetailInfoRow label="Ana Rol" value={primaryRole} />
+                      <DetailInfoRow label="Yan Roller" value={secondaryRoles.join(', ') || 'Yan rol yok'} />
+                      <DetailInfoRow label="Yaş" value={`${player.age}`} />
+                      <DetailInfoRow label="Boy" value={`${player.height} cm`} />
+                      <DetailInfoRow label="Kilo" value={`${player.weight} kg`} />
+                    </div>
+                  </div>
+
+                  <div className="rounded-[24px] border border-white/10 bg-white/5 p-4">
+                    <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-rose-100">
+                      <HeartPulse className="h-4 w-4 text-rose-300" />
+                      Gelişim Yorumu
+                    </div>
+                    <div className="space-y-3">
+                      <DetailInfoRow label="Mevcut Güç" value={`${overall}`} />
+                      <DetailInfoRow label="Ulaşabileceği Güç" value={`${potential}`} />
+                      <DetailInfoRow label="Hazır Oluş" value={`%${readiness}`} />
+                      <DetailInfoRow label="Kalan Gelişim" value={`+${developmentGap}`} />
+                      <div className="rounded-2xl border border-cyan-400/20 bg-cyan-500/10 p-4 text-sm leading-6 text-slate-200">
+                        Bu oyuncu şu anda <span className="font-semibold text-white">{overall}</span> güç seviyesinde.
+                        İyi gelişirse yaklaşık <span className="font-semibold text-white">{potential}</span> güce çıkabilir.
+                        Yani önünde yaklaşık <span className="font-semibold text-cyan-200">+{developmentGap}</span> gelişim alanı var.
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </TabsContent>
+            </div>
+          </Tabs>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
 }

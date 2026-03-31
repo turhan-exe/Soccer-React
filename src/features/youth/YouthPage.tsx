@@ -62,6 +62,14 @@ const formatRewardDuration = (ms: number): string => {
   return `${Math.max(1, seconds)} sn`;
 };
 
+const upsertYouthCandidate = (
+  current: YouthCandidate[],
+  candidate: YouthCandidate,
+): YouthCandidate[] => [
+  candidate,
+  ...current.filter(existing => existing.id !== candidate.id),
+];
+
 const generatePlayer = (): Player => {
   const position = positions[Math.floor(Math.random() * positions.length)];
   const attributes = {
@@ -165,14 +173,14 @@ const YouthPage = () => {
     const updateState = () => {
       if (!nextGenerateAt) {
         setCanGenerate(true);
-        setCountdown('Hazir');
+        setCountdown('Hazır');
         return;
       }
 
       const diff = nextGenerateAt.getTime() - Date.now();
       if (diff <= 0) {
         setCanGenerate(true);
-        setCountdown('Hazir');
+        setCountdown('Hazır');
         return;
       }
 
@@ -206,12 +214,12 @@ const YouthPage = () => {
       const candidate = await createYouthCandidate(user.id, player, {
         durationMultiplier: vipDurationMultiplier,
       });
-      setCandidates(prev => [candidate, ...prev]);
+      setCandidates(prev => upsertYouthCandidate(prev, candidate));
       setNextGenerateAt(new Date(Date.now() + youthCooldownMs));
-      toast.success('Oyuncu uretildi');
+      toast.success('Altyapı adayı oluşturuldu');
     } catch (err) {
       console.warn(err);
-      toast.error((err as Error).message || 'Islem basarisiz');
+      toast.error((err as Error).message || 'İşlem başarısız');
     }
   };
 
@@ -225,10 +233,10 @@ const YouthPage = () => {
     try {
       await resetCooldownWithDiamonds(user.id);
       setNextGenerateAt(new Date());
-      toast.success('Sure sifirlandi');
+      toast.success('Süre sıfırlandı');
     } catch (err) {
       console.warn(err);
-      toast.error('Elmas ile hizlandirma basarisiz');
+      toast.error('Elmas ile hızlandırma başarısız');
     }
   };
 
@@ -274,19 +282,19 @@ const YouthPage = () => {
 
         toast.success(
           reductionMs && reductionMs > 0
-            ? `Kalan sure ${formatRewardDuration(reductionMs)} azaltildi`
-            : 'Kalan sure %15 azaltildi',
+            ? `Kalan süre ${formatRewardDuration(reductionMs)} azaltıldı`
+            : 'Kalan süre %15 azaltıldı',
         );
         return;
       }
 
       if (result.outcome === 'dismissed') {
-        toast.info('Reklam tamamlanmadi.');
+        toast.info('Reklam tamamlanmadı.');
         return;
       }
 
       if (result.outcome === 'pending_verification') {
-        toast.info('Reklam dogrulaniyor. Biraz sonra tekrar deneyin.');
+        toast.info('Reklam doğrulanıyor. Biraz sonra tekrar deneyin.');
         return;
       }
 
@@ -304,10 +312,10 @@ const YouthPage = () => {
     try {
       await acceptYouthCandidate(user.id, id);
       setCandidates(prev => prev.filter(candidate => candidate.id !== id));
-      toast.success('Oyuncu takima eklendi');
+      toast.success('Oyuncu A takıma eklendi');
     } catch (err) {
       console.warn(err);
-      toast.error('Islem basarisiz');
+      toast.error('İşlem başarısız');
     }
   };
 
@@ -316,15 +324,15 @@ const YouthPage = () => {
     try {
       await releaseYouthCandidate(user.id, id);
       setCandidates(prev => prev.filter(candidate => candidate.id !== id));
-      toast.success('Oyuncu serbest birakildi');
+      toast.success('Oyuncu serbest bırakıldı');
     } catch (err) {
       console.warn(err);
-      toast.error('Islem basarisiz');
+      toast.error('İşlem başarısız');
     }
   };
 
   if (!user) {
-    return <div className="p-4">Giris yapmalisin</div>;
+    return <div className="p-4">Giriş yapmalısın</div>;
   }
 
   const candidateCount = candidates.length;
@@ -363,11 +371,11 @@ const YouthPage = () => {
           <div className="mb-4 px-1">
             <h2 className="text-xl font-bold text-white">Oyuncu Havuzu</h2>
             <p className="text-sm text-slate-400">
-              Gelisime hazir genc yetenekleri filtrele ve dogru zamanda A takima yukselt.
+              Gelişime hazır genç yetenekleri filtrele ve doğru zamanda A takıma yükselt.
             </p>
           </div>
 
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          <div className="grid grid-cols-[repeat(auto-fit,minmax(320px,1fr))] gap-6">
             {candidates.map(candidate => (
               <YouthPlayerCard
                 key={candidate.id}
@@ -379,9 +387,9 @@ const YouthPage = () => {
             ))}
             {candidates.length === 0 && (
               <div className="col-span-full rounded-[32px] border border-dashed border-white/10 bg-white/5 py-12 text-center text-slate-500">
-                <p>Henuz aday bulunmuyor.</p>
+                <p>Henüz aday bulunmuyor.</p>
                 <p className="mt-1 text-xs opacity-60">
-                  "Yetenek Ara" butonunu kullanarak yeni yetenekler kesfedin.
+                  "Yetenek Ara" butonunu kullanarak yeni yetenekler keşfedin.
                 </p>
               </div>
             )}

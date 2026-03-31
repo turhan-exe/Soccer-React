@@ -17,7 +17,9 @@ import { db } from '@/services/firebase';
 import { KIT_CONFIG } from '@/lib/kits';
 import type { KitType } from '@/types';
 import {
+  applyKitOperationsInInventory,
   applyKitToPlayerInInventory,
+  type ApplyKitOperationsResult,
   DEFAULT_KIT_INVENTORY,
   grantDailyRewardKits,
   getUserConsumables,
@@ -28,6 +30,7 @@ import {
   spendDiamondsAndGrantKit,
   type KitInventory,
 } from '@/services/inventory';
+import type { KitOperation } from '@/lib/kitOperations';
 
 export type { KitInventory } from '@/services/inventory';
 export type KitPurchaseMethod = 'ad' | 'diamonds';
@@ -118,7 +121,11 @@ type InventoryMetaState = {
 export interface InventoryContextValue {
   kits: KitInventory;
   purchaseKit: (type: KitType, method: KitPurchaseMethod) => Promise<void>;
-  applyKitToPlayer: (type: KitType, playerId: string) => Promise<void>;
+  applyKitToPlayer: (type: KitType, playerId: string) => Promise<ApplyKitOperationsResult>;
+  applyKitOperations: (
+    operations: KitOperation[],
+    options?: { successMessage?: string | null },
+  ) => Promise<ApplyKitOperationsResult>;
   isProcessing: boolean;
   lastDailyRewardDate: string | null;
   processDailyReward: () => void;
@@ -573,6 +580,7 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       try {
         const result = await applyKitToPlayerInInventory(user.id, type, playerId);
         toast.success(`${KIT_CONFIG[type].label} ${result.playerName} icin uygulandi.`);
+        return result;
       } catch (error) {
         console.warn('[InventoryProvider] apply kit failed', error);
         if (error instanceof Error && error.message !== 'auth-required') {
@@ -584,6 +592,54 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       }
     },
     [user],
+  );
+
+  const applyKitOperations = useCallback(
+    async (
+      operations: KitOperation[],
+      options?: { successMessage?: string | null },
+    ) => {
+      if (!user) {
+        toast.error('Kit kullanmak icin giris yapmalisin.');
+        throw new Error('auth-required');
+      }
+
+      if (operations.length === 0) {
+        return {
+          updatedPlayers: [],
+          kits: kits,
+          appliedOperations: [],
+          playerNames: [],
+        };
+      }
+
+      setIsProcessing(true);
+      try {
+        const result = await applyKitOperationsInInventory(user.id, operations);
+        const successMessage = options?.successMessage;
+        if (successMessage === null) {
+          // no-op
+        } else if (successMessage) {
+          toast.success(successMessage);
+        } else if (result.appliedOperations.length === 1) {
+          const [operation] = result.appliedOperations;
+          const [playerName = 'Oyuncu'] = result.playerNames;
+          toast.success(`${KIT_CONFIG[operation.type].label} ${playerName} icin uygulandi.`);
+        } else {
+          toast.success(`${result.appliedOperations.length} kit uygulamasi tamamlandi.`);
+        }
+        return result;
+      } catch (error) {
+        console.warn('[InventoryProvider] apply kit operations failed', error);
+        if (error instanceof Error && error.message !== 'auth-required') {
+          toast.error(error.message || 'Toplu kit kullanimi basarisiz oldu.');
+        }
+        throw error;
+      } finally {
+        setIsProcessing(false);
+      }
+    },
+    [kits, user],
   );
 
   const processDailyReward = useCallback(() => {
@@ -880,6 +936,7 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       kits,
       purchaseKit,
       applyKitToPlayer,
+      applyKitOperations,
       isProcessing,
       lastDailyRewardDate,
       processDailyReward,
@@ -899,6 +956,7 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       kits,
       purchaseKit,
       applyKitToPlayer,
+      applyKitOperations,
       isProcessing,
       lastDailyRewardDate,
       processDailyReward,
