@@ -102,7 +102,11 @@ export function CreditTab({
               disabled={vipClaimLoading || !vipClaimAvailable}
             >
               {vipClaimLoading && <RefreshCcw className="mr-2 h-4 w-4 animate-spin" />}
-              {!vipActive ? 'VIP Gerekli' : vipClaimedToday ? 'Bugun Alindi' : '+2.000 Kredi Al'}
+              {!vipActive
+                ? 'VIP Gerekli'
+                : vipClaimedToday
+                  ? 'Bugun Alindi'
+                  : `+${formatCurrency(vipBonusAmount)} Kredi Al`}
             </Button>
           </div>
         </CardContent>

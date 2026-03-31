@@ -1,0 +1,52 @@
+{
+    "runnerOutTs":  "2026-03-29T14:43:44.3740155Z",
+    "runnerAlive":  true,
+    "action":  "none",
+    "cycle":  6,
+    "backlogCount":  645,
+    "freeSlotsTotal":  0,
+    "runnerErrTs":  "2026-03-29T15:12:45.4440454Z",
+    "runnerPid":  10728,
+    "nodeCapacities":  [
+                           {
+                               "ip":  "89.167.122.255",
+                               "ok":  true,
+                               "nodeId":  "league-01",
+                               "freeSlots":  0,
+                               "usedSlots":  8,
+                               "runningSlots":  0
+                           },
+                           {
+                               "ip":  "89.167.117.176",
+                               "ok":  true,
+                               "nodeId":  "league-02",
+                               "freeSlots":  0,
+                               "usedSlots":  8,
+                               "runningSlots":  0
+                           },
+                           {
+                               "ip":  "89.167.127.127",
+                               "ok":  true,
+                               "nodeId":  "league-03",
+                               "freeSlots":  0,
+                               "usedSlots":  8,
+                               "runningSlots":  0
+                           },
+                           {
+                               "ip":  "89.167.124.123",
+                               "ok":  true,
+                               "nodeId":  "league-04",
+                               "freeSlots":  0,
+                               "usedSlots":  8,
+                               "runningSlots":  0
+                           },
+                           {
+                               "ip":  "204.168.146.29",
+                               "ok":  true,
+                               "nodeId":  "league-05",
+                               "freeSlots":  0,
+                               "usedSlots":  8,
+                               "runningSlots":  0
+                           }
+                       ]
+}

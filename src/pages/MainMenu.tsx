@@ -6,6 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useDiamonds } from '@/contexts/DiamondContext';
 import { useInventory } from '@/contexts/InventoryContext';
+import { useClubFinance } from '@/hooks/useClubFinance';
 import {
   getMyLeagueId,
   getFixturesForTeam,
@@ -49,7 +50,9 @@ import {
   UserPlus,
   Dumbbell,
   Star,
-  Loader2
+  Loader2,
+  Wallet,
+  type LucideIcon,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -84,11 +87,13 @@ import KitUsageDialog from '@/components/kit/KitUsageDialog';
 import { getRewardedAdFailureMessage, runRewardedAdFlow } from '@/services/rewardedAds';
 import '@/styles/nostalgia-theme.css';
 
-const KIT_ICONS: Record<KitType, { icon: any; color: string }> = {
+const KIT_ICONS: Record<KitType, { icon: LucideIcon; color: string }> = {
   energy: { icon: BatteryCharging, color: 'text-emerald-500' },
   morale: { icon: Smile, color: 'text-amber-500' },
   health: { icon: HeartPulse, color: 'text-rose-500' },
 };
+
+const CLUB_BALANCE_FORMATTER = new Intl.NumberFormat('tr-TR');
 
 // --- Types ---
 type FormBadge = 'W' | 'D' | 'L';
@@ -230,6 +235,7 @@ export default function MainMenu() {
   const { theme, toggleTheme } = useTheme();
   const { balance } = useDiamonds();
   const { kits, purchaseKit, isProcessing, vipActive, vipStatus, vipNostalgiaFreeAvailable } = useInventory();
+  const { cashBalance, loading: financeLoading } = useClubFinance();
 
   const [matchHighlight, setMatchHighlight] = useState<MatchHighlight | null>(null);
   const [matchHighlightLoading, setMatchHighlightLoading] = useState(true);
@@ -380,7 +386,7 @@ export default function MainMenu() {
   }, [user]);
 
   const notifications = useMemo(() => {
-    const items: { id: string; message: string; icon: any; path: string; accent: string }[] = [];
+    const items: { id: string; message: string; icon: LucideIcon; path: string; accent: string }[] = [];
 
     if (isTrainingFacilityAvailable && !hasUnseenTrainingResults) {
       items.push({ id: 'training-ready', message: 'Antrenman sahasi musait.', icon: Dumbbell, path: '/training', accent: 'text-orange-400' });
@@ -734,7 +740,9 @@ export default function MainMenu() {
               opponentLogo = oppTeam?.logo;
               opponentForm = computeForm(oppFix, opponentId);
               opponentOverall = calculateTeamOverall(oppTeam?.players ?? null);
-            } catch (e) { }
+            } catch (error) {
+              console.warn('[MainMenu] opponent preview load failed', error);
+            }
             const fallbackStatic = upcomingMatches.find(m => m.opponent.toLowerCase() === opponentName.toLowerCase());
             if (!opponentLogo && fallbackStatic?.opponentLogo) opponentLogo = fallbackStatic.opponentLogo;
             if (opponentOverall == null && fallbackStatic?.opponentStats?.overall) opponentOverall = normalizeRatingTo100(fallbackStatic.opponentStats.overall);
@@ -799,6 +807,10 @@ export default function MainMenu() {
       : actionableMatchTile
         ? 'IZLE'
         : null;
+  const formattedClubBalance = useMemo(
+    () => CLUB_BALANCE_FORMATTER.format(cashBalance),
+    [cashBalance],
+  );
 
   return (
     <div className={`fixed inset-0 z-50 w-full h-full font-sans select-none transition-colors duration-500 overflow-hidden ${isDark ? 'bg-slate-950 text-white' : 'bg-slate-100 text-slate-900'}`}>
@@ -831,6 +843,24 @@ export default function MainMenu() {
           </div>
 
           <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => navigate('/finance')}
+              className="hidden sm:flex items-center gap-3 rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1.5 text-white shadow-inner transition-colors hover:bg-emerald-500/15"
+              data-testid="mainmenu-club-balance"
+              title="Takim bakiyesi"
+            >
+              <Wallet size={16} className="text-emerald-300" />
+              <div className="flex flex-col leading-none">
+                <span className="text-[9px] font-bold uppercase tracking-[0.18em] text-emerald-100/70">
+                  Bakiye
+                </span>
+                <span className={`mt-1 text-sm font-black text-white ${financeLoading ? 'animate-pulse' : ''}`}>
+                  {financeLoading ? '...' : formattedClubBalance}
+                </span>
+              </div>
+            </button>
+
             {/* Energy / Kit Selector */}
             <div className="hidden sm:flex items-center">
               {currentKitType ? (

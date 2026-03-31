@@ -71,6 +71,7 @@ export type RewardedAdErrorDetails = {
 export type RewardedAdsDebugInfo = {
   sdkReady: boolean;
   mobileAdsInitialized: boolean;
+  activityReady: boolean;
   adLoaded: boolean;
   adLoadInFlight: boolean;
   loadedAtMs: number | null;
@@ -86,6 +87,7 @@ export type RewardedAdsDebugInfo = {
   sdkInt: number | null;
   networkType: string | null;
   adUnitIdConfigured: boolean;
+  warmupRetryAtMs: number | null;
   lastLoadError: RewardedAdErrorDetails | null;
   lastShowError: RewardedAdErrorDetails | null;
 };
@@ -171,6 +173,10 @@ const logRewardedAdDiagnosticCallable = httpsCallable<RewardedAdDiagnosticPayloa
 );
 
 let initializePromise: Promise<void> | null = null;
+let rewardedAdsInitialized = false;
+
+const MAX_SHOW_ATTEMPTS = 2;
+const RETRYABLE_LOAD_ERROR_CODES = new Set([0, 2, 3]);
 
 const wait = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms));
 
@@ -330,6 +336,7 @@ const normalizeRewardedAdsDebugInfo = (value: unknown): RewardedAdsDebugInfo | n
   return {
     sdkReady: toNullableBoolean(value.sdkReady) ?? false,
     mobileAdsInitialized: toNullableBoolean(value.mobileAdsInitialized) ?? false,
+    activityReady: toNullableBoolean(value.activityReady) ?? false,
     adLoaded: toNullableBoolean(value.adLoaded) ?? false,
     adLoadInFlight: toNullableBoolean(value.adLoadInFlight) ?? false,
     loadedAtMs: toNullableNumber(value.loadedAtMs),
@@ -345,6 +352,7 @@ const normalizeRewardedAdsDebugInfo = (value: unknown): RewardedAdsDebugInfo | n
     sdkInt: toNullableNumber(value.sdkInt),
     networkType: toTrimmedString(value.networkType) || null,
     adUnitIdConfigured: toNullableBoolean(value.adUnitIdConfigured) ?? false,
+    warmupRetryAtMs: toNullableNumber(value.warmupRetryAtMs),
     lastLoadError: parseRewardedAdErrorLike(value.lastLoadError, 'load'),
     lastShowError: parseRewardedAdErrorLike(value.lastShowError, 'show'),
   };
@@ -399,6 +407,72 @@ const buildFailedAdResult = (
   error,
   debug,
 });
+
+const shouldRetryRewardedAdFailure = (
+  error: RewardedAdErrorDetails | null | undefined,
+  attempt: number,
+): boolean => {
+  if (!error || attempt >= MAX_SHOW_ATTEMPTS - 1) {
+    return false;
+  }
+
+  const normalizedMessage = (error.message ?? '').trim().toLowerCase();
+  const normalizedCause = (error.cause ?? '').trim().toLowerCase();
+
+  if (
+    normalizedMessage === 'rewarded_ad_already_showing'
+    || normalizedMessage === 'admob_app_id_missing'
+    || normalizedMessage === 'rewarded_ad_unit_missing'
+  ) {
+    return false;
+  }
+
+  if (normalizedMessage.includes('match format') || normalizedCause.includes('match format')) {
+    return false;
+  }
+
+  if (error.timedOut) {
+    return true;
+  }
+
+  if (
+    normalizedMessage === 'activity_unavailable'
+    || normalizedMessage === 'rewarded_ad_not_ready'
+  ) {
+    return true;
+  }
+
+  if (error.stage === 'load') {
+    return error.code === null || RETRYABLE_LOAD_ERROR_CODES.has(error.code);
+  }
+
+  return error.stage === 'init' || error.stage === 'show' || error.stage === 'unknown';
+};
+
+const getRewardedAdRetryDelayMs = (
+  attempt: number,
+  error: RewardedAdErrorDetails | null | undefined,
+): number => {
+  const normalizedMessage = (error?.message ?? '').trim().toLowerCase();
+
+  if (normalizedMessage === 'activity_unavailable') {
+    return 600;
+  }
+
+  if (normalizedMessage === 'rewarded_ad_not_ready') {
+    return 1_200;
+  }
+
+  if (error?.code === 3) {
+    return 2_500;
+  }
+
+  if (error?.timedOut) {
+    return 1_500;
+  }
+
+  return 1_000 * (attempt + 1);
+};
 
 export function getRewardedAdFailureMessage(input: unknown): string {
   const error =
@@ -470,17 +544,28 @@ export function getRewardedAdsUnavailableMessage(): string {
   return 'Odullu reklam yalnizca Android uygulamasinda kullanilabilir.';
 }
 
-export async function initializeRewardedAds(): Promise<void> {
+export async function initializeRewardedAds(
+  options: { force?: boolean } = {},
+): Promise<void> {
   if (!isRewardedAdsSupported()) {
+    return;
+  }
+
+  if (rewardedAdsInitialized && !options.force && !initializePromise) {
     return;
   }
 
   if (!initializePromise) {
     initializePromise = RewardedAds.initialize()
-      .then(() => undefined)
+      .then(() => {
+        rewardedAdsInitialized = true;
+      })
       .catch((error) => {
-        initializePromise = null;
+        rewardedAdsInitialized = false;
         throw error;
+      })
+      .finally(() => {
+        initializePromise = null;
       });
   }
 
@@ -571,24 +656,47 @@ export async function showRewardedAd(payload: {
     throw new Error(getRewardedAdsUnavailableMessage());
   }
 
-  try {
-    await initializeRewardedAds();
-  } catch (error) {
-    return buildFailedAdResult(
-      parseRewardedAdErrorLike(error, 'init')
-        ?? createSyntheticRewardedAdError('init', 'rewarded_init_failed'),
-    );
+  let lastResult: NativeRewardedAdResult | null = null;
+
+  for (let attempt = 0; attempt < MAX_SHOW_ATTEMPTS; attempt += 1) {
+    try {
+      await initializeRewardedAds({ force: attempt > 0 });
+    } catch (error) {
+      lastResult = buildFailedAdResult(
+        parseRewardedAdErrorLike(error, 'init')
+          ?? createSyntheticRewardedAdError('init', 'rewarded_init_failed'),
+      );
+      if (!shouldRetryRewardedAdFailure(lastResult.error, attempt)) {
+        return lastResult;
+      }
+      await wait(getRewardedAdRetryDelayMs(attempt, lastResult.error));
+      continue;
+    }
+
+    try {
+      lastResult = normalizeNativeRewardedAdResult(await RewardedAds.showRewardedAd(payload));
+    } catch (error) {
+      lastResult = buildFailedAdResult(
+        parseRewardedAdErrorLike(error, 'unknown')
+          ?? createSyntheticRewardedAdError('unknown', 'rewarded_ad_failed'),
+      );
+    }
+
+    if (lastResult.status !== 'failed') {
+      return lastResult;
+    }
+
+    if (!shouldRetryRewardedAdFailure(lastResult.error, attempt)) {
+      return lastResult;
+    }
+
+    await wait(getRewardedAdRetryDelayMs(attempt, lastResult.error));
   }
 
-  try {
-    const result = await RewardedAds.showRewardedAd(payload);
-    return normalizeNativeRewardedAdResult(result);
-  } catch (error) {
-    return buildFailedAdResult(
-      parseRewardedAdErrorLike(error, 'unknown')
-        ?? createSyntheticRewardedAdError('unknown', 'rewarded_ad_failed'),
-    );
-  }
+  return (
+    lastResult
+    ?? buildFailedAdResult(createSyntheticRewardedAdError('unknown', 'rewarded_ad_failed'))
+  );
 }
 
 export async function runRewardedAdFlow(payload: {
@@ -639,7 +747,7 @@ export async function runRewardedAdFlow(payload: {
     };
   }
 
-  const retryDelays = [400, 700, 1000, 1300, 1700, 2200, 2600];
+  const retryDelays = [400, 700, 1000, 1300, 1700, 2200, 2800, 3500, 4500];
   try {
     for (const delayMs of retryDelays) {
       const claim = await claimRewardedAdReward(session.sessionId);

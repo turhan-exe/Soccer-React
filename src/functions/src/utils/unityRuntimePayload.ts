@@ -11,6 +11,12 @@ type UnityRuntimePlayerPayload = {
   playerId: string;
   name: string;
   order: number;
+  shirtNumber?: number;
+  position?: string;
+  squadRole?: 'starting' | 'bench' | 'reserve';
+  health?: number;
+  condition?: number;
+  motivation?: number;
   attributes: Record<string, number>;
 };
 
@@ -37,6 +43,12 @@ export type UnityRuntimeTeamPayload = {
   teamKey: string;
   teamName: string;
   formation: string;
+  mode?: 'friendly' | 'league';
+  consumables?: {
+    energy: number;
+    morale: number;
+    health: number;
+  };
   kit: UnityRuntimeKitPayload;
   lineup: UnityRuntimePlayerPayload[];
   bench: UnityRuntimePlayerPayload[];
@@ -134,6 +146,15 @@ function toUnityWeightValue(value: unknown): number {
   return Math.max(45, Math.min(110, Math.round(numeric)));
 }
 
+function toUnityGaugeValue(value: unknown, fallback: number): number {
+  const numeric = typeof value === 'number' ? value : Number(value);
+  if (!Number.isFinite(numeric)) return fallback;
+  if (numeric > 1.5) {
+    return Math.max(0, Math.min(1, Number((numeric / 100).toFixed(3))));
+  }
+  return Math.max(0, Math.min(1, Number(numeric.toFixed(3))));
+}
+
 function normalizeIdList(values: unknown): string[] {
   if (!Array.isArray(values)) return [];
   return values.map((value) => String(value)).filter(Boolean);
@@ -209,6 +230,15 @@ function toUnityPlayerPayload(player: any, order: number): UnityRuntimePlayerPay
     playerId: String(player?.uniqueId || player?.id || `p_${order}`),
     name: String(player?.name || `Player ${order + 1}`),
     order,
+    shirtNumber: order + 1,
+    position: String(player?.position || ''),
+    squadRole:
+      player?.squadRole === 'starting' || player?.squadRole === 'bench' || player?.squadRole === 'reserve'
+        ? player.squadRole
+        : 'reserve',
+    health: toUnityGaugeValue(player?.health, 1),
+    condition: toUnityGaugeValue(player?.condition, 0.75),
+    motivation: toUnityGaugeValue(player?.motivation, 0.75),
     attributes: {
       strength: toUnityStatValue(player?.attributes?.strength),
       acceleration: toUnityStatValue(player?.attributes?.acceleration),
@@ -332,6 +362,12 @@ export function buildUnityRuntimeTeamPayload(teamId: string, data: any): UnityRu
     teamKey: teamId,
     teamName,
     formation: resolveFormation(data),
+    mode: 'league',
+    consumables: {
+      energy: Math.max(0, Number(data?.consumables?.energy ?? data?.consumables?.kits?.energy ?? data?.inventory?.kits?.energy ?? 0) || 0),
+      morale: Math.max(0, Number(data?.consumables?.morale ?? data?.consumables?.kits?.morale ?? data?.inventory?.kits?.morale ?? 0) || 0),
+      health: Math.max(0, Number(data?.consumables?.health ?? data?.consumables?.kits?.health ?? data?.inventory?.kits?.health ?? 0) || 0),
+    },
     kit: deriveKitColors(seed),
     lineup: lineupPlayers.slice(0, 11).map((player, index) => toUnityPlayerPayload(player, index)),
     bench: benchPlayers.map((player, index) => toUnityPlayerPayload(player, 11 + index)),

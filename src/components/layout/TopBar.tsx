@@ -26,6 +26,7 @@ import {
   ChevronRight,
   MessageCircle,
   Star,
+  Wallet,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -66,6 +67,7 @@ import { normalizeRatingTo100 } from '@/lib/player';
 import { getRewardedAdFailureMessage, runRewardedAdFlow } from '@/services/rewardedAds';
 import '@/styles/nostalgia-theme.css';
 import { useSwipeDownReveal, SWIPE_DOWN_DEFAULTS } from '@/hooks/useSwipeDownReveal';
+import { useClubFinance } from '@/hooks/useClubFinance';
 
 const KIT_ICONS: Record<KitType, { icon: LucideIcon; color: string }> = {
   energy: { icon: BatteryCharging, color: 'text-emerald-500' },
@@ -74,6 +76,7 @@ const KIT_ICONS: Record<KitType, { icon: LucideIcon; color: string }> = {
 };
 
 const VISIBILITY_COOLDOWN_MS = 300;
+const CLUB_BALANCE_FORMATTER = new Intl.NumberFormat('tr-TR');
 
 export interface TopBarHandle {
   isTopBarVisible: boolean;
@@ -86,6 +89,12 @@ interface TopBarProps {
   swipeDownThreshold?: number;
   swipeTimeMax?: number;
 }
+
+type UnreadChatSummary = {
+  id: string;
+  participants: string[];
+  unreadCounts?: Record<string, number>;
+};
 
 const TopBar = forwardRef<TopBarHandle, TopBarProps>(
   (
@@ -100,7 +109,13 @@ const TopBar = forwardRef<TopBarHandle, TopBarProps>(
     const { theme, toggleTheme } = useTheme();
     const { balance } = useDiamonds();
     const { kits, purchaseKit, isProcessing, vipActive, vipStatus, vipNostalgiaFreeAvailable } = useInventory();
+    const { cashBalance, loading: financeLoading } = useClubFinance();
     const kitTypes = useMemo(() => Object.keys(KIT_ICONS) as KitType[], []);
+    const formattedClubBalance = useMemo(
+      () => CLUB_BALANCE_FORMATTER.format(cashBalance),
+      [cashBalance],
+    );
+    const userId = user?.id ?? null;
     const [activeKit, setActiveKit] = useState<KitType | null>(null);
     const [isUsageOpen, setIsUsageOpen] = useState(false);
     const [teamOverall, setTeamOverall] = useState<number | null>(null);
@@ -115,7 +130,7 @@ const TopBar = forwardRef<TopBarHandle, TopBarProps>(
     const [currentKitIndex, setCurrentKitIndex] = useState(0);
     const [isKitMenuOpen, setIsKitMenuOpen] = useState(false);
     const [isRewardingKit, setIsRewardingKit] = useState(false);
-    const [unreadChats, setUnreadChats] = useState<any[]>([]);
+    const [unreadChats, setUnreadChats] = useState<UnreadChatSummary[]>([]);
 
     // Track dismissed notification IDs
     const [dismissedIds, setDismissedIds] = useState<string[]>([]);
@@ -455,7 +470,7 @@ const TopBar = forwardRef<TopBarHandle, TopBarProps>(
       try {
         unsubscribeChats = subscribeToUnreadChats(user.id, (chats) => {
           if (!cancelled) {
-            setUnreadChats(chats);
+            setUnreadChats(chats as UnreadChatSummary[]);
           }
         });
       } catch (error) {
@@ -529,9 +544,9 @@ const TopBar = forwardRef<TopBarHandle, TopBarProps>(
       }
 
       // Add Chat Notifications
-      unreadChats.forEach(chat => {
-        const otherUserId = chat.participants.find((id: string) => id !== user?.id);
-        const count = chat.unreadCounts?.[user?.id!] || 0;
+      unreadChats.forEach((chat) => {
+        const otherUserId = chat.participants.find((id) => id !== userId);
+        const count = userId ? chat.unreadCounts?.[userId] ?? 0 : 0;
 
         if (count > 0) {
           items.push({
@@ -539,20 +554,22 @@ const TopBar = forwardRef<TopBarHandle, TopBarProps>(
             message: `${count} yeni mesajin var`,
             icon: MessageCircle,
             path: `/friends?chatWith=${otherUserId}`, // URL parametresi ile yönlendir
-            accent: 'text-blue-400'
+            accent: 'text-blue-400',
           });
         }
       });
 
       // Filter out dismissed notifications
-      return items.filter(item => !dismissedIds.includes(item.id));
+      return items.filter((item) => !dismissedIds.includes(item.id));
     }, [
       canGenerateYouthCandidate,
       hasUnseenTrainingResults,
       hasYouthCandidates,
       isTrainingFacilityAvailable,
       vipNostalgiaFreeAvailable,
-      dismissedIds
+      dismissedIds,
+      unreadChats,
+      userId,
     ]);
 
     const handleNavigateHome = useCallback(() => {
@@ -670,6 +687,22 @@ const TopBar = forwardRef<TopBarHandle, TopBarProps>(
                 </Badge>
               </div>
             </div>
+
+            <button
+              type="button"
+              onClick={() => navigate('/finance')}
+              className="inline-flex items-center gap-2 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-3 py-2 text-slate-100 shadow-[inset_0_1px_0_rgba(255,255,255,0.05),0_10px_22px_rgba(15,23,42,0.28)] transition-colors hover:bg-emerald-500/15"
+              data-testid="topbar-club-balance"
+              aria-label="Takim bakiyesi"
+            >
+              <Wallet className="h-4 w-4 text-emerald-300" />
+              <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-100/70">
+                Bakiye
+              </span>
+              <span className={`text-sm font-semibold text-slate-100 ${financeLoading ? 'animate-pulse' : ''}`}>
+                {financeLoading ? '...' : formattedClubBalance}
+              </span>
+            </button>
 
             <div className="nostalgia-topbar__kit-switcher" aria-label="Takim kitleri" aria-live="polite">
               <Button

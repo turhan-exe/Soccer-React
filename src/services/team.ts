@@ -30,8 +30,6 @@ const createInitialContract = (overall: number): NonNullable<Player['contract']>
 
 const createInitialRenameState = (): NonNullable<Player['rename']> => ({
   adAvailableAt: new Date(0).toISOString(),
-  lastMethod: undefined,
-  lastUpdatedAt: undefined,
 });
 
 const clampPercentage = (value: unknown): number => {
@@ -138,7 +136,8 @@ export const createInitialTeam = async (
   const payload = { ...team, ownerUid: userId };
   const sanitizedPayload = sanitizeFirestoreData(payload);
 
-  const tryWrite = () => setDoc(teamRef, sanitizedPayload);
+  // Preserve server-managed fields like league assignment when repairing an incomplete team doc.
+  const tryWrite = () => setDoc(teamRef, sanitizedPayload, { merge: true });
 
   try {
     await tryWrite();
@@ -189,6 +188,14 @@ export const createInitialTeam = async (
   }
   return team;
 };
+
+export const hasPlayableRoster = (
+  team: Pick<ClubTeam, 'players'> | null | undefined,
+): boolean => Array.isArray(team?.players) && team.players.length > 0;
+
+export const teamNeedsBootstrap = (
+  team: Pick<ClubTeam, 'players'> | null | undefined,
+): boolean => !hasPlayableRoster(team);
 
 export const getTeam = async (userId: string): Promise<ClubTeam | null> => {
   const ref = doc(db, 'teams', userId);
@@ -453,7 +460,11 @@ export const addPlayerToTeam = async (userId: string, player: Player) => {
     ...team.players,
     { ...player, injuryStatus: player.injuryStatus ?? 'healthy', squadRole: 'reserve' as const },
   ]);
-  await setDoc(doc(db, 'teams', userId), { players: updatedPlayers }, { merge: true });
+  await setDoc(
+    doc(db, 'teams', userId),
+    { players: sanitizeFirestoreData(updatedPlayers) },
+    { merge: true },
+  );
   return updatedPlayers;
 };
 
@@ -479,7 +490,7 @@ export const updatePlayerSalary = async (userId: string, playerId: string, salar
     };
     const nextPlayers = [...players];
     nextPlayers[index] = { ...player, contract };
-    tx.update(teamRef, { players: normalizeTeamPlayers(nextPlayers) });
+    tx.update(teamRef, { players: sanitizeFirestoreData(normalizeTeamPlayers(nextPlayers)) });
   });
 };
 

@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { PlayerCard } from '@/components/ui/player-card';
 import { PerformanceGauge, clampPerformanceGauge } from '@/components/ui/performance-gauge';
 import type { Player } from '@/types';
-import { getTeam, saveTeamPlayers, createInitialTeam } from '@/services/team';
+import { getTeam, saveTeamPlayers, createInitialTeam, teamNeedsBootstrap } from '@/services/team';
 import {
   buildSalaryNegotiationProfile,
   clampNumber,
@@ -1138,7 +1138,11 @@ function TeamPlanningContent() {
         return;
       }
 
-      if (!team) {
+      if (teamNeedsBootstrap(team)) {
+        const existingLeagueId =
+          typeof (team as { leagueId?: string | null } | null)?.leagueId === 'string'
+            ? (team as { leagueId?: string | null }).leagueId
+            : null;
         try {
           await auth.currentUser?.getIdToken(true).catch((err) => {
             console.warn('[TeamPlanning] token refresh before team create failed', err);
@@ -1146,6 +1150,12 @@ function TeamPlanningContent() {
           team = await createInitialTeam(user.id, preferredTeamName, managerName, {
             authUser: auth.currentUser,
           });
+          if (existingLeagueId) {
+            team = {
+              ...team,
+              leagueId: existingLeagueId,
+            };
+          }
         } catch (error) {
           console.error('[TeamPlanning] createInitialTeam failed', error);
           toast.error('Takim olusturulamadi. Lutfen tekrar deneyin.');

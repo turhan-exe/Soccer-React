@@ -8,8 +8,7 @@ import { trAt, dayKeyTR } from './utils/schedule.js';
 import { ensureBotTeamDoc } from './utils/bots.js';
 import { buildUnityRuntimeTeamPayload, type UnityRuntimeTeamPayload } from './utils/unityRuntimePayload.js';
 import {
-  applyLeagueMatchRevenueInTx,
-  applyStandingResultInTx,
+  finalizeLeagueFixtureSettlement,
   resolveFixtureRevenueTeamIds,
 } from './utils/leagueMatchFinalize.js';
 import { enqueueRenderJob } from './replay/renderJob.js';
@@ -390,8 +389,39 @@ function buildRequestToken(matchId: string, seasonId: string) {
   return `${issuedAtMs}.${sig}`;
 }
 
-function buildTeamPayload(teamId: string, data: any): TeamPayload {
-  return buildUnityRuntimeTeamPayload(teamId, data);
+function isManualReplayFixture(fixture: any): boolean {
+  const reason = String(fixture?.live?.reason || '').trim();
+  return reason === 'manual_backlog_replay' || !!fixture?.live?.manualReplayQueuedAt || !!fixture?.live?.manualReplaySlotIso;
+}
+
+function buildManualReplayMatchId(fixtureId: string, fixture: any): string {
+  const existing = String(fixture?.live?.manualReplayMatchId || '').trim();
+  if (existing) return existing;
+  const queuedAtMs =
+    fixture?.live?.manualReplayQueuedAt?.toMillis?.() ||
+    Date.now();
+  return `lgr_${fixtureId}_${Number(queuedAtMs).toString(36)}`;
+}
+
+async function buildTeamPayload(teamId: string, ownerUid: string | null, data: any): Promise<TeamPayload> {
+  const baseData = data && typeof data === 'object' ? { ...data } : {};
+  if (ownerUid) {
+    const inventorySnap = await db.doc(`users/${ownerUid}/inventory/consumables`).get();
+    if (inventorySnap.exists) {
+      const inventoryData = inventorySnap.data() as Record<string, unknown>;
+      const kits =
+        inventoryData?.kits && typeof inventoryData.kits === 'object'
+          ? (inventoryData.kits as Record<string, unknown>)
+          : {};
+      baseData.consumables = {
+        energy: Number(kits.energy ?? 0) || 0,
+        morale: Number(kits.morale ?? 0) || 0,
+        health: Number(kits.health ?? 0) || 0,
+      };
+    }
+  }
+
+  return buildUnityRuntimeTeamPayload(teamId, baseData);
 }
 
 function normalizeTeamId(value: unknown): string | null {
@@ -446,10 +476,11 @@ async function loadTeamBundle(teamId: string): Promise<TeamBundle | null> {
   const teamSnap = await db.doc(`teams/${teamId}`).get();
   if (!teamSnap.exists) return null;
   const raw = teamSnap.data() as any;
+  const ownerUid = typeof raw?.ownerUid === 'string' && raw.ownerUid.trim() ? raw.ownerUid : null;
   return {
     teamId,
-    ownerUid: typeof raw?.ownerUid === 'string' && raw.ownerUid.trim() ? raw.ownerUid : null,
-    payload: buildTeamPayload(teamId, raw),
+    ownerUid,
+    payload: await buildTeamPayload(teamId, ownerUid, raw),
     raw,
   };
 }
@@ -863,7 +894,10 @@ async function prepareLeagueKickoffWindowInternal(baseDate = new Date(), options
       continue;
     }
 
-    const matchId = doc.id;
+    const fixtureId = doc.id;
+    const manualReplay = isManualReplayFixture(fixture);
+    const matchId = manualReplay ? buildManualReplayMatchId(fixtureId, fixture) : fixtureId;
+    const storageMatchId = fixtureId;
     try {
       const seasonId = String(fixture.seasonId ?? fixture.season ?? 'default');
       const { homeTeamId, awayTeamId } = await resolveFixtureTeams(leagueId, fixture);
@@ -892,8 +926,8 @@ async function prepareLeagueKickoffWindowInternal(baseDate = new Date(), options
       }
 
       await ensureMatchPlanSnapshot(matchId, leagueId, seasonId, fixture, home, away);
-      const media = await createMediaBundle(leagueId, seasonId, matchId);
-      const requestToken = buildRequestToken(matchId, seasonId);
+      const media = await createMediaBundle(leagueId, seasonId, storageMatchId);
+      const requestToken = buildRequestToken(storageMatchId, seasonId);
       const kickoffAt = fixture?.date?.toDate?.() as Date | undefined;
       const kickoffAtIso = kickoffAt ? kickoffAt.toISOString() : null;
 
@@ -909,8 +943,9 @@ async function prepareLeagueKickoffWindowInternal(baseDate = new Date(), options
         method: 'POST',
         body: JSON.stringify({
           matchId,
+          forceNewMatch: manualReplay,
           leagueId,
-          fixtureId: doc.id,
+          fixtureId,
           seasonId,
           homeTeamId,
           awayTeamId,
@@ -929,6 +964,7 @@ async function prepareLeagueKickoffWindowInternal(baseDate = new Date(), options
       await doc.ref.set({
         live: {
           matchId: response.matchId || matchId,
+          manualReplayMatchId: manualReplay ? (response.matchId || matchId) : FieldValue.delete(),
           nodeId: response.nodeId || response.allocatedNodeId || null,
           serverIp: response.serverIp || null,
           serverPort: Number.isFinite(response.serverPort) ? Number(response.serverPort) : null,
@@ -1610,28 +1646,15 @@ export const ingestLeagueMatchLifecycleHttp = functions
           fixtureRef.parent.parent!.id,
           fixture as Record<string, unknown>,
         );
-        await db.runTransaction(async (tx) => {
-          const currentSnap = await tx.get(fixtureRef!);
-          if (!currentSnap.exists) return;
-          const currentFixture = currentSnap.data() as any;
-          const currentFixtureStatus = String(currentFixture?.status || 'scheduled');
-          const updatePatch: Record<string, unknown> = {
+        await finalizeLeagueFixtureSettlement(fixtureRef!, {
+          score: inlineScore,
+          resolvedTeamIds,
+          patch: {
             ...patch,
             status: 'played',
             score: inlineScore,
             'live.resultMissing': false,
-          };
-          if (currentFixtureStatus !== 'played') {
-            updatePatch.endedAt = FieldValue.serverTimestamp();
-            updatePatch.playedAt = FieldValue.serverTimestamp();
-          }
-
-          // Standings must be advanced here, otherwise later storage finalize is skipped by idempotency.
-          if (currentFixtureStatus !== 'played') {
-            await applyStandingResultInTx(tx, fixtureRef!, currentFixture, inlineScore);
-          }
-          await applyLeagueMatchRevenueInTx(tx, fixtureRef!, currentFixture, resolvedTeamIds);
-          tx.set(fixtureRef!, updatePatch, { merge: true });
+          },
         });
       } else {
         await fixtureRef.update(patch);

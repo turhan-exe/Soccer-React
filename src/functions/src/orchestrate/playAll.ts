@@ -6,8 +6,7 @@ import { requireAppCheck, requireAuth } from '../mw/auth.js';
 import { startMatchInternal } from './startMatch.js';
 import { log } from '../logger.js';
 import {
-  applyLeagueMatchRevenueInTx,
-  applyStandingResultInTx,
+  finalizeLeagueFixtureSettlement,
   resolveFixtureRevenueTeamIds,
 } from '../utils/leagueMatchFinalize.js';
 
@@ -80,30 +79,25 @@ async function finalizeInstantFixture(
     (fixtureDoc.data() as Record<string, unknown>) ?? {},
   );
 
-  await db.runTransaction(async (tx) => {
-    const snap = await tx.get(fxRef);
-    if (!snap.exists) {
-      return;
-    }
+  const currentFixture = (fixtureDoc.data() as Record<string, unknown>) ?? {};
+  if (currentFixture.status === 'played') {
+    return;
+  }
 
-    const cur = (snap.data() as Record<string, unknown>) ?? {};
-    if (cur.status === 'played') {
-      return;
-    }
+  const score = {
+    home: Math.floor(Math.random() * 5),
+    away: Math.floor(Math.random() * 5),
+  };
 
-    const score = {
-      home: Math.floor(Math.random() * 5),
-      away: Math.floor(Math.random() * 5),
-    };
-
-    tx.update(fxRef, {
+  await finalizeLeagueFixtureSettlement(fxRef, {
+    score,
+    resolvedTeamIds,
+    patch: {
       status: 'played',
       score,
       endedAt: FieldValue.serverTimestamp(),
       playedAt: FieldValue.serverTimestamp(),
-    });
-    await applyStandingResultInTx(tx, fxRef, cur, score);
-    await applyLeagueMatchRevenueInTx(tx, fxRef, cur, resolvedTeamIds);
+    },
   });
 }
 

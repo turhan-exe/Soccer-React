@@ -1,4 +1,4 @@
-export const INITIAL_CLUB_BALANCE = 50_000;
+export const INITIAL_CLUB_BALANCE = 75_000;
 
 export const normalizeClubBalance = (value: unknown, fallback = 0): number => {
   const numeric = Number(value);

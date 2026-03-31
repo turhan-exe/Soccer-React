@@ -42,25 +42,64 @@ export type TrainingDefinition = {
   id: string;
   name: string;
   type: keyof PlayerAttributes;
+  aliases?: string[];
 };
 
 const trainings: TrainingDefinition[] = [
-  { id: 'top-speed', name: 'Top Speed', type: 'topSpeed' },
+  { id: 'topSpeed', name: 'Top Speed', type: 'topSpeed', aliases: ['top-speed'] },
   { id: 'shooting', name: 'Shooting', type: 'shooting' },
   { id: 'passing', name: 'Passing', type: 'passing' },
   { id: 'strength', name: 'Strength', type: 'strength' },
   { id: 'acceleration', name: 'Acceleration', type: 'acceleration' },
-  { id: 'ball-control', name: 'Ball Control', type: 'ballControl' },
-  { id: 'dribble-speed', name: 'Dribble Speed', type: 'dribbleSpeed' },
+  { id: 'ballControl', name: 'Ball Control', type: 'ballControl', aliases: ['ball-control'] },
+  { id: 'dribbleSpeed', name: 'Dribble Speed', type: 'dribbleSpeed', aliases: ['dribble-speed'] },
   { id: 'tackling', name: 'Tackling', type: 'tackling' },
-  { id: 'shoot-power', name: 'Shoot Power', type: 'shootPower' },
+  { id: 'shootPower', name: 'Shoot Power', type: 'shootPower', aliases: ['shoot-power'] },
   { id: 'positioning', name: 'Positioning', type: 'positioning' },
   { id: 'reaction', name: 'Reaction', type: 'reaction' },
   { id: 'agility', name: 'Agility', type: 'agility' },
   { id: 'jump', name: 'Jump', type: 'jump' },
-  { id: 'long-ball', name: 'Long Ball', type: 'longBall' },
-  { id: 'ball-keeping', name: 'Ball Keeping', type: 'ballKeeping' },
+  { id: 'longBall', name: 'Long Ball', type: 'longBall', aliases: ['long-ball'] },
+  { id: 'ballKeeping', name: 'Ball Keeping', type: 'ballKeeping', aliases: ['ball-keeping'] },
 ];
+
+type TrainingResult =
+  | 'fail'
+  | 'very_low'
+  | 'low'
+  | 'medium'
+  | 'high'
+  | 'full';
+
+type TrainingOutcome = {
+  result: TrainingResult;
+  gainMultiplier: number;
+  upperBoundExclusive: number;
+};
+
+const TRAINING_OUTCOMES: TrainingOutcome[] = [
+  { upperBoundExclusive: 1, result: 'fail', gainMultiplier: 0 },
+  { upperBoundExclusive: 26, result: 'very_low', gainMultiplier: 0.1 },
+  { upperBoundExclusive: 50, result: 'low', gainMultiplier: 0.25 },
+  { upperBoundExclusive: 75, result: 'medium', gainMultiplier: 0.5 },
+  { upperBoundExclusive: 90, result: 'high', gainMultiplier: 0.75 },
+  { upperBoundExclusive: 101, result: 'full', gainMultiplier: 1 },
+];
+
+const normalizeTrainingId = (value: string) =>
+  String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[\s_-]+/g, '');
+
+const trainingLookup = new Map<string, TrainingDefinition>();
+
+for (const training of trainings) {
+  trainingLookup.set(normalizeTrainingId(training.id), training);
+  for (const alias of training.aliases ?? []) {
+    trainingLookup.set(normalizeTrainingId(alias), training);
+  }
+}
 
 const POSITION_ATTRIBUTES: Record<Position, (keyof PlayerAttributes)[]> = {
   GK: ['positioning', 'reaction', 'longBall', 'strength', 'jump'],
@@ -84,8 +123,19 @@ const calculateOverall = (position: Position, attributes: PlayerAttributes) => {
 
 export const resolveTrainingDefinitions = (ids: string[]) =>
   ids
-    .map((id) => trainings.find((training) => training.id === id))
+    .map((id) => trainingLookup.get(normalizeTrainingId(id)))
     .filter((training): training is TrainingDefinition => Boolean(training));
+
+const resolveTrainingOutcome = (rollPercent: number): TrainingOutcome => {
+  const normalizedRoll = Number.isFinite(rollPercent)
+    ? Math.max(0, Math.min(100, rollPercent))
+    : 0;
+
+  return (
+    TRAINING_OUTCOMES.find(outcome => normalizedRoll < outcome.upperBoundExclusive)
+    ?? TRAINING_OUTCOMES[0]
+  );
+};
 
 export function runTrainingSimulation(
   players: TrainingPlayer[],
@@ -97,7 +147,7 @@ export function runTrainingSimulation(
     playerName: string;
     trainingId: string;
     trainingName: string;
-    result: 'success' | 'average' | 'fail';
+    result: TrainingResult;
     gain: number;
   }> = [];
   const updatedPlayers: TrainingPlayer[] = [];
@@ -112,19 +162,14 @@ export function runTrainingSimulation(
       const attributeKey = training.type;
       const currentValue = Number(snapshot.attributes[attributeKey] || 0);
       let gain = 0;
-      let result: 'success' | 'average' | 'fail' = 'fail';
+      let result: TrainingResult = 'fail';
 
       if (currentValue < 1) {
         const improvement = 0.005 + rng() * 0.03;
         const successRoll = rng() * 100;
-
-        if (successRoll > 75) {
-          gain = improvement;
-          result = 'success';
-        } else if (successRoll > 45) {
-          gain = improvement * 0.5;
-          result = 'average';
-        }
+        const outcome = resolveTrainingOutcome(successRoll);
+        gain = improvement * outcome.gainMultiplier;
+        result = outcome.result;
 
         if (gain > 0) {
           const newValue = Math.min(currentValue + gain, 1);

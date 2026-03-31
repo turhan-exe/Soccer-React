@@ -2,6 +2,7 @@ import * as functions from 'firebase-functions/v1';
 import './_firebase.js';
 import { getFirestore, FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { ensureBotTeamDoc } from './utils/bots.js';
+import { ensureHumanTeamDoc } from './utils/humanTeamBootstrap.js';
 
 const db = getFirestore();
 const REGION = 'europe-west1';
@@ -168,6 +169,12 @@ async function chooseRandomBotSlotInNextLeague(): Promise<{ leagueId: string; sl
 }
 
 export async function assignIntoRandomBotSlot(teamId: string, teamName: string) {
+  const ensuredTeam = await ensureHumanTeamDoc({
+    uid: teamId,
+    teamName,
+  });
+  teamName = ensuredTeam.teamName;
+
   // First try to assign within a transaction, but bail out early if team already has a league.
   const result = await db.runTransaction(async (tx) => {
     const cleanupSlots: CleanupSlotTarget[] = [];

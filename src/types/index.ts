@@ -83,6 +83,7 @@ export interface Player {
   avatar?: string;
   uniqueId?: string;
   order?: number;
+  lastTrainedAt?: string | null;
   market?: {
     active: boolean;
     listingId?: string | null;

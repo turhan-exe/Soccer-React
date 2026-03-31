@@ -69,10 +69,10 @@ const RATING_THRESHOLD_MEDIUM = 10.0;
 
 export const STADIUM_LEVELS: Record<1 | 2 | 3 | 4 | 5, StadiumLevelConfig> = {
   1: { capacity: 1_000, matchIncome: 30_000, upgradeCost: 0 },
-  2: { capacity: 3_000, matchIncome: 55_000, upgradeCost: 20_000 },
-  3: { capacity: 7_500, matchIncome: 95_000, upgradeCost: 50_000 },
-  4: { capacity: 15_000, matchIncome: 165_000, upgradeCost: 100_000 },
-  5: { capacity: 30_000, matchIncome: 280_000, upgradeCost: 200_000 },
+  2: { capacity: 3_000, matchIncome: 55_000, upgradeCost: 120_000 },
+  3: { capacity: 7_500, matchIncome: 95_000, upgradeCost: 320_000 },
+  4: { capacity: 15_000, matchIncome: 165_000, upgradeCost: 800_000 },
+  5: { capacity: 30_000, matchIncome: 280_000, upgradeCost: 1_600_000 },
 };
 
 const normalizeTeamId = (value: unknown): string | null => {

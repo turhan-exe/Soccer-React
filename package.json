@@ -29,7 +29,8 @@
     "pretest:e2e": "vite build",
     "test:e2e": "playwright test",
     "league:verify": "node scripts/league-quick-verify.mjs",
-    "team:patch-assets": "node scripts/patch-team-assets.mjs"
+    "team:patch-assets": "node scripts/patch-team-assets.mjs",
+    "team:repair-missing-rosters": "node scripts/repair-missing-team-rosters.mjs"
   },
   "dependencies": {
     "@capacitor-firebase/authentication": "^7.3.1",

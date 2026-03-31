@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
 import type { Training } from '@/types';
-import { calculateSessionDurationMinutes } from './trainingDuration';
+import {
+  calculatePlayerLoadMultiplier,
+  calculateSessionDurationMinutes,
+} from './trainingDuration';
 
 const createTraining = (duration: number, overrides: Partial<Training> = {}): Training => ({
   id: `training-${duration}`,
@@ -43,6 +46,24 @@ describe('calculateSessionDurationMinutes', () => {
     expect(result).toBe(12);
   });
 
+  it('increases duration for larger player groups without scaling linearly', () => {
+    const singlePlayerDuration = calculateSessionDurationMinutes({
+      playersCount: 1,
+      trainings: [createTraining(5), createTraining(7)],
+      vipDurationMultiplier: 1,
+    });
+    const tenPlayerDuration = calculateSessionDurationMinutes({
+      playersCount: 10,
+      trainings: [createTraining(5), createTraining(7)],
+      vipDurationMultiplier: 1,
+    });
+
+    expect(singlePlayerDuration).toBe(12);
+    expect(tenPlayerDuration).toBe(25);
+    expect(tenPlayerDuration).toBeGreaterThan(singlePlayerDuration);
+    expect(tenPlayerDuration).toBeLessThan(singlePlayerDuration * 10);
+  });
+
   it('rounds the vip duration multiplier result', () => {
     const result = calculateSessionDurationMinutes({
       playersCount: 1,
@@ -75,5 +96,12 @@ describe('calculateSessionDurationMinutes', () => {
     });
 
     expect(result).toBe(10);
+  });
+
+  it('returns a sublinear player load multiplier', () => {
+    expect(calculatePlayerLoadMultiplier(0)).toBe(0);
+    expect(calculatePlayerLoadMultiplier(1)).toBe(1);
+    expect(calculatePlayerLoadMultiplier(4)).toBe(1.606);
+    expect(calculatePlayerLoadMultiplier(10)).toBe(2.05);
   });
 });

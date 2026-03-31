@@ -81,6 +81,11 @@ export {
   finalizeAndroidCreditPurchase,
   finalizeAndroidSponsorPurchase,
 } from './economy/playBilling.js';
+export {
+  prepareAndroidVersionCheck,
+  exchangeAndroidVersionSession,
+} from './security/androidVersionGate.js';
+export { applyPendingMobileUpdatePolicies } from './security/mobileUpdateScheduler.js';
 export { activateUserSponsor, collectUserSponsorEarnings } from './economy/sponsors.js';
 export { claimVipDailyCredits } from './economy/vipDailyCredit.js';
 export {

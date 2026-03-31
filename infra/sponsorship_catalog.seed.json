@@ -4,7 +4,7 @@
     "name": "CocoColo",
     "type": "free",
     "reward": {
-      "amount": 2000,
+      "amount": 3000,
       "cycle": "daily"
     },
     "price": 0
@@ -14,7 +14,7 @@
     "name": "Pepsi",
     "type": "premium",
     "reward": {
-      "amount": 50000,
+      "amount": 100000,
       "cycle": "weekly"
     },
     "price": 100000

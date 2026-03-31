@@ -4,9 +4,30 @@ import type { ClubTeam, Player as ClubPlayer } from '@/types';
 import { collection, getCountFromServer } from 'firebase/firestore';
 import { db } from '@/services/firebase';
 
+const DEV_MATCH_CONTROL_PROXY_PREFIX = '/__match-control';
+
+function shouldUseDevMatchControlProxy(raw: string): boolean {
+  if (!import.meta.env.DEV || Capacitor.isNativePlatform()) {
+    return false;
+  }
+
+  if (typeof window === 'undefined') {
+    return false;
+  }
+
+  const hostname = window.location.hostname;
+  const isLocalWebDevHost = hostname === 'localhost' || hostname === '127.0.0.1';
+
+  return isLocalWebDevHost && /^https?:\/\//i.test(raw);
+}
+
 function resolveMatchControlBaseUrl(): string {
   const raw = (import.meta.env.VITE_MATCH_CONTROL_BASE_URL || '').trim();
   if (!raw) return '';
+
+  if (shouldUseDevMatchControlProxy(raw)) {
+    return DEV_MATCH_CONTROL_PROXY_PREFIX;
+  }
 
   try {
     const parsed = new URL(raw);
@@ -52,6 +73,12 @@ export type UnityRuntimePlayerPayload = {
   playerId: string;
   name: string;
   order: number;
+  shirtNumber?: number;
+  position?: string;
+  squadRole?: 'starting' | 'bench' | 'reserve';
+  health?: number;
+  condition?: number;
+  motivation?: number;
   attributes: Record<string, number>;
   visual?: UnityRuntimePlayerVisualPayload;
 };
@@ -78,6 +105,12 @@ export type UnityRuntimeTeamPayload = {
   teamKey: string;
   teamName: string;
   formation: string;
+  mode?: 'friendly' | 'league';
+  consumables?: {
+    energy: number;
+    morale: number;
+    health: number;
+  };
   kit: UnityRuntimeKitPayload;
   lineup: UnityRuntimePlayerPayload[];
   bench: UnityRuntimePlayerPayload[];
@@ -750,12 +783,30 @@ function toUnityWeightValue(value: unknown, seed: string): number {
   return Math.max(45, Math.min(110, Math.round(numeric)));
 }
 
+function toUnityGaugeValue(value: unknown, fallback: number): number {
+  const numeric = typeof value === 'number' ? value : Number(value);
+  if (!Number.isFinite(numeric)) return fallback;
+  if (numeric > 1.5) {
+    return Math.max(0, Math.min(1, Number((numeric / 100).toFixed(3))));
+  }
+  return Math.max(0, Math.min(1, Number(numeric.toFixed(3))));
+}
+
 function toUnityPlayerPayload(player: ClubPlayer, order: number, teamSeed: string): UnityRuntimePlayerPayload {
   const playerSeed = `${teamSeed}:${String(player.uniqueId || player.id || `p_${order}`)}:${String(player.name || '')}:${order}`;
   return {
     playerId: String(player.uniqueId || player.id || `p_${order}`),
     name: String(player.name || `Player ${order + 1}`),
     order,
+    shirtNumber: order + 1,
+    position: String(player.position || ''),
+    squadRole:
+      player.squadRole === 'starting' || player.squadRole === 'bench' || player.squadRole === 'reserve'
+        ? player.squadRole
+        : 'reserve',
+    health: toUnityGaugeValue(player.health, 1),
+    condition: toUnityGaugeValue(player.condition, 0.75),
+    motivation: toUnityGaugeValue(player.motivation, 0.75),
     attributes: {
       strength: toUnityStatValue(player.attributes?.strength),
       acceleration: toUnityStatValue(player.attributes?.acceleration),
@@ -913,6 +964,12 @@ export function buildUnityRuntimeTeamPayload(team: ClubTeam | null | undefined):
     teamKey: String(team.id || team.name),
     teamName: String(team.name || team.id || 'Team'),
     formation: String(team.lineup?.formation || team.plan?.formation || '4-2-3-1'),
+    mode: 'friendly',
+    consumables: {
+      energy: 0,
+      morale: 0,
+      health: 0,
+    },
     kit,
     lineup: lineupPlayers.slice(0, 11).map((player, idx) => toUnityPlayerPayload(player, idx, seed)),
     bench: benchPlayers.map((player, idx) => toUnityPlayerPayload(player, 11 + idx, seed)),

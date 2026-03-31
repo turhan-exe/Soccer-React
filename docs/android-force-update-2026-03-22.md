@@ -6,10 +6,11 @@
 ```json
 {
   "android": {
-    "latestVersionCode": 2026031707,
-    "latestVersionName": "1.0.7",
-    "minSupportedVersionCode": 2026031707,
+    "latestVersionCode": 2026032801,
+    "latestVersionName": "1.0.17",
+    "minSupportedVersionCode": 2026032801,
     "forceImmediateUpdate": true,
+    "gateMode": "enforce",
     "storeUrl": "https://play.google.com/store/apps/details?id=com.nerbuss.fhsmanager",
     "blockTitle": "Guncelleme gerekli",
     "blockMessage": "Devam etmek icin uygulamanin en son surumunu yukleyin."
@@ -26,5 +27,6 @@
 
 ## Beklenen davranis
 - `installedVersionCode < minSupportedVersionCode` ise uygulama bloklanir.
+- `installedVersionCode >= minSupportedVersionCode` ise surum kapisini gecer.
 - Play Immediate update acilabiliyorsa resmi Google Play guncelleme akisi baslar.
 - Immediate update acilamiyorsa kullanici Play Store listeleme sayfasina yonlendirilir.

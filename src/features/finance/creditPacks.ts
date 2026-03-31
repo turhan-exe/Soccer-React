@@ -1,9 +1,9 @@
 import type { CreditPackage } from '@/services/finance';
 
 export const CREDIT_PACKAGES: CreditPackage[] = [
-  { id: 'credit-10k', productId: 'credits_10000', price: 9.99, amount: 10_000 },
-  { id: 'credit-25k', productId: 'credits_25000', price: 19.99, amount: 25_000 },
-  { id: 'credit-60k', productId: 'credits_60000', price: 49.99, amount: 60_000 },
+  { id: 'credit-10k', productId: 'credits_10000', price: 9.99, amount: 80_000 },
+  { id: 'credit-25k', productId: 'credits_25000', price: 19.99, amount: 220_000 },
+  { id: 'credit-60k', productId: 'credits_60000', price: 49.99, amount: 650_000 },
 ];
 
 const CREDIT_PACKAGES_BY_PRODUCT_ID = Object.fromEntries(

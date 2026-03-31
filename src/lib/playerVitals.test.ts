@@ -55,6 +55,12 @@ describe('playerVitals', () => {
     expect(normalized.injuryStatus).toBe('injured');
   });
 
+  it('omits empty motivation state fields from normalized players', () => {
+    const normalized = normalizePlayerVitals(createPlayer({ motivationState: undefined }));
+
+    expect('motivationState' in normalized).toBe(false);
+  });
+
   it('applies fixed training losses once per player', () => {
     const updated = applyTrainingVitalsLoss(createPlayer());
 

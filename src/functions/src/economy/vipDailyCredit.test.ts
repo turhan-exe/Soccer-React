@@ -18,6 +18,27 @@ describe('vip daily credit helpers', () => {
     ).toBe(true);
   });
 
+  it('accepts a future expiry even when the legacy active flag is missing or false', () => {
+    expect(
+      isVipStateActive(
+        {
+          expiresAt: '2026-03-28T10:00:00.000Z',
+        },
+        Date.parse('2026-03-27T10:00:00.000Z'),
+      ),
+    ).toBe(true);
+
+    expect(
+      isVipStateActive(
+        {
+          isActive: false,
+          expiresAt: '2026-03-28T10:00:00.000Z',
+        },
+        Date.parse('2026-03-27T10:00:00.000Z'),
+      ),
+    ).toBe(true);
+  });
+
   it('rejects expired or invalid vip expiry values', () => {
     expect(
       isVipStateActive(

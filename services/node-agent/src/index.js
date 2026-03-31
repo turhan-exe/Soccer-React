@@ -12,6 +12,7 @@ import {
   mkdirSync,
   rmSync,
   statSync,
+  writeFileSync,
 } from "node:fs";
 import path from "node:path";
 import Fastify from "fastify";
@@ -54,7 +55,7 @@ const config = {
   ),
   matchMinuteHeartbeatEnabled: toBool(process.env.MATCH_MINUTE_HEARTBEAT_ENABLED, true),
   matchMinuteCloseThreshold: Number(process.env.MATCH_MINUTE_CLOSE_THRESHOLD || 90),
-  matchMinuteCloseGraceMs: Number(process.env.MATCH_MINUTE_CLOSE_GRACE_MS || 60_000),
+  matchMinuteCloseGraceMs: Number(process.env.MATCH_MINUTE_CLOSE_GRACE_MS || 300_000),
   callbackBaseUrl: process.env.MATCH_CONTROL_CALLBACK_BASE_URL || "",
   callbackToken: process.env.MATCH_CONTROL_CALLBACK_TOKEN || "",
   unityMatchRole: normalizeUnityMatchRole(
@@ -74,6 +75,8 @@ const config = {
   recordingFps: Number(process.env.MATCH_VIDEO_FPS || 20),
   recordingsDir:
     process.env.NODE_AGENT_RECORDINGS_DIR || path.join(process.cwd(), "recordings"),
+  payloadsDir:
+    process.env.NODE_AGENT_PAYLOADS_DIR || path.join(os.tmpdir(), "fhs-match-payloads"),
 };
 
 const allocations = new Map();
@@ -737,6 +740,53 @@ function normalizeUnityMatchRole(rawRole) {
   return "server";
 }
 
+function ensurePayloadsDir() {
+  mkdirSync(config.payloadsDir, { recursive: true });
+}
+
+function buildPayloadFilePath(matchId, side) {
+  const safeMatchId = String(matchId || "")
+    .trim()
+    .replace(/[^a-zA-Z0-9._-]/g, "_");
+  return path.join(config.payloadsDir, `${safeMatchId}.${side}.json`);
+}
+
+function cleanupPayloadFiles(allocation) {
+  for (const payloadPath of [
+    allocation?.homeTeamPayloadPath,
+    allocation?.awayTeamPayloadPath,
+  ]) {
+    if (!payloadPath) continue;
+    try {
+      rmSync(payloadPath, { force: true });
+    } catch {}
+  }
+
+  if (allocation) {
+    allocation.homeTeamPayloadPath = "";
+    allocation.awayTeamPayloadPath = "";
+  }
+}
+
+function preparePayloadFiles(allocation) {
+  cleanupPayloadFiles(allocation);
+  ensurePayloadsDir();
+
+  const homePayload = normalizeObjectPayload(allocation?.homeTeamPayload);
+  if (homePayload) {
+    const homePath = buildPayloadFilePath(allocation.matchId, "home");
+    writeFileSync(homePath, JSON.stringify(homePayload), "utf8");
+    allocation.homeTeamPayloadPath = homePath;
+  }
+
+  const awayPayload = normalizeObjectPayload(allocation?.awayTeamPayload);
+  if (awayPayload) {
+    const awayPath = buildPayloadFilePath(allocation.matchId, "away");
+    writeFileSync(awayPath, JSON.stringify(awayPayload), "utf8");
+    allocation.awayTeamPayloadPath = awayPath;
+  }
+}
+
 function getBearerToken(request) {
   const auth = request.headers.authorization || "";
   return auth.startsWith("Bearer ") ? auth.slice(7) : "";
@@ -791,6 +841,19 @@ function pruneStaleInMemoryAllocations(source = "unknown") {
     }
     if (allocation.pid && isPidAlive(allocation.pid)) {
       continue;
+    }
+
+    // League warm allocations are intentionally process-less until kickoff.
+    // Keep them reserved until shortly after their planned kickoff time.
+    if (allocation.state === "allocated" && allocation.mode === "league") {
+      const kickoffAtMs = Date.parse(allocation.kickoffAt || "");
+      const createdAtMs = Date.parse(allocation.createdAt || allocation.updatedAt || "");
+      const retainUntilMs = Number.isFinite(kickoffAtMs)
+        ? kickoffAtMs + 2 * 60 * 60 * 1000
+        : createdAtMs + 2 * 60 * 60 * 1000;
+      if (Number.isFinite(retainUntilMs) && Date.now() <= retainUntilMs) {
+        continue;
+      }
     }
 
     allocation.state = "released";
@@ -1100,16 +1163,6 @@ function buildProcessArgs(allocation) {
     args.push("--away-team-id", allocation.awayTeamId);
   }
 
-  const homeTeamPayloadJson = encodePayloadForArg(allocation.homeTeamPayload);
-  if (homeTeamPayloadJson) {
-    args.push("--home-team-payload-json", homeTeamPayloadJson);
-  }
-
-  const awayTeamPayloadJson = encodePayloadForArg(allocation.awayTeamPayload);
-  if (awayTeamPayloadJson) {
-    args.push("--away-team-payload-json", awayTeamPayloadJson);
-  }
-
   if (allocation.unityCallbackUrl) {
     args.push("--match-control-callback-url", allocation.unityCallbackUrl);
   }
@@ -1123,8 +1176,6 @@ function buildProcessArgs(allocation) {
 
 function buildChildEnv(allocation) {
   const liveVideoRecordingEnabled = canRenderLiveVideo();
-  const homeTeamPayloadJson = encodePayloadForArg(allocation.homeTeamPayload);
-  const awayTeamPayloadJson = encodePayloadForArg(allocation.awayTeamPayload);
 
   return {
     ...process.env,
@@ -1144,10 +1195,12 @@ function buildChildEnv(allocation) {
     AWAY_USER_ID: allocation.awayUserId || "",
     HOME_TEAM_ID: allocation.homeTeamId || "",
     AWAY_TEAM_ID: allocation.awayTeamId || "",
-    HOME_TEAM_PAYLOAD_JSON: homeTeamPayloadJson,
-    AWAY_TEAM_PAYLOAD_JSON: awayTeamPayloadJson,
-    HOME_TEAM_PAYLOAD_B64: encodePayloadForEnv(allocation.homeTeamPayload),
-    AWAY_TEAM_PAYLOAD_B64: encodePayloadForEnv(allocation.awayTeamPayload),
+    HOME_TEAM_PAYLOAD_PATH: allocation.homeTeamPayloadPath || "",
+    AWAY_TEAM_PAYLOAD_PATH: allocation.awayTeamPayloadPath || "",
+    HOME_TEAM_PAYLOAD_JSON: "",
+    AWAY_TEAM_PAYLOAD_JSON: "",
+    HOME_TEAM_PAYLOAD_B64: "",
+    AWAY_TEAM_PAYLOAD_B64: "",
     // Some FHS runtime variants read UNITY_* keys instead of generic keys.
     UNITY_MATCH_ID: allocation.matchId,
     UNITY_SESSION_SECRET: allocation.sessionSecret,
@@ -1160,6 +1213,8 @@ function buildChildEnv(allocation) {
     UNITY_MAX_CLIENTS: String(allocation.maxClients),
     UNITY_HOME_TEAM_ID: allocation.homeTeamId || "",
     UNITY_AWAY_TEAM_ID: allocation.awayTeamId || "",
+    UNITY_HOME_TEAM_PAYLOAD_PATH: allocation.homeTeamPayloadPath || "",
+    UNITY_AWAY_TEAM_PAYLOAD_PATH: allocation.awayTeamPayloadPath || "",
     LIVE_MATCH_RESULT_UPLOAD_URL: allocation.resultUploadUrl || "",
     LIVE_MATCH_REPLAY_UPLOAD_URL: allocation.replayUploadUrl || "",
     LIVE_MATCH_VIDEO_UPLOAD_URL: allocation.videoUploadUrl || "",
@@ -1254,6 +1309,7 @@ async function stopProcess(allocation, reason = "released") {
   if (!child || child.killed) {
     allocation.state = "released";
     allocation.updatedAt = nowIso();
+    cleanupPayloadFiles(allocation);
     return;
   }
 
@@ -1288,6 +1344,7 @@ async function stopProcess(allocation, reason = "released") {
 
   allocation.state = "released";
   allocation.updatedAt = nowIso();
+  cleanupPayloadFiles(allocation);
 }
 
 function cleanupLiveVideoArtifacts(allocation) {
@@ -1493,6 +1550,8 @@ function attachChildHandlers(allocation, child) {
       "unity_process_exit",
     );
 
+    cleanupPayloadFiles(allocation);
+
     await finalizeLiveVideoRecording(allocation);
 
     await maybePublishRecordedVideo(allocation, "process_exit");
@@ -1584,6 +1643,8 @@ function startAllocationProcess(allocation) {
     );
   }
 
+  preparePayloadFiles(allocation);
+
   const args = buildProcessArgs(allocation);
   const useVirtualDisplay = canRenderLiveVideo() && shouldUseVirtualDisplayForRecording();
   const command = useVirtualDisplay ? config.xvfbRunBinary : config.unityBinaryPath;
@@ -1597,11 +1658,17 @@ function startAllocationProcess(allocation) {
       ]
     : args;
 
-  const child = spawn(command, commandArgs, {
-    cwd: config.unityWorkingDir || path.dirname(config.unityBinaryPath),
-    stdio: ["ignore", "pipe", config.debugChildLogs ? "pipe" : "ignore"],
-    env: buildChildEnv(allocation),
-  });
+  let child;
+  try {
+    child = spawn(command, commandArgs, {
+      cwd: config.unityWorkingDir || path.dirname(config.unityBinaryPath),
+      stdio: ["ignore", "pipe", config.debugChildLogs ? "pipe" : "ignore"],
+      env: buildChildEnv(allocation),
+    });
+  } catch (error) {
+    cleanupPayloadFiles(allocation);
+    throw error;
+  }
 
   allocation.process = child;
   allocation.pid = child.pid || null;
@@ -1682,6 +1749,8 @@ function createAllocation(body) {
     finalResult: null,
     videoPublished: false,
     videoPayload: null,
+    homeTeamPayloadPath: "",
+    awayTeamPayloadPath: "",
     videoEncodingCompleted: false,
     videoPublishRetryTimer: null,
     hardTimeoutTimer: null,

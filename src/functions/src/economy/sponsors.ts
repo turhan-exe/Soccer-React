@@ -9,7 +9,7 @@ import { getSponsorCatalogConfig, normalizeSponsorString } from './sponsorCatalo
 
 const db = getFirestore();
 const DAY_MS = 24 * 60 * 60 * 1000;
-const FINANCE_DEFAULT_BALANCE = 50_000;
+const FINANCE_DEFAULT_BALANCE = 75_000;
 
 const financeDoc = (uid: string) => db.collection('finance').doc(uid);
 const teamDoc = (uid: string) => db.collection('teams').doc(uid);

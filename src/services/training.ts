@@ -11,6 +11,8 @@ import {
   getDocs,
   query,
   where,
+  orderBy,
+  limit,
   writeBatch,
   onSnapshot,
   type Unsubscribe,
@@ -19,6 +21,7 @@ import { db } from '@/services/firebase';
 import { getTeam, saveTeamPlayers } from '@/services/team';
 import { trainings } from '@/lib/data';
 import { runTrainingSimulation } from '@/lib/trainingSession';
+import type { TrainingResult } from '@/lib/trainingResults';
 import type { Player, Training } from '@/types';
 import { toast } from 'sonner';
 
@@ -41,7 +44,7 @@ export interface TrainingHistoryRecord {
   playerName: string;
   trainingId: string;
   trainingName: string;
-  result: 'success' | 'average' | 'fail';
+  result: TrainingResult;
   gain: number;
   completedAt: Timestamp;
   viewed?: boolean;
@@ -55,6 +58,44 @@ const trainingHistoryDoc = (uid: string, id: string) =>
 
 const buildEndsAt = (startAt: Timestamp, durationSeconds: number) =>
   Timestamp.fromMillis(startAt.toMillis() + Math.max(0, durationSeconds) * 1000);
+
+export const TRAINING_HISTORY_STORAGE_LIMIT = 10;
+export const TRAINING_HISTORY_VISIBLE_LIMIT = 5;
+
+const normalizeTrainingHistoryRecord = (
+  id: string,
+  data: TrainingHistoryRecord,
+): TrainingHistoryRecord => ({
+  id,
+  ...data,
+  viewed: data.viewed ?? false,
+});
+
+const sortTrainingHistoryByLatest = (
+  records: TrainingHistoryRecord[],
+): TrainingHistoryRecord[] =>
+  [...records].sort((left, right) => {
+    const leftMs = left.completedAt?.toMillis?.() ?? 0;
+    const rightMs = right.completedAt?.toMillis?.() ?? 0;
+    return rightMs - leftMs;
+  });
+
+async function pruneTrainingHistory(uid: string): Promise<void> {
+  const snapshot = await getDocs(
+    query(trainingHistoryCol(uid), orderBy('completedAt', 'desc')),
+  );
+
+  if (snapshot.size <= TRAINING_HISTORY_STORAGE_LIMIT) {
+    return;
+  }
+
+  const batch = writeBatch(db);
+  snapshot.docs
+    .slice(TRAINING_HISTORY_STORAGE_LIMIT)
+    .forEach((entry) => batch.delete(entry.ref));
+
+  await batch.commit();
+}
 
 export async function getActiveTraining(uid: string): Promise<ActiveTrainingSession | null> {
   const snap = await getDoc(trainingDoc(uid));
@@ -104,22 +145,30 @@ export async function addTrainingRecord(
   record: TrainingHistoryRecord,
 ): Promise<string> {
   const ref = await addDoc(trainingHistoryCol(uid), record);
+  await pruneTrainingHistory(uid);
   return ref.id;
 }
 
 export async function getTrainingHistory(
   uid: string,
 ): Promise<TrainingHistoryRecord[]> {
-  const snap = await getDocs(trainingHistoryCol(uid));
-  return snap.docs.map((d) => {
-    const data = d.data() as TrainingHistoryRecord;
-    return { id: d.id, ...data, viewed: data.viewed ?? false };
-  });
+  const snap = await getDocs(
+    query(
+      trainingHistoryCol(uid),
+      orderBy('completedAt', 'desc'),
+      limit(TRAINING_HISTORY_STORAGE_LIMIT),
+    ),
+  );
+  return sortTrainingHistoryByLatest(
+    snap.docs.map((entry) =>
+      normalizeTrainingHistoryRecord(entry.id, entry.data() as TrainingHistoryRecord),
+    ),
+  );
 }
 
 export const TRAINING_FINISH_COST = 80;
 export const TRAINING_BOOST_COST = 35;
-export const TRAINING_AD_REDUCTION_PERCENT = 0.25;
+export const TRAINING_AD_REDUCTION_PERCENT = 1;
 
 export async function finishTrainingWithDiamonds(
   uid: string,
@@ -229,14 +278,8 @@ export async function reduceTrainingTimeWithAd(
         throw new Error('Antrenman zaten tamamlanmış');
       }
 
-      const reductionSeconds = Math.max(
-        1,
-        Math.floor(remainingSeconds * TRAINING_AD_REDUCTION_PERCENT),
-      );
-      const newDurationSeconds = Math.max(
-        elapsedSeconds,
-        data.durationSeconds - reductionSeconds,
-      );
+      const reductionSeconds = remainingSeconds;
+      const newDurationSeconds = Math.max(0, elapsedSeconds);
       const endsAt = buildEndsAt(data.startAt, newDurationSeconds);
 
       tx.update(sessionRef, { durationSeconds: newDurationSeconds, endsAt });
@@ -334,15 +377,23 @@ export async function completeTrainingSession(
     sessionPlayers,
     sessionTrainings,
   );
+  const completionTime = Timestamp.now();
+  const completionIso = completionTime.toDate().toISOString();
+  const trainedPlayerIds = new Set(sessionPlayers.map(player => player.id));
 
   const mergedPlayers = team.players.map((player) => {
     const updated = updatedPlayers.find((candidate) => candidate.id === player.id);
-    return updated ?? player;
+    const nextPlayer = updated ?? player;
+    return trainedPlayerIds.has(player.id)
+      ? {
+          ...nextPlayer,
+          lastTrainedAt: completionIso,
+        }
+      : nextPlayer;
   });
 
   await saveTeamPlayers(uid, mergedPlayers);
 
-  const completionTime = Timestamp.now();
   const persistedRecords: TrainingHistoryRecord[] = [];
 
   for (const record of records) {

@@ -1,0 +1,87 @@
+{
+  "createdAt": {
+    "_seconds": 1774550165,
+    "_nanoseconds": 329000000
+  },
+  "name": "Mahmut",
+  "ownerUid": "SE5FY359VNMeyLWndgRNRbbZBff2",
+  "leagueId": "bviD1KNxTfX6f0CLGPUN",
+  "transferBudget": 149400,
+  "budget": 149400,
+  "players": [
+    {
+      "injuryStatus": "healthy",
+      "overall": 0.364,
+      "position": "RM",
+      "roles": [
+        "RM",
+        "RW"
+      ],
+      "motivation": 1,
+      "id": "aaf0f286-4c61-4f0d-9585-a1a6f7f82e7e",
+      "age": 16,
+      "height": 180,
+      "weight": 75,
+      "potential": 0.9836357152570046,
+      "squadRole": "reserve",
+      "name": "Ceor Poler",
+      "condition": 1,
+      "ageUpdatedAt": "2026-03-28T08:22:57.177Z",
+      "attributes": {
+        "agility": 0.198,
+        "strength": 0.182,
+        "passing": 0.14,
+        "ballControl": 0.307,
+        "topSpeed": 0.707,
+        "acceleration": 0.048,
+        "tackling": 0.207,
+        "shooting": 0.349,
+        "shootPower": 0.703,
+        "longBall": 0.04,
+        "positioning": 0.38,
+        "dribbleSpeed": 0.62,
+        "reaction": 0.424,
+        "jump": 0.153,
+        "ballKeeping": 0.78
+      },
+      "health": 1
+    },
+    {
+      "name": "Ceor Poler",
+      "ageUpdatedAt": "2026-03-28T08:23:08.237Z",
+      "condition": 1,
+      "attributes": {
+        "tackling": 0.207,
+        "shootPower": 0.703,
+        "longBall": 0.04,
+        "shooting": 0.349,
+        "dribbleSpeed": 0.62,
+        "positioning": 0.38,
+        "jump": 0.153,
+        "ballKeeping": 0.78,
+        "reaction": 0.424,
+        "agility": 0.198,
+        "strength": 0.182,
+        "passing": 0.14,
+        "ballControl": 0.307,
+        "acceleration": 0.048,
+        "topSpeed": 0.707
+      },
+      "injuryStatus": "healthy",
+      "position": "RM",
+      "overall": 0.364,
+      "roles": [
+        "RM",
+        "RW"
+      ],
+      "motivation": 1,
+      "id": "aaf0f286-4c61-4f0d-9585-a1a6f7f82e7e",
+      "age": 16,
+      "weight": 75,
+      "height": 180,
+      "squadRole": "reserve",
+      "potential": 0.9836357152570046,
+      "health": 1
+    }
+  ]
+}

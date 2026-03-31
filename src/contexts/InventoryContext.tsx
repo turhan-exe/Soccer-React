@@ -234,6 +234,13 @@ const formatDateKey = (date: Date): string => {
 const formatMonthKey = (date: Date): string =>
   `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
 
+type FirestoreTimestampLike = {
+  toDate?: () => Date;
+  toMillis?: () => number;
+  seconds?: number;
+  nanoseconds?: number;
+};
+
 const getMonthKeyFromIso = (value: string | null): string | null => {
   if (!value) return null;
   const parsed = new Date(value);
@@ -253,40 +260,75 @@ const normalizeVipPlan = (value: unknown): VipPlan | null => {
   return isValidVipPlan(value) ? value : null;
 };
 
-const computeVipActive = (state: { isActive: boolean; expiresAt: string | null }): boolean => {
-  if (!state.isActive) {
-    return false;
+const resolveDateFromUnknown = (value: unknown): Date | null => {
+  if (!value) {
+    return null;
   }
-  if (!state.expiresAt) {
-    return true;
+
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? null : value;
   }
-  const expiresAt = new Date(state.expiresAt);
-  if (Number.isNaN(expiresAt.getTime())) {
-    return false;
+
+  if (typeof value === 'string') {
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
   }
-  return expiresAt.getTime() > Date.now();
+
+  if (typeof value === 'object') {
+    const timestampLike = value as FirestoreTimestampLike;
+    if (typeof timestampLike.toDate === 'function') {
+      return resolveDateFromUnknown(timestampLike.toDate());
+    }
+    if (typeof timestampLike.toMillis === 'function') {
+      const millis = timestampLike.toMillis();
+      return Number.isFinite(millis) ? new Date(millis) : null;
+    }
+    if (typeof timestampLike.seconds === 'number') {
+      const millis =
+        timestampLike.seconds * 1000
+        + (typeof timestampLike.nanoseconds === 'number'
+            ? Math.floor(timestampLike.nanoseconds / 1_000_000)
+            : 0);
+      return Number.isFinite(millis) ? new Date(millis) : null;
+    }
+  }
+
+  return null;
+};
+
+const normalizeVipDateValue = (value: unknown): string | null => {
+  const resolved = resolveDateFromUnknown(value);
+  return resolved ? resolved.toISOString() : null;
+};
+
+const hasVipDateValue = (value: unknown): boolean =>
+  value !== null && value !== undefined && value !== '';
+
+const computeVipActive = (state: { isActive?: boolean | null; expiresAt: string | null }): boolean => {
+  if (state.expiresAt) {
+    const expiresAt = new Date(state.expiresAt);
+    if (Number.isNaN(expiresAt.getTime())) {
+      return false;
+    }
+    return expiresAt.getTime() > Date.now();
+  }
+  return state.isActive === true;
 };
 
 const sanitizeVip = (candidate: Partial<VipState> | null | undefined): VipState => {
-  const activatedAt = typeof candidate?.activatedAt === 'string' ? candidate.activatedAt : null;
-  const expiresAt = typeof candidate?.expiresAt === 'string' ? candidate.expiresAt : null;
+  const activatedAt = normalizeVipDateValue(candidate?.activatedAt);
+  const expiresAt = normalizeVipDateValue(candidate?.expiresAt);
   const plan = normalizeVipPlan(candidate?.plan);
   const durationReductionPercent =
     typeof candidate?.durationReductionPercent === 'number'
       ? candidate.durationReductionPercent
       : DEFAULT_VIP_STATE.durationReductionPercent;
-  const lastMonthlyStarCardDate =
-    typeof candidate?.lastMonthlyStarCardDate === 'string'
-      ? candidate.lastMonthlyStarCardDate
-      : null;
+  const lastMonthlyStarCardDate = normalizeVipDateValue(candidate?.lastMonthlyStarCardDate);
   const starCardCredits =
     typeof candidate?.starCardCredits === 'number' && Number.isFinite(candidate.starCardCredits)
       ? candidate.starCardCredits
       : DEFAULT_VIP_STATE.starCardCredits;
-  const nostalgiaFreeClaimedAt =
-    typeof candidate?.nostalgiaFreeClaimedAt === 'string'
-      ? candidate.nostalgiaFreeClaimedAt
-      : null;
+  const nostalgiaFreeClaimedAt = normalizeVipDateValue(candidate?.nostalgiaFreeClaimedAt);
   const rawFreeAvailable = Boolean(candidate?.nostalgiaFreeAvailable);
   const nostalgiaFreeTokens =
     typeof candidate?.nostalgiaFreeTokens === 'number' && Number.isFinite(candidate.nostalgiaFreeTokens)
@@ -295,8 +337,17 @@ const sanitizeVip = (candidate: Partial<VipState> | null | undefined): VipState 
         ? 1
         : DEFAULT_VIP_STATE.nostalgiaFreeTokens;
 
+  const explicitIsActive = typeof candidate?.isActive === 'boolean' ? candidate.isActive : null;
+  const hasInvalidExpiry = hasVipDateValue(candidate?.expiresAt) && expiresAt === null;
+  const isActive = hasInvalidExpiry
+    ? false
+    : computeVipActive({
+        isActive: explicitIsActive,
+        expiresAt,
+      });
+
   const base: VipState = {
-    isActive: Boolean(candidate?.isActive),
+    isActive: explicitIsActive === true,
     activatedAt,
     expiresAt,
     durationReductionPercent,
@@ -308,7 +359,6 @@ const sanitizeVip = (candidate: Partial<VipState> | null | undefined): VipState 
     nostalgiaFreeTokens,
   };
 
-  const isActive = computeVipActive(base);
   return {
     ...base,
     isActive,
@@ -421,7 +471,7 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
     setMeta({
       lastDailyRewardDate: persisted.lastDailyRewardDate,
-      vip: persisted.vip,
+      vip: { ...DEFAULT_VIP_STATE },
     });
     setHasHydrated(false);
 
@@ -496,6 +546,10 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       } catch (error) {
         console.warn('[InventoryProvider] failed to bootstrap remote consumables', error);
         if (isMounted) {
+          setMeta({
+            lastDailyRewardDate: persisted.lastDailyRewardDate,
+            vip: persisted.vip,
+          });
           setKits(sanitizeKitInventory(persisted.kits));
         }
       } finally {

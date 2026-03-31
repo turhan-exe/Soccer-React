@@ -4,6 +4,7 @@ import './_firebase.js';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import { getAuth } from 'firebase-admin/auth';
 import { ensureBotTeamDoc } from './utils/bots.js';
+import { ensureHumanTeamDoc } from './utils/humanTeamBootstrap.js';
 const db = getFirestore();
 // When a user signs up, assign their team to the first available league.
 export const assignTeamOnUserCreate = functions
@@ -12,26 +13,13 @@ export const assignTeamOnUserCreate = functions
     .onCreate(async (user) => {
     const uid = user.uid;
     try {
-        // Ensure a team doc exists with a stable name; prefer displayName, then email local-part
-        const teamRef = db.collection('teams').doc(uid);
-        const teamSnap = await teamRef.get();
         let teamNameBase = user.displayName || (user.email ? user.email.split('@')[0] : '') || `Team ${uid.slice(0, 6)}`;
-        if (!teamSnap.exists) {
-            await teamRef.set({
-                ownerUid: uid,
-                name: teamNameBase,
-                createdAt: FieldValue.serverTimestamp(),
-            }, { merge: true });
-        }
-        else {
-            const data = teamSnap.data();
-            if (!data?.name) {
-                await teamRef.set({ name: teamNameBase }, { merge: true });
-            }
-            else {
-                teamNameBase = data.name;
-            }
-        }
+        const ensuredTeam = await ensureHumanTeamDoc({
+            uid,
+            teamName: teamNameBase,
+            managerName: user.displayName || teamNameBase,
+        });
+        teamNameBase = ensuredTeam.teamName;
         await assignIntoRandomBotSlot(uid, teamNameBase);
     }
     catch (err) {

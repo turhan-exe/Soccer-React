@@ -6,6 +6,24 @@ type CalculateDurationParams = {
   vipDurationMultiplier: number;
 };
 
+const PLAYER_LOAD_COEFFICIENT = 0.35;
+
+export function calculatePlayerLoadMultiplier(playersCount: number): number {
+  if (!Number.isFinite(playersCount) || playersCount <= 0) {
+    return 0;
+  }
+
+  if (playersCount === 1) {
+    return 1;
+  }
+
+  // Group sessions scale sublinearly: larger squads take longer to organize,
+  // but drills still happen in parallel and should not grow linearly.
+  return Number(
+    (1 + Math.sqrt(playersCount - 1) * PLAYER_LOAD_COEFFICIENT).toFixed(3),
+  );
+}
+
 export function calculateSessionDurationMinutes({
   playersCount,
   trainings,
@@ -24,7 +42,10 @@ export function calculateSessionDurationMinutes({
     return 0;
   }
 
-  const adjustedMinutes = Math.round(totalTrainingMinutes * vipDurationMultiplier);
+  const playerLoadMultiplier = calculatePlayerLoadMultiplier(playersCount);
+  const adjustedMinutes = Math.round(
+    totalTrainingMinutes * playerLoadMultiplier * vipDurationMultiplier,
+  );
 
   return Math.max(1, adjustedMinutes);
 }

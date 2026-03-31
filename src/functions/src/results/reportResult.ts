@@ -2,9 +2,11 @@ import * as functions from 'firebase-functions/v1';
 import '../_firebase.js';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import {
+  applyLeagueRuntimePlayerEffects,
   applyLeagueLineupMotivationEffects,
-  applyLeagueMatchRevenueInTx,
-  applyStandingResultInTx,
+  extractLeagueRuntimeEffectsPayload,
+  finalizeLeagueFixtureSettlement,
+  resolveLeagueFixtureRefByMatchId,
   resolveFixtureRevenueTeamIds,
 } from '../utils/leagueMatchFinalize.js';
 
@@ -37,25 +39,22 @@ export const reportResult = functions.region('europe-west1').https.onRequest(asy
       return;
     }
 
-    const fixtureRef = db.doc(`leagues/${leagueId}/fixtures/${matchId}`);
     const replayPath: string = body?.replay?.path || `replays/${seasonId}/${leagueId}/${matchId}.json`;
     const score = normalizeScore(body);
-    const fixtureBeforeSnap = await fixtureRef.get();
-    if (!fixtureBeforeSnap.exists) {
+    const resolvedFixture = await resolveLeagueFixtureRefByMatchId(leagueId, matchId);
+    if (!resolvedFixture) {
       throw new Error('fixture not found');
     }
+    const fixtureRef = resolvedFixture.fixtureRef;
     const resolvedTeamIds = await resolveFixtureRevenueTeamIds(
       leagueId,
-      (fixtureBeforeSnap.data() as Record<string, unknown>) ?? {},
+      resolvedFixture.fixture,
     );
 
-    await db.runTransaction(async (tx) => {
-      const snap = await tx.get(fixtureRef);
-      if (!snap.exists) throw new Error('fixture not found');
-      const cur = (snap.data() as Record<string, unknown>) ?? {};
-      const currentStatus = String(cur.status || 'scheduled');
-
-      const updatePatch: Record<string, unknown> = {
+    await finalizeLeagueFixtureSettlement(fixtureRef, {
+      score,
+      resolvedTeamIds,
+      patch: {
         status: 'played',
         score,
         replayPath,
@@ -64,30 +63,31 @@ export const reportResult = functions.region('europe-west1').https.onRequest(asy
         'live.lastLifecycleAt': FieldValue.serverTimestamp(),
         'live.resultMissing': false,
         'live.reason': FieldValue.delete(),
-      };
-      if (currentStatus !== 'played') {
-        updatePatch.playedAt = FieldValue.serverTimestamp();
-        updatePatch.endedAt = FieldValue.serverTimestamp();
-      }
-      tx.update(fixtureRef, updatePatch);
-
-      if (currentStatus !== 'played') {
-        await applyStandingResultInTx(tx, fixtureRef, cur, score);
-      }
-      await applyLeagueMatchRevenueInTx(tx, fixtureRef, cur, resolvedTeamIds);
+      },
     });
 
     try {
-      await applyLeagueLineupMotivationEffects(leagueId, matchId);
+      const runtimeEffects = extractLeagueRuntimeEffectsPayload(body);
+      const runtimeResult = await applyLeagueRuntimePlayerEffects(leagueId, resolvedFixture.fixtureId, runtimeEffects);
+      if (runtimeResult.status === 'skipped_missing_player_stats') {
+        await applyLeagueLineupMotivationEffects(leagueId, resolvedFixture.fixtureId);
+      }
     } catch (error: any) {
-      functions.logger.warn('[RESULT] lineup motivation skipped', {
+      functions.logger.warn('[RESULT] player effects skipped', {
         leagueId,
         matchId,
+        fixtureId: resolvedFixture.fixtureId,
         error: error?.message || String(error),
       });
     }
 
-    functions.logger.info('[RESULT] Finalized via HTTP', { leagueId, matchId, score, replayPath });
+    functions.logger.info('[RESULT] Finalized via HTTP', {
+      leagueId,
+      fixtureId: resolvedFixture.fixtureId,
+      matchId,
+      score,
+      replayPath,
+    });
     res.json({ ok: true });
     return;
   } catch (e: any) {

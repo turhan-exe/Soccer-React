@@ -7,9 +7,11 @@ import { log } from '../logger.js';
 import { sendSlack } from '../notify/slack.js';
 import { enqueueRenderJob } from '../replay/renderJob.js';
 import {
+  applyLeagueRuntimePlayerEffects,
   applyLeagueLineupMotivationEffects,
-  applyLeagueMatchRevenueInTx,
-  applyStandingResultInTx,
+  extractLeagueRuntimeEffectsPayload,
+  finalizeLeagueFixtureSettlement,
+  resolveLeagueFixtureRefByMatchId,
   resolveFixtureRevenueTeamIds,
 } from '../utils/leagueMatchFinalize.js';
 
@@ -92,23 +94,21 @@ export const onResultFinalize = functions
       const replayPath = await resolveReplayPath(obj.bucket!, seasonId, leagueId, matchId, result);
       const videoPath = `videos/${seasonId}/${matchId}.mp4`;
 
-      const fxRef = db.doc(`leagues/${leagueId}/fixtures/${matchId}`);
-      const fixtureBeforeSnap = await fxRef.get();
-      if (!fixtureBeforeSnap.exists) {
+      const resolvedFixture = await resolveLeagueFixtureRefByMatchId(leagueId, matchId);
+      if (!resolvedFixture) {
         return;
       }
+      const fxRef = resolvedFixture.fixtureRef;
       const resolvedTeamIds = await resolveFixtureRevenueTeamIds(
         leagueId,
-        (fixtureBeforeSnap.data() as Record<string, unknown>) ?? {},
+        resolvedFixture.fixture,
       );
       // Update fixture and standings atomically
-      await db.runTransaction(async (tx) => {
-        const fxSnap = await tx.get(fxRef);
-        if (!fxSnap.exists) return;
-        const cur = (fxSnap.data() as Record<string, unknown>) ?? {};
-        const currentStatus = String(cur.status || 'scheduled');
-        const currentVideo = (cur['video'] as Record<string, unknown> | undefined) ?? undefined;
-        const updatePatch: Record<string, unknown> = {
+      const currentVideo = ((resolvedFixture.fixture || {})['video'] as Record<string, unknown> | undefined) ?? undefined;
+      await finalizeLeagueFixtureSettlement(fxRef, {
+        score,
+        resolvedTeamIds,
+        patch: {
           status: 'played',
           replayPath,
           videoMissing: true,
@@ -122,40 +122,39 @@ export const onResultFinalize = functions
           'live.lastLifecycleAt': FieldValue.serverTimestamp(),
           'live.resultMissing': false,
           'live.reason': FieldValue.delete(),
-        };
-        if (score) {
-          updatePatch.score = score;
-        }
-        if (currentStatus !== 'played') {
-          updatePatch.endedAt = FieldValue.serverTimestamp();
-          updatePatch.playedAt = FieldValue.serverTimestamp();
-        }
-        tx.update(fxRef, updatePatch);
-
-        if (score && currentStatus !== 'played') {
-          await applyStandingResultInTx(tx, fxRef, cur, score);
-        }
-        await applyLeagueMatchRevenueInTx(tx, fxRef, cur, resolvedTeamIds);
+          ...(score ? { score } : {}),
+        },
       });
 
       try {
-        await applyLeagueLineupMotivationEffects(leagueId, matchId);
+        const runtimeEffects = extractLeagueRuntimeEffectsPayload(result);
+        const runtimeResult = await applyLeagueRuntimePlayerEffects(leagueId, resolvedFixture.fixtureId, runtimeEffects);
+        if (runtimeResult.status === 'skipped_missing_player_stats') {
+          await applyLeagueLineupMotivationEffects(leagueId, resolvedFixture.fixtureId);
+        }
       } catch (error: any) {
-        log.warn('lineup motivation effects skipped', {
+        log.warn('player effects skipped', {
           leagueId,
           matchId,
+          fixtureId: resolvedFixture.fixtureId,
           error: error?.message || String(error),
         });
       }
 
       // Log sim duration metrics (if startedAt exists)
       try {
-        const fxAfter = await db.doc(`leagues/${leagueId}/fixtures/${matchId}`).get();
+        const fxAfter = await fxRef.get();
         const fxd = (fxAfter.data() as any) || {};
         const startedAt = fxd?.startedAt?.toDate?.() as Date | undefined;
         const endedAt = fxd?.endedAt?.toDate?.() as Date | undefined;
         const simDurationMs = startedAt && endedAt ? (endedAt.getTime() - startedAt.getTime()) : undefined;
-        log.info('result finalized', { leagueId, matchId, replayPath, simDurationMs });
+        log.info('result finalized', {
+          leagueId,
+          fixtureId: resolvedFixture.fixtureId,
+          matchId,
+          replayPath,
+          simDurationMs,
+        });
 
         const video = fxd?.video || {};
         const videoSource = String(video?.source || '');
@@ -176,14 +175,25 @@ export const onResultFinalize = functions
             },
             { merge: true }
           );
-          log.info('render job queued', { leagueId, matchId, videoPath });
+          log.info('render job queued', {
+            leagueId,
+            fixtureId: resolvedFixture.fixtureId,
+            matchId,
+            videoPath,
+          });
         } else if (shouldUseLiveUpload) {
-          log.info('render job skipped for live upload source', { leagueId, matchId, videoSource });
+          log.info('render job skipped for live upload source', {
+            leagueId,
+            fixtureId: resolvedFixture.fixtureId,
+            matchId,
+            videoSource,
+          });
         }
       } catch (err: any) {
         log.warn('result finalized (render queue skipped)', {
           leagueId,
           matchId,
+          fixtureId: resolvedFixture.fixtureId,
           replayPath,
           error: err?.message || String(err),
         });

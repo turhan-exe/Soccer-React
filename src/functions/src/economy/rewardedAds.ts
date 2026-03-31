@@ -527,7 +527,7 @@ const claimTrainingReward = async (
   uid: string,
   sessionRef: FirebaseFirestore.DocumentReference,
 ): Promise<Record<string, unknown>> => {
-  const reductionPercent = 25;
+  const reductionPercent = 100;
 
   return db.runTransaction(async (tx) => {
     const [freshSessionSnap, trainingSnap] = await Promise.all([
@@ -556,18 +556,12 @@ const claimTrainingReward = async (
       ? 0
       : Math.max(0, Math.floor((Date.now() - startedAtMs) / 1000));
     const remainingSeconds = Math.max(currentDuration - elapsedSeconds, 0);
-    const reductionSeconds = Math.max(
-      1,
-      Math.floor(remainingSeconds * (reductionPercent / 100)),
-    );
-    const nextDurationSeconds = Math.max(
-      elapsedSeconds,
-      currentDuration - reductionSeconds,
-    );
-    const nextRemainingSeconds = Math.max(nextDurationSeconds - elapsedSeconds, 0);
+    const reductionSeconds = remainingSeconds;
+    const nextDurationSeconds = Math.max(0, elapsedSeconds);
+    const nextRemainingSeconds = 0;
     const reward = {
       type: 'training_finish',
-      completed: nextRemainingSeconds <= 0,
+      completed: true,
       reductionPercent,
       reductionSeconds: Math.min(reductionSeconds, remainingSeconds),
       durationSeconds: nextDurationSeconds,

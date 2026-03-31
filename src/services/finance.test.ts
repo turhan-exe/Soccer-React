@@ -9,6 +9,7 @@ import {
   getSponsorPayoutAvailability,
   getVipDailyCreditAvailability,
   resolveCanonicalClubBalance,
+  STADIUM_LEVELS,
 } from './finance';
 import { INITIAL_CLUB_BALANCE } from '@/lib/clubFinance';
 
@@ -71,6 +72,18 @@ describe('finance revenue model', () => {
 
     expect(levelThree.matchEstimate).toBeGreaterThan(levelOne.matchEstimate);
     expect(levelThree.occupiedSeats).toBeGreaterThan(levelOne.occupiedSeats);
+  });
+
+  it('keeps stadium upgrades from paying back in a single match', () => {
+    const team = Array.from({ length: 11 }, (_, index) => createPlayer(index, 60));
+
+    ([1, 2, 3, 4] as const).forEach((level) => {
+      const currentRevenue = getMatchRevenueEstimate(level, team).matchEstimate;
+      const nextRevenue = getMatchRevenueEstimate((level + 1) as 2 | 3 | 4 | 5, team).matchEstimate;
+      const incrementalRevenue = nextRevenue - currentRevenue;
+
+      expect(STADIUM_LEVELS[level + 1 as 2 | 3 | 4 | 5].upgradeCost).toBeGreaterThan(incrementalRevenue * 2);
+    });
   });
 
   it('adds sponsor income into monthly estimate', () => {

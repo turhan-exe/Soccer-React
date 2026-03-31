@@ -3,6 +3,7 @@ export type AndroidMobileUpdatePolicy = {
   latestVersionName: string;
   minSupportedVersionCode: number;
   forceImmediateUpdate: boolean;
+  gateMode: 'observe' | 'enforce';
   storeUrl: string;
   blockTitle: string;
   blockMessage: string;
@@ -41,6 +42,9 @@ const parseBoolean = (value: unknown, fallback: boolean) =>
 const parseString = (value: unknown, fallback: string) =>
   typeof value === 'string' && value.trim() ? value.trim() : fallback;
 
+const parseGateMode = (value: unknown): AndroidMobileUpdatePolicy['gateMode'] =>
+  value === 'enforce' ? 'enforce' : 'observe';
+
 export const normalizeAndroidMobileUpdatePolicy = (
   value: unknown,
 ): AndroidMobileUpdatePolicy | null => {
@@ -63,6 +67,7 @@ export const normalizeAndroidMobileUpdatePolicy = (
     latestVersionName: parseString(source.latestVersionName, String(effectiveLatestVersionCode)),
     minSupportedVersionCode,
     forceImmediateUpdate: parseBoolean(source.forceImmediateUpdate, true),
+    gateMode: parseGateMode(source.gateMode),
     storeUrl: parseString(source.storeUrl, DEFAULT_STORE_URL),
     blockTitle: parseString(source.blockTitle, DEFAULT_BLOCK_TITLE),
     blockMessage: parseString(source.blockMessage, DEFAULT_BLOCK_MESSAGE),
@@ -142,4 +147,40 @@ export const shouldForceUpdateForVersion = (
   }
 
   return installedVersionCode < policy.minSupportedVersionCode;
+};
+
+export const shouldBlockForAndroidUpdate = (
+  installedVersionCode: number | null,
+  policy: AndroidMobileUpdatePolicy | null,
+  playState?: {
+    updateAvailable?: boolean;
+    inProgress?: boolean;
+    availableVersionCode?: number;
+  } | null,
+): boolean => {
+  if (!shouldForceUpdateForVersion(installedVersionCode, policy)) {
+    return false;
+  }
+
+  if (!policy || installedVersionCode === null) {
+    return false;
+  }
+
+  if (installedVersionCode >= policy.latestVersionCode) {
+    return false;
+  }
+
+  if (!playState || playState.inProgress) {
+    return true;
+  }
+
+  if (
+    typeof playState.availableVersionCode === 'number'
+    && Number.isFinite(playState.availableVersionCode)
+    && playState.availableVersionCode <= installedVersionCode
+  ) {
+    return false;
+  }
+
+  return true;
 };

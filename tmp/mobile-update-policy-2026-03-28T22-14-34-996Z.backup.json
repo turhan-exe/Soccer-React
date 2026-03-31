@@ -1,0 +1,31 @@
+{
+  "projectId": "osm-react",
+  "backedUpAt": "2026-03-28T22:14:34.996Z",
+  "exists": true,
+  "data": {
+    "android": {
+      "requireLicensedPlayInstall": true,
+      "sessionTtlSeconds": 600,
+      "storeUrl": "https://play.google.com/store/apps/details?id=com.nerbuss.fhsmanager",
+      "allowPrereleaseTesterEmails": [
+        "fikretleto@gmail.com"
+      ],
+      "requireDeviceIntegrity": true,
+      "blockMessage": "Devam etmek icin uygulamanin en son surumunu yukleyin.",
+      "blockTitle": "Guncelleme gerekli",
+      "forceImmediateUpdate": true,
+      "minSupportedVersionCode": 2026032801,
+      "latestVersionName": "1.0.17",
+      "gateMode": "enforce",
+      "latestVersionCode": 2026032801,
+      "pendingActivation": {
+        "minSupportedVersionCode": 2026032901,
+        "latestVersionName": "1.0.18",
+        "gateMode": "enforce",
+        "latestVersionCode": 2026032901,
+        "forceImmediateUpdate": true,
+        "activateAtMs": 1774742453833
+      }
+    }
+  }
+}

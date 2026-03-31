@@ -68,16 +68,17 @@ export const normalizeMotivationState = (
 };
 
 export const normalizePlayerVitals = (player: Player): Player => {
+  const { motivationState: _rawMotivationState, ...rest } = player;
   const injuryStatus = normalizeInjuryStatus(player.injuryStatus);
   const motivationState = normalizeMotivationState(player.motivationState);
 
   return {
-    ...player,
+    ...rest,
     health: resolvePlayerHealth(player.health, injuryStatus),
     condition: clampVitalGauge(player.condition),
     motivation: clampVitalGauge(player.motivation),
     injuryStatus,
-    motivationState,
+    ...(motivationState ? { motivationState } : {}),
   };
 };
 

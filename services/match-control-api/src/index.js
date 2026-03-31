@@ -880,6 +880,30 @@ async function startOnNode(node, matchId) {
   return response.json();
 }
 
+async function getAllocationOnNode(node, matchId) {
+  const response = await fetchNodeJson(
+    `${node.url}/agent/v1/allocations/${encodeURIComponent(matchId)}`,
+    {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        ...buildNodeHeaders(node),
+      },
+    },
+  );
+
+  if (response.status === 404) {
+    return null;
+  }
+
+  if (!response.ok) {
+    const body = await response.text();
+    throw new Error(`allocation_status_${response.status}:${body}`);
+  }
+
+  return response.json();
+}
+
 async function releaseOnNode(node, matchId) {
   const response = await fetchNodeJson(
     `${node.url}/agent/v1/allocations/${encodeURIComponent(matchId)}`,
@@ -3556,6 +3580,9 @@ fastify.post("/v1/league/prepare-slot", async (request, reply) => {
   const replayUploadUrl = typeof body.replayUploadUrl === "string" ? body.replayUploadUrl.trim() : "";
   const videoUploadUrl = typeof body.videoUploadUrl === "string" ? body.videoUploadUrl.trim() : "";
   const requestToken = typeof body.requestToken === "string" ? body.requestToken.trim() : "";
+  const forceNewMatch =
+    body.forceNewMatch === true ||
+    String(body.forceNewMatch || "").trim().toLowerCase() === "true";
 
   if (!leagueId || !fixtureId || !homeTeamId || !awayTeamId) {
     return reply
@@ -3565,16 +3592,59 @@ fastify.post("/v1/league/prepare-slot", async (request, reply) => {
 
   const existing = await findLeagueMatchByFixture(leagueId, fixtureId);
   if (existing) {
-    return reply.send({
-      matchId: existing.id,
-      state: existing.status,
-      allocatedNodeId: existing.nodeId,
-      nodeId: existing.nodeId,
-      serverIp: existing.serverIp,
-      serverPort: existing.serverPort,
-      expiresAt: existing.kickoffAt || kickoffAt,
-      reused: true,
-    });
+    const existingNode = (config.nodeAgents || []).find(
+      (item) => normalizeNodeId(item) === normalizeNodeId(existing.nodeId),
+    );
+
+    try {
+      const existingAllocation = existingNode
+        ? await getAllocationOnNode(existingNode, existing.id)
+        : null;
+
+      if (existingAllocation && !forceNewMatch) {
+        return reply.send({
+          matchId: existing.id,
+          state: existing.status,
+          allocatedNodeId: existing.nodeId,
+          nodeId: existing.nodeId,
+          serverIp: existing.serverIp,
+          serverPort: existing.serverPort,
+          expiresAt: existing.kickoffAt || kickoffAt,
+          reused: true,
+        });
+      }
+
+      if (existingAllocation && forceNewMatch && existingNode) {
+        try {
+          await releaseOnNode(existingNode, existing.id);
+        } catch (releaseError) {
+          request.log.warn(
+            {
+              matchId: existing.id,
+              fixtureId,
+              nodeId: existing.nodeId || null,
+              error: releaseError?.message || String(releaseError),
+            },
+            "league_prepare_force_new_release_failed",
+          );
+        }
+      }
+    } catch (error) {
+      request.log.warn(
+        {
+          matchId: existing.id,
+          nodeId: existing.nodeId || null,
+          fixtureId,
+          error: error?.message || String(error),
+        },
+        "league_prepare_existing_allocation_probe_failed",
+      );
+    }
+
+    existing.status = "failed";
+    existing.endedReason = forceNewMatch ? "replay_replaced" : "stale_allocation";
+    existing.updatedAt = nowIso();
+    await storeMatch(existing);
   }
 
   const matchId = requestedMatchId || makeId("lg");

@@ -113,15 +113,25 @@ export const finalizeDueTrainingSessions = functions
         }
 
         const { updatedPlayers, records } = runTrainingSimulation(sessionPlayers, trainingDefs);
+        const completedAt = Timestamp.fromMillis(now);
+        const completionIso = completedAt.toDate().toISOString();
+        const trainedPlayerIds = new Set(
+          sessionPlayers.map((player: any) => String(player?.id)),
+        );
         const mergedPlayers = teamPlayers.map((player: any) => {
           const updated = updatedPlayers.find((candidate) => String(candidate.id) === String(player?.id));
-          return updated ?? player;
+          const nextPlayer = updated ?? player;
+          return trainedPlayerIds.has(String(player?.id))
+            ? {
+                ...nextPlayer,
+                lastTrainedAt: completionIso,
+              }
+            : nextPlayer;
         });
 
         const batch = db.batch();
         batch.set(teamRef, { players: mergedPlayers }, { merge: true });
 
-        const completedAt = Timestamp.fromMillis(now);
         for (const record of records) {
           const historyRef = db.collection('users').doc(uid).collection('trainingHistory').doc();
           batch.set(historyRef, {

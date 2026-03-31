@@ -246,20 +246,30 @@ set -euo pipefail
 APP=/opt/football-manager-ui/services/match-control-api
 LOG=/var/log/match-control-api.log
 UNIT=/etc/systemd/system/match-control-api.service
+ENV_FILE="$APP/.env"
 
 test -f "$APP/src/index.js"
+test -f "$ENV_FILE"
 test -f /tmp/match-control-api.service
 
 install -m 644 /tmp/match-control-api.service "$UNIT"
 systemctl daemon-reload
 systemctl enable match-control-api.service >/dev/null 2>&1 || true
-fuser -k 8080/tcp >/dev/null 2>&1 || true
 systemctl restart match-control-api.service
 sleep 3
 
+APP_HOST="$(sed -n 's/^HOST=//p' "$ENV_FILE" | head -n1 | tr -d '\r')"
+APP_PORT="$(sed -n 's/^PORT=//p' "$ENV_FILE" | head -n1 | tr -d '\r')"
+[ -n "$APP_HOST" ] || APP_HOST="127.0.0.1"
+[ -n "$APP_PORT" ] || APP_PORT="8080"
+PROBE_HOST="$APP_HOST"
+if [ "$PROBE_HOST" = "0.0.0.0" ] || [ "$PROBE_HOST" = "::" ]; then
+  PROBE_HOST="127.0.0.1"
+fi
+
 systemctl is-active --quiet match-control-api.service || { systemctl status match-control-api.service --no-pager; tail -n 80 "$LOG"; exit 1; }
-ss -ltnp | grep ':8080' || { systemctl status match-control-api.service --no-pager; tail -n 80 "$LOG"; exit 1; }
-curl -fsS http://127.0.0.1:8080/health
+ss -ltnp | grep -F ":${APP_PORT} " || { systemctl status match-control-api.service --no-pager; tail -n 80 "$LOG"; exit 1; }
+curl -fsS "http://${PROBE_HOST}:${APP_PORT}/health"
 '@
 
   Invoke-SafeSsh -TargetHost $ControlHost -RemoteScript $controlRemote

@@ -38,6 +38,8 @@ export { cronWatchdog } from './orchestrate/scheduler.js';
 export { finalizeWatchdogHttp } from './orchestrate/retry.js';
 export { renameClub, renameStadium } from './economy/rename.js';
 export { finalizeAndroidDiamondPurchase, finalizeAndroidCreditPurchase, finalizeAndroidSponsorPurchase, } from './economy/playBilling.js';
+export { prepareAndroidVersionCheck, exchangeAndroidVersionSession, } from './security/androidVersionGate.js';
+export { applyPendingMobileUpdatePolicies } from './security/mobileUpdateScheduler.js';
 export { activateUserSponsor, collectUserSponsorEarnings } from './economy/sponsors.js';
 export { claimVipDailyCredits } from './economy/vipDailyCredit.js';
 export { createRewardedAdSession, claimRewardedAdReward, logRewardedAdDiagnostic, admobRewardedSsv, } from './economy/rewardedAds.js';

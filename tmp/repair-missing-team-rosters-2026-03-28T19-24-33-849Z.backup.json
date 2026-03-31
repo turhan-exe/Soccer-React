@@ -1,0 +1,429 @@
+[
+  {
+    "uid": "37bs9y9z36VUEa4uzGYvlqQVON23",
+    "issue": "players_field_missing",
+    "teamRefPath": "teams/37bs9y9z36VUEa4uzGYvlqQVON23",
+    "authUser": {
+      "uid": "37bs9y9z36VUEa4uzGYvlqQVON23",
+      "email": "daviddelalamo89@gmail.com",
+      "displayName": "David del Alamo",
+      "disabled": false,
+      "creationTime": "Thu, 26 Mar 2026 20:59:43 GMT",
+      "lastSignInTime": "Thu, 26 Mar 2026 20:59:57 GMT"
+    },
+    "teamData": {
+      "createdAt": "2026-03-26T20:59:47.273Z",
+      "name": "David del Alamo",
+      "ownerUid": "37bs9y9z36VUEa4uzGYvlqQVON23",
+      "leagueId": "bviD1KNxTfX6f0CLGPUN"
+    }
+  },
+  {
+    "uid": "4MvMj7Bt8LRW20x27wUWNMtk9iN2",
+    "issue": "players_field_missing",
+    "teamRefPath": "teams/4MvMj7Bt8LRW20x27wUWNMtk9iN2",
+    "authUser": {
+      "uid": "4MvMj7Bt8LRW20x27wUWNMtk9iN2",
+      "email": "nefacaj551@badfist.com",
+      "displayName": "dadsadsa",
+      "disabled": false,
+      "creationTime": "Wed, 03 Dec 2025 19:08:03 GMT",
+      "lastSignInTime": "Wed, 03 Dec 2025 19:08:03 GMT"
+    },
+    "teamData": {
+      "createdAt": "2025-12-03T19:08:08.001Z",
+      "name": "nefacaj551",
+      "ownerUid": "4MvMj7Bt8LRW20x27wUWNMtk9iN2",
+      "leagueId": "fCxm2HFYRChroYdrGVWp"
+    }
+  },
+  {
+    "uid": "acKawT4cifPwpVffSwnrLzngz1z1",
+    "issue": "players_field_missing",
+    "teamRefPath": "teams/acKawT4cifPwpVffSwnrLzngz1z1",
+    "authUser": {
+      "uid": "acKawT4cifPwpVffSwnrLzngz1z1",
+      "email": "fgfgfgfg@gbuj.vu",
+      "displayName": "Fhggfhh",
+      "disabled": false,
+      "creationTime": "Sat, 07 Feb 2026 13:11:31 GMT",
+      "lastSignInTime": "Sat, 07 Feb 2026 13:11:31 GMT"
+    },
+    "teamData": {
+      "createdAt": "2026-02-07T13:11:36.760Z",
+      "name": "fgfgfgfg",
+      "ownerUid": "acKawT4cifPwpVffSwnrLzngz1z1",
+      "leagueId": "HVsTj1suqyHRcQ49REWh"
+    }
+  },
+  {
+    "uid": "aFtmyEf4XahB8tTtr2nmGS9lqgl2",
+    "issue": "players_field_missing",
+    "teamRefPath": "teams/aFtmyEf4XahB8tTtr2nmGS9lqgl2",
+    "authUser": {
+      "uid": "aFtmyEf4XahB8tTtr2nmGS9lqgl2",
+      "email": "mirzaaempati@gmail.com",
+      "displayName": "Mahmut İLHAN",
+      "disabled": false,
+      "creationTime": "Thu, 26 Mar 2026 07:56:02 GMT",
+      "lastSignInTime": "Fri, 27 Mar 2026 09:37:09 GMT"
+    },
+    "teamData": {
+      "createdAt": "2026-03-26T07:56:07.432Z",
+      "name": "Mahmut İLHAN",
+      "ownerUid": "aFtmyEf4XahB8tTtr2nmGS9lqgl2",
+      "leagueId": "bviD1KNxTfX6f0CLGPUN",
+      "transferBudget": 50000,
+      "budget": 50000
+    }
+  },
+  {
+    "uid": "alSiUZ6bMwd5NrANtVPtewF56pt1",
+    "issue": "players_empty",
+    "teamRefPath": "teams/alSiUZ6bMwd5NrANtVPtewF56pt1",
+    "authUser": {
+      "uid": "alSiUZ6bMwd5NrANtVPtewF56pt1",
+      "email": "vip.web.test.20260327@example.com",
+      "displayName": "VIP Web Test",
+      "disabled": false,
+      "creationTime": "Thu, 26 Mar 2026 22:20:13 GMT",
+      "lastSignInTime": null
+    },
+    "teamData": {
+      "createdAt": "2026-03-26T22:20:15.765Z",
+      "players": [],
+      "name": "VIP Web Test FC",
+      "transferBudget": 0,
+      "ownerUid": "alSiUZ6bMwd5NrANtVPtewF56pt1",
+      "budget": 0,
+      "leagueId": "bviD1KNxTfX6f0CLGPUN"
+    }
+  },
+  {
+    "uid": "areeovUjNyXV7UnevyK3llGLo023",
+    "issue": "players_field_missing",
+    "teamRefPath": "teams/areeovUjNyXV7UnevyK3llGLo023",
+    "authUser": {
+      "uid": "areeovUjNyXV7UnevyK3llGLo023",
+      "email": "oygur5366@gmail.com",
+      "displayName": "Ömer Oyğur",
+      "disabled": false,
+      "creationTime": "Wed, 25 Mar 2026 18:47:08 GMT",
+      "lastSignInTime": "Sat, 28 Mar 2026 13:09:16 GMT"
+    },
+    "teamData": {
+      "createdAt": "2026-03-25T18:47:13.053Z",
+      "ownerUid": "areeovUjNyXV7UnevyK3llGLo023",
+      "leagueId": "bviD1KNxTfX6f0CLGPUN",
+      "name": "Ömer Oyğur",
+      "transferBudget": 30000,
+      "budget": 30000
+    }
+  },
+  {
+    "uid": "E4udsSyK19gUDFqb77TX5GrodsE3",
+    "issue": "players_field_missing",
+    "teamRefPath": "teams/E4udsSyK19gUDFqb77TX5GrodsE3",
+    "authUser": {
+      "uid": "E4udsSyK19gUDFqb77TX5GrodsE3",
+      "email": "veten59227@bitmens.com",
+      "displayName": "vetenar123",
+      "disabled": false,
+      "creationTime": "Thu, 02 Oct 2025 19:26:41 GMT",
+      "lastSignInTime": "Thu, 02 Oct 2025 19:26:41 GMT"
+    },
+    "teamData": {
+      "createdAt": "2025-10-02T19:26:45.450Z",
+      "name": "veten59227",
+      "ownerUid": "E4udsSyK19gUDFqb77TX5GrodsE3",
+      "leagueId": "NPhyg9Pp0LgWklSeNipD"
+    }
+  },
+  {
+    "uid": "E6hJyKLiKXRMRYI5W1Fo6lnPAUm2",
+    "issue": "players_field_missing",
+    "teamRefPath": "teams/E6hJyKLiKXRMRYI5W1Fo6lnPAUm2",
+    "authUser": {
+      "uid": "E6hJyKLiKXRMRYI5W1Fo6lnPAUm2",
+      "email": "cbnsorin402@gmail.com",
+      "displayName": "Poli Iași",
+      "disabled": false,
+      "creationTime": "Mon, 23 Mar 2026 16:15:42 GMT",
+      "lastSignInTime": "Sat, 28 Mar 2026 06:51:00 GMT"
+    },
+    "teamData": {
+      "createdAt": "2026-03-23T16:15:48.379Z",
+      "ownerUid": "E6hJyKLiKXRMRYI5W1Fo6lnPAUm2",
+      "leagueId": "41zDp6GoSmJIcedFaQbi",
+      "name": "Poli Iași"
+    }
+  },
+  {
+    "uid": "EhIoLXzAQ8hOPIOkUYpGake4KVN2",
+    "issue": "players_field_missing",
+    "teamRefPath": "teams/EhIoLXzAQ8hOPIOkUYpGake4KVN2",
+    "authUser": {
+      "uid": "EhIoLXzAQ8hOPIOkUYpGake4KVN2",
+      "email": "kutlayridvan199@gmail.com",
+      "displayName": "Rıdvan Kutlay",
+      "disabled": false,
+      "creationTime": "Thu, 26 Mar 2026 09:20:53 GMT",
+      "lastSignInTime": "Thu, 26 Mar 2026 09:21:10 GMT"
+    },
+    "teamData": {
+      "createdAt": "2026-03-26T09:20:58.474Z",
+      "name": "Rıdvan Kutlay",
+      "ownerUid": "EhIoLXzAQ8hOPIOkUYpGake4KVN2",
+      "leagueId": "bviD1KNxTfX6f0CLGPUN",
+      "transferBudget": 50000,
+      "budget": 50000
+    }
+  },
+  {
+    "uid": "jdQ6umejdOQHtCUUjXhVKZXa24H2",
+    "issue": "players_field_missing",
+    "teamRefPath": "teams/jdQ6umejdOQHtCUUjXhVKZXa24H2",
+    "authUser": {
+      "uid": "jdQ6umejdOQHtCUUjXhVKZXa24H2",
+      "email": "nelek295622313@bitmens.com",
+      "displayName": "nelek295623",
+      "disabled": false,
+      "creationTime": "Thu, 02 Oct 2025 19:39:26 GMT",
+      "lastSignInTime": "Thu, 02 Oct 2025 19:39:26 GMT"
+    },
+    "teamData": {
+      "createdAt": "2025-10-02T19:39:27.559Z",
+      "name": "nelek295622313",
+      "ownerUid": "jdQ6umejdOQHtCUUjXhVKZXa24H2",
+      "leagueId": "hU6M3ddzmqg885TFrDTi"
+    }
+  },
+  {
+    "uid": "nSPG7LlcLRg8hUzwEF49a4gDJVV2",
+    "issue": "players_field_missing",
+    "teamRefPath": "teams/nSPG7LlcLRg8hUzwEF49a4gDJVV2",
+    "authUser": {
+      "uid": "nSPG7LlcLRg8hUzwEF49a4gDJVV2",
+      "email": "dasdasas@gmaico.co",
+      "displayName": "dasdsaadas",
+      "disabled": false,
+      "creationTime": "Tue, 23 Dec 2025 19:18:18 GMT",
+      "lastSignInTime": "Tue, 23 Dec 2025 19:18:18 GMT"
+    },
+    "teamData": {
+      "createdAt": "2025-12-23T19:18:22.284Z",
+      "name": "dasdasas",
+      "ownerUid": "nSPG7LlcLRg8hUzwEF49a4gDJVV2",
+      "leagueId": "oCoxhm4mByg6NomIVnyq"
+    }
+  },
+  {
+    "uid": "O7ucVRG6q0SCJ5hxw6hdFT3bISI3",
+    "issue": "players_field_missing",
+    "teamRefPath": "teams/O7ucVRG6q0SCJ5hxw6hdFT3bISI3",
+    "authUser": {
+      "uid": "O7ucVRG6q0SCJ5hxw6hdFT3bISI3",
+      "email": "neyoy43926@bitmens.com",
+      "displayName": "nedimneoldum",
+      "disabled": false,
+      "creationTime": "Thu, 02 Oct 2025 19:08:39 GMT",
+      "lastSignInTime": "Thu, 02 Oct 2025 19:08:39 GMT"
+    },
+    "teamData": {
+      "createdAt": "2025-10-02T19:08:41.406Z",
+      "name": "neyoy43926",
+      "ownerUid": "O7ucVRG6q0SCJ5hxw6hdFT3bISI3",
+      "leagueId": "kILGFr07Xsu2bmGCiIiG"
+    }
+  },
+  {
+    "uid": "PQ4VFmMrpjgOZyeA5EvrMgMl6Hq2",
+    "issue": "players_field_missing",
+    "teamRefPath": "teams/PQ4VFmMrpjgOZyeA5EvrMgMl6Hq2",
+    "authUser": {
+      "uid": "PQ4VFmMrpjgOZyeA5EvrMgMl6Hq2",
+      "email": "nelek29562@bitmens.com",
+      "displayName": "nelek29562",
+      "disabled": false,
+      "creationTime": "Thu, 02 Oct 2025 19:39:05 GMT",
+      "lastSignInTime": "Thu, 02 Oct 2025 19:39:05 GMT"
+    },
+    "teamData": {
+      "createdAt": "2025-10-02T19:39:07.238Z",
+      "name": "nelek29562",
+      "ownerUid": "PQ4VFmMrpjgOZyeA5EvrMgMl6Hq2",
+      "leagueId": "kILGFr07Xsu2bmGCiIiG"
+    }
+  },
+  {
+    "uid": "QEKCYDB7YTfBOqAGne36G64Rj4R2",
+    "issue": "players_field_missing",
+    "teamRefPath": "teams/QEKCYDB7YTfBOqAGne36G64Rj4R2",
+    "authUser": {
+      "uid": "QEKCYDB7YTfBOqAGne36G64Rj4R2",
+      "email": "vomogi6401@auslank.com",
+      "displayName": "vamohirass",
+      "disabled": false,
+      "creationTime": "Thu, 02 Oct 2025 19:27:14 GMT",
+      "lastSignInTime": "Thu, 02 Oct 2025 19:27:14 GMT"
+    },
+    "teamData": {
+      "createdAt": "2025-10-02T19:27:17.002Z",
+      "name": "vomogi6401",
+      "ownerUid": "QEKCYDB7YTfBOqAGne36G64Rj4R2",
+      "leagueId": "kILGFr07Xsu2bmGCiIiG"
+    }
+  },
+  {
+    "uid": "rs7tm4N176gyz4T33eVLQCOxip03",
+    "issue": "players_field_missing",
+    "teamRefPath": "teams/rs7tm4N176gyz4T33eVLQCOxip03",
+    "authUser": {
+      "uid": "rs7tm4N176gyz4T33eVLQCOxip03",
+      "email": "cidodom987@auslank.com",
+      "displayName": "ciddolou",
+      "disabled": false,
+      "creationTime": "Thu, 02 Oct 2025 18:59:14 GMT",
+      "lastSignInTime": "Thu, 02 Oct 2025 18:59:14 GMT"
+    },
+    "teamData": {
+      "createdAt": "2025-10-02T18:59:15.808Z",
+      "name": "cidodom987",
+      "ownerUid": "rs7tm4N176gyz4T33eVLQCOxip03",
+      "leagueId": "oCoxhm4mByg6NomIVnyq"
+    }
+  },
+  {
+    "uid": "SmEhwAdxsvOd7ojC4F3gvWhh6O92",
+    "issue": "players_field_missing",
+    "teamRefPath": "teams/SmEhwAdxsvOd7ojC4F3gvWhh6O92",
+    "authUser": {
+      "uid": "SmEhwAdxsvOd7ojC4F3gvWhh6O92",
+      "email": "vomogi642321301@auslank.com",
+      "displayName": "sdadsdsad213",
+      "disabled": false,
+      "creationTime": "Thu, 02 Oct 2025 19:27:42 GMT",
+      "lastSignInTime": "Thu, 02 Oct 2025 19:27:42 GMT"
+    },
+    "teamData": {
+      "createdAt": "2025-10-02T19:27:44.455Z",
+      "name": "vomogi642321301",
+      "ownerUid": "SmEhwAdxsvOd7ojC4F3gvWhh6O92",
+      "leagueId": "kILGFr07Xsu2bmGCiIiG"
+    }
+  },
+  {
+    "uid": "TYEShwZwaSfs9VCvDsjpfFRypeR2",
+    "issue": "players_field_missing",
+    "teamRefPath": "teams/TYEShwZwaSfs9VCvDsjpfFRypeR2",
+    "authUser": {
+      "uid": "TYEShwZwaSfs9VCvDsjpfFRypeR2",
+      "email": "sipedof38032321@auslank.com",
+      "displayName": "HayaleySpo",
+      "disabled": false,
+      "creationTime": "Thu, 02 Oct 2025 18:49:14 GMT",
+      "lastSignInTime": "Thu, 02 Oct 2025 18:49:14 GMT"
+    },
+    "teamData": {
+      "createdAt": "2025-10-02T18:49:16.543Z",
+      "name": "sipedof38032321",
+      "ownerUid": "TYEShwZwaSfs9VCvDsjpfFRypeR2",
+      "leagueId": "kILGFr07Xsu2bmGCiIiG"
+    }
+  },
+  {
+    "uid": "Un3QhgrihVXz0FRQ8WjOgb8slxn1",
+    "issue": "players_field_missing",
+    "teamRefPath": "teams/Un3QhgrihVXz0FRQ8WjOgb8slxn1",
+    "authUser": {
+      "uid": "Un3QhgrihVXz0FRQ8WjOgb8slxn1",
+      "email": "sipedof380321323131@auslank.com",
+      "displayName": "KarabasanSpor123",
+      "disabled": false,
+      "creationTime": "Thu, 02 Oct 2025 18:50:09 GMT",
+      "lastSignInTime": "Thu, 02 Oct 2025 18:50:09 GMT"
+    },
+    "teamData": {
+      "createdAt": "2025-10-02T18:50:11.690Z",
+      "name": "sipedof380321323131",
+      "ownerUid": "Un3QhgrihVXz0FRQ8WjOgb8slxn1",
+      "leagueId": "HVsTj1suqyHRcQ49REWh"
+    }
+  },
+  {
+    "uid": "uyBwaNrmH7aLYqMuhB143s9hCnQ2",
+    "issue": "players_field_missing",
+    "teamRefPath": "teams/uyBwaNrmH7aLYqMuhB143s9hCnQ2",
+    "authUser": {
+      "uid": "uyBwaNrmH7aLYqMuhB143s9hCnQ2",
+      "email": "sddsaasdq@fsdfdsfa.com",
+      "displayName": "babaaa.",
+      "disabled": false,
+      "creationTime": "Mon, 03 Nov 2025 18:29:49 GMT",
+      "lastSignInTime": "Mon, 03 Nov 2025 18:29:49 GMT"
+    },
+    "teamData": {
+      "createdAt": "2025-11-03T18:29:53.974Z",
+      "name": "sddsaasdq",
+      "ownerUid": "uyBwaNrmH7aLYqMuhB143s9hCnQ2",
+      "leagueId": "oCoxhm4mByg6NomIVnyq"
+    }
+  },
+  {
+    "uid": "VveWBLZdXjY0kp6pA1BY46C0bjn2",
+    "issue": "players_field_missing",
+    "teamRefPath": "teams/VveWBLZdXjY0kp6pA1BY46C0bjn2",
+    "authUser": {
+      "uid": "VveWBLZdXjY0kp6pA1BY46C0bjn2",
+      "email": "dfsfdfsad@mgaifsdfsdb.com",
+      "displayName": "dasdsadasdadsadsa",
+      "disabled": false,
+      "creationTime": "Mon, 03 Nov 2025 17:30:04 GMT",
+      "lastSignInTime": "Mon, 03 Nov 2025 17:30:04 GMT"
+    },
+    "teamData": {
+      "createdAt": "2025-11-03T17:30:09.499Z",
+      "name": "dfsfdfsad",
+      "ownerUid": "VveWBLZdXjY0kp6pA1BY46C0bjn2",
+      "leagueId": "HVsTj1suqyHRcQ49REWh"
+    }
+  },
+  {
+    "uid": "zj6sCMNHzbW9gFAobFS323ACYT82",
+    "issue": "players_field_missing",
+    "teamRefPath": "teams/zj6sCMNHzbW9gFAobFS323ACYT82",
+    "authUser": {
+      "uid": "zj6sCMNHzbW9gFAobFS323ACYT82",
+      "email": "dssddas@gmaic.co",
+      "displayName": "namatahe",
+      "disabled": false,
+      "creationTime": "Sat, 13 Dec 2025 21:16:41 GMT",
+      "lastSignInTime": "Sat, 13 Dec 2025 21:16:41 GMT"
+    },
+    "teamData": {
+      "createdAt": "2025-12-13T21:16:47.083Z",
+      "name": "dssddas",
+      "ownerUid": "zj6sCMNHzbW9gFAobFS323ACYT82",
+      "leagueId": "q5AmhIb7e7E81H5uvsKO"
+    }
+  },
+  {
+    "uid": "zXCAiYEeflaKV9dpffn7otSqgDF3",
+    "issue": "players_field_missing",
+    "teamRefPath": "teams/zXCAiYEeflaKV9dpffn7otSqgDF3",
+    "authUser": {
+      "uid": "zXCAiYEeflaKV9dpffn7otSqgDF3",
+      "email": "kiladok872@bitmens.com",
+      "displayName": "kiladok",
+      "disabled": false,
+      "creationTime": "Thu, 02 Oct 2025 18:58:37 GMT",
+      "lastSignInTime": "Thu, 02 Oct 2025 18:58:37 GMT"
+    },
+    "teamData": {
+      "createdAt": "2025-10-02T18:58:39.031Z",
+      "name": "kiladok872",
+      "ownerUid": "zXCAiYEeflaKV9dpffn7otSqgDF3",
+      "leagueId": "q5AmhIb7e7E81H5uvsKO"
+    }
+  }
+]

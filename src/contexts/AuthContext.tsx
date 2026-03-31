@@ -20,7 +20,7 @@ import {
   getAuthRedirectResult,
   requestPasswordReset,
 } from '@/services/auth';
-import { createInitialTeam, getTeam, updateTeamName } from '@/services/team';
+import { createInitialTeam, getTeam, teamNeedsBootstrap, updateTeamName } from '@/services/team';
 import { requestAssign } from '@/services/leagues';
 import { generateRandomName } from '@/lib/names';
 import { getUserProfile } from '@/services/users';
@@ -129,13 +129,17 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       }
     }
 
-    if (!existingTeam) {
+    const needsBootstrap = teamNeedsBootstrap(existingTeam);
+
+    if (needsBootstrap) {
       await createInitialTeam(firebaseUser.uid, desiredTeamName, managerName, {
         authUser: firebaseUser,
       });
-      void requestAssign(firebaseUser.uid).catch((err) => {
-        console.warn('[AuthContext] League assignment after social registration failed', err);
-      });
+      if (!existingTeam?.leagueId) {
+        void requestAssign(firebaseUser.uid).catch((err) => {
+          console.warn('[AuthContext] League assignment after social registration failed', err);
+        });
+      }
     } else if (trimmedName && existingTeam.name !== trimmedName) {
       await updateTeamName(firebaseUser.uid, trimmedName);
     }
@@ -255,7 +259,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
               contactCrypto: profile?.contactCrypto ?? null,
             });
           }
-          if (!team) {
+          if (teamNeedsBootstrap(team)) {
             try {
               await firebaseUser.getIdToken(true).catch((err) => {
                 console.warn('[AuthContext] token refresh before team create failed', err);
@@ -279,7 +283,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                 }));
               }
               // Slot tabanli: siradaki ligde rastgele bir BOT'un yerine gec
-              await requestAssign(firebaseUser.uid);
+              if (!(team as { leagueId?: string | null } | null)?.leagueId) {
+                await requestAssign(firebaseUser.uid);
+              }
             } catch (creationError) {
               console.error('[AuthContext] createInitialTeam failed after login', creationError);
             }

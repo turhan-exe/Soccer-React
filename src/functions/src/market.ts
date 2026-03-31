@@ -10,7 +10,7 @@ import {
 
 const db = getFirestore();
 const LISTINGS_PATH = 'transferListings';
-const FINANCE_DEFAULT_BALANCE = 50_000;
+const FINANCE_DEFAULT_BALANCE = 75_000;
 
 const region = 'europe-west1';
 

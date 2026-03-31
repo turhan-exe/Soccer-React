@@ -62,6 +62,14 @@ const formatRewardDuration = (ms: number): string => {
   return `${Math.max(1, seconds)} sn`;
 };
 
+const upsertYouthCandidate = (
+  current: YouthCandidate[],
+  candidate: YouthCandidate,
+): YouthCandidate[] => [
+  candidate,
+  ...current.filter(existing => existing.id !== candidate.id),
+];
+
 const generatePlayer = (): Player => {
   const position = positions[Math.floor(Math.random() * positions.length)];
   const attributes = {
@@ -206,7 +214,7 @@ const YouthPage = () => {
       const candidate = await createYouthCandidate(user.id, player, {
         durationMultiplier: vipDurationMultiplier,
       });
-      setCandidates(prev => [candidate, ...prev]);
+      setCandidates(prev => upsertYouthCandidate(prev, candidate));
       setNextGenerateAt(new Date(Date.now() + youthCooldownMs));
       toast.success('Oyuncu uretildi');
     } catch (err) {

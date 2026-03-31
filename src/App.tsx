@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { Capacitor } from '@capacitor/core';
+import { App as CapacitorApp } from '@capacitor/app';
 import { SplashScreen } from '@capacitor/splash-screen';
 import { Toaster } from '@/components/ui/sonner';
 import { TooltipProvider } from '@/components/ui/tooltip';
@@ -106,6 +107,26 @@ const App = () => {
     void initializeRewardedAds().catch((error) => {
       console.warn('[App] Rewarded ads initialization failed', error);
     });
+  }, []);
+
+  useEffect(() => {
+    if (!isRewardedAdsSupported()) {
+      return;
+    }
+
+    const listener = CapacitorApp.addListener('appStateChange', ({ isActive }) => {
+      if (!isActive) {
+        return;
+      }
+
+      void initializeRewardedAds({ force: true }).catch((error) => {
+        console.warn('[App] Rewarded ads warmup failed after resume', error);
+      });
+    });
+
+    return () => {
+      void listener.then((handle) => handle.remove()).catch(() => undefined);
+    };
   }, []);
 
   return (

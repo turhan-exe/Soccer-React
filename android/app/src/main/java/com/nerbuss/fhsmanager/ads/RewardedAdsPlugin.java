@@ -46,8 +46,14 @@ public class RewardedAdsPlugin extends Plugin {
   private static final String META_APP_ID = "com.google.android.gms.ads.APPLICATION_ID";
   private static final String ERROR_DOMAIN_PLUGIN = "rewarded_ads_plugin";
   private static final long MAX_CACHED_AD_AGE_MS = 55L * 60L * 1000L;
-  private static final long SHOW_TIMEOUT_MS = 15_000L;
+  private static final long SHOW_TIMEOUT_MS = 45_000L;
+  private static final long ACTIVITY_WAIT_TIMEOUT_MS = 8_000L;
+  private static final long ACTIVITY_RETRY_DELAY_MS = 250L;
   private static final long RETRY_DELAY_MS = 1_500L;
+  private static final long TRANSIENT_WARMUP_RETRY_DELAY_MS = 8_000L;
+  private static final long NO_FILL_WARMUP_RETRY_DELAY_MS = 20_000L;
+  private static final int MAX_LOAD_RETRY_ATTEMPTS = 2;
+  private static final long[] LOAD_RETRY_DELAYS_MS = new long[] {1_500L, 3_000L};
 
   private final Handler mainHandler = new Handler(Looper.getMainLooper());
   private final List<PendingReadyRequest> pendingReadyRequests = new ArrayList<>();
@@ -68,6 +74,8 @@ public class RewardedAdsPlugin extends Plugin {
   private String pendingShowCallId;
   private boolean rewardEarnedForCurrentAd = false;
   private Runnable pendingShowTimeoutRunnable;
+  private Runnable scheduledWarmupRetryRunnable;
+  private long scheduledWarmupRetryAtMs = 0L;
 
   @Override
   public void load() {
@@ -76,10 +84,17 @@ public class RewardedAdsPlugin extends Plugin {
   }
 
   @Override
+  protected void handleOnResume() {
+    super.handleOnResume();
+    runOnMainThread(() -> warmupRewardedAd("resume"));
+  }
+
+  @Override
   protected void handleOnDestroy() {
     pendingReadyRequests.clear();
     pendingAdRequests.clear();
     cancelPendingShowTimeout();
+    cancelScheduledWarmupRetry();
     clearCachedRewardedAd();
     pendingShowCallId = null;
     rewardEarnedForCurrentAd = false;
@@ -92,12 +107,12 @@ public class RewardedAdsPlugin extends Plugin {
         () ->
             ensureSdkReady(
                 () -> {
-                  JSObject result = new JSObject();
-                  result.put("ok", true);
-                  result.put("consentStatus", getConsentStatusName());
-                  result.put("privacyOptionsRequired", isPrivacyOptionsRequired());
-                  result.put("debug", buildCurrentDebugInfo());
-                  call.resolve(result);
+                  warmupRewardedAd(
+                      () -> call.resolve(buildInitializePayload()),
+                      error -> {
+                        Log.w(TAG, "Rewarded warmup failed during initialize: " + error.message);
+                        call.resolve(buildInitializePayload());
+                      });
                 },
                 error -> call.reject(error.message != null ? error.message : "rewarded_init_failed")));
   }
@@ -118,12 +133,6 @@ public class RewardedAdsPlugin extends Plugin {
       call.resolve(
           buildFailedResultPayload(
               createErrorSnapshot("show", null, ERROR_DOMAIN_PLUGIN, "rewarded_ad_already_showing", null, null, false)));
-      return;
-    }
-    if (getActivity() == null) {
-      call.resolve(
-          buildFailedResultPayload(
-              createErrorSnapshot("show", null, ERROR_DOMAIN_PLUGIN, "activity_unavailable", null, null, false)));
       return;
     }
 
@@ -256,13 +265,6 @@ public class RewardedAdsPlugin extends Plugin {
       return;
     }
 
-    Activity activity = getActivity();
-    if (activity == null) {
-      flushReadyError(
-          createErrorSnapshot("init", null, ERROR_DOMAIN_PLUGIN, "activity_unavailable", null, null, false));
-      return;
-    }
-
     String manifestAppId = readManifestAppId();
     if (manifestAppId.isEmpty()) {
       flushReadyError(
@@ -271,6 +273,19 @@ public class RewardedAdsPlugin extends Plugin {
     }
 
     initInFlight = true;
+    waitForUsableActivity(
+        "init",
+        ACTIVITY_WAIT_TIMEOUT_MS,
+        activity -> startSdkInitialization(activity),
+        this::flushReadyError);
+  }
+
+  private void startSdkInitialization(Activity activity) {
+    if (activity == null) {
+      flushReadyError(
+          createErrorSnapshot("init", null, ERROR_DOMAIN_PLUGIN, "activity_unavailable", null, null, true));
+      return;
+    }
 
     ConsentRequestParameters.Builder paramsBuilder = new ConsentRequestParameters.Builder();
     if (com.nerbuss.fhsmanager.BuildConfig.DEBUG) {
@@ -298,6 +313,25 @@ public class RewardedAdsPlugin extends Plugin {
                   + (formError == null ? "unknown" : formError.getMessage()));
           initializeMobileAdsAndPreload();
         });
+  }
+
+  private void warmupRewardedAd(String reason) {
+    warmupRewardedAd(
+        () -> Log.d(TAG, "Rewarded ad warmup ready (" + reason + ")"),
+        error -> Log.w(TAG, "Rewarded ad warmup failed (" + reason + "): " + error.message));
+  }
+
+  private void warmupRewardedAd(
+      Runnable onReady, Consumer<RewardedAdErrorSnapshot> onError) {
+    cancelScheduledWarmupRetry();
+    if (sdkReady) {
+      ensureRewardedAdReady(onReady, onError);
+      return;
+    }
+
+    ensureSdkReady(
+        () -> ensureRewardedAdReady(onReady, onError),
+        onError);
   }
 
   private void initializeMobileAdsAndPreload() {
@@ -411,9 +445,9 @@ public class RewardedAdsPlugin extends Plugin {
               return;
             }
 
-            if ((error.code != null && (error.code == 0 || error.code == 2)) && attempt == 0) {
+            if (isImmediateRetryableLoadError(error) && attempt < MAX_LOAD_RETRY_ATTEMPTS) {
               Log.w(TAG, "Retrying rewarded ad load after retryable error: " + error.message);
-              mainHandler.postDelayed(() -> loadRewardedAd(attempt + 1), RETRY_DELAY_MS);
+              mainHandler.postDelayed(() -> loadRewardedAd(attempt + 1), getLoadRetryDelayMs(attempt));
               return;
             }
 
@@ -456,9 +490,10 @@ public class RewardedAdsPlugin extends Plugin {
             clearCachedRewardedAd();
             RewardedAdErrorSnapshot error = createLoadErrorSnapshot(loadAdError);
 
-            if ((error.code != null && (error.code == 0 || error.code == 2)) && attempt == 0) {
+            if (isImmediateRetryableLoadError(error) && attempt < MAX_LOAD_RETRY_ATTEMPTS) {
               Log.w(TAG, "Retrying rewarded interstitial load after retryable error: " + error.message);
-              mainHandler.postDelayed(() -> loadRewardedInterstitialAd(attempt + 1), RETRY_DELAY_MS);
+              mainHandler.postDelayed(
+                  () -> loadRewardedInterstitialAd(attempt + 1), getLoadRetryDelayMs(attempt));
               return;
             }
 
@@ -470,6 +505,7 @@ public class RewardedAdsPlugin extends Plugin {
   }
 
   private void flushAdSuccess() {
+    cancelScheduledWarmupRetry();
     List<PendingReadyRequest> requests = new ArrayList<>(pendingAdRequests);
     pendingAdRequests.clear();
     for (PendingReadyRequest request : requests) {
@@ -479,6 +515,7 @@ public class RewardedAdsPlugin extends Plugin {
 
   private void flushAdError(RewardedAdErrorSnapshot error) {
     adLoadInFlight = false;
+    scheduleWarmupRetryIfNeeded(error);
     List<PendingReadyRequest> requests = new ArrayList<>(pendingAdRequests);
     pendingAdRequests.clear();
     for (PendingReadyRequest request : requests) {
@@ -491,12 +528,31 @@ public class RewardedAdsPlugin extends Plugin {
       return;
     }
 
-    Activity activity = getActivity();
     LoadedRewardedAdHandle ad = rewardedAd;
-    if (activity == null || ad == null) {
+    if (ad == null) {
       resolvePendingShowFailed(
           createErrorSnapshot("show", null, ERROR_DOMAIN_PLUGIN, "rewarded_ad_not_ready", null, null, false));
-      ensureRewardedAdReady(() -> {}, error -> Log.w(TAG, error.message));
+      warmupRewardedAd("show_not_ready");
+      return;
+    }
+
+    Activity activity = getUsableActivity();
+    if (activity == null) {
+      waitForUsableActivity(
+          "show",
+          ACTIVITY_WAIT_TIMEOUT_MS,
+          readyActivity -> {
+            if (!expectedCallId.equals(pendingShowCallId)) {
+              return;
+            }
+            showInternal(expectedCallId, userId, customData);
+          },
+          error -> {
+            if (!expectedCallId.equals(pendingShowCallId)) {
+              return;
+            }
+            resolvePendingShowFailed(error);
+          });
       return;
     }
 
@@ -523,7 +579,7 @@ public class RewardedAdsPlugin extends Plugin {
             clearCachedRewardedAd();
             rewardEarnedForCurrentAd = false;
             notifyRewardedLifecycle("dismissed", null);
-            ensureRewardedAdReady(() -> {}, error -> Log.w(TAG, error.message));
+            warmupRewardedAd("dismissed");
           }
 
           @Override
@@ -534,7 +590,7 @@ public class RewardedAdsPlugin extends Plugin {
             notifyRewardedLifecycle("failed", error);
             resolvePendingShowFailed(error);
             rewardEarnedForCurrentAd = false;
-            ensureRewardedAdReady(() -> {}, loadError -> Log.w(TAG, loadError.message));
+            warmupRewardedAd("show_failed");
           }
         });
 
@@ -568,6 +624,7 @@ public class RewardedAdsPlugin extends Plugin {
 
   private void resolvePendingShowFailed(RewardedAdErrorSnapshot error) {
     lastShowError = error;
+    scheduleWarmupRetryIfNeeded(error);
     resolvePendingShow(buildFailedResultPayload(error));
     rewardEarnedForCurrentAd = false;
   }
@@ -617,6 +674,41 @@ public class RewardedAdsPlugin extends Plugin {
     }
   }
 
+  private void cancelScheduledWarmupRetry() {
+    if (scheduledWarmupRetryRunnable != null) {
+      mainHandler.removeCallbacks(scheduledWarmupRetryRunnable);
+      scheduledWarmupRetryRunnable = null;
+    }
+    scheduledWarmupRetryAtMs = 0L;
+  }
+
+  private void scheduleWarmupRetryIfNeeded(RewardedAdErrorSnapshot error) {
+    if (!shouldScheduleWarmupRetry(error)) {
+      return;
+    }
+    scheduleWarmupRetry(getWarmupRetryDelayMs(error));
+  }
+
+  private void scheduleWarmupRetry(long delayMs) {
+    long safeDelayMs = Math.max(delayMs, RETRY_DELAY_MS);
+    long nextRetryAtMs = System.currentTimeMillis() + safeDelayMs;
+    if (scheduledWarmupRetryRunnable != null && scheduledWarmupRetryAtMs > 0L) {
+      if (scheduledWarmupRetryAtMs <= nextRetryAtMs) {
+        return;
+      }
+      cancelScheduledWarmupRetry();
+    }
+
+    scheduledWarmupRetryAtMs = nextRetryAtMs;
+    scheduledWarmupRetryRunnable =
+        () -> {
+          scheduledWarmupRetryRunnable = null;
+          scheduledWarmupRetryAtMs = 0L;
+          warmupRewardedAd("scheduled_retry");
+        };
+    mainHandler.postDelayed(scheduledWarmupRetryRunnable, safeDelayMs);
+  }
+
   private boolean isRewardedAdExpired() {
     return rewardedAdLoadedAtMs > 0L
         && System.currentTimeMillis() - rewardedAdLoadedAtMs >= MAX_CACHED_AD_AGE_MS;
@@ -626,6 +718,57 @@ public class RewardedAdsPlugin extends Plugin {
     rewardedAd = null;
     rewardedAdLoadedAtMs = 0L;
     rewardedAdFormat = "";
+  }
+
+  private Activity getUsableActivity() {
+    Activity activity = getActivity();
+    if (activity == null) {
+      return null;
+    }
+    if (activity.isFinishing()) {
+      return null;
+    }
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1 && activity.isDestroyed()) {
+      return null;
+    }
+    return activity;
+  }
+
+  private void waitForUsableActivity(
+      String stage,
+      long timeoutMs,
+      Consumer<Activity> onReady,
+      Consumer<RewardedAdErrorSnapshot> onError) {
+    Activity activity = getUsableActivity();
+    if (activity != null) {
+      onReady.accept(activity);
+      return;
+    }
+
+    final long deadlineMs = System.currentTimeMillis() + Math.max(timeoutMs, ACTIVITY_RETRY_DELAY_MS);
+    final Runnable[] checker = new Runnable[1];
+    checker[0] =
+        () -> {
+          Activity currentActivity = getUsableActivity();
+          if (currentActivity != null) {
+            onReady.accept(currentActivity);
+            return;
+          }
+          if (System.currentTimeMillis() >= deadlineMs) {
+            onError.accept(
+                createErrorSnapshot(
+                    stage,
+                    null,
+                    ERROR_DOMAIN_PLUGIN,
+                    "activity_unavailable",
+                    null,
+                    null,
+                    true));
+            return;
+          }
+          mainHandler.postDelayed(checker[0], ACTIVITY_RETRY_DELAY_MS);
+        };
+    mainHandler.post(checker[0]);
   }
 
   private String readManifestAppId() {
@@ -648,6 +791,7 @@ public class RewardedAdsPlugin extends Plugin {
     JSObject debug = new JSObject();
     debug.put("sdkReady", sdkReady);
     debug.put("mobileAdsInitialized", mobileAdsInitialized);
+    debug.put("activityReady", getUsableActivity() != null);
     debug.put("adLoaded", rewardedAd != null && !isRewardedAdExpired());
     debug.put("adLoadInFlight", adLoadInFlight);
     debug.put("loadedAtMs", rewardedAdLoadedAtMs > 0L ? rewardedAdLoadedAtMs : null);
@@ -668,9 +812,19 @@ public class RewardedAdsPlugin extends Plugin {
         "adUnitIdConfigured",
         !trim(com.nerbuss.fhsmanager.BuildConfig.ADMOB_REWARDED_AD_UNIT_ID).isEmpty());
     debug.put("adFormat", rewardedAdFormat.isEmpty() ? null : rewardedAdFormat);
+    debug.put("warmupRetryAtMs", scheduledWarmupRetryAtMs > 0L ? scheduledWarmupRetryAtMs : null);
     debug.put("lastLoadError", lastLoadError == null ? null : buildErrorPayload(lastLoadError));
     debug.put("lastShowError", lastShowError == null ? null : buildErrorPayload(lastShowError));
     return debug;
+  }
+
+  private JSObject buildInitializePayload() {
+    JSObject result = new JSObject();
+    result.put("ok", true);
+    result.put("consentStatus", getConsentStatusName());
+    result.put("privacyOptionsRequired", isPrivacyOptionsRequired());
+    result.put("debug", buildCurrentDebugInfo());
+    return result;
   }
 
   private JSObject buildErrorPayload(RewardedAdErrorSnapshot snapshot) {
@@ -767,6 +921,55 @@ public class RewardedAdsPlugin extends Plugin {
     return message.contains("match format")
         || cause.contains("match format")
         || responseInfo.contains("match format");
+  }
+
+  private boolean isImmediateRetryableLoadError(RewardedAdErrorSnapshot error) {
+    return error != null && error.code != null && (error.code == 0 || error.code == 2);
+  }
+
+  private boolean shouldScheduleWarmupRetry(RewardedAdErrorSnapshot error) {
+    if (error == null) {
+      return false;
+    }
+
+    String message = trim(error.message);
+    if ("rewarded_ad_already_showing".equals(message)
+        || "admob_app_id_missing".equals(message)
+        || "rewarded_ad_unit_missing".equals(message)) {
+      return false;
+    }
+
+    if ("activity_unavailable".equals(message) || "rewarded_ad_not_ready".equals(message)) {
+      return true;
+    }
+
+    if (error.timedOut) {
+      return true;
+    }
+
+    return error.code != null && (error.code == 0 || error.code == 2 || error.code == 3);
+  }
+
+  private long getWarmupRetryDelayMs(RewardedAdErrorSnapshot error) {
+    if (error == null) {
+      return TRANSIENT_WARMUP_RETRY_DELAY_MS;
+    }
+
+    String message = trim(error.message);
+    if ("activity_unavailable".equals(message)) {
+      return RETRY_DELAY_MS;
+    }
+
+    if (error.code != null && error.code == 3) {
+      return NO_FILL_WARMUP_RETRY_DELAY_MS;
+    }
+
+    return TRANSIENT_WARMUP_RETRY_DELAY_MS;
+  }
+
+  private long getLoadRetryDelayMs(int attempt) {
+    int index = Math.max(0, Math.min(attempt, LOAD_RETRY_DELAYS_MS.length - 1));
+    return LOAD_RETRY_DELAYS_MS[index];
   }
 
   private String getConsentStatusName() {

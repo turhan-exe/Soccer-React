@@ -14,6 +14,7 @@ import {
   fetchAndroidMobileUpdatePolicyWithTimeout,
   getCachedAndroidMobileUpdatePolicy,
   setCachedAndroidMobileUpdatePolicy,
+  shouldBlockForAndroidUpdate,
   shouldForceUpdateForVersion,
   type AndroidMobileUpdatePolicy,
 } from '@/services/mobileUpdatePolicy';
@@ -173,6 +174,23 @@ const ForceUpdateGate = ({ children }: ForceUpdateGateProps) => {
       const playState = isPlayUpdateSupported()
         ? await getPlayUpdateState()
         : FALLBACK_PLAY_STATE;
+
+      const shouldKeepBlocked = shouldBlockForAndroidUpdate(
+        installedVersionCode,
+        policy,
+        playState,
+      );
+
+      if (!shouldKeepBlocked) {
+        commitGateState(requestId, {
+          phase: 'ready',
+          policy,
+          installedVersionCode,
+          installedVersionName,
+          playUpdateState: playState,
+        });
+        return;
+      }
 
       commitGateState(requestId, {
         phase: 'blocked',

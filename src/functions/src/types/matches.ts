@@ -35,6 +35,42 @@ export interface MatchResultSummary {
   awayGoals: number;
   events: MatchEvent[];
   stats: MatchSummaryStats;
+  playerStatsHome?: MatchPlayerRuntimeStat[];
+  playerStatsAway?: MatchPlayerRuntimeStat[];
+}
+
+export interface MatchPlayerVitalSnapshot {
+  health: number;
+  condition: number;
+  motivation: number;
+}
+
+export interface MatchPlayerFoulSeverityHits {
+  light: number;
+  medium: number;
+  hard: number;
+}
+
+export interface MatchPlayerConsumableUsage {
+  kitType: 'energy' | 'morale' | 'health';
+  minute?: number;
+  healthDelta?: number;
+  conditionDelta?: number;
+  motivationDelta?: number;
+}
+
+export interface MatchPlayerRuntimeStat {
+  playerId: string;
+  minutesPlayed: number;
+  distanceMeters: number;
+  squadRole?: 'starting' | 'bench' | 'reserve';
+  participationState?: 'starter' | 'sub_used' | 'bench_unused' | 'squad_out' | string;
+  foulSeverityHits?: MatchPlayerFoulSeverityHits;
+  startingVitals: MatchPlayerVitalSnapshot;
+  finalVitals: MatchPlayerVitalSnapshot;
+  kitsUsed?: MatchPlayerConsumableUsage[];
+  speedPenaltyPeak?: number;
+  forcedInjurySubTriggered?: boolean;
 }
 
 export interface MatchEvent {
@@ -135,4 +171,6 @@ export interface ReplayResultSummary {
   awayGoals: number;
   events: MatchEvent[];
   stats?: MatchSummaryStats;
+  playerStatsHome?: MatchPlayerRuntimeStat[];
+  playerStatsAway?: MatchPlayerRuntimeStat[];
 }
