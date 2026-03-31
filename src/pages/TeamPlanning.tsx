@@ -1962,14 +1962,6 @@ function TeamPlanningContent() {
     [formationPositions]
   );
 
-  const displayFormationName = useMemo(() => {
-    const savedShape = savedFormationShape?.trim();
-    if (savedShape) {
-      return savedShape;
-    }
-    return selectedFormation;
-  }, [savedFormationShape, selectedFormation]);
-
   const selectedPlayer = useMemo(() => {
     if (!focusedPlayerId) return null;
     return displayPlayers.find((p) => p.id === focusedPlayerId) ?? null;
@@ -2655,7 +2647,7 @@ function TeamPlanningContent() {
                 <SelectTrigger className="h-9 border-white/30 bg-white/10 px-3 text-xs text-white shadow-sm transition hover:bg-white/20 hover:text-white sm:text-sm w-[140px]">
                   <div className="flex items-center">
                     <Eye className="mr-1.5 h-3.5 w-3.5" />
-                    <span>{displayFormationName || "Formasyon"}</span>
+                    <span>{selectedFormation || "Formasyon"}</span>
                   </div>
                 </SelectTrigger>
                 <SelectContent className="max-h-64">
