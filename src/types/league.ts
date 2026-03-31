@@ -9,5 +9,5 @@ export interface LeagueDoc {
   createdAt: FirebaseTimestamp;
   lockedAt?: FirebaseTimestamp;
   startDate?: FirebaseTimestamp; // 1. turun 19:00 TRT
-  rounds: number; // 16 takımlı çift devre ligde 30
+  rounds: number; // kapasiteye gore uretilen toplam tur sayisi
 }

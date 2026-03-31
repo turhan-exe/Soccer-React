@@ -1,26 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { LegendPlayer } from './players';
 import { Button } from '@/components/ui/button';
+import { getPositionLabel, getPositionShortLabel } from '@/lib/positionLabels';
 import './legend-card.css';
 
 const RARITY_LABELS: Record<LegendPlayer['rarity'], string> = {
   legend: 'Efsane',
   rare: 'Nadir',
   common: 'Klasik',
-};
-
-const POSITION_LABELS: Record<LegendPlayer['position'], string> = {
-  GK: 'Kaleci',
-  CB: 'Defans (Stoper)',
-  LB: 'Defans (Sol Bek)',
-  RB: 'Defans (Sag Bek)',
-  CM: 'Merkez Orta Saha',
-  LM: 'Kanat (Sol)',
-  RM: 'Kanat (Sag)',
-  CAM: 'Ofansif Orta Saha',
-  LW: 'Hucum (Sol Kanat)',
-  RW: 'Hucum (Sag Kanat)',
-  ST: 'Forvet',
 };
 
 interface Props {
@@ -42,7 +29,8 @@ export default function LegendCard({ player, onRent, onRelease }: Props) {
     () => `url("${encodeURI(player.image)}")`,
     [player.image],
   );
-  const positionLabel = POSITION_LABELS[player.position] ?? player.position;
+  const positionLabel = getPositionLabel(player.position);
+  const positionShortLabel = getPositionShortLabel(player.position);
 
   return (
     <div className="legend-card-wrapper">
@@ -59,7 +47,7 @@ export default function LegendCard({ player, onRent, onRelease }: Props) {
           </div>
           <div className="legend-card-bottom">
             <span className="legend-card-role">
-              {player.position} - {positionLabel}
+              {positionShortLabel} - {positionLabel}
             </span>
             <div className="legend-card-actions">
               {onRent && (

@@ -31,6 +31,10 @@ import {
 } from '@/components/ui/sheet';
 import { BackButton } from '@/components/ui/back-button';
 import { trainings } from '@/lib/data';
+import {
+  getPositionLabel,
+  getPositionSearchTokens,
+} from '@/lib/positionLabels';
 import { calculateSessionDurationMinutes } from '@/lib/trainingDuration';
 import { cn } from '@/lib/utils';
 import { Player, Training } from '@/types';
@@ -84,6 +88,13 @@ interface ActiveBulkSession {
 
 const toFiniteNumber = (value: unknown): number | null =>
   typeof value === 'number' && Number.isFinite(value) ? value : null;
+
+const normalizeSearchValue = (value: string): string =>
+  value
+    .trim()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
 
 export default function TrainingPage() {
   const navigate = useNavigate();
@@ -408,15 +419,21 @@ export default function TrainingPage() {
     startCountdown(remaining);
 
     setPendingActiveSession(null);
-  }, [completeSession, pendingActiveSession, players, startCountdown, trainings]);
+  }, [completeSession, pendingActiveSession, players, setActiveSessionSafe, startCountdown]);
 
   const filteredPlayers = useMemo(() => {
-    const query = playerSearch.toLowerCase();
+    const query = normalizeSearchValue(playerSearch);
     return players
-      .filter(player =>
-        player.name.toLowerCase().includes(query) ||
-        player.position.toLowerCase().includes(query),
-      )
+      .filter(player => {
+        if (!query) {
+          return true;
+        }
+
+        return (
+          player.name.toLowerCase().includes(query) ||
+          getPositionSearchTokens(player.position).some(token => token.includes(query))
+        );
+      })
       .sort((a, b) => b.overall - a.overall);
   }, [players, playerSearch]);
 
@@ -1135,7 +1152,7 @@ export default function TrainingPage() {
                         <div>
                           <p className="font-semibold">{player.name}</p>
                           <p className={cn('text-xs', mutedTextClass)}>
-                            {player.position} • Genel {formatRatingLabel(player.overall)}
+                            {getPositionLabel(player.position)} • Genel {formatRatingLabel(player.overall)}
                           </p>
                         </div>
                         <div className="text-right">
@@ -1186,7 +1203,7 @@ export default function TrainingPage() {
                       <div>
                         <p className="font-medium">{player.name}</p>
                         <p className={cn('text-xs', mutedTextClass)}>
-                          {player.position} • {formatRatingLabel(player.overall)}
+                          {getPositionLabel(player.position)} • {formatRatingLabel(player.overall)}
                         </p>
                       </div>
                       <Button

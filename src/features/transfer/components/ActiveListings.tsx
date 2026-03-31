@@ -1,7 +1,7 @@
 import { Button } from '@/components/ui/button';
 import { Loader2, Trash2 } from 'lucide-react';
 import { TransferListing } from '@/types';
-import { formatRatingLabel } from '@/lib/player';
+import { getPositionShortLabel } from '@/lib/positionLabels';
 
 // Format helpers
 const formatPrice = (value: number) => `${value.toLocaleString('tr-TR')} $`;
@@ -41,7 +41,7 @@ export function ActiveListings({
                         {listings.map((listing) => {
                             const player = listing.player;
                             const name = player?.name ?? listing.playerName ?? 'Bilinmeyen';
-                            const position = player?.position ?? listing.pos ?? 'N/A';
+                            const position = getPositionShortLabel(player?.position ?? listing.pos ?? 'N/A');
 
                             return (
                                 <div key={listing.id} className="flex items-center justify-between p-3 rounded-xl bg-[#14151f] border border-white/5 hover:border-white/10 transition-colors">

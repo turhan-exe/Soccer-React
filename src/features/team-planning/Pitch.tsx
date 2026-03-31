@@ -6,7 +6,7 @@ import { cn } from '@/lib/utils';
 import {
   getZoneOverlayBounds,
   getZoneShortCode,
-  resolveZoneId,
+  resolveFormationSlotZoneId,
   type SlotFitLevel,
   type ZoneId,
 } from './slotZones';
@@ -380,7 +380,7 @@ const Pitch = forwardRef<HTMLDivElement, PitchProps>((props, forwardedRef) => {
         const distance = dx * dx + dy * dy;
         if (distance < bestDistance) {
           bestDistance = distance;
-          bestZoneId = resolveZoneId(slot);
+          bestZoneId = resolveFormationSlotZoneId(slot);
         }
       });
 
@@ -547,7 +547,7 @@ const Pitch = forwardRef<HTMLDivElement, PitchProps>((props, forwardedRef) => {
                   onDragOver={event => {
                     handleDragOver(event);
                     if (draggedPlayerId) {
-                      setActiveDropZoneId(resolveZoneId(slot));
+                      setActiveDropZoneId(resolveFormationSlotZoneId(slot));
                     }
                   }}
                   onDrop={event => {
@@ -584,7 +584,7 @@ const Pitch = forwardRef<HTMLDivElement, PitchProps>((props, forwardedRef) => {
                       className="relative z-10 flex h-[3.5rem] w-[3.5rem] items-center justify-center rounded-full border-2 border-dashed border-white/30 bg-white/5 px-1.5 text-[10px] font-bold uppercase tracking-wider text-orange-100/50"
                       style={{ transform: `scale(${markerScale})`, transformOrigin: 'center' }}
                     >
-                      {getZoneShortCode(resolveZoneId(slot))}
+                      {getZoneShortCode(resolveFormationSlotZoneId(slot))}
                     </div>
                   )}
                 </div>

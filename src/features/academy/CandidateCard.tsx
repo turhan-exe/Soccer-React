@@ -5,6 +5,7 @@ import { StatBar } from '@/components/ui/stat-bar';
 import { Button } from '@/components/ui/button';
 import { TrendingUp } from 'lucide-react';
 import { formatRatingLabel, getRoles } from '@/lib/player';
+import { canonicalizePosition, getPositionShortLabel } from '@/lib/positionLabels';
 import type { Player } from '@/types';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
@@ -14,19 +15,10 @@ interface Props {
   onRelease: (id: string) => void;
 }
 
-const mapPosition = (pos: string): Player['position'] => {
-  const mapping: Record<string, Player['position']> = {
-    GK: 'GK',
-    DEF: 'CB',
-    MID: 'CM',
-    FWD: 'ST',
-  };
-  return mapping[pos] || 'CM';
-};
-
 const CandidateCard: React.FC<Props> = ({ candidate, onAccept, onRelease }) => {
   const { player } = candidate;
-  const roles = getRoles(mapPosition(player.position));
+  const canonicalPosition = canonicalizePosition(player.position) ?? 'CM';
+  const roles = getRoles(canonicalPosition);
   const initials = player.name
     .split(' ')
     .map((n) => n[0])
@@ -98,7 +90,7 @@ const CandidateCard: React.FC<Props> = ({ candidate, onAccept, onRelease }) => {
                 {initials}
               </div>
               <div className="absolute -bottom-1 -right-1 flex h-7 w-7 items-center justify-center rounded-full border border-white/20 bg-slate-950/80 text-[11px] font-bold text-cyan-100 shadow-md shadow-cyan-500/20">
-                {player.position}
+                {getPositionShortLabel(player.position)}
               </div>
             </div>
             <div className="min-w-0">
@@ -125,7 +117,7 @@ const CandidateCard: React.FC<Props> = ({ candidate, onAccept, onRelease }) => {
                       variant="outline"
                       className="border-white/20 bg-transparent text-cyan-100"
                     >
-                      {role}
+                      {getPositionShortLabel(role)}
                     </Badge>
                   ))}
                 </div>

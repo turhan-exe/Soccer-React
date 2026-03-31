@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { TrendingUp } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { formatRatingLabel } from '@/lib/player';
+import { getPositionShortLabel } from '@/lib/positionLabels';
 
 interface Props {
   candidate: YouthCandidate;
@@ -55,7 +56,7 @@ const YouthCandidateCard: React.FC<Props> = ({ candidate, onAccept, onRelease })
             {initials}
           </div>
           <div className="absolute -bottom-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full border border-white/20 bg-slate-950/80 text-[10px] font-bold text-cyan-100 shadow-md shadow-cyan-500/20">
-            {player.position}
+            {getPositionShortLabel(player.position)}
           </div>
         </div>
         <div className="min-w-0 flex flex-1 flex-col">
@@ -86,7 +87,7 @@ const YouthCandidateCard: React.FC<Props> = ({ candidate, onAccept, onRelease })
                       variant="outline"
                       className="border-white/20 bg-transparent text-cyan-100"
                     >
-                      {role}
+                      {getPositionShortLabel(role)}
                     </Badge>
                   ))}
                 </div>

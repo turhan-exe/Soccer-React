@@ -268,8 +268,103 @@ export const resolveZoneIdFromCoordinates = (
   coords: Pick<PitchSlot, "x" | "y">
 ): ZoneId => resolveZoneIdFromVisualCoordinates(100 - coords.y, coords.x);
 
+export const resolveSlotZoneId = (
+  slot: Pick<PitchSlot, "position" | "x" | "y">
+): ZoneId => {
+  switch (slot.position) {
+    case "GK":
+      return "kaleci";
+    case "LB":
+      return "sol bek";
+    case "RB":
+      return "saÄŸ bek";
+    case "CB":
+      return slot.x <= 50 ? "stoper sol" : "stoper saÄŸ";
+    case "LM":
+      return "sol kanat";
+    case "RM":
+      return "saÄŸ kanat";
+    case "LW":
+      return "sol aÃ§Ä±k";
+    case "RW":
+      return "saÄŸ aÃ§Ä±k";
+    case "CAM":
+      return "ofansif orta saha";
+    case "CM":
+      if (slot.y >= 60) {
+        return "Ã¶n libero";
+      }
+      if (slot.y >= 52) {
+        return slot.x <= 50
+          ? "defansif orta saha sol"
+          : "defansif orta saha saÄŸ";
+      }
+      return "merkez orta saha";
+    case "ST":
+      return "santrafor";
+    default:
+      return resolveZoneIdFromCoordinates(slot);
+  }
+};
+
 export const resolveZoneId = (slot: PitchSlot): ZoneId =>
   resolveZoneIdFromCoordinates(slot);
+
+export const resolveFormationSlotZoneId = (
+  slot: Pick<PitchSlot, "position" | "x" | "y">
+): ZoneId => {
+  const [
+    leftBackZone,
+    leftMidZone,
+    leftWingZone,
+    goalkeeperZone,
+    leftCenterBackZone,
+    rightCenterBackZone,
+    rightBackZone,
+    rightMidZone,
+    rightWingZone,
+    anchorZone,
+    leftHoldingMidZone,
+    rightHoldingMidZone,
+    centralMidZone,
+    attackingMidZone,
+    ,
+    strikerZone,
+  ] = ORDERED_ZONE_IDS;
+
+  switch (slot.position) {
+    case "GK":
+      return goalkeeperZone;
+    case "LB":
+      return leftBackZone;
+    case "RB":
+      return rightBackZone;
+    case "CB":
+      return slot.x <= 50 ? leftCenterBackZone : rightCenterBackZone;
+    case "LM":
+      return leftMidZone;
+    case "RM":
+      return rightMidZone;
+    case "LW":
+      return leftWingZone;
+    case "RW":
+      return rightWingZone;
+    case "CAM":
+      return attackingMidZone;
+    case "CM":
+      if (slot.y >= 60) {
+        return anchorZone;
+      }
+      if (slot.y >= 52) {
+        return slot.x <= 50 ? leftHoldingMidZone : rightHoldingMidZone;
+      }
+      return centralMidZone;
+    case "ST":
+      return strikerZone;
+    default:
+      return resolveZoneIdFromCoordinates(slot);
+  }
+};
 
 export const getZoneDefinition = (zoneId: ZoneId): ZoneDefinition =>
   ZONES[zoneId];
@@ -360,7 +455,7 @@ export const getSlotFitLevel = (
   slot: PitchSlot,
   nearDropThreshold = 6
 ): SlotFitLevel =>
-  getZoneFitLevel(player, resolveZoneId(slot), nearDropThreshold);
+  getZoneFitLevel(player, resolveFormationSlotZoneId(slot), nearDropThreshold);
 
 const skillScoreForZone = (
   player: DisplayPlayer,

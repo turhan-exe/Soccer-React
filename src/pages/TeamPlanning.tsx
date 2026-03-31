@@ -105,7 +105,7 @@ import {
   getZoneFitLevel,
   getZoneDefinition,
   recommendPlayers,
-  resolveZoneId,
+  resolveFormationSlotZoneId,
   resolveZoneIdFromCoordinates,
   positionAffinity,
   type SlotFitLevel,
@@ -1161,11 +1161,11 @@ function TeamPlanningContent() {
       ) as CustomFormationState;
 
       const fallbackShape =
-        (derivedFormationShape && derivedFormationShape.trim().length > 0
-          ? derivedFormationShape
+        (selectedFormation && selectedFormation.trim().length > 0
+          ? selectedFormation
           : savedFormationShape && savedFormationShape.trim().length > 0
           ? savedFormationShape
-          : selectedFormation) ?? selectedFormation;
+          : derivedFormationShape) ?? selectedFormation;
       const shapeForSave = fallbackShape.trim();
 
       // Persist full roster and snapshot locally for Firestore
@@ -1626,7 +1626,7 @@ function TeamPlanningContent() {
 
     const slotCandidates = emptyFormationSlots
       .map((slot) => {
-        const zoneId = resolveZoneId(slot);
+        const zoneId = resolveFormationSlotZoneId(slot);
         const candidates = recommendPlayers(zoneId, eligiblePlayers, {
           limit: eligiblePlayers.length,
         });
@@ -2084,7 +2084,7 @@ function TeamPlanningContent() {
     (slot: PitchSlot) => {
       setSelectedSlotMeta({
         slotIndex: slot.slotIndex,
-        zoneId: resolveZoneId(slot),
+        zoneId: resolveFormationSlotZoneId(slot),
         x: slot.x,
         y: slot.y,
         position: slot.position,
@@ -2105,7 +2105,7 @@ function TeamPlanningContent() {
         // Apply position affinity penalty
         const slot = formationPositions.find((s) => s.player?.id === player.id);
         if (slot) {
-          const zoneId = resolveZoneId(slot);
+          const zoneId = resolveFormationSlotZoneId(slot);
           const zone = getZoneDefinition(zoneId);
           // Cast to DisplayPlayer is safe here as positionAffinity only checks position/roles
           // which exist on Player.
@@ -2149,7 +2149,7 @@ function TeamPlanningContent() {
       }
       return {
         slotIndex: slot.slotIndex,
-        zoneId: resolveZoneId(slot),
+        zoneId: resolveFormationSlotZoneId(slot),
         x: slot.x,
         y: slot.y,
         position: slot.position,
@@ -2168,7 +2168,7 @@ function TeamPlanningContent() {
       if (!slot) {
         return null;
       }
-      const nextZone = resolveZoneId(slot);
+      const nextZone = resolveFormationSlotZoneId(slot);
       if (
         slot.x === prev.x &&
         slot.y === prev.y &&
@@ -2190,6 +2190,7 @@ function TeamPlanningContent() {
   const handleFormationSelect = useCallback(
     (formationName: string) => {
       setSelectedFormation(formationName);
+      setSavedFormationShape(formationName);
       syncManualSlotsForFormation(formationName);
     },
     [syncManualSlotsForFormation]
@@ -2645,9 +2646,9 @@ function TeamPlanningContent() {
                 onValueChange={handleFormationSelect}
               >
                 <SelectTrigger className="h-9 border-white/30 bg-white/10 px-3 text-xs text-white shadow-sm transition hover:bg-white/20 hover:text-white sm:text-sm w-[140px]">
-                  <div className="flex items-center">
+                  <div className="flex min-w-0 items-center">
                     <Eye className="mr-1.5 h-3.5 w-3.5" />
-                    <span>{selectedFormation || "Formasyon"}</span>
+                    <SelectValue placeholder="Formasyon" />
                   </div>
                 </SelectTrigger>
                 <SelectContent className="max-h-64">

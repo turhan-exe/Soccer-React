@@ -35,7 +35,7 @@ export interface FixtureDoc {
   id: string;                 // matchId
   leagueId: string;           // copied from parent
   seasonId: string;           // copied from league
-  round: number;              // 1..30 for 16-team double round-robin
+  round: number;              // 1..N for the configured double round-robin capacity
   homeTeamId: string;
   awayTeamId: string;
   participants: string[];     // [home, away]

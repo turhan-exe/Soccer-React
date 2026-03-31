@@ -5,6 +5,7 @@ import {
   getZoneDefinition,
   positionAffinity,
   recommendPlayers,
+  resolveFormationSlotZoneId,
 } from "./slotZones";
 import type { ZoneId } from "./slotZones";
 import type {
@@ -197,7 +198,7 @@ export const buildBestLineupForFormation = (
       slotIndex,
       player: null,
     };
-    const zoneId = resolveFormationSlotZone(pitchSlot);
+    const zoneId = resolveFormationSlotZoneId(pitchSlot);
 
     return {
       slot: pitchSlot,

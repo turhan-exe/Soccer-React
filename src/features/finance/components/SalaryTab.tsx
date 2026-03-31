@@ -3,6 +3,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Users, Shirt } from 'lucide-react';
 import { TeamSalariesDoc, TeamSalaryRecord } from '@/services/finance';
+import { getPositionShortLabel } from '@/lib/positionLabels';
 import { formatCurrency } from './FinanceHeader';
 
 interface SalaryTabProps {
@@ -51,7 +52,7 @@ export function SalaryTab({ salaries }: SalaryTabProps) {
                                                 {record.name}
                                             </div>
                                         </TableCell>
-                                        <TableCell className="text-center text-xs text-slate-400">{record.position}</TableCell>
+                                        <TableCell className="text-center text-xs text-slate-400">{getPositionShortLabel(record.position)}</TableCell>
                                         <TableCell className="text-center">
                                             <span className={`inline-flex items-center justify-center px-2 py-0.5 rounded text-[10px] font-bold ${getOverallColor(displayOverall)}`}>
                                                 {displayOverall}

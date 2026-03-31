@@ -11,6 +11,7 @@ import { getTeam } from '@/services/team';
 import { getMyLeagueId, getFixturesForTeamSlotAware, getLeagueTeams } from '@/services/leagues';
 import type { ClubTeam, Fixture, Match, Player } from '@/types';
 import { formatRatingLabel, normalizeRatingTo100, normalizeRatingTo100OrNull } from '@/lib/player';
+import { getPositionShortLabel } from '@/lib/positionLabels';
 import { useClubFinance } from '@/hooks/useClubFinance';
 import { formatClubCurrency } from '@/lib/clubFinance';
 import { Shield } from 'lucide-react';
@@ -141,7 +142,7 @@ export default function MatchPreview() {
   const [matchInfo, setMatchInfo] = useState<Match>(fallbackMatch);
   const [teamOverall, setTeamOverall] = useState<number | null>(null);
   const [teamForm, setTeamForm] = useState<Array<'W' | 'D' | 'L'>>([]);
-  const [teamName, setTeamName] = useState<string>('Takımım');
+  const [teamName, setTeamName] = useState<string>('TakÄ±mÄ±m');
   const [teamLogo, setTeamLogo] = useState<string | null>(null);
   const [teamStadiumName, setTeamStadiumName] = useState<string | null>(null);
   const [startingEleven, setStartingEleven] = useState<Player[]>([]);
@@ -159,7 +160,7 @@ export default function MatchPreview() {
     let cancelled = false;
     if (!user) {
       setMatchInfo(fallbackMatch);
-      setTeamName('Takımım');
+      setTeamName('TakÄ±mÄ±m');
       setTeamLogo(null);
       setTeamStadiumName(null);
       setStartingEleven([]);
@@ -198,7 +199,7 @@ export default function MatchPreview() {
           setTeamOverall(null);
         }
       } else {
-        setTeamName('Takımım');
+        setTeamName('TakÄ±mÄ±m');
         setTeamLogo(null);
         setTeamStadiumName(null);
         setStartingEleven([]);
@@ -365,7 +366,7 @@ export default function MatchPreview() {
       const formValue =
         derivedForm.length ? derivedForm : baseMatch?.opponentStats?.form ?? [];
 
-      const opponentLogoEmoji = opponent?.logo && opponent.logo.trim() ? opponent.logo : baseMatch?.opponentLogo ?? '⚽';
+      const opponentLogoEmoji = opponent?.logo && opponent.logo.trim() ? opponent.logo : baseMatch?.opponentLogo ?? 'âš½';
       const opponentStadiumName = opponent?.stadium?.name?.trim();
       const fallbackVenueName = baseMatch?.venueName;
       const resolvedVenueName = nextFixture.home
@@ -381,7 +382,7 @@ export default function MatchPreview() {
         time: timeString,
         venue: nextFixture.home ? 'home' : 'away',
         status: 'scheduled',
-        competition: baseMatch?.competition ?? 'Lig Maçı',
+        competition: baseMatch?.competition ?? 'Lig MaÃ§Ä±',
         venueName: resolvedVenueName ?? undefined,
         opponentStats:
           overallValue != null || formValue.length || keyPlayerValue.length
@@ -449,9 +450,10 @@ export default function MatchPreview() {
     );
   };
 
-  const opponentFormBadges = opponentForm.length
-    ? opponentForm
-    : matchInfo.opponentStats?.form ?? [];
+  const opponentFormBadges = useMemo(
+    () => (opponentForm.length ? opponentForm : matchInfo.opponentStats?.form ?? []),
+    [matchInfo.opponentStats?.form, opponentForm],
+  );
 
   const opponentOverallDisplay =
     typeof opponentOverall === 'number'
@@ -478,7 +480,7 @@ export default function MatchPreview() {
     : opponentStartingEleven.slice(0, 4);
 
   const formatPercentage = (value?: number | null) =>
-    typeof value === 'number' ? `${Math.round(value * 100)}%` : '—';
+    typeof value === 'number' ? `${Math.round(value * 100)}%` : 'â€”';
 
   const formatPlayerOverall = (value: number) => formatRatingLabel(value);
 
@@ -490,20 +492,20 @@ export default function MatchPreview() {
           <div className="flex items-center gap-4">
             <BackButton />
             <div>
-              <h1 className="text-2xl font-bold text-white">Maç Önizleme</h1>
-              <p className="text-sm text-slate-400">Yaklaşan müsabaka detayları ve rakip analizi</p>
+              <h1 className="text-2xl font-bold text-white">MaÃ§ Ã–nizleme</h1>
+              <p className="text-sm text-slate-400">YaklaÅŸan mÃ¼sabaka detaylarÄ± ve rakip analizi</p>
             </div>
           </div>
 
           {/* Team Info Card (Top Right) */}
           <div className="flex items-center gap-4 bg-[#14151f] px-4 py-3 rounded-xl border border-white/5">
             <div className="w-10 h-10 rounded-full bg-[#2a2c3a] flex items-center justify-center border border-white/10">
-              {renderLogo(teamLogoSrc, <Shield className="w-5 h-5 text-slate-400" />, 'Takım Logo', 'w-10 h-10')}
+              {renderLogo(teamLogoSrc, <Shield className="w-5 h-5 text-slate-400" />, 'TakÄ±m Logo', 'w-10 h-10')}
             </div>
             <div>
               <div className="text-sm font-bold text-white">{teamName}</div>
               <div className="flex items-center gap-2 text-xs text-slate-400">
-                <span>Kul�p Bakiyesi</span>
+                <span>Kulüp Bakiyesi</span>
                 <div className="h-3 w-[1px] bg-white/10"></div>
                 <span className="text-emerald-400 font-mono">{formatClubCurrency(cashBalance)}</span>
               </div>
@@ -525,7 +527,7 @@ export default function MatchPreview() {
             {/* Competition Badge */}
             <div className="mb-6">
               <span className="px-4 py-1.5 rounded-full bg-[#2a2c3a] border border-white/10 text-xs font-bold text-slate-300 uppercase tracking-wider shadow-sm">
-                {matchInfo.competition || 'Lig Maçı'}
+                {matchInfo.competition || 'Lig MaÃ§Ä±'}
               </span>
             </div>
 
@@ -541,7 +543,7 @@ export default function MatchPreview() {
               {/* Home Team */}
               <div className="flex flex-col items-center gap-4 w-40">
                 <div className="w-24 h-24 md:w-32 md:h-32 p-4 rounded-full bg-white/5 border border-white/5 shadow-[0_0_30px_rgba(0,0,0,0.3)] backdrop-blur-sm flex items-center justify-center">
-                  {renderLogo(teamLogoSrc, 'H', 'Takım', 'w-full h-full object-contain', { ringClass: 'ring-0' })}
+                  {renderLogo(teamLogoSrc, 'H', 'TakÄ±m', 'w-full h-full object-contain', { ringClass: 'ring-0' })}
                 </div>
                 <div className="text-center">
                   <div className="text-xl font-bold text-white leading-tight mb-1">{teamName}</div>
@@ -621,7 +623,7 @@ export default function MatchPreview() {
                       {visibleKeyPlayers.map(player => (
                         <div key={player.name} className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/5 hover:bg-white/10 transition-colors cursor-pointer" onClick={() => setSelectedKeyPlayer(player)}>
                           <div className="flex items-center gap-3">
-                            <Badge className="bg-[#2a2c3a] text-slate-300 border-white/5 w-8 h-8 flex items-center justify-center p-0">{player.position}</Badge>
+                            <Badge className="bg-[#2a2c3a] text-slate-300 border-white/5 w-8 h-8 flex items-center justify-center p-0">{getPositionShortLabel(player.position)}</Badge>
                             <div>
                               <div className="font-semibold text-white text-sm">{player.name}</div>
                               <div className="text-[11px] text-slate-400">{player.highlight}</div>
@@ -647,7 +649,7 @@ export default function MatchPreview() {
             <CardHeader className="border-b border-white/5 pb-4">
               <CardTitle className="flex items-center gap-2 text-lg text-white">
                 <Users className="h-5 w-5 text-blue-500" />
-                Rakip İlk 11 Tahmini
+                Rakip Ä°lk 11 Tahmini
               </CardTitle>
             </CardHeader>
             <CardContent className="pt-6">
@@ -657,7 +659,7 @@ export default function MatchPreview() {
                     {visibleOpponentPlayers.map(player => (
                       <div key={player.id} className="flex items-center gap-3 p-2.5 rounded-xl bg-white/5 border border-transparent hover:border-white/10 transition-colors">
                         <div className="w-8 h-8 rounded-full bg-[#2a2c3a] flex items-center justify-center text-[10px] font-bold text-slate-300 border border-white/5">
-                          {player.position}
+                          {getPositionShortLabel(player.position)}
                         </div>
                         <div className="flex-1">
                           <div className="text-sm font-semibold text-white">{player.name}</div>
@@ -668,14 +670,14 @@ export default function MatchPreview() {
                   </div>
                   {opponentStartingEleven.length > 4 && (
                     <Button variant="ghost" className="w-full text-slate-400 hover:text-white hover:bg-white/5 text-xs h-8" onClick={() => setShowAllOpponentPlayers(!showAllOpponentPlayers)}>
-                      {showAllOpponentPlayers ? 'Daha Az Göster' : 'Tüm Kadroyu Göster'}
+                      {showAllOpponentPlayers ? 'Daha Az GÃ¶ster' : 'TÃ¼m Kadroyu GÃ¶ster'}
                     </Button>
                   )}
                 </div>
               ) : (
                 <div className="flex flex-col items-center justify-center py-10 text-center">
                   <Users className="w-10 h-10 text-slate-700 mb-3" />
-                  <p className="text-slate-500 text-sm">Muhtemel 11 henüz belli değil.</p>
+                  <p className="text-slate-500 text-sm">Muhtemel 11 henÃ¼z belli deÄŸil.</p>
                 </div>
               )}
             </CardContent>

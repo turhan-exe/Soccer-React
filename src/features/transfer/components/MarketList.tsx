@@ -6,6 +6,7 @@ import { PlayerStatusCard } from '@/components/ui/player-status-card';
 import { ArrowDown, ArrowUp, ArrowUpDown, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatRatingLabel } from '@/lib/player';
+import { getPositionShortLabel } from '@/lib/positionLabels';
 import { TransferListing } from '@/types';
 import { useState, useEffect } from 'react';
 
@@ -106,7 +107,7 @@ export function MarketList({
                 {listings.map((listing) => {
                     const player = listing.player;
                     const name = player?.name ?? listing.playerName ?? 'Bilinmeyen Oyuncu';
-                    const position = player?.position ?? listing.pos ?? 'N/A';
+                    const position = getPositionShortLabel(player?.position ?? listing.pos ?? 'N/A');
                     const overallValue = player?.overall ?? listing.overall ?? 0;
                     const potentialValue = player?.potential ?? overallValue;
                     const ageDisplay = player?.age ?? '-';
@@ -214,7 +215,7 @@ export function MarketList({
                     {listings.map((listing) => {
                         const player = listing.player;
                         const name = player?.name ?? listing.playerName ?? 'Bilinmeyen Oyuncu';
-                        const position = player?.position ?? listing.pos ?? 'N/A';
+                        const position = getPositionShortLabel(player?.position ?? listing.pos ?? 'N/A');
                         const overallValue = player?.overall ?? listing.overall ?? 0;
                         const potentialValue = player?.potential ?? overallValue;
                         const ageDisplay = player?.age ?? '-';

@@ -279,7 +279,7 @@ export interface League {
   // When fixtures start; stored as Firestore Timestamp
   startDate?: FirestoreTimestamp;
   // Metadata
-  rounds: number; // total rounds (16 teams => 30 in monthly leagues)
+  rounds: number; // total rounds for the configured league capacity
   teamCount?: number;
   // Optional mirror array for quick reads (not authoritative)
   teams?: { id: string; name: string }[];

@@ -1,7 +1,7 @@
 import { normalizeCapacity } from './roundrobin.js';
 
 export const DEFAULT_MONTHLY_LEAGUE_COUNT = 25;
-export const DEFAULT_MONTHLY_CAPACITY = 16;
+export const DEFAULT_MONTHLY_CAPACITY = 14;
 
 export function resolveLeagueCapacity(input?: unknown): number {
   const raw = Number(input ?? DEFAULT_MONTHLY_CAPACITY);

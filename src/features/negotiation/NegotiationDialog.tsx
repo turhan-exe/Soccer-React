@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
+import { getPositionLabel } from '@/lib/positionLabels';
 import {
   NegotiationAttempt,
   NegotiationStartPayload,
@@ -177,7 +178,7 @@ export function NegotiationDialog({ open, context, onClose, onAccepted, onReject
         <div className="space-y-4">
           <div className="rounded-xl border border-white/10 bg-white/5 p-4">
             <p className="text-sm text-slate-300">
-              <strong>{context?.playerName}</strong> ({context?.position ?? 'N/A'}) - Overall {context?.overall ?? 0}
+              <strong>{context?.playerName}</strong> ({context?.position ? getPositionLabel(context.position) : 'N/A'}) - Overall {context?.overall ?? 0}
             </p>
             {context?.transferFee !== undefined && (
               <p className="text-xs text-slate-400">Transfer ucreti: {formatCurrency(context.transferFee)}</p>

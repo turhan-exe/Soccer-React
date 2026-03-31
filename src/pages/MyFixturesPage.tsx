@@ -21,6 +21,13 @@ import {
 import { unityBridge } from '@/services/unityBridge';
 import type { Fixture } from '@/types';
 import { toast } from 'sonner';
+import {
+  isFixtureEffectivelyRunning,
+  isFixtureLiveJoinable,
+  LIVE_JOINABLE_STATES,
+  normalizeFixtureStatus,
+  resolveEffectiveFixtureLiveState,
+} from '@/lib/fixtureLive';
 
 interface DisplayFixture extends Fixture {
   opponent: string;
@@ -30,20 +37,8 @@ interface DisplayFixture extends Fixture {
   competitionName?: string;
 }
 
-const LIVE_JOINABLE_STATES = new Set(['server_started', 'running']);
-
-function normalizeStatus(value: unknown): string {
-  return String(value || '').trim().toLowerCase();
-}
-
 function resolveEffectiveLiveState(fixture: DisplayFixture): string {
-  const fixtureStatus = normalizeStatus(fixture.status);
-  const liveState = normalizeStatus(fixture.live?.state);
-
-  // Played fixtures can keep stale live snapshots; UI must treat them as ended.
-  if (fixtureStatus === 'played') return 'ended';
-  if (fixtureStatus === 'failed' && LIVE_JOINABLE_STATES.has(liveState)) return 'failed';
-  return liveState;
+  return resolveEffectiveFixtureLiveState(fixture);
 }
 
 function getErrorMessage(error: unknown, fallback: string): string {
@@ -77,13 +72,7 @@ function getLiveStateLabel(fixture: DisplayFixture): string | null {
 }
 
 function isLiveJoinable(fixture: DisplayFixture): boolean {
-  const matchId = String(fixture.live?.matchId || '').trim();
-  const fixtureStatus = normalizeStatus(fixture.status);
-  const state = resolveEffectiveLiveState(fixture);
-  if (!matchId) return false;
-  if (fixtureStatus !== 'running') return false;
-  if (fixtureStatus === 'played' || fixtureStatus === 'failed') return false;
-  return LIVE_JOINABLE_STATES.has(state);
+  return isFixtureLiveJoinable(fixture);
 }
 
 export default function MyFixturesPage() {
@@ -238,7 +227,7 @@ export default function MyFixturesPage() {
     setJoiningFixtureId(fixture.id);
     try {
       const status = await getMatchStatus(fixture.live.matchId);
-      const latestState = normalizeStatus(status.state);
+      const latestState = normalizeFixtureStatus(status.state);
       if (!LIVE_JOINABLE_STATES.has(latestState)) {
         setFixtures((prev) =>
           prev.map((item) => {
@@ -310,7 +299,7 @@ export default function MyFixturesPage() {
       return <div className="h-3 w-3 rounded-full bg-yellow-500 shadow-[0_0_8px_rgba(234,179,8,0.6)]" />;
     }
 
-    if (fixture.status === 'running') {
+    if (isFixtureEffectivelyRunning(fixture)) {
       return <div className="h-3 w-3 rounded-full bg-cyan-400 shadow-[0_0_8px_rgba(34,211,238,0.7)]" />;
     }
 
@@ -452,7 +441,7 @@ export default function MyFixturesPage() {
                         </span>
                       ) : null}
 
-                      {fixture.status === 'running' && !liveLabel ? (
+                      {isFixtureEffectivelyRunning(fixture) && !liveLabel ? (
                         <span className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-200">
                           Maç oynanıyor
                         </span>

@@ -35,6 +35,7 @@ import { upcomingMatches } from '@/lib/data';
 import type { Fixture, KitType } from '@/types';
 import { normalizeRatingTo100, normalizeRatingTo100OrNull } from '@/lib/player';
 import { KIT_CONFIG, formatKitEffect } from '@/lib/kits';
+import { isFixtureLiveJoinable, LIVE_JOINABLE_STATES } from '@/lib/fixtureLive';
 
 import {
   Plus,
@@ -156,28 +157,9 @@ const getValidLogo = (value?: string | null) => {
   return null;
 };
 
-const LIVE_JOINABLE_STATES = new Set(['server_started', 'running']);
 const FRIENDLY_ACTIVE_STATES = new Set(['warm', 'starting', 'server_started', 'running']);
 
 const normalizeStatus = (value: unknown) => String(value || '').trim().toLowerCase();
-
-const resolveLeagueLiveState = (fixture: Fixture): string => {
-  const fixtureStatus = normalizeStatus(fixture.status);
-  const liveState = normalizeStatus(fixture.live?.state);
-  if (fixtureStatus === 'played') return 'ended';
-  if (fixtureStatus === 'failed' && LIVE_JOINABLE_STATES.has(liveState)) return 'failed';
-  return liveState;
-};
-
-const isLeagueLiveJoinable = (fixture: Fixture): boolean => {
-  const matchId = String(fixture.live?.matchId || '').trim();
-  const fixtureStatus = normalizeStatus(fixture.status);
-  const liveState = resolveLeagueLiveState(fixture);
-  if (!matchId) return false;
-  if (fixtureStatus !== 'running') return false;
-  if (fixtureStatus === 'played' || fixtureStatus === 'failed') return false;
-  return LIVE_JOINABLE_STATES.has(liveState);
-};
 
 // --- Components ---
 const MenuButton = ({
@@ -494,7 +476,7 @@ export default function MainMenu() {
         ]);
 
         const liveFixture = fixtures
-          .filter((fixture) => isLeagueLiveJoinable(fixture))
+          .filter((fixture) => isFixtureLiveJoinable(fixture))
           .sort((a, b) => a.date.getTime() - b.date.getTime())[0];
 
         if (liveFixture) {
