@@ -625,10 +625,7 @@ const TopBar = forwardRef<TopBarHandle, TopBarProps>(
     };
 
     const handleUse = (type: KitType) => {
-      if ((kits[type] ?? 0) <= 0) {
-        toast.error('Stokta yeterli kit bulunmuyor.');
-        return;
-      }
+      setIsKitMenuOpen(false);
       setActiveKit(type);
       setIsUsageOpen(true);
     };
@@ -730,8 +727,18 @@ const TopBar = forwardRef<TopBarHandle, TopBarProps>(
                             {config.diamondCost} Elmas ile Satin Al
                           </DropdownMenuItem>
                           <DropdownMenuSeparator />
-                          <DropdownMenuItem disabled={count === 0 || isProcessing || isRewardingKit} onClick={() => handleUse(currentKitType)}>
-                            {count === 0 ? 'Stok Yok' : 'Kiti Kullan'}
+                          <DropdownMenuItem
+                            disabled={isProcessing || isRewardingKit}
+                            onClick={() => {
+                              if (count === 0) {
+                                setIsKitMenuOpen(false);
+                                void handlePurchase(currentKitType, 'ad');
+                                return;
+                              }
+                              handleUse(currentKitType);
+                            }}
+                          >
+                            {count === 0 ? 'Reklam İzle (+1)' : 'Kiti Kullan'}
                           </DropdownMenuItem>
                         </>
                       );
@@ -845,7 +852,12 @@ const TopBar = forwardRef<TopBarHandle, TopBarProps>(
             </div>
           </div>
         </header>
-        <KitUsageDialog open={isUsageOpen} kitType={activeKit} onOpenChange={handleUsageOpenChange} />
+        <KitUsageDialog
+          open={isUsageOpen}
+          kitType={activeKit}
+          surface="topbar"
+          onOpenChange={handleUsageOpenChange}
+        />
       </>
     );
   });

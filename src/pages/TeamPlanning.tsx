@@ -1869,12 +1869,23 @@ function TeamPlanningContent() {
     }
   }, []);
 
-  const handleKitApplied = useCallback((updatedPlayer: Player) => {
-    setFocusedPlayerId(updatedPlayer.id);
+  const handleKitApplied = useCallback((updatedPlayers: Player[]) => {
+    if (updatedPlayers.length === 0) {
+      return;
+    }
+
+    const updatedPlayerMap = new Map(
+      updatedPlayers.map((player) => [String(player.id), player]),
+    );
+    const lastUpdatedPlayer = updatedPlayers[updatedPlayers.length - 1];
+
+    setFocusedPlayerId(lastUpdatedPlayer.id);
     setPlayers(prev =>
       normalizePlayers(
         prev.map(player =>
-          player.id === updatedPlayer.id ? { ...player, ...updatedPlayer } : player,
+          updatedPlayerMap.has(String(player.id))
+            ? { ...player, ...updatedPlayerMap.get(String(player.id))! }
+            : player,
         ),
       ),
     );
@@ -2840,6 +2851,7 @@ function TeamPlanningContent() {
         kitType={null}
         playerId={kitUsagePlayerId}
         onApplied={handleKitApplied}
+        surface="team_planning"
         onOpenChange={handleKitUsageOpenChange}
       />
     </>

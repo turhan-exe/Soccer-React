@@ -10,11 +10,12 @@ import {
 
 import { KIT_CONFIG } from '@/lib/kits';
 import {
-  clampVitalGauge,
-  HEALTH_KIT_MINIMUM_AFTER_HEAL,
   normalizeTeamPlayers,
-  resolvePlayerHealth,
 } from '@/lib/playerVitals';
+import {
+  applyKitEffectToPlayer,
+  type KitOperation,
+} from '@/lib/kitOperations';
 import type { ClubTeam, KitType, Player } from '@/types';
 import { db } from '@/services/firebase';
 
@@ -25,6 +26,13 @@ export type ConsumablesInventoryDoc = {
   updatedAt?: unknown;
   migratedAt?: unknown;
   source?: string;
+};
+
+export type ApplyKitOperationsResult = {
+  updatedPlayers: Player[];
+  kits: KitInventory;
+  appliedOperations: KitOperation[];
+  playerNames: string[];
 };
 
 export const DEFAULT_KIT_INVENTORY: KitInventory = {
@@ -52,13 +60,6 @@ export const sanitizeKitInventory = (value: unknown): KitInventory => {
     morale: sanitizeCount(candidate.morale),
     health: sanitizeCount(candidate.health),
   };
-};
-
-const readGauge = (value: number | undefined | null): number => {
-  if (typeof value === 'number' && Number.isFinite(value)) {
-    return value;
-  }
-  return 0.75;
 };
 
 const sanitizeFirestoreData = <T>(value: T): T => {
@@ -272,7 +273,19 @@ export async function applyKitToPlayerInInventory(
   uid: string,
   type: KitType,
   playerId: string,
-): Promise<{ playerName: string; kits: KitInventory }> {
+): Promise<ApplyKitOperationsResult & { playerName: string }> {
+  const result = await applyKitOperationsInInventory(uid, [{ type, playerId }]);
+
+  return {
+    ...result,
+    playerName: result.playerNames[0] ?? 'Oyuncu',
+  };
+}
+
+export async function applyKitOperationsInInventory(
+  uid: string,
+  operations: KitOperation[],
+): Promise<ApplyKitOperationsResult> {
   return runTransaction(db, async (tx) => {
     const currentInventoryRef = inventoryRef(uid);
     const currentTeamRef = teamRef(uid);
@@ -285,44 +298,38 @@ export async function applyKitToPlayerInInventory(
       throw new Error('Takim bulunamadi.');
     }
 
+    const team = teamSnap.data() as ClubTeam;
+    const players = Array.isArray(team.players) ? [...team.players] : [];
     const currentKits = inventorySnap.exists()
       ? readConsumables(inventorySnap.data()).kits
       : DEFAULT_KIT_INVENTORY;
-    const available = sanitizeCount(currentKits[type]);
-    if (available <= 0) {
-      throw new Error('Bu kitten stokta kalmadi.');
-    }
+    const nextKits: KitInventory = { ...currentKits };
+    const appliedOperations: KitOperation[] = [];
+    const updatedPlayers = new Map<string, Player>();
 
-    const team = teamSnap.data() as ClubTeam;
-    const players = Array.isArray(team.players) ? [...team.players] : [];
-    const playerIndex = players.findIndex((player) => String(player.id) === String(playerId));
-    if (playerIndex === -1) {
-      throw new Error('Oyuncu bulunamadi.');
-    }
+    operations.forEach((operation) => {
+      const available = sanitizeCount(nextKits[operation.type]);
+      if (available <= 0) {
+        throw new Error('Bu kitten stokta kalmadi.');
+      }
 
-    const player = players[playerIndex] as Player;
-    const config = KIT_CONFIG[type];
-    const currentHealth = resolvePlayerHealth(player.health, player.injuryStatus);
-    const nextHealth =
-      config.healsInjury
-        ? Math.max(
-            HEALTH_KIT_MINIMUM_AFTER_HEAL,
-            clampVitalGauge(currentHealth + config.healthDelta, 1),
-          )
-        : clampVitalGauge(currentHealth + config.healthDelta, 1);
-    const nextPlayer: Player = {
-      ...player,
-      health: nextHealth,
-      condition: clampVitalGauge(readGauge(player.condition) + config.conditionDelta),
-      motivation: clampVitalGauge(readGauge(player.motivation) + config.motivationDelta),
-      injuryStatus: config.healsInjury ? 'healthy' : player.injuryStatus ?? 'healthy',
-    };
+      const playerIndex = players.findIndex(
+        (player) => String(player.id) === String(operation.playerId),
+      );
+      if (playerIndex === -1) {
+        throw new Error('Oyuncu bulunamadi.');
+      }
 
-    players[playerIndex] = nextPlayer;
-    const nextKits: KitInventory = {
-      ...currentKits,
-      [type]: Math.max(0, available - 1),
-    };
+      const nextPlayer = applyKitEffectToPlayer(
+        players[playerIndex] as Player,
+        operation.type,
+      );
+
+      players[playerIndex] = nextPlayer;
+      nextKits[operation.type] = Math.max(0, available - 1);
+      updatedPlayers.set(String(nextPlayer.id), nextPlayer);
+      appliedOperations.push(operation);
+    });
 
     tx.set(
       currentTeamRef,
@@ -339,8 +346,10 @@ export async function applyKitToPlayerInInventory(
     );
 
     return {
-      playerName: nextPlayer.name,
+      updatedPlayers: Array.from(updatedPlayers.values()),
       kits: nextKits,
+      appliedOperations,
+      playerNames: Array.from(updatedPlayers.values()).map((player) => player.name),
     };
   });
 }

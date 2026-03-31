@@ -1,5 +1,5 @@
 import { Button } from '@/components/ui/button';
-import { Gem, Clapperboard } from 'lucide-react';
+import { Clapperboard, Gem } from 'lucide-react';
 
 interface YouthDashboardProps {
   candidateCount: number;
@@ -33,7 +33,10 @@ export function YouthDashboard({
   const handleAction = () => {
     if (canGenerate) {
       onGenerate();
-    } else if (onReset) {
+      return;
+    }
+
+    if (onReset) {
       onReset();
     }
   };
@@ -41,20 +44,23 @@ export function YouthDashboard({
   return (
     <div className="mb-8">
       <div className="mb-6 px-1">
-        <h1 className="mb-2 text-2xl font-bold text-white">Altyapi Merkezi</h1>
+        <h1 className="mb-2 text-2xl font-bold text-white">Altyapı Merkezi</h1>
         <p className="text-sm text-slate-400">
-          Kadron icin umut vadeden bir oyuncu seni bekliyor. En yuksek potansiyel{' '}
-          {topPotential > 0 ? topPotential : '81'}.
+          Kulübün için gelişime açık genç yetenekleri takip et, doğru zamanda A takıma yükselt.
         </p>
       </div>
 
       <div className="relative overflow-hidden rounded-[32px] border border-white/5 bg-[#1e1f2e] shadow-2xl">
         <div className="relative border-b border-white/5 bg-slate-900/40 p-6">
-          <div className="absolute left-0 top-0 h-[1px] w-full bg-gradient-to-r from-transparent via-purple-500/50 to-transparent" />
+          <div className="absolute left-0 top-0 h-px w-full bg-gradient-to-r from-transparent via-purple-500/50 to-transparent" />
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-bold text-purple-400">Genel Durum</h2>
           </div>
-          <p className="mt-1 text-xs text-slate-500">Su anda aktif ilan bulunmamakta.</p>
+          <p className="mt-1 text-xs text-slate-500">
+            {candidateCount > 0
+              ? 'Altyapı havuzundaki adaylar değerlendirilmeyi bekliyor.'
+              : 'Şu anda aktif aday bulunmuyor.'}
+          </p>
         </div>
 
         <div className="p-8">
@@ -65,18 +71,14 @@ export function YouthDashboard({
             </div>
             <div>
               <p className="mb-1 text-xs font-medium text-slate-400">Ortalama Genel</p>
-              <p className="mb-0.5 text-xl font-bold text-white">
-                {averageOverall > 0 ? averageOverall : '80.65'} Ortalama
-              </p>
+              <p className="mb-0.5 text-xl font-bold text-white">{averageOverall} Ortalama</p>
             </div>
             <div>
-              <p className="mb-1 text-xs font-medium text-slate-400">Yuksek Potansiyel</p>
-              <p className="mb-0.5 text-xl font-bold text-white">
-                {topPotential > 0 ? topPotential : '5'} Potansiyel
-              </p>
+              <p className="mb-1 text-xs font-medium text-slate-400">En Yüksek Potansiyel</p>
+              <p className="mb-0.5 text-xl font-bold text-white">{topPotential} Potansiyel</p>
             </div>
             <div>
-              <p className="mb-1 text-xs font-medium text-slate-400">Yeni Uretim</p>
+              <p className="mb-1 text-xs font-medium text-slate-400">Yeni Aday Süresi</p>
               <p className="mb-0.5 font-mono text-xl font-bold text-emerald-400">
                 {nextGenerateTime}
               </p>
@@ -116,11 +118,11 @@ export function YouthDashboard({
                 >
                   <Clapperboard className="mr-2 h-4 w-4" />
                   {isWatchingAd
-                    ? 'Reklam Yukleniyor...'
-                    : `Reklam Izle (-%${adReductionPercent} Sure)`}
+                    ? 'Reklam Yükleniyor...'
+                    : `Reklam İzle (-%${adReductionPercent} Süre)`}
                 </Button>
                 <p className="text-center text-xs text-slate-400">
-                  Reklam odulu kalan bekleme suresini %{adReductionPercent} azaltir.
+                  Reklam ödülü kalan bekleme süresini %{adReductionPercent} azaltır.
                 </p>
               </div>
             )}
