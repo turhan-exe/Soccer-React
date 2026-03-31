@@ -1,22 +1,22 @@
-import { clampPerformanceGauge } from '@/components/ui/performance-gauge';
-import { calculatePowerIndex } from '@/lib/player';
+import { clampPerformanceGauge } from "@/components/ui/performance-gauge";
+import { calculatePowerIndex } from "@/lib/player";
 import {
   normalizePlayerVitals,
   normalizeTeamPlayers as normalizePlayerVitalsList,
-} from '@/lib/playerVitals';
-import { CustomFormationMap, Player, Position } from '@/types';
+} from "@/lib/playerVitals";
+import { CustomFormationMap, Player, Position } from "@/types";
 // Moved from Pitch.tsx to avoid circular dependency with slotZones.ts
 export type PitchSlot = {
   slotIndex: number;
-  position: Player['position'];
+  position: Player["position"];
   x: number;
   y: number;
   player: Player | null;
 };
-import { clampNumber } from '@/lib/contractNegotiation';
-import type { MetricKey } from './useTeamPlanningStore';
-import type { SkillTagMap } from './skillTags';
-import { buildSkillTags } from './skillTags';
+import { clampNumber } from "@/lib/contractNegotiation";
+import type { MetricKey } from "./useTeamPlanningStore";
+import type { SkillTagMap } from "./skillTags";
+import { buildSkillTags } from "./skillTags";
 
 export const DEFAULT_GAUGE_VALUE = 0.75;
 
@@ -29,89 +29,89 @@ export const LINEUP_VITAL_THRESHOLD = 0.6;
 export const HOURS_IN_MS = 60 * 60 * 1000;
 
 export const metricOptions: Array<{ key: MetricKey; label: string }> = [
-  { key: 'power', label: 'GÜÇ' },
-  { key: 'health', label: 'SAĞLIK' },
-  { key: 'motivation', label: 'MOTİVASYON' },
-  { key: 'condition', label: 'KONDİSYON' },
+  { key: "power", label: "GÜÇ" },
+  { key: "health", label: "SAĞLIK" },
+  { key: "motivation", label: "MOTİVASYON" },
+  { key: "condition", label: "KONDİSYON" },
 ];
 
-export const KNOWN_POSITIONS: Player['position'][] = [
-  'GK',
-  'CB',
-  'LB',
-  'RB',
-  'CM',
-  'LM',
-  'RM',
-  'CAM',
-  'LW',
-  'RW',
-  'ST',
+export const KNOWN_POSITIONS: Player["position"][] = [
+  "GK",
+  "CB",
+  "LB",
+  "RB",
+  "CM",
+  "LM",
+  "RM",
+  "CAM",
+  "LW",
+  "RW",
+  "ST",
 ];
 
-export const POSITION_ALIAS_MAP: Record<string, Player['position']> = {
-  CF: 'ST',
-  FW: 'ST',
-  FWD: 'ST',
-  FOR: 'ST',
-  FORWARD: 'ST',
-  STRIKER: 'ST',
-  ATT: 'ST',
-  SS: 'ST',
-  HU: 'ST',
-  FO: 'ST',
-  STP: 'ST',
-  AM: 'CAM',
-  AMF: 'CAM',
-  IM: 'CAM',
-  CMF: 'CM',
-  CMID: 'CM',
-  MID: 'CM',
-  DM: 'CM',
-  DMF: 'CM',
-  CDM: 'CM',
-  RMF: 'RM',
-  RWF: 'RW',
-  RWB: 'RB',
-  LWF: 'LW',
-  LMF: 'LM',
-  LWB: 'LB',
-  RCB: 'CB',
-  LCB: 'CB',
-  CBK: 'CB',
-  BL: 'CB',
-  DR: 'RB',
-  EB: 'RW',
-  IR: 'RM',
-  LY: 'LB',
-  KALECI: 'GK',
-  KALEC: 'GK',
-  GOALKEEPER: 'GK',
-  KL: 'GK',
+export const POSITION_ALIAS_MAP: Record<string, Player["position"]> = {
+  CF: "ST",
+  FW: "ST",
+  FWD: "ST",
+  FOR: "ST",
+  FORWARD: "ST",
+  STRIKER: "ST",
+  ATT: "ST",
+  SS: "ST",
+  HU: "ST",
+  FO: "ST",
+  STP: "ST",
+  AM: "CAM",
+  AMF: "CAM",
+  IM: "CAM",
+  CMF: "CM",
+  CMID: "CM",
+  MID: "CM",
+  DM: "CM",
+  DMF: "CM",
+  CDM: "CM",
+  RMF: "RM",
+  RWF: "RW",
+  RWB: "RB",
+  LWF: "LW",
+  LMF: "LM",
+  LWB: "LB",
+  RCB: "CB",
+  LCB: "CB",
+  CBK: "CB",
+  BL: "CB",
+  DR: "RB",
+  EB: "RW",
+  IR: "RM",
+  LY: "LB",
+  KALECI: "GK",
+  KALEC: "GK",
+  GOALKEEPER: "GK",
+  KL: "GK",
 };
 
 export type FormationPlayerPosition = {
   x: number;
   y: number;
-  position: Player['position'];
+  position: Player["position"];
 };
 
 export type CustomFormationState = CustomFormationMap;
 
 export type PlayerBaseline = {
-  naturalPosition: Player['position'];
+  naturalPosition: Player["position"];
   naturalOverall: number;
 };
 
 export type DisplayPlayer = Player & {
-  naturalPosition: Player['position'];
+  naturalPosition: Player["position"];
   originalOverall: number;
   assignedOverall: number;
   isOutOfPosition: boolean;
   skillTags: SkillTagMap;
 };
 
-export type LineupVitalKey = 'health' | 'condition' | 'motivation';
+export type LineupVitalKey = "health" | "condition" | "motivation";
 
 export type LineupVitalIssue = {
   key: LineupVitalKey;
@@ -126,8 +126,8 @@ export type LineupReadinessIssue = {
 };
 
 const POSITION_ATTRIBUTE_WEIGHTS: Record<
-  Player['position'],
-  Record<keyof Player['attributes'], number>
+  Player["position"],
+  Record<keyof Player["attributes"], number>
 > = {
   GK: {
     strength: 0.15,
@@ -319,10 +319,10 @@ const POSITION_ATTRIBUTE_WEIGHTS: Record<
 };
 
 const DEFAULT_WEIGHTS = Object.fromEntries(
-  Object.keys(POSITION_ATTRIBUTE_WEIGHTS.ST).map(key => [key, 1]),
-) as Record<keyof Player['attributes'], number>;
+  Object.keys(POSITION_ATTRIBUTE_WEIGHTS.ST).map((key) => [key, 1])
+) as Record<keyof Player["attributes"], number>;
 
-const getPositionAttributeWeights = (position: Player['position']) =>
+const getPositionAttributeWeights = (position: Player["position"]) =>
   POSITION_ATTRIBUTE_WEIGHTS[position] || DEFAULT_WEIGHTS;
 
 export const clampPercentageValue = (value: number): number => {
@@ -332,15 +332,17 @@ export const clampPercentageValue = (value: number): number => {
   return Math.min(100, Math.max(0, value));
 };
 
-export const squadRoleWeight = (role?: Player['squadRole'] | 'youth'): number => {
+export const squadRoleWeight = (
+  role?: Player["squadRole"] | "youth"
+): number => {
   switch (role) {
-    case 'starting':
+    case "starting":
       return 0;
-    case 'bench':
+    case "bench":
       return 1;
-    case 'reserve':
+    case "reserve":
       return 2;
-    case 'youth':
+    case "youth":
       return 3;
     default:
       return 4;
@@ -348,14 +350,14 @@ export const squadRoleWeight = (role?: Player['squadRole'] | 'youth'): number =>
 };
 
 export const computePositionOverall = (
-  position: Player['position'],
-  attributes: Player['attributes'],
+  position: Player["position"],
+  attributes: Player["attributes"]
 ): number => {
   const weights = getPositionAttributeWeights(position);
   let totalWeight = 0;
   let score = 0;
   for (const [key, weight] of Object.entries(weights) as Array<
-    [keyof Player['attributes'], number]
+    [keyof Player["attributes"], number]
   >) {
     const value = attributes[key];
     if (!Number.isFinite(value)) continue;
@@ -366,44 +368,46 @@ export const computePositionOverall = (
   return parseFloat((score / totalWeight).toFixed(2));
 };
 
-export const canonicalPosition = (value?: string | null): Player['position'] => {
-  if (!value) return 'CM';
-  const key = value.toUpperCase().replace(/[^A-Z]/g, '');
+export const canonicalPosition = (
+  value?: string | null
+): Player["position"] => {
+  if (!value) return "CM";
+  const key = value.toUpperCase().replace(/[^A-Z]/g, "");
   if ((KNOWN_POSITIONS as readonly string[]).includes(key)) {
-    return key as Player['position'];
+    return key as Player["position"];
   }
   if (POSITION_ALIAS_MAP[key]) {
     return POSITION_ALIAS_MAP[key];
   }
-  return 'CM';
+  return "CM";
 };
 
-const POSITION_LABELS_TR: Record<Player['position'], string> = {
-  GK: 'Kaleci',
-  CB: 'Stoper',
-  LB: 'Sol Bek',
-  RB: 'Sağ Bek',
-  CM: 'Merkez Orta Saha',
-  LM: 'Sol Orta Saha',
-  RM: 'Sağ Orta Saha',
-  CAM: 'Ofansif Orta Saha',
-  LW: 'Sol Kanat',
-  RW: 'Sağ Kanat',
-  ST: 'Santrafor',
+const POSITION_LABELS_TR: Record<Player["position"], string> = {
+  GK: "Kaleci",
+  CB: "Stoper",
+  LB: "Sol Bek",
+  RB: "Sağ Bek",
+  CM: "Merkez Orta Saha",
+  LM: "Sol Orta Saha",
+  RM: "Sağ Orta Saha",
+  CAM: "Ofansif Orta Saha",
+  LW: "Sol Kanat",
+  RW: "Sağ Kanat",
+  ST: "Santrafor",
 };
 
-const POSITION_SHORT_CODES_TR: Record<Player['position'], string> = {
-  GK: 'KL',
-  CB: 'STP',
-  LB: 'SLB',
-  RB: 'SĞB',
-  CM: 'MO',
-  LM: 'SLO',
-  RM: 'SĞO',
-  CAM: 'OOS',
-  LW: 'SLK',
-  RW: 'SĞK',
-  ST: 'SF',
+const POSITION_SHORT_CODES_TR: Record<Player["position"], string> = {
+  GK: "KL",
+  CB: "STP",
+  LB: "SLB",
+  RB: "SĞB",
+  CM: "MO",
+  LM: "SLO",
+  RM: "SĞO",
+  CAM: "OOS",
+  LW: "SLK",
+  RW: "SĞK",
+  ST: "SF",
 };
 
 export const getPositionLabel = (value?: string | null): string => {
@@ -416,14 +420,22 @@ export const getPositionShortLabel = (value?: string | null): string => {
   return POSITION_SHORT_CODES_TR[canonical] ?? canonical;
 };
 
+type BuildDisplayPlayerOptions = {
+  respectAssignedPosition?: boolean;
+};
+
 export function buildDisplayPlayer(
   player: Player,
   baseline?: PlayerBaseline,
+  options: BuildDisplayPlayerOptions = {}
 ): DisplayPlayer {
-  const baselinePosition = canonicalPosition(baseline?.naturalPosition ?? player.position);
+  const respectAssignedPosition = options.respectAssignedPosition ?? true;
+  const baselinePosition = canonicalPosition(
+    baseline?.naturalPosition ?? player.position
+  );
   const canonicalAssigned = canonicalPosition(player.position);
-  const allowedPositions = new Set<Player['position']>(
-    (player.roles ?? [player.position]).map(role => canonicalPosition(role)),
+  const allowedPositions = new Set<Player["position"]>(
+    (player.roles ?? [player.position]).map((role) => canonicalPosition(role))
   );
   if (allowedPositions.size === 0) {
     allowedPositions.add(baselinePosition);
@@ -431,12 +443,17 @@ export function buildDisplayPlayer(
 
   const originalOverall = baseline?.naturalOverall ?? player.overall;
   const isOutOfPosition =
-    player.squadRole === 'starting' && !allowedPositions.has(canonicalAssigned);
+    respectAssignedPosition &&
+    player.squadRole === "starting" &&
+    !allowedPositions.has(canonicalAssigned);
   const computedOverall = isOutOfPosition
     ? Math.max(
-      0,
-      Math.min(originalOverall, computePositionOverall(canonicalAssigned, player.attributes)),
-    )
+        0,
+        Math.min(
+          originalOverall,
+          computePositionOverall(canonicalAssigned, player.attributes)
+        )
+      )
     : originalOverall;
 
   return {
@@ -451,7 +468,7 @@ export function buildDisplayPlayer(
 }
 
 export const clampPercentage = (value: unknown): number => {
-  const numeric = typeof value === 'number' ? value : Number(value);
+  const numeric = typeof value === "number" ? value : Number(value);
   if (!Number.isFinite(numeric)) {
     return 0;
   }
@@ -459,43 +476,49 @@ export const clampPercentage = (value: unknown): number => {
 };
 
 export const sanitizeCustomFormationState = (
-  input: unknown,
+  input: unknown
 ): CustomFormationState => {
-  if (!input || typeof input !== 'object') {
+  if (!input || typeof input !== "object") {
     return {};
   }
 
   const sanitized: CustomFormationState = {};
 
-  Object.entries(input as Record<string, unknown>).forEach(([formationKey, layout]) => {
-    if (!layout || typeof layout !== 'object') {
-      return;
-    }
-
-    const sanitizedLayout: Record<string, FormationPlayerPosition> = {};
-
-    Object.entries(layout as Record<string, unknown>).forEach(([playerId, value]) => {
-      if (!value || typeof value !== 'object') {
+  Object.entries(input as Record<string, unknown>).forEach(
+    ([formationKey, layout]) => {
+      if (!layout || typeof layout !== "object") {
         return;
       }
 
-      const x = clampPercentage((value as { x?: unknown }).x);
-      const y = clampPercentage((value as { y?: unknown }).y);
-      const rawPosition = (value as { position?: unknown }).position;
-      const normalizedPosition =
-        typeof rawPosition === 'string' ? canonicalPosition(rawPosition) : 'CM';
+      const sanitizedLayout: Record<string, FormationPlayerPosition> = {};
 
-      sanitizedLayout[String(playerId)] = {
-        x,
-        y,
-        position: normalizedPosition,
-      };
-    });
+      Object.entries(layout as Record<string, unknown>).forEach(
+        ([playerId, value]) => {
+          if (!value || typeof value !== "object") {
+            return;
+          }
 
-    if (Object.keys(sanitizedLayout).length > 0) {
-      sanitized[String(formationKey)] = sanitizedLayout;
+          const x = clampPercentage((value as { x?: unknown }).x);
+          const y = clampPercentage((value as { y?: unknown }).y);
+          const rawPosition = (value as { position?: unknown }).position;
+          const normalizedPosition =
+            typeof rawPosition === "string"
+              ? canonicalPosition(rawPosition)
+              : "CM";
+
+          sanitizedLayout[String(playerId)] = {
+            x,
+            y,
+            position: normalizedPosition,
+          };
+        }
+      );
+
+      if (Object.keys(sanitizedLayout).length > 0) {
+        sanitized[String(formationKey)] = sanitizedLayout;
+      }
     }
-  });
+  );
 
   return sanitized;
 };
@@ -516,7 +539,7 @@ export const getContractExpiration = (player: Player): Date | null => {
 };
 
 export const isContractExpired = (player: Player): boolean => {
-  if (!player.contract || player.contract.status === 'released') {
+  if (!player.contract || player.contract.status === "released") {
     return false;
   }
   const expires = getContractExpiration(player);
@@ -543,15 +566,15 @@ export const isRenameAdReady = (player: Player): boolean => {
 };
 
 export function normalizePlayer(player: Player): Player {
-  const fallbackContract = (): NonNullable<Player['contract']> => ({
+  const fallbackContract = (): NonNullable<Player["contract"]> => ({
     expiresAt: addMonths(new Date(), CONTRACT_EXTENSION_MONTHS).toISOString(),
-    status: 'active',
+    status: "active",
     salary: player.contract?.salary ?? 0,
     extensions: player.contract?.extensions ?? 0,
   });
 
-  const fallbackRename = (): NonNullable<Player['rename']> => {
-    const details: NonNullable<Player['rename']> = {
+  const fallbackRename = (): NonNullable<Player["rename"]> => {
+    const details: NonNullable<Player["rename"]> = {
       adAvailableAt: new Date(0).toISOString(),
     };
 
@@ -559,7 +582,10 @@ export function normalizePlayer(player: Player): Player {
       details.lastUpdatedAt = player.rename.lastUpdatedAt;
     }
 
-    if (player.rename?.lastMethod === 'ad' || player.rename?.lastMethod === 'purchase') {
+    if (
+      player.rename?.lastMethod === "ad" ||
+      player.rename?.lastMethod === "purchase"
+    ) {
       details.lastMethod = player.rename.lastMethod;
     }
 
@@ -584,7 +610,7 @@ export type PromoteToStartingResult = {
   error?: string;
   updated: boolean;
   swappedPlayerId?: string | null;
-  targetPosition?: Player['position'];
+  targetPosition?: Player["position"];
 };
 
 export type PromotePlayerOptions = {
@@ -594,12 +620,12 @@ export type PromotePlayerOptions = {
 export function promotePlayerToStartingRoster(
   roster: Player[],
   playerId: string,
-  targetPosition?: Player['position'],
-  options: PromotePlayerOptions = {},
+  targetPosition?: Player["position"],
+  options: PromotePlayerOptions = {}
 ): PromoteToStartingResult {
-  const playerIndex = roster.findIndex(player => player.id === playerId);
+  const playerIndex = roster.findIndex((player) => player.id === playerId);
   if (playerIndex === -1) {
-    return { players: roster, error: 'Oyuncu bulunamad.', updated: false };
+    return { players: roster, error: "Oyuncu bulunamad.", updated: false };
   }
 
   const player = roster[playerIndex];
@@ -608,23 +634,24 @@ export function promotePlayerToStartingRoster(
     options.targetPlayerId && options.targetPlayerId !== playerId
       ? options.targetPlayerId
       : null;
-  const startersCount = roster.filter(p => p.squadRole === 'starting').length;
+  const startersCount = roster.filter((p) => p.squadRole === "starting").length;
   const hasVacancy = startersCount < 11;
 
   let occupantIndex = -1;
   if (targetPlayerId) {
     occupantIndex = roster.findIndex(
-      candidate =>
-        candidate.id === targetPlayerId && candidate.squadRole === 'starting',
+      (candidate) =>
+        candidate.id === targetPlayerId && candidate.squadRole === "starting"
     );
   }
 
   if (occupantIndex === -1 && !hasVacancy) {
     occupantIndex = roster.findIndex(
-      candidate =>
+      (candidate) =>
         candidate.id !== playerId &&
-        candidate.squadRole === 'starting' &&
-        canonicalPosition(candidate.position) === canonicalPosition(targetPosition ?? player.position),
+        candidate.squadRole === "starting" &&
+        canonicalPosition(candidate.position) ===
+          canonicalPosition(targetPosition ?? player.position)
     );
   }
 
@@ -633,7 +660,7 @@ export function promotePlayerToStartingRoster(
     targetPosition ?? (occupant ? occupant.position : player.position);
   const canonicalTarget = canonicalPosition(resolvedTargetPosition);
   const isAlreadyStartingSameSpot =
-    currentRole === 'starting' &&
+    currentRole === "starting" &&
     canonicalPosition(player.position) === canonicalTarget &&
     (!targetPosition || player.position === resolvedTargetPosition) &&
     (!occupant || occupant.id === player.id);
@@ -641,10 +668,15 @@ export function promotePlayerToStartingRoster(
   if (isAlreadyStartingSameSpot) {
     return { players: roster, updated: false, targetPosition: canonicalTarget };
   }
-  if (currentRole !== 'starting' && startersCount >= 11 && occupantIndex === -1) {
+  if (
+    currentRole !== "starting" &&
+    startersCount >= 11 &&
+    occupantIndex === -1
+  ) {
     return {
       players: roster,
-      error: 'İlk 11 dolu. Aynı mevkideki bir oyuncuyu çıkarmadan yeni oyuncu ekleyemezsin.',
+      error:
+        "İlk 11 dolu. Aynı mevkideki bir oyuncuyu çıkarmadan yeni oyuncu ekleyemezsin.",
       updated: false,
     };
   }
@@ -652,8 +684,8 @@ export function promotePlayerToStartingRoster(
   // Duplicate Check: Prevent multiple players with same uniqueId in starting lineup
   if (player.uniqueId) {
     const existingSamePlayer = roster.find(
-      p =>
-        p.squadRole === 'starting' &&
+      (p) =>
+        p.squadRole === "starting" &&
         p.id !== player.id &&
         p.uniqueId === player.uniqueId
     );
@@ -661,7 +693,7 @@ export function promotePlayerToStartingRoster(
     if (existingSamePlayer) {
       return {
         players: roster,
-        error: 'Bu oyuncu zaten ilk 11\'de!',
+        error: "Bu oyuncu zaten ilk 11'de!",
         updated: false,
       };
     }
@@ -673,16 +705,16 @@ export function promotePlayerToStartingRoster(
   updatedRoster[playerIndex] = {
     ...player,
     position: resolvedTargetPosition,
-    squadRole: 'starting',
+    squadRole: "starting",
   };
 
   if (occupantIndex !== -1 && occupant) {
     swappedPlayerId = occupant.id;
-    if (currentRole === 'starting') {
+    if (currentRole === "starting") {
       updatedRoster[occupantIndex] = {
         ...occupant,
         position: previousPosition,
-        squadRole: 'starting',
+        squadRole: "starting",
       };
     } else {
       updatedRoster[occupantIndex] = {
@@ -708,10 +740,15 @@ export type FormationSnapshot = {
 
 const LINE_GROUP_TOLERANCE = 10;
 
-export const deriveFormationShape = (positions: FormationSnapshot[]): string | null => {
+export const deriveFormationShape = (
+  positions: FormationSnapshot[]
+): string | null => {
   const outfieldY = positions
-    .filter(entry => entry.player && canonicalPosition(entry.player.position) !== 'GK')
-    .map(entry => clampPercentageValue(entry.y))
+    .filter(
+      (entry) =>
+        entry.player && canonicalPosition(entry.player.position) !== "GK"
+    )
+    .map((entry) => clampPercentageValue(entry.y))
     .sort((a, b) => b - a);
 
   if (outfieldY.length === 0) {
@@ -720,11 +757,15 @@ export const deriveFormationShape = (positions: FormationSnapshot[]): string | n
 
   const groups: { count: number; average: number }[] = [];
 
-  outfieldY.forEach(value => {
+  outfieldY.forEach((value) => {
     const lastGroup = groups[groups.length - 1];
-    if (lastGroup && Math.abs(lastGroup.average - value) <= LINE_GROUP_TOLERANCE) {
+    if (
+      lastGroup &&
+      Math.abs(lastGroup.average - value) <= LINE_GROUP_TOLERANCE
+    ) {
       const nextCount = lastGroup.count + 1;
-      lastGroup.average = (lastGroup.average * lastGroup.count + value) / nextCount;
+      lastGroup.average =
+        (lastGroup.average * lastGroup.count + value) / nextCount;
       lastGroup.count = nextCount;
       return;
     }
@@ -732,7 +773,9 @@ export const deriveFormationShape = (positions: FormationSnapshot[]): string | n
     groups.push({ count: 1, average: value });
   });
 
-  const counts = groups.map(group => group.count).filter(count => count > 0);
+  const counts = groups
+    .map((group) => group.count)
+    .filter((count) => count > 0);
   if (counts.length === 0) {
     return null;
   }
@@ -742,7 +785,7 @@ export const deriveFormationShape = (positions: FormationSnapshot[]): string | n
     return null;
   }
 
-  return counts.join('-');
+  return counts.join("-");
 };
 
 export function getPlayerCondition(player: Player): number {
@@ -758,17 +801,17 @@ export function getPlayerHealth(player: Player): number {
 }
 
 const LINEUP_VITAL_LABELS: Record<LineupVitalKey, string> = {
-  health: 'Saglik',
-  condition: 'Kondisyon',
-  motivation: 'Motivasyon',
+  health: "Saglik",
+  condition: "Kondisyon",
+  motivation: "Motivasyon",
 };
 
 export function getLineupReadinessIssues(
   players: Player[],
-  threshold = LINEUP_VITAL_THRESHOLD,
+  threshold = LINEUP_VITAL_THRESHOLD
 ): LineupReadinessIssue[] {
   return players
-    .filter(player => player.squadRole === 'starting')
+    .filter((player) => player.squadRole === "starting")
     .map((player) => {
       const vitals: Record<LineupVitalKey, number> = {
         health: getPlayerHealth(player),
@@ -776,7 +819,9 @@ export function getLineupReadinessIssues(
         motivation: getPlayerMotivation(player),
       };
 
-      const failingVitals = (Object.entries(vitals) as Array<[LineupVitalKey, number]>)
+      const failingVitals = (
+        Object.entries(vitals) as Array<[LineupVitalKey, number]>
+      )
         .filter(([, value]) => value < threshold)
         .map(([key, value]) => ({
           key,
@@ -790,7 +835,7 @@ export function getLineupReadinessIssues(
         failingVitals,
       };
     })
-    .filter(issue => issue.failingVitals.length > 0);
+    .filter((issue) => issue.failingVitals.length > 0);
 }
 
 export function getPlayerPower(player: Player): number {
@@ -803,10 +848,10 @@ export function getPlayerPower(player: Player): number {
 
 export const negotiationConfidenceFromOffer = (
   negotiationOffer: number,
-  salaryNegotiationProfile:
-    | ReturnType<typeof import('@/lib/contractNegotiation').buildSalaryNegotiationProfile>
-    | null,
-  negotiationPlayer: Player | null,
+  salaryNegotiationProfile: ReturnType<
+    typeof import("@/lib/contractNegotiation").buildSalaryNegotiationProfile
+  > | null,
+  negotiationPlayer: Player | null
 ): number => {
   if (!salaryNegotiationProfile) {
     return 0;
@@ -816,14 +861,17 @@ export const negotiationConfidenceFromOffer = (
   const relativeToCeiling = clampNumber(
     negotiationOffer / Math.max(1, ceiling),
     0,
-    1,
+    1
   );
   const demandRatio = clampNumber(negotiationOffer / demand, 0, 2);
-  const demandPenalty = demandRatio < 1 ? Math.pow(1 - demandRatio, 1.2) * 0.5 : 0;
+  const demandPenalty =
+    demandRatio < 1 ? Math.pow(1 - demandRatio, 1.2) * 0.5 : 0;
   const offerStrength =
     relativeToCeiling * 0.5 + Math.max(0, demandRatio - 1) * 0.25;
   const motivationBonus =
-    (clampPerformanceGauge(negotiationPlayer?.motivation) - DEFAULT_GAUGE_VALUE) * 0.18;
+    (clampPerformanceGauge(negotiationPlayer?.motivation) -
+      DEFAULT_GAUGE_VALUE) *
+    0.18;
   const rawChance = 0.08 + offerStrength + motivationBonus - demandPenalty;
   return clampNumber(rawChance, 0.03, 0.75);
 };

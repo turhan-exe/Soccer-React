@@ -1,53 +1,68 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { PlayerCard } from '@/components/ui/player-card';
-import { PerformanceGauge, clampPerformanceGauge } from '@/components/ui/performance-gauge';
-import type { Player } from '@/types';
-import { getTeam, saveTeamPlayers, createInitialTeam } from '@/services/team';
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { PlayerCard } from "@/components/ui/player-card";
+import {
+  PerformanceGauge,
+  clampPerformanceGauge,
+} from "@/components/ui/performance-gauge";
+import type { Player } from "@/types";
+import { getTeam, saveTeamPlayers, createInitialTeam } from "@/services/team";
 import {
   buildSalaryNegotiationProfile,
   clampNumber,
   formatSalary,
   type SalaryNegotiationProfile,
-} from '@/lib/contractNegotiation';
-import { completeLegendRental, getLegendIdFromPlayer } from '@/services/legends';
-import { auth } from '@/services/firebase';
-import { getRewardedAdFailureMessage, runRewardedAdFlow } from '@/services/rewardedAds';
-import { useAuth } from '@/contexts/AuthContext';
-import { useDiamonds } from '@/contexts/DiamondContext';
-import { Search, Save, Eye, X, ChevronLeft } from 'lucide-react';
-import { toast } from 'sonner';
-import { useNavigate } from 'react-router-dom';
+} from "@/lib/contractNegotiation";
+import {
+  completeLegendRental,
+  getLegendIdFromPlayer,
+} from "@/services/legends";
+import { auth } from "@/services/firebase";
+import {
+  getRewardedAdFailureMessage,
+  runRewardedAdFlow,
+} from "@/services/rewardedAds";
+import { useAuth } from "@/contexts/AuthContext";
+import { useDiamonds } from "@/contexts/DiamondContext";
+import { Search, Save, Eye, X, ChevronLeft } from "lucide-react";
+import { toast } from "sonner";
+import { useNavigate } from "react-router-dom";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select';
-import { formations } from '@/lib/formations';
+} from "@/components/ui/select";
+import { formations } from "@/lib/formations";
 import {
   normalizeRatingTo100,
   calculatePowerIndex,
   formatRatingLabel,
-} from '@/lib/player';
-import { cn } from '@/lib/utils';
-import { BackButton } from '@/components/ui/back-button';
-import Pitch, { type PitchSlot } from '@/features/team-planning/Pitch';
+} from "@/lib/player";
+import { cn } from "@/lib/utils";
+import { BackButton } from "@/components/ui/back-button";
+import Pitch, { type PitchSlot } from "@/features/team-planning/Pitch";
 import {
   TeamPlanningProvider,
   useTeamPlanningStore,
   type MetricKey,
-} from '@/features/team-planning/useTeamPlanningStore';
-import { ContractDecisionDialog } from '@/features/team-planning/dialogs/ContractDecisionDialog';
-import { RenamePlayerDialog } from '@/features/team-planning/dialogs/RenamePlayerDialog';
-import { SalaryNegotiationDialog } from '@/features/team-planning/dialogs/SalaryNegotiationDialog';
-import { LineupReadinessDialog } from '@/features/team-planning/dialogs/LineupReadinessDialog';
-import { PlayerDetailOverlay } from '@/features/team-planning/components/PlayerDetailOverlay';
-import KitUsageDialog from '@/components/kit/KitUsageDialog';
+} from "@/features/team-planning/useTeamPlanningStore";
+import { ContractDecisionDialog } from "@/features/team-planning/dialogs/ContractDecisionDialog";
+import { RenamePlayerDialog } from "@/features/team-planning/dialogs/RenamePlayerDialog";
+import { SalaryNegotiationDialog } from "@/features/team-planning/dialogs/SalaryNegotiationDialog";
+import { LineupReadinessDialog } from "@/features/team-planning/dialogs/LineupReadinessDialog";
+import { PlayerDetailOverlay } from "@/features/team-planning/components/PlayerDetailOverlay";
+import KitUsageDialog from "@/components/kit/KitUsageDialog";
 import {
   addMonths,
   buildDisplayPlayer,
@@ -82,8 +97,9 @@ import {
   deriveFormationShape,
   PromoteToStartingResult,
   negotiationConfidenceFromOffer,
-} from '@/features/team-planning/teamPlanningUtils';
-import { AlternativePlayerBubble } from '@/features/team-planning/components/AlternativePlayerBubble';
+} from "@/features/team-planning/teamPlanningUtils";
+import { AlternativePlayerBubble } from "@/features/team-planning/components/AlternativePlayerBubble";
+import { buildBestLineupForFormation } from "@/features/team-planning/bestLineup";
 import {
   ORDERED_ZONE_IDS,
   getZoneFitLevel,
@@ -94,24 +110,24 @@ import {
   positionAffinity,
   type SlotFitLevel,
   type ZoneId,
-} from '@/features/team-planning/slotZones';
+} from "@/features/team-planning/slotZones";
 
-import './team-planning.css';
-import './TeamPlanningSizing.css';
+import "./team-planning.css";
+import "./TeamPlanningSizing.css";
 
 type SelectedSlotMeta = {
   slotIndex: number;
   zoneId: ZoneId;
   x: number;
   y: number;
-  position: Player['position'];
+  position: Player["position"];
 };
 
 type AutoFillAssignment = {
   playerId: string;
   slotIndex: number;
   zoneId: ZoneId;
-  position: Player['position'];
+  position: Player["position"];
   x: number;
   y: number;
 };
@@ -127,27 +143,40 @@ function TeamPlanningContent() {
   const { balance, spend } = useDiamonds();
   const [players, setPlayers] = useState<Player[]>([]);
   const playerBaselineRef = useRef<Record<string, PlayerBaseline>>({});
-  const [searchTerm, setSearchTerm] = useState('');
-  const [activeTab, setActiveTab] = useState('starting');
-  const [selectedFormation, setSelectedFormation] = useState(formations[0].name);
-  const [customFormations, setCustomFormations] = useState<CustomFormationState>({});
-  const [bootstrappedUserId, setBootstrappedUserId] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [activeTab, setActiveTab] = useState("starting");
+  const [selectedFormation, setSelectedFormation] = useState(
+    formations[0].name
+  );
+  const [customFormations, setCustomFormations] =
+    useState<CustomFormationState>({});
+  const [bootstrappedUserId, setBootstrappedUserId] = useState<string | null>(
+    null
+  );
 
   const [draggedPlayerId, setDraggedPlayerId] = useState<string | null>(null);
-  const [sortBy, setSortBy] = useState<'role' | 'overall' | 'potential'>('role');
+  const [sortBy, setSortBy] = useState<"role" | "overall" | "potential">(
+    "role"
+  );
   const [focusedPlayerId, setFocusedPlayerId] = useState<string | null>(null);
-  const [savedFormationShape, setSavedFormationShape] = useState<string | null>(null);
+  const [savedFormationShape, setSavedFormationShape] = useState<string | null>(
+    null
+  );
   const [renamePlayerId, setRenamePlayerId] = useState<string | null>(null);
-  const [renameInput, setRenameInput] = useState('');
+  const [renameInput, setRenameInput] = useState("");
   const [isRenamingPlayer, setIsRenamingPlayer] = useState(false);
   const [pendingContractIds, setPendingContractIds] = useState<string[]>([]);
   const [activeContractId, setActiveContractId] = useState<string | null>(null);
   const [isProcessingContract, setIsProcessingContract] = useState(false);
-  const [negotiationPlayerId, setNegotiationPlayerId] = useState<string | null>(null);
+  const [negotiationPlayerId, setNegotiationPlayerId] = useState<string | null>(
+    null
+  );
   const [negotiationOffer, setNegotiationOffer] = useState(0);
   const [isNegotiatingSalary, setIsNegotiatingSalary] = useState(false);
   const [negotiationAttempts, setNegotiationAttempts] = useState(0);
-  const [playerCounterOffer, setPlayerCounterOffer] = useState<number | null>(null);
+  const [playerCounterOffer, setPlayerCounterOffer] = useState<number | null>(
+    null
+  );
   const [isFinalCounterStage, setIsFinalCounterStage] = useState(false);
   const MAX_NEGOTIATION_ATTEMPTS = 3;
 
@@ -157,22 +186,21 @@ function TeamPlanningContent() {
   const rightPaneScrollRef = useRef<HTMLDivElement | null>(null);
   const [isRightHeaderCollapsed, setIsRightHeaderCollapsed] = useState(false);
   const teamLeagueIdRef = useRef<string | null>(null);
-  const [selectedSlotMeta, setSelectedSlotMeta] = useState<SelectedSlotMeta | null>(null);
+  const [selectedSlotMeta, setSelectedSlotMeta] =
+    useState<SelectedSlotMeta | null>(null);
   const [isListCollapsed, setIsListCollapsed] = useState(false);
   const [isDetailOverlayOpen, setIsDetailOverlayOpen] = useState(false);
   const [isKitUsageOpen, setIsKitUsageOpen] = useState(false);
   const [kitUsagePlayerId, setKitUsagePlayerId] = useState<string | null>(null);
   const [isLineupReadinessOpen, setIsLineupReadinessOpen] = useState(false);
-  const [resumeLineupReadinessAfterKit, setResumeLineupReadinessAfterKit] = useState(false);
+  const [resumeLineupReadinessAfterKit, setResumeLineupReadinessAfterKit] =
+    useState(false);
   /* isListCollapsed already declared above */
 
-  const {
-    selectedMetric,
-    setSelectedMetric,
-  } = useTeamPlanningStore();
+  const { selectedMetric, setSelectedMetric } = useTeamPlanningStore();
 
   useEffect(() => {
-    players.forEach(player => {
+    players.forEach((player) => {
       if (playerBaselineRef.current[player.id]) {
         return;
       }
@@ -185,21 +213,20 @@ function TeamPlanningContent() {
 
   const displayPlayers = useMemo(
     () =>
-      players.map(player =>
-        buildDisplayPlayer(player, playerBaselineRef.current[player.id]),
+      players.map((player) =>
+        buildDisplayPlayer(player, playerBaselineRef.current[player.id])
       ),
-    [players],
+    [players]
   );
-
 
   const handleRightPaneScroll = useCallback(
     (event: React.UIEvent<HTMLDivElement>) => {
       const collapsed = event.currentTarget.scrollTop >= 24;
-      setIsRightHeaderCollapsed(previous =>
-        previous === collapsed ? previous : collapsed,
+      setIsRightHeaderCollapsed((previous) =>
+        previous === collapsed ? previous : collapsed
       );
     },
-    [],
+    []
   );
 
   useEffect(() => {
@@ -210,11 +237,10 @@ function TeamPlanningContent() {
     setIsRightHeaderCollapsed(container.scrollTop >= 24);
   }, []);
 
-
   const filteredPlayers = displayPlayers.filter(
-    player =>
+    (player) =>
       player.name.toLowerCase().includes(searchTerm.toLowerCase()) &&
-      player.squadRole === activeTab,
+      player.squadRole === activeTab
   );
 
   const getRatingAnnotation = useCallback(
@@ -222,57 +248,63 @@ function TeamPlanningContent() {
       player.originalOverall > player.assignedOverall
         ? `Orj: ${formatRatingLabel(player.originalOverall)}`
         : undefined,
-    [],
+    []
   );
 
-  const POSITION_ORDER: Player['position'][] = [
-    'GK',
-    'LB',
-    'CB',
-    'RB',
-    'LM',
-    'CM',
-    'RM',
-    'CAM',
-    'LW',
-    'RW',
-    'ST',
+  const POSITION_ORDER: Player["position"][] = [
+    "GK",
+    "LB",
+    "CB",
+    "RB",
+    "LM",
+    "CM",
+    "RM",
+    "CAM",
+    "LW",
+    "RW",
+    "ST",
   ];
 
   const sortedPlayers = [...filteredPlayers].sort((a, b) => {
     switch (sortBy) {
-      case 'overall':
+      case "overall":
         return b.overall - a.overall;
-      case 'potential':
+      case "potential":
         return b.potential - a.potential;
       default:
         return (
-          POSITION_ORDER.indexOf(a.position) - POSITION_ORDER.indexOf(b.position)
+          POSITION_ORDER.indexOf(a.position) -
+          POSITION_ORDER.indexOf(b.position)
         );
     }
   });
 
   const renamePlayer = useMemo(
-    () => displayPlayers.find(player => player.id === renamePlayerId) ?? null,
-    [displayPlayers, renamePlayerId],
+    () => displayPlayers.find((player) => player.id === renamePlayerId) ?? null,
+    [displayPlayers, renamePlayerId]
   );
 
   const activeContractPlayer = useMemo(
-    () => displayPlayers.find(player => player.id === activeContractId) ?? null,
-    [displayPlayers, activeContractId],
+    () =>
+      displayPlayers.find((player) => player.id === activeContractId) ?? null,
+    [displayPlayers, activeContractId]
   );
 
   const negotiationPlayer = useMemo(
-    () => displayPlayers.find(player => player.id === negotiationPlayerId) ?? null,
-    [displayPlayers, negotiationPlayerId],
+    () =>
+      displayPlayers.find((player) => player.id === negotiationPlayerId) ??
+      null,
+    [displayPlayers, negotiationPlayerId]
   );
 
   const salaryNegotiationProfile = useMemo(
     () =>
       negotiationPlayer
-        ? buildSalaryNegotiationProfile(negotiationPlayer, { gaugeFallback: DEFAULT_GAUGE_VALUE })
+        ? buildSalaryNegotiationProfile(negotiationPlayer, {
+            gaugeFallback: DEFAULT_GAUGE_VALUE,
+          })
         : null,
-    [negotiationPlayer],
+    [negotiationPlayer]
   );
 
   useEffect(() => {
@@ -282,7 +314,7 @@ function TeamPlanningContent() {
     }
     const floor = salaryNegotiationProfile.floor;
     const ceiling = salaryNegotiationProfile.ceiling;
-    setNegotiationOffer(prev => {
+    setNegotiationOffer((prev) => {
       if (prev >= floor && prev <= ceiling) {
         return prev;
       }
@@ -295,9 +327,9 @@ function TeamPlanningContent() {
       negotiationConfidenceFromOffer(
         negotiationOffer,
         salaryNegotiationProfile,
-        negotiationPlayer,
+        negotiationPlayer
       ),
-    [negotiationOffer, salaryNegotiationProfile, negotiationPlayer],
+    [negotiationOffer, salaryNegotiationProfile, negotiationPlayer]
   );
 
   const resetNegotiationState = useCallback(() => {
@@ -308,7 +340,11 @@ function TeamPlanningContent() {
   }, []);
 
   const buildPlayerCounterOffer = useCallback(
-    (offer: number, profile: SalaryNegotiationProfile, attemptNumber: number) => {
+    (
+      offer: number,
+      profile: SalaryNegotiationProfile,
+      attemptNumber: number
+    ) => {
       const anchor = Math.max(profile.demand, profile.baseSalary);
       const comfortFloor = Math.max(profile.floor, Math.round(anchor * 0.55));
       const weight = clampNumber(0.35 + attemptNumber * 0.15, 0.35, 0.9);
@@ -316,11 +352,11 @@ function TeamPlanningContent() {
       const counter = clampNumber(
         Math.round(blended),
         Math.max(offer, comfortFloor),
-        profile.ceiling,
+        profile.ceiling
       );
       return counter;
     },
-    [],
+    []
   );
 
   useEffect(() => {
@@ -329,17 +365,21 @@ function TeamPlanningContent() {
     }
   }, [negotiationPlayer, resetNegotiationState]);
 
-  const isRenameAdAvailable = renamePlayer ? isRenameAdReady(renamePlayer) : true;
+  const isRenameAdAvailable = renamePlayer
+    ? isRenameAdReady(renamePlayer)
+    : true;
   const renameAdAvailableAt = renamePlayer
     ? getRenameAdAvailability(renamePlayer)
     : null;
 
-  const [manualSlotPositions, setManualSlotPositions] = useState<Record<string, FormationPlayerPosition>>({});
+  const [manualSlotPositions, setManualSlotPositions] = useState<
+    Record<string, FormationPlayerPosition>
+  >({});
   const syncManualSlotsForFormation = useCallback(
     (formationName: string) => {
       const layout = customFormations[formationName];
       if (!layout) {
-        setManualSlotPositions(prev => {
+        setManualSlotPositions((prev) => {
           if (Object.keys(prev).length === 0) {
             return prev;
           }
@@ -355,9 +395,9 @@ function TeamPlanningContent() {
             y: clampPercentageValue(value.y),
             position: value.position,
           },
-        ]),
+        ])
       ) as Record<string, FormationPlayerPosition>;
-      setManualSlotPositions(prev => {
+      setManualSlotPositions((prev) => {
         if (
           Object.keys(prev).length === Object.keys(normalized).length &&
           Object.entries(normalized).every(([playerId, nextValue]) => {
@@ -375,16 +415,17 @@ function TeamPlanningContent() {
         return normalized;
       });
     },
-    [customFormations],
+    [customFormations]
   );
 
   const removePlayerFromCustomFormations = (playerId: string) => {
-    setCustomFormations(prev => {
+    setCustomFormations((prev) => {
       let changed = false;
-      const nextEntries: [string, Record<string, FormationPlayerPosition>][] = [];
+      const nextEntries: [string, Record<string, FormationPlayerPosition>][] =
+        [];
 
       Object.entries(prev).forEach(([formationKey, layout]) => {
-        if (!layout || typeof layout !== 'object') {
+        if (!layout || typeof layout !== "object") {
           return;
         }
 
@@ -408,7 +449,7 @@ function TeamPlanningContent() {
 
       return Object.fromEntries(nextEntries) as CustomFormationState;
     });
-    setManualSlotPositions(prev => {
+    setManualSlotPositions((prev) => {
       if (!(playerId in prev)) {
         return prev;
       }
@@ -419,8 +460,12 @@ function TeamPlanningContent() {
   };
 
   const updatePlayerManualPosition = useCallback(
-    (formationName: string, playerId: string, data: FormationPlayerPosition) => {
-      setCustomFormations(prev => {
+    (
+      formationName: string,
+      playerId: string,
+      data: FormationPlayerPosition
+    ) => {
+      setCustomFormations((prev) => {
         const currentFormation = prev[formationName] ?? {};
         const normalized: FormationPlayerPosition = {
           x: clampPercentageValue(data.x),
@@ -447,33 +492,35 @@ function TeamPlanningContent() {
         };
       });
     },
-    [],
+    []
   );
 
   const finalizeContractDecision = (playerId: string) => {
     handledContractsRef.current.add(playerId);
-    setPendingContractIds(prev => prev.filter(id => id !== playerId));
-    setActiveContractId(prev => (prev === playerId ? null : prev));
+    setPendingContractIds((prev) => prev.filter((id) => id !== playerId));
+    setActiveContractId((prev) => (prev === playerId ? null : prev));
   };
 
-  const movePlayer = (playerId: string, newRole: Player['squadRole']) => {
+  const movePlayer = (playerId: string, newRole: Player["squadRole"]) => {
     let errorMessage: string | null = null;
     let changed = false;
     let swappedPlayerId: string | null = null;
     let filledStartingVacancy = false;
-    let movedPlayerPosition: Player['position'] | null = null;
+    let movedPlayerPosition: Player["position"] | null = null;
 
-    setPlayers(prev => {
-      const playerIndex = prev.findIndex(player => player.id === playerId);
+    setPlayers((prev) => {
+      const playerIndex = prev.findIndex((player) => player.id === playerId);
       if (playerIndex === -1) {
-        errorMessage = 'Oyuncu bulunamadı.';
+        errorMessage = "Oyuncu bulunamadı.";
         return prev;
       }
 
       const player = prev[playerIndex];
       movedPlayerPosition = player.position;
-      if (newRole === 'starting') {
-        const hadStartingVacancy = prev.filter(candidate => candidate.squadRole === 'starting').length < 11;
+      if (newRole === "starting") {
+        const hadStartingVacancy =
+          prev.filter((candidate) => candidate.squadRole === "starting")
+            .length < 11;
         const result = promotePlayerToStartingRoster(prev, playerId);
         if (result.error) {
           errorMessage = result.error;
@@ -502,34 +549,34 @@ function TeamPlanningContent() {
     });
 
     if (errorMessage) {
-      toast.error('işlem tamamlanamadı', { description: errorMessage });
+      toast.error("işlem tamamlanamadı", { description: errorMessage });
     } else if (changed) {
-      if (newRole !== 'starting') {
+      if (newRole !== "starting") {
         removePlayerFromCustomFormations(playerId);
       } else if (swappedPlayerId) {
         removePlayerFromCustomFormations(swappedPlayerId);
       }
-      if (newRole === 'starting') {
+      if (newRole === "starting") {
         if (filledStartingVacancy) {
-          toast.success('Oyuncu bos slota alindi', {
+          toast.success("Oyuncu bos slota alindi", {
             description: movedPlayerPosition
               ? `${movedPlayerPosition} icin bos slot dolduruldu.`
-              : 'Ilk 11 icindeki bos alan dolduruldu.',
+              : "Ilk 11 icindeki bos alan dolduruldu.",
           });
         } else if (swappedPlayerId) {
           toast.success("Oyuncu ilk 11'e alindi", {
-            description: 'Ilk 11 dolu oldugu icin swap yapildi.',
+            description: "Ilk 11 dolu oldugu icin swap yapildi.",
           });
         } else {
           toast.success("Oyuncu ilk 11'e alindi");
         }
         return;
       }
-      toast.success('Oyuncu başarıyla taşındı');
+      toast.success("Oyuncu başarıyla taşındı");
     }
   };
 
-  const handleRenamePlayer = async (method: 'ad' | 'purchase') => {
+  const handleRenamePlayer = async (method: "ad" | "purchase") => {
     if (!user || !renamePlayer) {
       return;
     }
@@ -537,60 +584,65 @@ function TeamPlanningContent() {
     const userId = user.id;
     const trimmed = renameInput.trim();
     if (trimmed.length < 2) {
-      toast.error('İsim en az 2 karakter olmalı');
+      toast.error("İsim en az 2 karakter olmalı");
       return;
     }
 
     if (trimmed === renamePlayer.name) {
-      toast.info('Oyuncu adı değişmedi');
+      toast.info("Oyuncu adı değişmedi");
       return;
     }
 
-    if (method === 'ad' && !isRenameAdAvailable) {
+    if (method === "ad" && !isRenameAdAvailable) {
       const availableAt = getRenameAdAvailability(renamePlayer);
       const message = availableAt
-        ? `Reklam ${availableAt.toLocaleString('tr-TR')} sonrasında tekrar izlenebilir.`
-        : 'Reklam hakkı şu anda kullanılamıyor.';
+        ? `Reklam ${availableAt.toLocaleString(
+            "tr-TR"
+          )} sonrasında tekrar izlenebilir.`
+        : "Reklam hakkı şu anda kullanılamıyor.";
       toast.error(message);
       return;
     }
 
-    if (method === 'purchase' && balance < PLAYER_RENAME_DIAMOND_COST) {
-      toast.error('Yetersiz elmas bakiyesi');
+    if (method === "purchase" && balance < PLAYER_RENAME_DIAMOND_COST) {
+      toast.error("Yetersiz elmas bakiyesi");
       return;
     }
 
-    const previousPlayers = players.map(player => ({ ...player }));
+    const previousPlayers = players.map((player) => ({ ...player }));
     let diamondsSpent = false;
 
     setIsRenamingPlayer(true);
 
     try {
-      if (method === 'ad') {
+      if (method === "ad") {
         const result = await runRewardedAdFlow({
           userId,
-          placement: 'player_rename',
+          placement: "player_rename",
           context: {
-            surface: 'team_planning',
+            surface: "team_planning",
             playerId: renamePlayer.id,
             newName: trimmed,
           },
         });
 
-        if (result.outcome === 'claimed' || result.outcome === 'already_claimed') {
+        if (
+          result.outcome === "claimed" ||
+          result.outcome === "already_claimed"
+        ) {
           const refreshedTeam = await getTeam(userId);
           if (refreshedTeam) {
             setPlayers(normalizePlayers(refreshedTeam.players));
           }
-          toast.success('Oyuncu adi guncellendi');
+          toast.success("Oyuncu adi guncellendi");
           setRenamePlayerId(null);
           return;
         }
 
-        if (result.outcome === 'dismissed') {
-          toast.info('Reklam tamamlanmadi, isim degismedi.');
-        } else if (result.outcome === 'pending_verification') {
-          toast.info('Reklam dogrulaniyor. Biraz sonra yeniden deneyin.');
+        if (result.outcome === "dismissed") {
+          toast.info("Reklam tamamlanmadi, isim degismedi.");
+        } else if (result.outcome === "pending_verification") {
+          toast.info("Reklam dogrulaniyor. Biraz sonra yeniden deneyin.");
         } else {
           toast.error(getRewardedAdFailureMessage(result.ad));
         }
@@ -602,43 +654,47 @@ function TeamPlanningContent() {
 
       const now = new Date();
       const adCooldown = new Date(
-        now.getTime() + PLAYER_RENAME_AD_COOLDOWN_HOURS * HOURS_IN_MS,
+        now.getTime() + PLAYER_RENAME_AD_COOLDOWN_HOURS * HOURS_IN_MS
       );
 
       const updatedPlayers = normalizePlayers(
-        players.map(player => {
+        players.map((player) => {
           if (player.id !== renamePlayer.id) {
             return player;
           }
-          const currentRename = player.rename ?? { adAvailableAt: new Date(0).toISOString() };
+          const currentRename = player.rename ?? {
+            adAvailableAt: new Date(0).toISOString(),
+          };
           return {
             ...player,
             name: trimmed,
             rename: {
               ...currentRename,
               lastUpdatedAt: now.toISOString(),
-              lastMethod: method === 'purchase' ? 'purchase' : 'ad',
+              lastMethod: method === "purchase" ? "purchase" : "ad",
               adAvailableAt:
-                method === 'ad'
+                method === "ad"
                   ? adCooldown.toISOString()
                   : currentRename.adAvailableAt ?? now.toISOString(),
             },
           };
-        }),
+        })
       );
 
       setPlayers(updatedPlayers);
       await saveTeamPlayers(userId, updatedPlayers);
-      toast.success('Oyuncu adı güncellendi');
+      toast.success("Oyuncu adı güncellendi");
       setRenamePlayerId(null);
     } catch (error) {
-      console.error('[TeamPlanning] player rename failed', error);
-      toast.error('Oyuncu adı güncellenemedi');
-      if (method === 'purchase') {
+      console.error("[TeamPlanning] player rename failed", error);
+      toast.error("Oyuncu adı güncellenemedi");
+      if (method === "purchase") {
         setPlayers(previousPlayers);
       }
-      if (method === 'purchase' && diamondsSpent) {
-        toast.error('Elmas harcaması yapıldı, lütfen destek ekibiyle iletişime geçin.');
+      if (method === "purchase" && diamondsSpent) {
+        toast.error(
+          "Elmas harcaması yapıldı, lütfen destek ekibiyle iletişime geçin."
+        );
       }
     } finally {
       setIsRenamingPlayer(false);
@@ -646,22 +702,17 @@ function TeamPlanningContent() {
   };
 
   const openSalaryNegotiation = (playerId: string) => {
-    const target = displayPlayers.find(player => player.id === playerId);
+    const target = displayPlayers.find((player) => player.id === playerId);
     if (!target) {
       return;
     }
     if (getLegendIdFromPlayer(target) !== null) {
-      toast.error('Nostalji oyuncularıyla maaş pazarlığı yapılamaz.');
+      toast.error("Nostalji oyuncularıyla maaş pazarlığı yapılamaz.");
       return;
     }
     resetNegotiationState();
     setNegotiationPlayerId(playerId);
   };
-
-
-
-
-
 
   const completeSalaryNegotiation = async (agreedSalary: number) => {
     if (!user || !negotiationPlayer || !salaryNegotiationProfile) {
@@ -670,28 +721,31 @@ function TeamPlanningContent() {
     const clampedOffer = clampNumber(
       Math.round(agreedSalary),
       salaryNegotiationProfile.floor,
-      salaryNegotiationProfile.ceiling,
+      salaryNegotiationProfile.ceiling
     );
     const userId = user.id;
-    const previousPlayers = players.map(player => ({ ...player }));
+    const previousPlayers = players.map((player) => ({ ...player }));
     const now = new Date();
     const currentExpiry = getContractExpiration(negotiationPlayer);
-    const baseDate = currentExpiry && currentExpiry.getTime() > now.getTime() ? currentExpiry : now;
+    const baseDate =
+      currentExpiry && currentExpiry.getTime() > now.getTime()
+        ? currentExpiry
+        : now;
     const newExpiry = addMonths(baseDate, CONTRACT_EXTENSION_MONTHS);
 
     const confidence = negotiationConfidenceFromOffer(
       clampedOffer,
       salaryNegotiationProfile,
-      negotiationPlayer,
+      negotiationPlayer
     );
 
-    const updatedPlayers = players.map(player => {
+    const updatedPlayers = players.map((player) => {
       if (player.id !== negotiationPlayer.id) {
         return player;
       }
       const currentContract = player.contract ?? {
         expiresAt: newExpiry.toISOString(),
-        status: 'active' as const,
+        status: "active" as const,
         salary: clampedOffer,
         extensions: 0,
       };
@@ -701,12 +755,12 @@ function TeamPlanningContent() {
           ...currentContract,
           salary: clampedOffer,
           expiresAt: newExpiry.toISOString(),
-          status: 'active' as const,
+          status: "active" as const,
           extensions: (currentContract.extensions ?? 0) + 1,
         },
         motivation: clampPerformanceGauge(
           player.motivation + Math.min(0.08, confidence * 0.2),
-          DEFAULT_GAUGE_VALUE,
+          DEFAULT_GAUGE_VALUE
         ),
       };
     });
@@ -717,15 +771,17 @@ function TeamPlanningContent() {
     try {
       await saveTeamPlayers(userId, normalized);
       toast.success(
-        `${negotiationPlayer.name} maaşı ${formatSalary(clampedOffer)} oldu ve sözleşmesi ${CONTRACT_EXTENSION_MONTHS} ay uzatıldı.`,
+        `${negotiationPlayer.name} maaşı ${formatSalary(
+          clampedOffer
+        )} oldu ve sözleşmesi ${CONTRACT_EXTENSION_MONTHS} ay uzatıldı.`
       );
       finalizeContractDecision(negotiationPlayer.id);
       setNegotiationPlayerId(null);
       resetNegotiationState();
     } catch (error) {
-      console.error('[TeamPlanning] salary negotiation failed', error);
-      toast.error('Maaş pazarlığı tamamlanamadı.');
-      toast.error('Maaş pazarlığı tamamlanamadı.');
+      console.error("[TeamPlanning] salary negotiation failed", error);
+      toast.error("Maaş pazarlığı tamamlanamadı.");
+      toast.error("Maaş pazarlığı tamamlanamadı.");
     } finally {
       setIsNegotiatingSalary(false);
     }
@@ -742,14 +798,14 @@ function TeamPlanningContent() {
     const clampedOffer = clampNumber(
       Math.round(negotiationOffer),
       salaryNegotiationProfile.floor,
-      salaryNegotiationProfile.ceiling,
+      salaryNegotiationProfile.ceiling
     );
 
     const attemptNumber = negotiationAttempts + 1;
     const acceptanceChance = negotiationConfidenceFromOffer(
       clampedOffer,
       salaryNegotiationProfile,
-      negotiationPlayer,
+      negotiationPlayer
     );
     const autoAccept = clampedOffer >= salaryNegotiationProfile.demand * 0.98;
     const accepted = autoAccept || Math.random() < acceptanceChance;
@@ -762,9 +818,12 @@ function TeamPlanningContent() {
     const counter = buildPlayerCounterOffer(
       clampedOffer,
       salaryNegotiationProfile,
-      attemptNumber,
+      attemptNumber
     );
-    const remainingAttempts = Math.max(MAX_NEGOTIATION_ATTEMPTS - attemptNumber, 0);
+    const remainingAttempts = Math.max(
+      MAX_NEGOTIATION_ATTEMPTS - attemptNumber,
+      0
+    );
     const isFinal = attemptNumber >= MAX_NEGOTIATION_ATTEMPTS;
 
     setNegotiationAttempts(attemptNumber);
@@ -774,7 +833,9 @@ function TeamPlanningContent() {
 
     const counterMessage = isFinal
       ? `Kabul edilmedi. Oyuncunun son teklifi: ${formatSalary(counter)}.`
-      : `Kabul edilmedi. Oyuncunun karşı teklifi: ${formatSalary(counter)}. Kalan hak: ${remainingAttempts}`;
+      : `Kabul edilmedi. Oyuncunun karşı teklifi: ${formatSalary(
+          counter
+        )}. Kalan hak: ${remainingAttempts}`;
     toast.info(counterMessage);
   };
 
@@ -786,7 +847,7 @@ function TeamPlanningContent() {
   };
 
   const handleRejectCounterOffer = () => {
-    toast.info('Pazarlık sonuçsuz kaldı, sözleşme değişmedi.');
+    toast.info("Pazarlık sonuçsuz kaldı, sözleşme değişmedi.");
     setNegotiationPlayerId(null);
     resetNegotiationState();
   };
@@ -800,7 +861,7 @@ function TeamPlanningContent() {
       return;
     }
     const userId = user.id;
-    const target = players.find(player => player.id === playerId);
+    const target = players.find((player) => player.id === playerId);
     if (!target) {
       return;
     }
@@ -809,17 +870,19 @@ function TeamPlanningContent() {
 
     if (isLegendRental) {
       setIsProcessingContract(true);
-      const previousPlayers = players.map(player => ({ ...player }));
-      const updatedPlayers = players.filter(player => player.id !== playerId);
+      const previousPlayers = players.map((player) => ({ ...player }));
+      const updatedPlayers = players.filter((player) => player.id !== playerId);
 
       setPlayers(updatedPlayers);
       try {
-        await completeLegendRental(userId, playerId, { players: previousPlayers });
+        await completeLegendRental(userId, playerId, {
+          players: previousPlayers,
+        });
         toast.info(`${target.name} ile yapılan kiralama sona erdi.`);
         finalizeContractDecision(playerId);
       } catch (error) {
-        console.error('[TeamPlanning] legend rental release failed', error);
-        toast.error('Oyuncu kadrodan kaldırılamadı');
+        console.error("[TeamPlanning] legend rental release failed", error);
+        toast.error("Oyuncu kadrodan kaldırılamadı");
         setPlayers(previousPlayers);
       } finally {
         setIsProcessingContract(false);
@@ -828,23 +891,24 @@ function TeamPlanningContent() {
     }
 
     setIsProcessingContract(true);
-    const previousPlayers = players.map(player => ({ ...player }));
-    const updatedPlayers = players.map(player => {
+    const previousPlayers = players.map((player) => ({ ...player }));
+    const updatedPlayers = players.map((player) => {
       if (player.id !== playerId) {
         return player;
       }
       const currentContract = player.contract ?? {
         expiresAt: new Date().toISOString(),
-        status: 'expired',
+        status: "expired",
         salary: 0,
         extensions: 0,
       };
       return {
         ...player,
-        squadRole: player.squadRole === 'starting' ? 'reserve' : player.squadRole,
+        squadRole:
+          player.squadRole === "starting" ? "reserve" : player.squadRole,
         contract: {
           ...currentContract,
-          status: 'released' as const,
+          status: "released" as const,
         },
         market: {
           ...(player.market ?? { active: false, listingId: null }),
@@ -856,11 +920,13 @@ function TeamPlanningContent() {
     setPlayers(updatedPlayers);
     try {
       await saveTeamPlayers(userId, updatedPlayers);
-      toast.info(`${target.name} serbest bırakıldı ve transfer listesine eklendi`);
+      toast.info(
+        `${target.name} serbest bırakıldı ve transfer listesine eklendi`
+      );
       finalizeContractDecision(playerId);
     } catch (error) {
-      console.error('[TeamPlanning] release contract failed', error);
-      toast.error('Oyuncu serbest bırakılamadı');
+      console.error("[TeamPlanning] release contract failed", error);
+      toast.error("Oyuncu serbest bırakılamadı");
       setPlayers(previousPlayers);
     } finally {
       setIsProcessingContract(false);
@@ -873,13 +939,13 @@ function TeamPlanningContent() {
     }
 
     const userId = user.id;
-    const target = players.find(player => player.id === playerId);
+    const target = players.find((player) => player.id === playerId);
     if (!target) {
       return;
     }
 
-    const previousPlayers = players.map(player => ({ ...player }));
-    const updatedPlayers = players.filter(player => player.id !== playerId);
+    const previousPlayers = players.map((player) => ({ ...player }));
+    const updatedPlayers = players.filter((player) => player.id !== playerId);
 
     setPlayers(updatedPlayers);
     try {
@@ -888,51 +954,63 @@ function TeamPlanningContent() {
       toast.success(`${target.name} takımdan gönderildi`);
       finalizeContractDecision(playerId);
     } catch (error) {
-      console.error('[TeamPlanning] fire player failed', error);
-      toast.error('Oyuncu kovulamadı');
+      console.error("[TeamPlanning] fire player failed", error);
+      toast.error("Oyuncu kovulamadı");
       setPlayers(previousPlayers);
     }
   };
 
-  const getPitchCoordinates = useCallback((clientX: number, clientY: number): FormationPlayerPosition | null => {
-    const field = pitchRef.current;
-    if (!field) {
-      return null;
-    }
-    const rect = field.getBoundingClientRect();
-    if (rect.width === 0 || rect.height === 0) {
-      return null;
-    }
+  const getPitchCoordinates = useCallback(
+    (clientX: number, clientY: number): FormationPlayerPosition | null => {
+      const field = pitchRef.current;
+      if (!field) {
+        return null;
+      }
+      const rect = field.getBoundingClientRect();
+      if (rect.width === 0 || rect.height === 0) {
+        return null;
+      }
 
-    if (clientX < rect.left || clientX > rect.right || clientY < rect.top || clientY > rect.bottom) {
-      return null;
-    }
+      if (
+        clientX < rect.left ||
+        clientX > rect.right ||
+        clientY < rect.top ||
+        clientY > rect.bottom
+      ) {
+        return null;
+      }
 
-    const relativeX = ((clientX - rect.left) / rect.width) * 100;
-    const relativeY = ((clientY - rect.top) / rect.height) * 100;
+      const relativeX = ((clientX - rect.left) / rect.width) * 100;
+      const relativeY = ((clientY - rect.top) / rect.height) * 100;
 
-    // Pure 0-100 Mapping (No Padding)
-    // Game coordinates directly match visual percentages now.
+      // Pure 0-100 Mapping (No Padding)
+      // Game coordinates directly match visual percentages now.
 
-    let gameY = 100 - relativeX;
-    let gameX = relativeY;
+      let gameY = 100 - relativeX;
+      let gameX = relativeY;
 
-    return {
-      x: clampPercentageValue(gameX),
-      y: clampPercentageValue(gameY),
-      position: 'CM',
-    };
-  }, []);
+      return {
+        x: clampPercentageValue(gameX),
+        y: clampPercentageValue(gameY),
+        position: "CM",
+      };
+    },
+    []
+  );
 
   const applyManualPosition = useCallback(
-    (playerId: string, data: FormationPlayerPosition, formationName = selectedFormation) => {
+    (
+      playerId: string,
+      data: FormationPlayerPosition,
+      formationName = selectedFormation
+    ) => {
       const normalized: FormationPlayerPosition = {
         x: clampPercentageValue(data.x),
         y: clampPercentageValue(data.y),
         position: data.position,
       };
       updatePlayerManualPosition(formationName, playerId, normalized);
-      setManualSlotPositions(prev => {
+      setManualSlotPositions((prev) => {
         const current = prev[playerId];
         if (
           current &&
@@ -948,19 +1026,19 @@ function TeamPlanningContent() {
         };
       });
     },
-    [selectedFormation, updatePlayerManualPosition],
+    [selectedFormation, updatePlayerManualPosition]
   );
 
   const handlePitchMarkerDragStart = useCallback(
     (player: Player, event: React.DragEvent<HTMLDivElement>) => {
       setDraggedPlayerId(player.id);
-      event.dataTransfer.setData('text/plain', player.id);
-      event.dataTransfer.effectAllowed = 'move';
+      event.dataTransfer.setData("text/plain", player.id);
+      event.dataTransfer.effectAllowed = "move";
 
       // Auto-collapse list on drag start for focus mode
       setIsListCollapsed(true);
     },
-    [],
+    []
   );
 
   // Removed duplicate getPitchMetricValue
@@ -991,34 +1069,34 @@ function TeamPlanningContent() {
         />
         {player.originalOverall > player.overall ? (
           <div className="text-[11px] text-muted-foreground">
-            Orjinal: {formatRatingLabel(player.originalOverall)} / Şuanki:{' '}
+            Orjinal: {formatRatingLabel(player.originalOverall)} / Şuanki:{" "}
             {formatRatingLabel(player.overall)}
           </div>
         ) : null}
       </div>
     ),
-    [],
+    []
   );
 
   const handleListForTransfer = (playerId: string) => {
-    navigate('/transfer-market', { state: { listPlayerId: playerId } });
+    navigate("/transfer-market", { state: { listPlayerId: playerId } });
   };
 
   const handleReleasePlayer = (playerId: string) => {
     let removedName: string | null = null;
     removePlayerFromCustomFormations(playerId);
-    setPlayers(prev => {
-      const player = prev.find(p => p.id === playerId);
+    setPlayers((prev) => {
+      const player = prev.find((p) => p.id === playerId);
       if (!player) {
         return prev;
       }
       removedName = player.name;
-      return prev.filter(p => p.id !== playerId);
+      return prev.filter((p) => p.id !== playerId);
     });
     if (removedName) {
-      setFocusedPlayerId(current => (current === playerId ? null : current));
+      setFocusedPlayerId((current) => (current === playerId ? null : current));
       toast.success(`${removedName} serbest brakld`, {
-        description: 'Değişlikleri kaydetmeyi unutmayn.',
+        description: "Değişlikleri kaydetmeyi unutmayn.",
       });
     }
   };
@@ -1026,38 +1104,44 @@ function TeamPlanningContent() {
   const handleSave = async () => {
     if (!user) return;
     try {
-      const collectIds = (role: Player['squadRole']) =>
+      const collectIds = (role: Player["squadRole"]) =>
         players
-          .filter(p => p.squadRole === role && p.id)
-          .map(p => String(p.id));
+          .filter((p) => p.squadRole === role && p.id)
+          .map((p) => String(p.id));
 
-      const unique = (ids: string[]) => Array.from(new Set(ids.filter(Boolean)));
+      const unique = (ids: string[]) =>
+        Array.from(new Set(ids.filter(Boolean)));
 
-      const starters = unique(collectIds('starting'));
+      const starters = unique(collectIds("starting"));
       if (starters.length !== 11) {
-        toast.error('Kadro tamamlanmadı', {
-          description: 'Kaydetmeden önce 11 oyuncuyu ilk 11 olarak belirleyin.',
+        toast.error("Kadro tamamlanmadı", {
+          description: "Kaydetmeden önce 11 oyuncuyu ilk 11 olarak belirleyin.",
         });
         return;
       }
 
-      const currentLineupReadinessIssues = getLineupReadinessIssues(startingEleven);
+      const currentLineupReadinessIssues =
+        getLineupReadinessIssues(startingEleven);
       if (currentLineupReadinessIssues.length > 0) {
         setIsLineupReadinessOpen(true);
         return;
       }
 
-      const bench = unique(collectIds('bench')).filter(id => !starters.includes(id));
-      const reserves = unique(collectIds('reserve')).filter(id => !starters.includes(id) && !bench.includes(id));
+      const bench = unique(collectIds("bench")).filter(
+        (id) => !starters.includes(id)
+      );
+      const reserves = unique(collectIds("reserve")).filter(
+        (id) => !starters.includes(id) && !bench.includes(id)
+      );
 
       const startersSet = new Set(starters);
       const customForSave = Object.fromEntries(
         Object.entries(customFormations).flatMap(([formationKey, layout]) => {
-          if (!layout || typeof layout !== 'object') {
+          if (!layout || typeof layout !== "object") {
             return [];
           }
           const filteredEntries = Object.entries(layout).filter(([playerId]) =>
-            startersSet.has(playerId),
+            startersSet.has(playerId)
           );
           if (filteredEntries.length === 0) {
             return [];
@@ -1070,18 +1154,18 @@ function TeamPlanningContent() {
                 y: clampPercentageValue(value.y),
                 position: value.position,
               },
-            ]),
+            ])
           );
           return [[formationKey, sanitizedLayout]];
-        }),
+        })
       ) as CustomFormationState;
 
       const fallbackShape =
         (derivedFormationShape && derivedFormationShape.trim().length > 0
           ? derivedFormationShape
           : savedFormationShape && savedFormationShape.trim().length > 0
-            ? savedFormationShape
-            : selectedFormation) ?? selectedFormation;
+          ? savedFormationShape
+          : selectedFormation) ?? selectedFormation;
       const shapeForSave = fallbackShape.trim();
 
       // Persist full roster and snapshot locally for Firestore
@@ -1098,16 +1182,22 @@ function TeamPlanningContent() {
       });
 
       setSavedFormationShape(shapeForSave);
-      toast.success('Takım planı kaydedildi!');
+      toast.success("Takım planı kaydedildi!");
     } catch (error) {
-      console.error('[TeamPlanning] saveTeamPlayers failed', error);
+      console.error("[TeamPlanning] saveTeamPlayers failed", error);
       const description =
-        error && typeof error === 'object' && 'details' in error && typeof (error as { details?: unknown }).details === 'string'
+        error &&
+        typeof error === "object" &&
+        "details" in error &&
+        typeof (error as { details?: unknown }).details === "string"
           ? String((error as { details?: unknown }).details)
-          : error && typeof error === 'object' && 'message' in error && typeof (error as { message?: unknown }).message === 'string'
-            ? String((error as { message?: unknown }).message)
-            : 'Kadro kaydı başarısız. Lütfen tekrar deneyin.';
-      toast.error('Sunucu hatası', { description });
+          : error &&
+            typeof error === "object" &&
+            "message" in error &&
+            typeof (error as { message?: unknown }).message === "string"
+          ? String((error as { message?: unknown }).message)
+          : "Kadro kaydı başarısız. Lütfen tekrar deneyin.";
+      toast.error("Sunucu hatası", { description });
     }
   };
 
@@ -1126,29 +1216,40 @@ function TeamPlanningContent() {
     }
     let isMounted = true;
     (async () => {
-      const preferredTeamName = (user.teamName?.includes('@') ? user.teamName.split('@')[0] : user.teamName) || 'Takimim';
+      const preferredTeamName =
+        (user.teamName?.includes("@")
+          ? user.teamName.split("@")[0]
+          : user.teamName) || "Takimim";
       const managerName = user.username || preferredTeamName;
 
       let team: Awaited<ReturnType<typeof getTeam>> | null = null;
       try {
         team = await getTeam(user.id);
       } catch (error) {
-        console.error('[TeamPlanning] getTeam failed', error);
-        toast.error('Takim bilgisi yuklenemedi. Lutfen tekrar deneyin.');
+        console.error("[TeamPlanning] getTeam failed", error);
+        toast.error("Takim bilgisi yuklenemedi. Lutfen tekrar deneyin.");
         return;
       }
 
       if (!team) {
         try {
           await auth.currentUser?.getIdToken(true).catch((err) => {
-            console.warn('[TeamPlanning] token refresh before team create failed', err);
+            console.warn(
+              "[TeamPlanning] token refresh before team create failed",
+              err
+            );
           });
-          team = await createInitialTeam(user.id, preferredTeamName, managerName, {
-            authUser: auth.currentUser,
-          });
+          team = await createInitialTeam(
+            user.id,
+            preferredTeamName,
+            managerName,
+            {
+              authUser: auth.currentUser,
+            }
+          );
         } catch (error) {
-          console.error('[TeamPlanning] createInitialTeam failed', error);
-          toast.error('Takim olusturulamadi. Lutfen tekrar deneyin.');
+          console.error("[TeamPlanning] createInitialTeam failed", error);
+          toast.error("Takim olusturulamadi. Lutfen tekrar deneyin.");
           return;
         }
       }
@@ -1158,13 +1259,18 @@ function TeamPlanningContent() {
       }
 
       teamLeagueIdRef.current =
-        typeof (team as { leagueId?: string | null } | null)?.leagueId === 'string'
+        typeof (team as { leagueId?: string | null } | null)?.leagueId ===
+        "string"
           ? (team as { leagueId?: string | null }).leagueId
           : null;
 
-      const rawStartingCount = team.players.filter(player => player.squadRole === 'starting').length;
+      const rawStartingCount = team.players.filter(
+        (player) => player.squadRole === "starting"
+      ).length;
       const normalized = normalizePlayers(team.players);
-      const normalizedStartingCount = normalized.filter(player => player.squadRole === 'starting').length;
+      const normalizedStartingCount = normalized.filter(
+        (player) => player.squadRole === "starting"
+      ).length;
       setPlayers(normalized);
 
       if (rawStartingCount > normalizedStartingCount) {
@@ -1178,20 +1284,20 @@ function TeamPlanningContent() {
       setSelectedFormation(remoteFormation);
 
       const remoteCustomFormations = sanitizeCustomFormationState(
-        team.plan?.customFormations || team.lineup?.customFormations || {},
+        team.plan?.customFormations || team.lineup?.customFormations || {}
       );
       setCustomFormations(remoteCustomFormations);
 
       const rawPlanShape =
-        typeof team.plan?.shape === 'string' ? team.plan.shape.trim() : '';
+        typeof team.plan?.shape === "string" ? team.plan.shape.trim() : "";
       const rawLineupShape =
-        typeof team.lineup?.shape === 'string' ? team.lineup.shape.trim() : '';
+        typeof team.lineup?.shape === "string" ? team.lineup.shape.trim() : "";
       const normalizedShape =
-        rawPlanShape && rawPlanShape.toLowerCase() !== 'auto'
+        rawPlanShape && rawPlanShape.toLowerCase() !== "auto"
           ? rawPlanShape
-          : rawLineupShape && rawLineupShape.toLowerCase() !== 'auto'
-            ? rawLineupShape
-            : '';
+          : rawLineupShape && rawLineupShape.toLowerCase() !== "auto"
+          ? rawLineupShape
+          : "";
       setSavedFormationShape(normalizedShape || null);
       setBootstrappedUserId(activeUserId);
     })();
@@ -1207,10 +1313,11 @@ function TeamPlanningContent() {
       }
       return;
     }
-    if (focusedPlayerId && players.some(p => p.id === focusedPlayerId)) {
+    if (focusedPlayerId && players.some((p) => p.id === focusedPlayerId)) {
       return;
     }
-    const fallback = players.find(p => p.squadRole === 'starting') ?? players[0];
+    const fallback =
+      players.find((p) => p.squadRole === "starting") ?? players[0];
     if (fallback && fallback.id !== focusedPlayerId) {
       setFocusedPlayerId(fallback.id);
     }
@@ -1220,25 +1327,27 @@ function TeamPlanningContent() {
     if (renamePlayer) {
       setRenameInput(renamePlayer.name);
     } else {
-      setRenameInput('');
+      setRenameInput("");
     }
   }, [renamePlayer]);
 
   useEffect(() => {
     const expiredIds = new Set(
-      players.filter(player => isContractExpired(player)).map(player => player.id),
+      players
+        .filter((player) => isContractExpired(player))
+        .map((player) => player.id)
     );
 
-    handledContractsRef.current.forEach(id => {
+    handledContractsRef.current.forEach((id) => {
       if (!expiredIds.has(id)) {
         handledContractsRef.current.delete(id);
       }
     });
 
-    setPendingContractIds(prev => {
+    setPendingContractIds((prev) => {
       const existing = new Set(prev);
       const next = [...prev];
-      players.forEach(player => {
+      players.forEach((player) => {
         if (!expiredIds.has(player.id)) {
           return;
         }
@@ -1258,7 +1367,9 @@ function TeamPlanningContent() {
       setActiveContractId(null);
       return;
     }
-    setActiveContractId(prev => (prev && pendingContractIds.includes(prev) ? prev : pendingContractIds[0]));
+    setActiveContractId((prev) =>
+      prev && pendingContractIds.includes(prev) ? prev : pendingContractIds[0]
+    );
   }, [pendingContractIds]);
 
   useEffect(() => {
@@ -1267,16 +1378,18 @@ function TeamPlanningContent() {
     }
 
     const startingIds = new Set(
-      players.filter(player => player.squadRole === 'starting').map(player => player.id),
+      players
+        .filter((player) => player.squadRole === "starting")
+        .map((player) => player.id)
     );
 
-    setCustomFormations(prev => {
+    setCustomFormations((prev) => {
       let changed = false;
       const next: CustomFormationState = {};
 
       Object.entries(prev).forEach(([formationKey, layout]) => {
         const filteredEntries = Object.entries(layout).filter(([playerId]) =>
-          startingIds.has(playerId),
+          startingIds.has(playerId)
         );
 
         if (filteredEntries.length > 0) {
@@ -1296,8 +1409,10 @@ function TeamPlanningContent() {
       return next;
     });
 
-    setManualSlotPositions(prev => {
-      const entries = Object.entries(prev).filter(([playerId]) => startingIds.has(playerId));
+    setManualSlotPositions((prev) => {
+      const entries = Object.entries(prev).filter(([playerId]) =>
+        startingIds.has(playerId)
+      );
       if (entries.length === Object.keys(prev).length) {
         return prev;
       }
@@ -1305,23 +1420,27 @@ function TeamPlanningContent() {
     });
   }, [players]);
 
-  const startingEleven = displayPlayers.filter(p => p.squadRole === 'starting');
-  const benchPlayers = displayPlayers.filter(p => p.squadRole === 'bench');
-  const reservePlayers = displayPlayers.filter(p => p.squadRole === 'reserve');
+  const startingEleven = displayPlayers.filter(
+    (p) => p.squadRole === "starting"
+  );
+  const benchPlayers = displayPlayers.filter((p) => p.squadRole === "bench");
+  const reservePlayers = displayPlayers.filter(
+    (p) => p.squadRole === "reserve"
+  );
   const hasStartingVacancy = startingEleven.length < 11;
   const getMoveToStartingLabel = useCallback(
-    (player: Pick<Player, 'position'>) =>
+    (player: Pick<Player, "position">) =>
       hasStartingVacancy
         ? `İlk 11'e Al (Bos slot - ${player.position})`
         : `İlk 11'e Al (Swap - ${player.position})`,
-    [hasStartingVacancy],
+    [hasStartingVacancy]
   );
 
   const currentFormation =
-    formations.find(f => f.name === selectedFormation) ?? formations[0];
+    formations.find((f) => f.name === selectedFormation) ?? formations[0];
   const manualFormation = useMemo(
     () => customFormations[selectedFormation] ?? {},
-    [customFormations, selectedFormation],
+    [customFormations, selectedFormation]
   );
 
   useEffect(() => {
@@ -1329,15 +1448,21 @@ function TeamPlanningContent() {
   }, [selectedFormation, syncManualSlotsForFormation]);
 
   const formationPositions: PitchSlot[] = useMemo(() => {
-    const starters = displayPlayers.filter(p => p.squadRole === 'starting');
+    const starters = displayPlayers.filter((p) => p.squadRole === "starting");
     const slots = currentFormation.positions;
 
     if (starters.length === 0) {
-      return slots.map((slot, idx) => ({ ...slot, player: null, slotIndex: idx }));
+      return slots.map((slot, idx) => ({
+        ...slot,
+        player: null,
+        slotIndex: idx,
+      }));
     }
 
-    const startersById = new Map(starters.map(player => [player.id, player] as const));
-    const remainingPlayerIds = new Set(starters.map(player => player.id));
+    const startersById = new Map(
+      starters.map((player) => [player.id, player] as const)
+    );
+    const remainingPlayerIds = new Set(starters.map((player) => player.id));
     const slotAssignments = new Map<
       number,
       { player: Player; manual: FormationPlayerPosition | null }
@@ -1372,14 +1497,16 @@ function TeamPlanningContent() {
       }
 
       const canonicalSlot = canonicalPosition(slot.position);
-      const matchingEntry = Array.from(remainingPlayerIds).find(playerId => {
+      const matchingEntry = Array.from(remainingPlayerIds).find((playerId) => {
         const candidate = startersById.get(playerId);
         if (!candidate) return false;
         const playerPosition = canonicalPosition(candidate.position);
         if (playerPosition === canonicalSlot) {
           return true;
         }
-        return (candidate.roles ?? []).some(role => canonicalPosition(role) === canonicalSlot);
+        return (candidate.roles ?? []).some(
+          (role) => canonicalPosition(role) === canonicalSlot
+        );
       });
 
       if (!matchingEntry) {
@@ -1446,47 +1573,45 @@ function TeamPlanningContent() {
     });
   }, [currentFormation, manualFormation, displayPlayers, manualSlotPositions]);
   const emptyFormationSlots = useMemo(
-    () => formationPositions.filter(slot => !slot.player),
-    [formationPositions],
+    () => formationPositions.filter((slot) => !slot.player),
+    [formationPositions]
   );
   const draggedDisplayPlayer = useMemo(
     () =>
       draggedPlayerId
-        ? displayPlayers.find(player => player.id === draggedPlayerId) ?? null
+        ? displayPlayers.find((player) => player.id === draggedPlayerId) ?? null
         : null,
-    [displayPlayers, draggedPlayerId],
+    [displayPlayers, draggedPlayerId]
   );
   const dragZoneHighlights = useMemo<DragZoneHighlight[]>(() => {
     if (!draggedDisplayPlayer) {
       return [];
     }
 
-    return ORDERED_ZONE_IDS
-      .map(zoneId => {
-        const fitLevel = getZoneFitLevel(draggedDisplayPlayer, zoneId);
-        if (fitLevel === 'invalid') {
-          return null;
-        }
-        return {
-          zoneId,
-          fitLevel,
-        };
-      })
-      .filter((entry): entry is DragZoneHighlight => entry !== null);
+    return ORDERED_ZONE_IDS.map((zoneId) => {
+      const fitLevel = getZoneFitLevel(draggedDisplayPlayer, zoneId);
+      if (fitLevel === "invalid") {
+        return null;
+      }
+      return {
+        zoneId,
+        fitLevel,
+      };
+    }).filter((entry): entry is DragZoneHighlight => entry !== null);
   }, [draggedDisplayPlayer]);
   const autoFillAssignments = useMemo<AutoFillAssignment[]>(() => {
     if (emptyFormationSlots.length === 0) {
       return [];
     }
 
-    const eligiblePlayers = displayPlayers.filter(player => {
-      if (player.squadRole !== 'bench' && player.squadRole !== 'reserve') {
+    const eligiblePlayers = displayPlayers.filter((player) => {
+      if (player.squadRole !== "bench" && player.squadRole !== "reserve") {
         return false;
       }
-      if (player.injuryStatus === 'injured') {
+      if (player.injuryStatus === "injured") {
         return false;
       }
-      if (player.contract?.status === 'released') {
+      if (player.contract?.status === "released") {
         return false;
       }
       if (isContractExpired(player)) {
@@ -1500,7 +1625,7 @@ function TeamPlanningContent() {
     }
 
     const slotCandidates = emptyFormationSlots
-      .map(slot => {
+      .map((slot) => {
         const zoneId = resolveZoneId(slot);
         const candidates = recommendPlayers(zoneId, eligiblePlayers, {
           limit: eligiblePlayers.length,
@@ -1519,7 +1644,9 @@ function TeamPlanningContent() {
     const assignments: AutoFillAssignment[] = [];
 
     slotCandidates.forEach(({ slot, zoneId, candidates }) => {
-      const candidate = candidates.find(player => !usedPlayerIds.has(player.id));
+      const candidate = candidates.find(
+        (player) => !usedPlayerIds.has(player.id)
+      );
       if (!candidate) {
         return;
       }
@@ -1538,11 +1665,14 @@ function TeamPlanningContent() {
     return assignments;
   }, [displayPlayers, emptyFormationSlots]);
   const findNearbyStartingPlayer = useCallback(
-    (coords: { x: number; y: number }, excludePlayerId?: string | null): PitchSlot | null => {
+    (
+      coords: { x: number; y: number },
+      excludePlayerId?: string | null
+    ): PitchSlot | null => {
       if (!formationPositions.length) return null;
       let best: PitchSlot | null = null;
       let bestDist = Number.POSITIVE_INFINITY;
-      formationPositions.forEach(slot => {
+      formationPositions.forEach((slot) => {
         if (!slot.player || slot.player.id === excludePlayerId) {
           return;
         }
@@ -1556,17 +1686,17 @@ function TeamPlanningContent() {
       });
       return bestDist <= 64 ? best : null;
     },
-    [formationPositions],
+    [formationPositions]
   );
 
   const handlePitchDrop = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
-    const playerId = e.dataTransfer.getData('text/plain') || draggedPlayerId;
+    const playerId = e.dataTransfer.getData("text/plain") || draggedPlayerId;
     if (!playerId) {
       return;
     }
 
-    const player = players.find(p => p.id === playerId);
+    const player = players.find((p) => p.id === playerId);
     if (!player) {
       return;
     }
@@ -1578,12 +1708,12 @@ function TeamPlanningContent() {
     }
 
     // GK LOCK LOGIC (Strict No-Swap):
-    const isGK = canonicalPosition(player.position) === 'GK';
+    const isGK = canonicalPosition(player.position) === "GK";
     const targetZoneId = resolveZoneIdFromCoordinates(coordinates);
     const finalPosition = getZoneDefinition(targetZoneId).slotPosition;
     const nearbyTargetSlot = findNearbyStartingPlayer(coordinates, playerId);
     const targetPlayer = nearbyTargetSlot?.player ?? null;
-    const isTargetSlotGK = canonicalPosition(finalPosition) === 'GK';
+    const isTargetSlotGK = canonicalPosition(finalPosition) === "GK";
     const isTargetOccupied = !!targetPlayer;
 
     // Rule 1: If Target is GK Slot AND Occupied -> BLOCK (No Swap allowed)
@@ -1596,7 +1726,9 @@ function TeamPlanningContent() {
     // Rule 2: Strict Type Matching
     if (isGK !== !!isTargetSlotGK) {
       if (isGK) {
-        toast.warning("Kaleciler sadece (boş) kaleci pozisyonunda oynayabilir.");
+        toast.warning(
+          "Kaleciler sadece (boş) kaleci pozisyonunda oynayabilir."
+        );
       } else {
         toast.warning("Kaleci pozisyonuna sadece kaleci girebilir.");
       }
@@ -1606,17 +1738,24 @@ function TeamPlanningContent() {
 
     dropHandledRef.current = true;
 
-    if (player.squadRole === 'starting') {
+    if (player.squadRole === "starting") {
       if (targetPlayer && targetPlayer.id !== player.id) {
-        const originSlot = formationPositions.find(entry => entry.player?.id === player.id);
-        setPlayers(prev =>
+        const originSlot = formationPositions.find(
+          (entry) => entry.player?.id === player.id
+        );
+        setPlayers((prev) =>
           normalizePlayers(
-            prev.map(current => {
-              if (current.id === player.id) return { ...current, position: finalPosition };
-              if (current.id === targetPlayer.id) return { ...current, position: originSlot?.position ?? player.position };
+            prev.map((current) => {
+              if (current.id === player.id)
+                return { ...current, position: finalPosition };
+              if (current.id === targetPlayer.id)
+                return {
+                  ...current,
+                  position: originSlot?.position ?? player.position,
+                };
               return current;
-            }),
-          ),
+            })
+          )
         );
 
         applyManualPosition(playerId, {
@@ -1633,18 +1772,20 @@ function TeamPlanningContent() {
         }
 
         setFocusedPlayerId(playerId);
-        toast.success('Oyuncular yer değiştirdi');
+        toast.success("Oyuncular yer değiştirdi");
         setDraggedPlayerId(null);
         return;
       }
 
       if (finalPosition !== player.position) {
-        setPlayers(prev =>
+        setPlayers((prev) =>
           normalizePlayers(
-            prev.map(current =>
-              current.id === playerId ? { ...current, position: finalPosition } : current,
-            ),
-          ),
+            prev.map((current) =>
+              current.id === playerId
+                ? { ...current, position: finalPosition }
+                : current
+            )
+          )
         );
       }
       applyManualPosition(playerId, {
@@ -1653,7 +1794,7 @@ function TeamPlanningContent() {
         position: finalPosition,
       });
       setFocusedPlayerId(playerId);
-      toast.success('Oyuncu sahada yeniden konumlandirildi');
+      toast.success("Oyuncu sahada yeniden konumlandirildi");
       setDraggedPlayerId(null);
       return;
     }
@@ -1662,10 +1803,15 @@ function TeamPlanningContent() {
     let updated = false;
     let result: PromoteToStartingResult | null = null;
 
-    setPlayers(prev => {
-      const promotion = promotePlayerToStartingRoster(prev, playerId, finalPosition, {
-        targetPlayerId: targetPlayer?.id,
-      });
+    setPlayers((prev) => {
+      const promotion = promotePlayerToStartingRoster(
+        prev,
+        playerId,
+        finalPosition,
+        {
+          targetPlayerId: targetPlayer?.id,
+        }
+      );
       result = promotion;
       if (promotion.error) {
         errorMessage = promotion.error;
@@ -1679,7 +1825,7 @@ function TeamPlanningContent() {
     });
 
     if (errorMessage) {
-      toast.error('Oyuncu eklenemedi', { description: errorMessage });
+      toast.error("Oyuncu eklenemedi", { description: errorMessage });
     } else if (updated) {
       applyManualPosition(playerId, {
         x: coordinates.x,
@@ -1687,7 +1833,7 @@ function TeamPlanningContent() {
         position: finalPosition,
       });
       if (result?.swappedPlayerId) {
-        if (nearbyTargetSlot && previousRole === 'starting') {
+        if (nearbyTargetSlot && previousRole === "starting") {
           applyManualPosition(result.swappedPlayerId, {
             x: nearbyTargetSlot.x,
             y: nearbyTargetSlot.y,
@@ -1698,7 +1844,7 @@ function TeamPlanningContent() {
         }
       }
       setFocusedPlayerId(playerId);
-      toast.success('Oyuncu sahada konumlandirildi');
+      toast.success("Oyuncu sahada konumlandirildi");
     }
 
     setDraggedPlayerId(null);
@@ -1712,7 +1858,7 @@ function TeamPlanningContent() {
         return;
       }
 
-      if (player.squadRole !== 'starting') {
+      if (player.squadRole !== "starting") {
         return;
       }
 
@@ -1731,12 +1877,16 @@ function TeamPlanningContent() {
       const targetPlayer = nearbyTargetSlot?.player ?? null;
 
       // GK LOCK LOGIC (Strict No-Swap via DragEnd Fallback)
-      const isGK = canonicalPosition(player.position) === 'GK';
-      const isTargetSlotGK = canonicalPosition(finalPosition) === 'GK';
+      const isGK = canonicalPosition(player.position) === "GK";
+      const isTargetSlotGK = canonicalPosition(finalPosition) === "GK";
       const isTargetOccupied = !!targetPlayer;
 
       // Rule 1: If Target is GK Slot AND Occupied (by someone else) -> BLOCK
-      if (isTargetSlotGK && isTargetOccupied && targetPlayer?.id !== player.id) {
+      if (
+        isTargetSlotGK &&
+        isTargetOccupied &&
+        targetPlayer?.id !== player.id
+      ) {
         toast.warning("Kaleci pozisyonu doluyken başka oyuncu eklenemez.");
         setDraggedPlayerId(null);
         return;
@@ -1745,7 +1895,9 @@ function TeamPlanningContent() {
       // Rule 2: Strict Type Matching
       if (isGK !== !!isTargetSlotGK) {
         if (isGK) {
-          toast.warning("Kaleciler sadece (boş) kaleci pozisyonunda oynayabilir.");
+          toast.warning(
+            "Kaleciler sadece (boş) kaleci pozisyonunda oynayabilir."
+          );
         } else {
           toast.warning("Kaleci pozisyonuna sadece kaleci girebilir.");
         }
@@ -1753,18 +1905,23 @@ function TeamPlanningContent() {
         return;
       }
 
-
-
       if (targetPlayer && targetPlayer.id !== player.id) {
-        const originSlot = formationPositions.find(entry => entry.player?.id === player.id);
-        setPlayers(prev =>
+        const originSlot = formationPositions.find(
+          (entry) => entry.player?.id === player.id
+        );
+        setPlayers((prev) =>
           normalizePlayers(
-            prev.map(current => {
-              if (current.id === player.id) return { ...current, position: finalPosition };
-              if (current.id === targetPlayer.id) return { ...current, position: originSlot?.position ?? player.position };
+            prev.map((current) => {
+              if (current.id === player.id)
+                return { ...current, position: finalPosition };
+              if (current.id === targetPlayer.id)
+                return {
+                  ...current,
+                  position: originSlot?.position ?? player.position,
+                };
               return current;
-            }),
-          ),
+            })
+          )
         );
         if (originSlot) {
           applyManualPosition(targetPlayer.id, {
@@ -1774,12 +1931,14 @@ function TeamPlanningContent() {
           });
         }
       } else if (finalPosition !== player.position) {
-        setPlayers(prev =>
+        setPlayers((prev) =>
           normalizePlayers(
-            prev.map(current =>
-              current.id === player.id ? { ...current, position: finalPosition } : current,
-            ),
-          ),
+            prev.map((current) =>
+              current.id === player.id
+                ? { ...current, position: finalPosition }
+                : current
+            )
+          )
         );
       }
 
@@ -1789,12 +1948,18 @@ function TeamPlanningContent() {
         position: finalPosition,
       });
     },
-    [applyManualPosition, findNearbyStartingPlayer, formationPositions, getPitchCoordinates, setPlayers],
+    [
+      applyManualPosition,
+      findNearbyStartingPlayer,
+      formationPositions,
+      getPitchCoordinates,
+      setPlayers,
+    ]
   );
 
   const derivedFormationShape = useMemo(
     () => deriveFormationShape(formationPositions),
-    [formationPositions],
+    [formationPositions]
   );
 
   const displayFormationName = useMemo(() => {
@@ -1807,16 +1972,17 @@ function TeamPlanningContent() {
 
   const selectedPlayer = useMemo(() => {
     if (!focusedPlayerId) return null;
-    return displayPlayers.find(p => p.id === focusedPlayerId) ?? null;
+    return displayPlayers.find((p) => p.id === focusedPlayerId) ?? null;
   }, [displayPlayers, focusedPlayerId]);
 
   const lineupReadinessIssues = useMemo(
     () => getLineupReadinessIssues(startingEleven),
-    [startingEleven],
+    [startingEleven]
   );
 
   const handleBackNavigation = useCallback(() => {
-    const currentLineupReadinessIssues = getLineupReadinessIssues(startingEleven);
+    const currentLineupReadinessIssues =
+      getLineupReadinessIssues(startingEleven);
     if (currentLineupReadinessIssues.length > 0) {
       setIsLineupReadinessOpen(true);
       return;
@@ -1827,7 +1993,7 @@ function TeamPlanningContent() {
       return;
     }
 
-    navigate('/');
+    navigate("/");
   }, [navigate, startingEleven]);
 
   useEffect(() => {
@@ -1847,20 +2013,23 @@ function TeamPlanningContent() {
     }
   }, [isKitUsageOpen, lineupReadinessIssues, resumeLineupReadinessAfterKit]);
 
-  const openKitUsageForPlayer = useCallback((
-    playerId: string,
-    options?: { reopenLineupReadiness?: boolean },
-  ) => {
-    setKitUsagePlayerId(playerId);
-    setIsDetailOverlayOpen(false);
-    setIsLineupReadinessOpen(false);
-    setResumeLineupReadinessAfterKit(Boolean(options?.reopenLineupReadiness));
-    setIsKitUsageOpen(true);
-  }, []);
+  const openKitUsageForPlayer = useCallback(
+    (playerId: string, options?: { reopenLineupReadiness?: boolean }) => {
+      setKitUsagePlayerId(playerId);
+      setIsDetailOverlayOpen(false);
+      setIsLineupReadinessOpen(false);
+      setResumeLineupReadinessAfterKit(Boolean(options?.reopenLineupReadiness));
+      setIsKitUsageOpen(true);
+    },
+    []
+  );
 
-  const handleOpenKitUsage = useCallback((playerId: string) => {
-    openKitUsageForPlayer(playerId);
-  }, [openKitUsageForPlayer]);
+  const handleOpenKitUsage = useCallback(
+    (playerId: string) => {
+      openKitUsageForPlayer(playerId);
+    },
+    [openKitUsageForPlayer]
+  );
 
   const handleKitUsageOpenChange = useCallback((open: boolean) => {
     setIsKitUsageOpen(open);
@@ -1875,28 +2044,31 @@ function TeamPlanningContent() {
     }
 
     const updatedPlayerMap = new Map(
-      updatedPlayers.map((player) => [String(player.id), player]),
+      updatedPlayers.map((player) => [String(player.id), player])
     );
     const lastUpdatedPlayer = updatedPlayers[updatedPlayers.length - 1];
 
     setFocusedPlayerId(lastUpdatedPlayer.id);
-    setPlayers(prev =>
+    setPlayers((prev) =>
       normalizePlayers(
-        prev.map(player =>
+        prev.map((player) =>
           updatedPlayerMap.has(String(player.id))
             ? { ...player, ...updatedPlayerMap.get(String(player.id))! }
-            : player,
-        ),
-      ),
+            : player
+        )
+      )
     );
   }, []);
 
-  const handleOpenLineupIssueKitUsage = useCallback((playerId: string) => {
-    openKitUsageForPlayer(playerId, { reopenLineupReadiness: true });
-  }, [openKitUsageForPlayer]);
+  const handleOpenLineupIssueKitUsage = useCallback(
+    (playerId: string) => {
+      openKitUsageForPlayer(playerId, { reopenLineupReadiness: true });
+    },
+    [openKitUsageForPlayer]
+  );
 
   const handleBenchLineupIssuePlayer = (playerId: string) => {
-    movePlayer(playerId, 'bench');
+    movePlayer(playerId, "bench");
   };
 
   const selectedZoneDefinition = useMemo(() => {
@@ -1926,20 +2098,20 @@ function TeamPlanningContent() {
         position: slot.position,
       });
       setFocusedPlayerId(slot.player ? slot.player.id : null);
-      setActiveTab('suggestions');
+      setActiveTab("suggestions");
     },
-    [setFocusedPlayerId],
+    [setFocusedPlayerId]
   );
 
   const getPitchMetricValue = useCallback(
     (player: Player, metric: MetricKey) => {
       let value = 0;
-      if (metric === 'power') {
+      if (metric === "power") {
         const index = calculatePowerIndex(player);
         value = normalizeRatingTo100(index);
 
         // Apply position affinity penalty
-        const slot = formationPositions.find(s => s.player?.id === player.id);
+        const slot = formationPositions.find((s) => s.player?.id === player.id);
         if (slot) {
           const zoneId = resolveZoneId(slot);
           const zone = getZoneDefinition(zoneId);
@@ -1953,31 +2125,33 @@ function TeamPlanningContent() {
         }
       } else {
         switch (metric) {
-          case 'health':
+          case "health":
             value = (player.health ?? 0) * 100;
             break;
-          case 'condition':
+          case "condition":
             value = (player.condition ?? 0) * 100;
             break;
-          case 'motivation':
+          case "motivation":
             value = (player.motivation ?? 0) * 100;
             break;
         }
       }
       return value;
     },
-    [formationPositions],
+    [formationPositions]
   );
 
   useEffect(() => {
     if (!focusedPlayerId) {
       return;
     }
-    const slot = formationPositions.find(entry => entry.player?.id === focusedPlayerId);
+    const slot = formationPositions.find(
+      (entry) => entry.player?.id === focusedPlayerId
+    );
     if (!slot) {
       return;
     }
-    setSelectedSlotMeta(prev => {
+    setSelectedSlotMeta((prev) => {
       if (prev && prev.slotIndex === slot.slotIndex) {
         return prev;
       }
@@ -1992,11 +2166,13 @@ function TeamPlanningContent() {
   }, [focusedPlayerId, formationPositions]);
 
   useEffect(() => {
-    setSelectedSlotMeta(prev => {
+    setSelectedSlotMeta((prev) => {
       if (!prev) {
         return prev;
       }
-      const slot = formationPositions.find(entry => entry.slotIndex === prev.slotIndex);
+      const slot = formationPositions.find(
+        (entry) => entry.slotIndex === prev.slotIndex
+      );
       if (!slot) {
         return null;
       }
@@ -2024,18 +2200,18 @@ function TeamPlanningContent() {
       setSelectedFormation(formationName);
       syncManualSlotsForFormation(formationName);
     },
-    [syncManualSlotsForFormation],
+    [syncManualSlotsForFormation]
   );
 
   const handleAutoFill = useCallback(() => {
     if (emptyFormationSlots.length === 0) {
-      toast.info('Boş pozisyon yok.');
+      toast.info("Boş pozisyon yok.");
       return;
     }
 
     if (autoFillAssignments.length === 0) {
-      toast.warning('Uygun oyuncu bulunamadı', {
-        description: 'Boş pozisyonlar için uygun yedek veya rezerv oyuncu yok.',
+      toast.warning("Uygun oyuncu bulunamadı", {
+        description: "Boş pozisyonlar için uygun yedek veya rezerv oyuncu yok.",
       });
       return;
     }
@@ -2043,11 +2219,11 @@ function TeamPlanningContent() {
     let nextPlayers = players;
     const appliedAssignments: AutoFillAssignment[] = [];
 
-    autoFillAssignments.forEach(assignment => {
+    autoFillAssignments.forEach((assignment) => {
       const result = promotePlayerToStartingRoster(
         nextPlayers,
         assignment.playerId,
-        assignment.position,
+        assignment.position
       );
       if (result.error || !result.updated) {
         return;
@@ -2057,12 +2233,12 @@ function TeamPlanningContent() {
     });
 
     if (appliedAssignments.length === 0) {
-      toast.warning('Boş alanlar doldurulamadı.');
+      toast.warning("Boş alanlar doldurulamadı.");
       return;
     }
 
     setPlayers(nextPlayers);
-    appliedAssignments.forEach(assignment => {
+    appliedAssignments.forEach((assignment) => {
       applyManualPosition(assignment.playerId, {
         x: assignment.x,
         y: assignment.y,
@@ -2070,9 +2246,12 @@ function TeamPlanningContent() {
       });
     });
 
-    setActiveTab('starting');
+    setActiveTab("starting");
 
-    const remainingSlots = Math.max(0, emptyFormationSlots.length - appliedAssignments.length);
+    const remainingSlots = Math.max(
+      0,
+      emptyFormationSlots.length - appliedAssignments.length
+    );
     if (remainingSlots > 0) {
       toast.success(`${appliedAssignments.length} boş pozisyon dolduruldu`, {
         description: `${remainingSlots} pozisyon için uygun oyuncu bulunamadı.`,
@@ -2080,19 +2259,63 @@ function TeamPlanningContent() {
       return;
     }
 
-    toast.success('Boş pozisyonlar dolduruldu.');
-  }, [applyManualPosition, autoFillAssignments, emptyFormationSlots.length, players]);
+    toast.success("Boş pozisyonlar dolduruldu.");
+  }, [
+    applyManualPosition,
+    autoFillAssignments,
+    emptyFormationSlots.length,
+    players,
+  ]);
+
+  const handleBestLineupAutoArrange = useCallback(() => {
+    const result = buildBestLineupForFormation(
+      players,
+      currentFormation,
+      playerBaselineRef.current
+    );
+
+    if (result.eligiblePlayerCount === 0 || result.assignments.length === 0) {
+      toast.warning("İlk 11 kurulamadı", {
+        description: "Seçili formasyon için uygun oyuncu bulunamadı.",
+      });
+      return;
+    }
+
+    setPlayers(result.players);
+    setCustomFormations((prev) => {
+      const next = { ...prev };
+      if (Object.keys(result.layout).length === 0) {
+        delete next[selectedFormation];
+      } else {
+        next[selectedFormation] = result.layout;
+      }
+      return next;
+    });
+    setManualSlotPositions(result.layout);
+    setSelectedSlotMeta(null);
+    setFocusedPlayerId(null);
+    setActiveTab("starting");
+
+    if (result.missingSlotCount > 0) {
+      toast.success("İlk 11 yeniden dizildi", {
+        description: `${result.assignments.length} oyuncu yerleşti. ${result.missingSlotCount} pozisyon için uygun oyuncu bulunamadı.`,
+      });
+      return;
+    }
+
+    toast.success("En iyi ilk 11 dizildi.");
+  }, [currentFormation, players, selectedFormation]);
 
   const handlePositionDrop = (
     e: React.DragEvent<HTMLDivElement>,
-    slot: PitchSlot,
+    slot: PitchSlot
   ) => {
     e.preventDefault();
     e.stopPropagation();
-    const playerId = e.dataTransfer.getData('text/plain') || draggedPlayerId;
+    const playerId = e.dataTransfer.getData("text/plain") || draggedPlayerId;
     if (!playerId) return;
 
-    const draggedPlayer = players.find(p => p.id === playerId);
+    const draggedPlayer = players.find((p) => p.id === playerId);
     if (!draggedPlayer) {
       setDraggedPlayerId(null);
       return;
@@ -2101,12 +2324,16 @@ function TeamPlanningContent() {
     const targetPlayer = slot.player ?? null;
 
     // GK LOCK LOGIC (Strict No-Swap)
-    const isGK = canonicalPosition(draggedPlayer.position) === 'GK';
-    const isTargetSlotGK = canonicalPosition(slot.position) === 'GK';
+    const isGK = canonicalPosition(draggedPlayer.position) === "GK";
+    const isTargetSlotGK = canonicalPosition(slot.position) === "GK";
     const isTargetOccupied = !!targetPlayer;
 
     // Rule 1: If Target is GK Slot AND Occupied -> BLOCK (No Swap allowed)
-    if (isTargetSlotGK && isTargetOccupied && targetPlayer?.id !== draggedPlayer.id) {
+    if (
+      isTargetSlotGK &&
+      isTargetOccupied &&
+      targetPlayer?.id !== draggedPlayer.id
+    ) {
       toast.warning("Kaleci pozisyonu doluyken başka oyuncu eklenemez.");
       setDraggedPlayerId(null);
       return;
@@ -2136,11 +2363,14 @@ function TeamPlanningContent() {
     }
 
     const previousRole = draggedPlayer.squadRole;
-    if (!targetPlayer && previousRole !== 'starting') {
-      const startingCount = players.filter(player => player.squadRole === 'starting').length;
+    if (!targetPlayer && previousRole !== "starting") {
+      const startingCount = players.filter(
+        (player) => player.squadRole === "starting"
+      ).length;
       if (startingCount >= 11) {
-        toast.error('Pozisyon güncellenemedi', {
-          description: 'İlk 11 dolu. Aynı mevkideki bir oyuncuyu çıkarmadan yeni oyuncu ekleyemezsin.',
+        toast.error("Pozisyon güncellenemedi", {
+          description:
+            "İlk 11 dolu. Aynı mevkideki bir oyuncuyu çıkarmadan yeni oyuncu ekleyemezsin.",
         });
         setDraggedPlayerId(null);
         return;
@@ -2148,44 +2378,49 @@ function TeamPlanningContent() {
     }
 
     const originSlot =
-      formationPositions.find(entry => entry.player?.id === draggedPlayer.id) ?? null;
+      formationPositions.find(
+        (entry) => entry.player?.id === draggedPlayer.id
+      ) ?? null;
 
     let errorMessage: string | null = null;
     let updated = false;
 
-    setPlayers(prev => {
-      const draggedState = prev.find(player => player.id === playerId);
+    setPlayers((prev) => {
+      const draggedState = prev.find((player) => player.id === playerId);
       if (!draggedState) {
-        errorMessage = 'Oyuncu bulunamad.';
+        errorMessage = "Oyuncu bulunamad.";
         return prev;
       }
 
       const targetState = targetPlayer
-        ? prev.find(player => player.id === targetPlayer.id) ?? null
+        ? prev.find((player) => player.id === targetPlayer.id) ?? null
         : null;
 
       if (targetPlayer && !targetState) {
-        errorMessage = 'Hedef oyuncu bulunamadı.';
+        errorMessage = "Hedef oyuncu bulunamadı.";
         return prev;
       }
 
-      if (!targetState && draggedState.squadRole !== 'starting') {
-        const starters = prev.filter(player => player.squadRole === 'starting').length;
+      if (!targetState && draggedState.squadRole !== "starting") {
+        const starters = prev.filter(
+          (player) => player.squadRole === "starting"
+        ).length;
         if (starters >= 11) {
-          errorMessage = 'İlk 11 dolu. Aynı mevkideki bir oyuncuyu çıkarmadan yeni oyuncu ekleyemezsin.';
+          errorMessage =
+            "İlk 11 dolu. Aynı mevkideki bir oyuncuyu çıkarmadan yeni oyuncu ekleyemezsin.";
           return prev;
         }
       }
 
       const next: Player[] = [];
 
-      prev.forEach(current => {
+      prev.forEach((current) => {
         if (current.id === draggedState.id) {
           if (targetState) {
-            if (draggedState.squadRole === 'starting') {
+            if (draggedState.squadRole === "starting") {
               const updatedTarget: Player = {
                 ...targetState,
-                squadRole: 'starting',
+                squadRole: "starting",
                 position: originSlot?.position ?? draggedState.position,
               };
               next.push(updatedTarget);
@@ -2199,7 +2434,7 @@ function TeamPlanningContent() {
           } else {
             const updatedDragged: Player = {
               ...current,
-              squadRole: 'starting',
+              squadRole: "starting",
               position: slot.position,
             };
             next.push(updatedDragged);
@@ -2211,7 +2446,7 @@ function TeamPlanningContent() {
         if (targetState && current.id === targetState.id) {
           const updatedDragged: Player = {
             ...draggedState,
-            squadRole: 'starting',
+            squadRole: "starting",
             position: slot.position,
           };
           next.push(updatedDragged);
@@ -2222,7 +2457,7 @@ function TeamPlanningContent() {
       });
 
       if (!updated) {
-        errorMessage = 'Pozisyon güncellenemedi.';
+        errorMessage = "Pozisyon güncellenemedi.";
         return prev;
       }
 
@@ -2230,7 +2465,7 @@ function TeamPlanningContent() {
     });
 
     if (errorMessage) {
-      toast.error('Pozisyon güncellenemedi', { description: errorMessage });
+      toast.error("Pozisyon güncellenemedi", { description: errorMessage });
       setDraggedPlayerId(null);
       return;
     }
@@ -2244,7 +2479,7 @@ function TeamPlanningContent() {
       });
 
       if (targetPlayer) {
-        if (previousRole === 'starting') {
+        if (previousRole === "starting") {
           if (originSlot) {
             applyManualPosition(targetPlayer.id, {
               x: originSlot.x,
@@ -2261,12 +2496,12 @@ function TeamPlanningContent() {
 
       setFocusedPlayerId(playerId);
       const successMessage = targetPlayer
-        ? previousRole === 'starting'
-          ? 'Oyuncular yer değiştirdi'
-          : 'Oyuncular değişti'
-        : previousRole === 'starting'
-          ? 'Oyuncu sahada yeniden konumlandırıldı'
-          : 'Oyuncu ilk 11\'e taşındı';
+        ? previousRole === "starting"
+          ? "Oyuncular yer değiştirdi"
+          : "Oyuncular değişti"
+        : previousRole === "starting"
+        ? "Oyuncu sahada yeniden konumlandırıldı"
+        : "Oyuncu ilk 11'e taşındı";
       toast.success(successMessage);
     }
 
@@ -2275,35 +2510,43 @@ function TeamPlanningContent() {
 
   const handleAlternativeSelection = (alternativeId: string) => {
     if (!selectedSlotMeta) {
-      toast.error('Alan seçilmedi', { description: 'Lütfen önce öneri almak istediğin slotu seç.' });
+      toast.error("Alan seçilmedi", {
+        description: "Lütfen önce öneri almak istediğin slotu seç.",
+      });
       return;
     }
 
     const fallbackPosition = selectedPlayer
       ? canonicalPosition(selectedPlayer.position)
       : canonicalPosition(selectedSlotMeta.position);
-    const replacementPosition = selectedZoneDefinition?.slotPosition ?? fallbackPosition;
+    const replacementPosition =
+      selectedZoneDefinition?.slotPosition ?? fallbackPosition;
 
     const manualLayouts = selectedPlayer
       ? Object.entries(customFormations).reduce<
-        Array<{ formation: string; layout: FormationPlayerPosition }>
-      >((acc, [formationKey, layout]) => {
-        const entry = layout?.[selectedPlayer.id];
-        if (entry) {
-          acc.push({ formation: formationKey, layout: entry });
-        }
-        return acc;
-      }, [])
+          Array<{ formation: string; layout: FormationPlayerPosition }>
+        >((acc, [formationKey, layout]) => {
+          const entry = layout?.[selectedPlayer.id];
+          if (entry) {
+            acc.push({ formation: formationKey, layout: entry });
+          }
+          return acc;
+        }, [])
       : [];
 
     let errorMessage: string | null = null;
     let updated = false;
     let swappedPlayerId: string | null = null;
 
-    setPlayers(prev => {
-      const result = promotePlayerToStartingRoster(prev, alternativeId, replacementPosition, {
-        targetPlayerId: selectedPlayer?.id,
-      });
+    setPlayers((prev) => {
+      const result = promotePlayerToStartingRoster(
+        prev,
+        alternativeId,
+        replacementPosition,
+        {
+          targetPlayerId: selectedPlayer?.id,
+        }
+      );
       if (result.error) {
         errorMessage = result.error;
         return prev;
@@ -2317,7 +2560,7 @@ function TeamPlanningContent() {
     });
 
     if (errorMessage) {
-      toast.error('Oyuncu yerleştirilemedi', { description: errorMessage });
+      toast.error("Oyuncu yerleştirilemedi", { description: errorMessage });
       return;
     }
     if (!updated) {
@@ -2332,13 +2575,16 @@ function TeamPlanningContent() {
           ...layout,
           position: replacementPosition,
         },
-        formation,
+        formation
       );
     });
     if (selectedPlayer) {
       removePlayerFromCustomFormations(selectedPlayer.id);
     }
-    if (swappedPlayerId && (!selectedPlayer || swappedPlayerId !== selectedPlayer.id)) {
+    if (
+      swappedPlayerId &&
+      (!selectedPlayer || swappedPlayerId !== selectedPlayer.id)
+    ) {
       removePlayerFromCustomFormations(swappedPlayerId);
     }
 
@@ -2349,8 +2595,8 @@ function TeamPlanningContent() {
     });
 
     setFocusedPlayerId(alternativeId);
-    setActiveTab('starting');
-    toast.success('Oyuncu ilk 11\'e taşındı');
+    setActiveTab("starting");
+    toast.success("Oyuncu ilk 11'e taşındı");
   };
 
   return (
@@ -2363,43 +2609,57 @@ function TeamPlanningContent() {
           <div className="flex items-center gap-2.5">
             <BackButton onClick={handleBackNavigation} />
             <div>
-              <h1 className="text-base font-semibold sm:text-lg">Takım Planı</h1>
+              <h1 className="text-base font-semibold sm:text-lg">
+                Takım Planı
+              </h1>
               <p className="text-[11px] text-orange-100/70 sm:text-xs">
                 Formasyonunuzu yönetin ve kadronuzu düzenleyin
               </p>
-              <div className="mt-2 grid grid-cols-2 gap-1.5 sm:flex sm:flex-wrap">
-                {metricOptions.map((option) => {
-                  const isActive = selectedMetric === option.key;
-                  return (
-                    <button
-                      key={option.key}
-                      type="button"
-                      onClick={() => setSelectedMetric(option.key)}
-                      className={cn(
-                        'rounded-full border px-3 py-1 text-[10px] font-semibold tracking-wide transition sm:text-[11px]',
-                        isActive
-                          ? 'border-emerald-300 bg-emerald-400/20 text-emerald-50 shadow-[0_10px_30px_rgba(52,211,153,0.18)]'
-                          : 'border-white/15 bg-white/5 text-orange-50/80 hover:bg-white/10 hover:text-white',
-                      )}
-                    >
-                      {option.label}
-                    </button>
-                  );
-                })}
+              <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+                <div className="grid grid-cols-2 gap-1.5 sm:flex sm:flex-wrap">
+                  {metricOptions.map((option) => {
+                    const isActive = selectedMetric === option.key;
+                    return (
+                      <button
+                        key={option.key}
+                        type="button"
+                        onClick={() => setSelectedMetric(option.key)}
+                        className={cn(
+                          "rounded-full border px-3 py-1 text-[10px] font-semibold tracking-wide transition sm:text-[11px]",
+                          isActive
+                            ? "border-emerald-300 bg-emerald-400/20 text-emerald-50 shadow-[0_10px_30px_rgba(52,211,153,0.18)]"
+                            : "border-white/15 bg-white/5 text-orange-50/80 hover:bg-white/10 hover:text-white"
+                        )}
+                      >
+                        {option.label}
+                      </button>
+                    );
+                  })}
+                </div>
+                <Button
+                  type="button"
+                  onClick={handleBestLineupAutoArrange}
+                  className="h-8 self-start rounded-full border border-cyan-300/40 bg-cyan-400/15 px-3 text-[10px] font-semibold tracking-wide text-cyan-50 shadow-[0_10px_30px_rgba(34,211,238,0.16)] transition hover:bg-cyan-400/25 sm:text-[11px]"
+                >
+                  En İyi Kadroyu Diz
+                </Button>
               </div>
             </div>
           </div>
           <div className="flex items-center gap-1.5">
             <div className="flex items-center">
-              <Select value={selectedFormation} onValueChange={handleFormationSelect}>
+              <Select
+                value={selectedFormation}
+                onValueChange={handleFormationSelect}
+              >
                 <SelectTrigger className="h-9 border-white/30 bg-white/10 px-3 text-xs text-white shadow-sm transition hover:bg-white/20 hover:text-white sm:text-sm w-[140px]">
                   <div className="flex items-center">
                     <Eye className="mr-1.5 h-3.5 w-3.5" />
-                    <span>{displayFormationName || 'Formasyon'}</span>
+                    <span>{displayFormationName || "Formasyon"}</span>
                   </div>
                 </SelectTrigger>
                 <SelectContent className="max-h-64">
-                  {formations.map(formation => (
+                  {formations.map((formation) => (
                     <SelectItem key={formation.name} value={formation.name}>
                       {formation.name}
                     </SelectItem>
@@ -2433,27 +2693,30 @@ function TeamPlanningContent() {
           <section
             id="tp-left"
             style={{
-              width: isListCollapsed ? '100%' : '60%',
-              flex: isListCollapsed ? '0 0 100%' : '0 0 60%',
-              maxWidth: isListCollapsed ? '100%' : '60%'
+              width: isListCollapsed ? "100%" : "60%",
+              flex: isListCollapsed ? "0 0 100%" : "0 0 60%",
+              maxWidth: isListCollapsed ? "100%" : "60%",
             }}
             className="relative h-full transition-all duration-300 ease-in-out min-w-0 bg-transparent m-0 p-0 flex flex-col shrink-0"
           >
-            <div id="tp-pitch-wrapper" className="flex-1 w-full h-full bg-transparent m-0 p-0 block relative min-h-0">
+            <div
+              id="tp-pitch-wrapper"
+              className="flex-1 w-full h-full bg-transparent m-0 p-0 block relative min-h-0"
+            >
               <Pitch
                 ref={pitchRef}
                 slots={formationPositions}
                 zoneHighlights={dragZoneHighlights}
                 onPitchDrop={handlePitchDrop}
                 onPositionDrop={handlePositionDrop}
-                onPlayerDragStart={player => {
+                onPlayerDragStart={(player) => {
                   setDraggedPlayerId(player.id);
                   // Zoom removed
                 }}
                 onPlayerDragEnd={handlePlayerDragEnd}
-                onSelectPlayer={playerId => {
+                onSelectPlayer={(playerId) => {
                   const items = formationPositions;
-                  const slot = items.find(s => s.player?.id === playerId);
+                  const slot = items.find((s) => s.player?.id === playerId);
                   if (slot) {
                     handleSlotSelect(slot);
                     setFocusedPlayerId(playerId);
@@ -2469,7 +2732,7 @@ function TeamPlanningContent() {
                 onBackgroundClick={() => {
                   setSelectedSlotMeta(null);
                   setFocusedPlayerId(null);
-                  setActiveTab('starting');
+                  setActiveTab("starting");
                 }}
               />
             </div>
@@ -2478,7 +2741,9 @@ function TeamPlanningContent() {
           <aside
             className={cn(
               "flex flex-col h-full overflow-hidden border-l border-white/10 bg-black/35 transition-all duration-300 ease-in-out absolute right-0 top-0 bottom-0 z-20 shadow-2xl backdrop-blur-md",
-              isListCollapsed ? "translate-x-[calc(100%-24px)]" : "translate-x-0 w-[40%]"
+              isListCollapsed
+                ? "translate-x-[calc(100%-24px)]"
+                : "translate-x-0 w-[40%]"
             )}
             onClick={(e) => {
               if (isListCollapsed) {
@@ -2495,13 +2760,13 @@ function TeamPlanningContent() {
             <div
               id="tp-right-pane"
               className="flex h-full flex-col"
-              style={{ contain: 'layout paint', willChange: 'transform' }}
+              style={{ contain: "layout paint", willChange: "transform" }}
             >
               <Tabs
                 value={activeTab}
                 onValueChange={setActiveTab}
                 className="flex h-full flex-col"
-                style={{ contain: 'layout paint', willChange: 'transform' }}
+                style={{ contain: "layout paint", willChange: "transform" }}
               >
                 <div
                   id="tp-right-header"
@@ -2515,21 +2780,29 @@ function TeamPlanningContent() {
                         <Input
                           placeholder="Oyuncu ara..."
                           value={searchTerm}
-                          onChange={event => setSearchTerm(event.target.value)}
+                          onChange={(event) =>
+                            setSearchTerm(event.target.value)
+                          }
                           className="h-6 border-white/20 bg-white/10 pl-6 text-[9px] text-white placeholder:text-orange-100/50 focus-visible:ring-orange-500/50"
                         />
                       </div>
                       <Select
                         value={sortBy}
-                        onValueChange={value => setSortBy(value as 'role' | 'overall' | 'potential')}
+                        onValueChange={(value) =>
+                          setSortBy(value as "role" | "overall" | "potential")
+                        }
                       >
                         <SelectTrigger className="h-6 border-white/20 bg-white/10 text-[9px] text-white focus:ring-orange-500/50 sm:w-24">
                           <SelectValue placeholder="Sırala" />
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="role">Role göre</SelectItem>
-                          <SelectItem value="overall">Ortalamaya göre</SelectItem>
-                          <SelectItem value="potential">Maks. potansiyel</SelectItem>
+                          <SelectItem value="overall">
+                            Ortalamaya göre
+                          </SelectItem>
+                          <SelectItem value="potential">
+                            Maks. potansiyel
+                          </SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -2583,7 +2856,9 @@ function TeamPlanningContent() {
                         <Card className="border-white/10 bg-white/5 text-center text-white shadow-lg backdrop-blur">
                           <CardContent className="p-8">
                             <div className="mb-4 text-4xl">⚽</div>
-                            <h3 className="mb-2 text-base font-semibold">Öneri Bulunamadı</h3>
+                            <h3 className="mb-2 text-base font-semibold">
+                              Öneri Bulunamadı
+                            </h3>
                             <p className="text-sm text-emerald-100/70">
                               Bu pozisyon için uygun oyuncu yok.
                             </p>
@@ -2599,18 +2874,26 @@ function TeamPlanningContent() {
                               {recommendedPlayers.length} Oyuncu
                             </span>
                           </div>
-                          {recommendedPlayers.map(player => {
-                            const canAdjustContract = getLegendIdFromPlayer(player) === null;
-                            const metricValue = getPitchMetricValue(player, selectedMetric);
+                          {recommendedPlayers.map((player) => {
+                            const canAdjustContract =
+                              getLegendIdFromPlayer(player) === null;
+                            const metricValue = getPitchMetricValue(
+                              player,
+                              selectedMetric
+                            );
                             return (
                               <PlayerCard
                                 key={player.id}
                                 player={player}
                                 leagueId={teamLeagueIdRef.current}
-                                ratingAnnotation={String(Math.round(metricValue))}
+                                ratingAnnotation={String(
+                                  Math.round(metricValue)
+                                )}
                                 compact
                                 defaultCollapsed
-                                onSelect={() => handleAlternativeSelection(player.id)}
+                                onSelect={() =>
+                                  handleAlternativeSelection(player.id)
+                                }
                                 onShowDetails={() => {
                                   setFocusedPlayerId(player.id);
                                   setIsDetailOverlayOpen(true);
@@ -2627,15 +2910,19 @@ function TeamPlanningContent() {
                         <Card className="border-white/10 bg-white/5 text-center text-white shadow-lg backdrop-blur">
                           <CardContent className="p-8">
                             <div className="mb-4 text-4xl">⚽</div>
-                            <h3 className="mb-2 text-base font-semibold">İlk 11'inizi oluşturun</h3>
+                            <h3 className="mb-2 text-base font-semibold">
+                              İlk 11'inizi oluşturun
+                            </h3>
                             <p className="text-sm text-emerald-100/70">
-                              Yedek kulübesinden oyuncularınızı ilk 11'e taşıyın.
+                              Yedek kulübesinden oyuncularınızı ilk 11'e
+                              taşıyın.
                             </p>
                           </CardContent>
                         </Card>
                       ) : (
-                        sortedPlayers.map(player => {
-                          const canAdjustContract = getLegendIdFromPlayer(player) === null;
+                        sortedPlayers.map((player) => {
+                          const canAdjustContract =
+                            getLegendIdFromPlayer(player) === null;
                           return (
                             <PlayerCard
                               key={player.id}
@@ -2645,21 +2932,36 @@ function TeamPlanningContent() {
                               compact
                               defaultCollapsed
                               draggable
-                              onDragStart={event => {
+                              onDragStart={(event) => {
                                 setDraggedPlayerId(player.id);
-                                event.dataTransfer.setData('text/plain', player.id);
+                                event.dataTransfer.setData(
+                                  "text/plain",
+                                  player.id
+                                );
                               }}
                               onDragEnd={() => setDraggedPlayerId(null)}
-                              onMoveToBench={() => movePlayer(player.id, 'bench')}
-                              onMoveToReserve={() => movePlayer(player.id, 'reserve')}
-                              onListForTransfer={() => handleListForTransfer(player.id)}
-                              onRenamePlayer={() => setRenamePlayerId(player.id)}
+                              onMoveToBench={() =>
+                                movePlayer(player.id, "bench")
+                              }
+                              onMoveToReserve={() =>
+                                movePlayer(player.id, "reserve")
+                              }
+                              onListForTransfer={() =>
+                                handleListForTransfer(player.id)
+                              }
+                              onRenamePlayer={() =>
+                                setRenamePlayerId(player.id)
+                              }
                               onFirePlayer={() => handleFirePlayer(player.id)}
                               onNegotiateSalary={
-                                canAdjustContract ? () => openSalaryNegotiation(player.id) : undefined
+                                canAdjustContract
+                                  ? () => openSalaryNegotiation(player.id)
+                                  : undefined
                               }
                               onExtendContract={
-                                canAdjustContract ? () => handleExtendContract(player.id) : undefined
+                                canAdjustContract
+                                  ? () => handleExtendContract(player.id)
+                                  : undefined
                               }
                               onShowDetails={() => {
                                 setFocusedPlayerId(player.id);
@@ -2676,15 +2978,18 @@ function TeamPlanningContent() {
                         <Card className="border-white/10 bg-white/5 text-center text-white shadow-lg backdrop-blur">
                           <CardContent className="p-8">
                             <div className="mb-4 text-4xl">⚽</div>
-                            <h3 className="mb-2 text-base font-semibold">Yedek kulübesi boş</h3>
+                            <h3 className="mb-2 text-base font-semibold">
+                              Yedek kulübesi boş
+                            </h3>
                             <p className="text-sm text-emerald-100/70">
                               Rezerv oyuncularınızı yedek kulübesine taşıyın.
                             </p>
                           </CardContent>
                         </Card>
                       ) : (
-                        sortedPlayers.map(player => {
-                          const canAdjustContract = getLegendIdFromPlayer(player) === null;
+                        sortedPlayers.map((player) => {
+                          const canAdjustContract =
+                            getLegendIdFromPlayer(player) === null;
                           return (
                             <PlayerCard
                               key={player.id}
@@ -2694,22 +2999,39 @@ function TeamPlanningContent() {
                               compact
                               defaultCollapsed
                               draggable
-                              onDragStart={event => {
+                              onDragStart={(event) => {
                                 setDraggedPlayerId(player.id);
-                                event.dataTransfer.setData('text/plain', player.id);
+                                event.dataTransfer.setData(
+                                  "text/plain",
+                                  player.id
+                                );
                               }}
                               onDragEnd={() => setDraggedPlayerId(null)}
-                              onMoveToStarting={() => movePlayer(player.id, 'starting')}
-                              moveToStartingLabel={getMoveToStartingLabel(player)}
-                              onMoveToReserve={() => movePlayer(player.id, 'reserve')}
-                              onListForTransfer={() => handleListForTransfer(player.id)}
-                              onRenamePlayer={() => setRenamePlayerId(player.id)}
+                              onMoveToStarting={() =>
+                                movePlayer(player.id, "starting")
+                              }
+                              moveToStartingLabel={getMoveToStartingLabel(
+                                player
+                              )}
+                              onMoveToReserve={() =>
+                                movePlayer(player.id, "reserve")
+                              }
+                              onListForTransfer={() =>
+                                handleListForTransfer(player.id)
+                              }
+                              onRenamePlayer={() =>
+                                setRenamePlayerId(player.id)
+                              }
                               onFirePlayer={() => handleFirePlayer(player.id)}
                               onNegotiateSalary={
-                                canAdjustContract ? () => openSalaryNegotiation(player.id) : undefined
+                                canAdjustContract
+                                  ? () => openSalaryNegotiation(player.id)
+                                  : undefined
                               }
                               onExtendContract={
-                                canAdjustContract ? () => handleExtendContract(player.id) : undefined
+                                canAdjustContract
+                                  ? () => handleExtendContract(player.id)
+                                  : undefined
                               }
                               onShowDetails={() => {
                                 setFocusedPlayerId(player.id);
@@ -2726,15 +3048,18 @@ function TeamPlanningContent() {
                         <Card className="border-white/10 bg-white/5 text-center text-white shadow-lg backdrop-blur">
                           <CardContent className="p-8">
                             <div className="mb-4 text-4xl">⚽</div>
-                            <h3 className="mb-2 text-base font-semibold">Rezerv oyuncu yok</h3>
+                            <h3 className="mb-2 text-base font-semibold">
+                              Rezerv oyuncu yok
+                            </h3>
                             <p className="text-sm text-emerald-100/70">
                               Altyapıdan oyuncu alın veya pazardan oyuncu satın.
                             </p>
                           </CardContent>
                         </Card>
                       ) : (
-                        sortedPlayers.map(player => {
-                          const canAdjustContract = getLegendIdFromPlayer(player) === null;
+                        sortedPlayers.map((player) => {
+                          const canAdjustContract =
+                            getLegendIdFromPlayer(player) === null;
                           return (
                             <PlayerCard
                               key={player.id}
@@ -2744,22 +3069,39 @@ function TeamPlanningContent() {
                               compact
                               defaultCollapsed
                               draggable
-                              onDragStart={event => {
+                              onDragStart={(event) => {
                                 setDraggedPlayerId(player.id);
-                                event.dataTransfer.setData('text/plain', player.id);
+                                event.dataTransfer.setData(
+                                  "text/plain",
+                                  player.id
+                                );
                               }}
                               onDragEnd={() => setDraggedPlayerId(null)}
-                              onMoveToStarting={() => movePlayer(player.id, 'starting')}
-                              moveToStartingLabel={getMoveToStartingLabel(player)}
-                              onMoveToBench={() => movePlayer(player.id, 'bench')}
-                              onListForTransfer={() => handleListForTransfer(player.id)}
-                              onRenamePlayer={() => setRenamePlayerId(player.id)}
+                              onMoveToStarting={() =>
+                                movePlayer(player.id, "starting")
+                              }
+                              moveToStartingLabel={getMoveToStartingLabel(
+                                player
+                              )}
+                              onMoveToBench={() =>
+                                movePlayer(player.id, "bench")
+                              }
+                              onListForTransfer={() =>
+                                handleListForTransfer(player.id)
+                              }
+                              onRenamePlayer={() =>
+                                setRenamePlayerId(player.id)
+                              }
                               onFirePlayer={() => handleFirePlayer(player.id)}
                               onNegotiateSalary={
-                                canAdjustContract ? () => openSalaryNegotiation(player.id) : undefined
+                                canAdjustContract
+                                  ? () => openSalaryNegotiation(player.id)
+                                  : undefined
                               }
                               onExtendContract={
-                                canAdjustContract ? () => handleExtendContract(player.id) : undefined
+                                canAdjustContract
+                                  ? () => handleExtendContract(player.id)
+                                  : undefined
                               }
                               onShowDetails={() => {
                                 setFocusedPlayerId(player.id);
@@ -2775,8 +3117,8 @@ function TeamPlanningContent() {
               </Tabs>
             </div>
           </aside>
-        </div >
-      </div >
+        </div>
+      </div>
 
       <RenamePlayerDialog
         player={renamePlayer}
@@ -2789,8 +3131,8 @@ function TeamPlanningContent() {
         isRenaming={isRenamingPlayer}
         onClose={() => setRenamePlayerId(null)}
         onChangeInput={setRenameInput}
-        onRenameWithAd={() => handleRenamePlayer('ad')}
-        onRenameWithPurchase={() => handleRenamePlayer('purchase')}
+        onRenameWithAd={() => handleRenamePlayer("ad")}
+        onRenameWithPurchase={() => handleRenamePlayer("purchase")}
       />
 
       <SalaryNegotiationDialog
@@ -2816,25 +3158,58 @@ function TeamPlanningContent() {
         player={activeContractPlayer}
         teamLeagueId={teamLeagueIdRef.current}
         isProcessing={isProcessingContract}
-        onRelease={() => activeContractPlayer && handleReleaseContract(activeContractPlayer.id)}
-        onExtend={() => activeContractPlayer && handleExtendContract(activeContractPlayer.id)}
+        onRelease={() =>
+          activeContractPlayer && handleReleaseContract(activeContractPlayer.id)
+        }
+        onExtend={() =>
+          activeContractPlayer && handleExtendContract(activeContractPlayer.id)
+        }
       />
 
       <PlayerDetailOverlay
         isOpen={isDetailOverlayOpen}
         onClose={() => setIsDetailOverlayOpen(false)}
         player={selectedPlayer}
-        onMoveToStarting={(id) => { movePlayer(id, 'starting'); setIsDetailOverlayOpen(false); }}
-        moveToStartingLabel={selectedPlayer ? getMoveToStartingLabel(selectedPlayer) : undefined}
-        onMoveToBench={(id) => { movePlayer(id, 'bench'); setIsDetailOverlayOpen(false); }}
-        onMoveToReserve={(id) => { movePlayer(id, 'reserve'); setIsDetailOverlayOpen(false); }}
-        onRename={(id) => { setRenamePlayerId(id); setIsDetailOverlayOpen(false); }}
+        onMoveToStarting={(id) => {
+          movePlayer(id, "starting");
+          setIsDetailOverlayOpen(false);
+        }}
+        moveToStartingLabel={
+          selectedPlayer ? getMoveToStartingLabel(selectedPlayer) : undefined
+        }
+        onMoveToBench={(id) => {
+          movePlayer(id, "bench");
+          setIsDetailOverlayOpen(false);
+        }}
+        onMoveToReserve={(id) => {
+          movePlayer(id, "reserve");
+          setIsDetailOverlayOpen(false);
+        }}
+        onRename={(id) => {
+          setRenamePlayerId(id);
+          setIsDetailOverlayOpen(false);
+        }}
         onUseKits={handleOpenKitUsage}
-        onNegotiateSalary={(id) => { openSalaryNegotiation(id); setIsDetailOverlayOpen(false); }}
-        onSellPlayer={(id) => { handleListForTransfer(id); setIsDetailOverlayOpen(false); }}
-        onExtendContract={(id) => { handleExtendContract(id); setIsDetailOverlayOpen(false); }}
-        onFirePlayer={(id) => { handleFirePlayer(id); setIsDetailOverlayOpen(false); }}
-        onReleasePlayer={(id) => { handleReleaseContract(id); setIsDetailOverlayOpen(false); }}
+        onNegotiateSalary={(id) => {
+          openSalaryNegotiation(id);
+          setIsDetailOverlayOpen(false);
+        }}
+        onSellPlayer={(id) => {
+          handleListForTransfer(id);
+          setIsDetailOverlayOpen(false);
+        }}
+        onExtendContract={(id) => {
+          handleExtendContract(id);
+          setIsDetailOverlayOpen(false);
+        }}
+        onFirePlayer={(id) => {
+          handleFirePlayer(id);
+          setIsDetailOverlayOpen(false);
+        }}
+        onReleasePlayer={(id) => {
+          handleReleaseContract(id);
+          setIsDetailOverlayOpen(false);
+        }}
       />
 
       <LineupReadinessDialog
