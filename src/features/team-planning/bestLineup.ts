@@ -1,7 +1,11 @@
 import type { Formation } from "@/lib/formations";
 import type { Player } from "@/types";
 
-import { recommendPlayers } from "./slotZones";
+import {
+  getZoneDefinition,
+  positionAffinity,
+  recommendPlayers,
+} from "./slotZones";
 import type { ZoneId } from "./slotZones";
 import type {
   DisplayPlayer,
@@ -128,6 +132,51 @@ const rankFallbackCandidates = (
     return left.id.localeCompare(right.id);
   });
 
+const projectOverallForSlot = (
+  slotPosition: Player["position"],
+  player: DisplayPlayer
+): number =>
+  Math.min(
+    player.originalOverall,
+    computePositionOverall(slotPosition, player.attributes)
+  );
+
+const rankStrictCandidates = (
+  slot: PitchSlot,
+  zoneId: ZoneId,
+  candidates: DisplayPlayer[]
+): DisplayPlayer[] => {
+  const zone = getZoneDefinition(zoneId);
+
+  return [...candidates].sort((left, right) => {
+    const projectedDelta =
+      projectOverallForSlot(slot.position, right) -
+      projectOverallForSlot(slot.position, left);
+    if (projectedDelta !== 0) {
+      return projectedDelta;
+    }
+
+    const affinityDelta =
+      positionAffinity(right, zone) - positionAffinity(left, zone);
+    if (affinityDelta !== 0) {
+      return affinityDelta;
+    }
+
+    const overallDelta = right.originalOverall - left.originalOverall;
+    if (overallDelta !== 0) {
+      return overallDelta;
+    }
+
+    const roleDelta =
+      squadRoleWeight(left.squadRole) - squadRoleWeight(right.squadRole);
+    if (roleDelta !== 0) {
+      return roleDelta;
+    }
+
+    return left.id.localeCompare(right.id);
+  });
+};
+
 export const buildBestLineupForFormation = (
   players: Player[],
   formation: Formation,
@@ -140,6 +189,7 @@ export const buildBestLineupForFormation = (
 
   const slots = formation.positions.map<{
     slot: PitchSlot;
+    zoneId: ZoneId;
     candidates: DisplayPlayer[];
   }>((slot, slotIndex) => {
     const pitchSlot: PitchSlot = {
@@ -147,16 +197,18 @@ export const buildBestLineupForFormation = (
       slotIndex,
       player: null,
     };
+    const zoneId = resolveFormationSlotZone(pitchSlot);
 
     return {
       slot: pitchSlot,
-      candidates: recommendPlayers(
-        resolveFormationSlotZone(pitchSlot),
-        evaluationPlayers,
-        {
+      zoneId,
+      candidates: rankStrictCandidates(
+        pitchSlot,
+        zoneId,
+        recommendPlayers(zoneId, evaluationPlayers, {
           allowStarters: true,
           limit: evaluationPlayers.length,
-        }
+        })
       ),
     };
   });

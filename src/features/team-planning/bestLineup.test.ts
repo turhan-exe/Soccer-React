@@ -338,4 +338,70 @@ describe("buildBestLineupForFormation", () => {
     expect(lowFallbackAssignment).toBeFalsy();
     expect(remainingFallbackAssignment?.position).toBe("ST");
   });
+
+  it("prefers stronger compatible players over very weak natural options", () => {
+    const players: Player[] = [
+      createPlayer({ id: "gk", position: "GK", roles: ["GK"], overall: 0.8 }),
+      createPlayer({ id: "lb", position: "LB", roles: ["LB"], overall: 0.79 }),
+      createPlayer({
+        id: "cb-1",
+        position: "CB",
+        roles: ["CB"],
+        overall: 0.78,
+      }),
+      createPlayer({
+        id: "cb-2",
+        position: "CB",
+        roles: ["CB"],
+        overall: 0.77,
+      }),
+      createPlayer({ id: "rb", position: "RB", roles: ["RB"], overall: 0.76 }),
+      createPlayer({ id: "lm", position: "LM", roles: ["LM"], overall: 0.75 }),
+      createPlayer({ id: "rm", position: "RM", roles: ["RM"], overall: 0.74 }),
+      createPlayer({
+        id: "st-1",
+        position: "ST",
+        roles: ["ST"],
+        overall: 0.73,
+      }),
+      createPlayer({
+        id: "st-2",
+        position: "ST",
+        roles: ["ST"],
+        overall: 0.72,
+      }),
+      createPlayer({
+        id: "solid-cm",
+        position: "CM",
+        roles: ["CM"],
+        overall: 0.71,
+      }),
+      createPlayer({
+        id: "strong-hybrid",
+        position: "CAM",
+        roles: ["CAM", "CM"],
+        overall: 0.78,
+      }),
+      createPlayer({
+        id: "weak-cm",
+        position: "CM",
+        roles: ["CM"],
+        overall: 0.22,
+      }),
+    ];
+
+    const result = buildBestLineupForFormation(
+      players,
+      formationByName("4-4-2"),
+      {}
+    );
+
+    const strongHybrid = result.players.find(
+      (player) => player.id === "strong-hybrid"
+    );
+    const weakCm = result.players.find((player) => player.id === "weak-cm");
+
+    expect(strongHybrid?.squadRole).toBe("starting");
+    expect(weakCm?.squadRole).not.toBe("starting");
+  });
 });
