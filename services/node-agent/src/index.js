@@ -1,4 +1,5 @@
 import "dotenv/config";
+import { createHash } from "node:crypto";
 import os from "node:os";
 import process from "node:process";
 import { spawn, spawnSync } from "node:child_process";
@@ -10,6 +11,7 @@ import {
   createReadStream,
   existsSync,
   mkdirSync,
+  readFileSync,
   rmSync,
   statSync,
 } from "node:fs";
@@ -1001,7 +1003,63 @@ function computeCapacity() {
   };
 }
 
+function resolveRuntimeRoot() {
+  return path.resolve(config.unityWorkingDir || path.dirname(config.unityBinaryPath));
+}
+
+function computeFileSha256(filePath) {
+  if (!filePath || !existsSync(filePath)) {
+    return "";
+  }
+
+  const hash = createHash("sha256");
+  hash.update(readFileSync(filePath));
+  return hash.digest("hex");
+}
+
+function readJsonFile(filePath) {
+  if (!filePath || !existsSync(filePath)) {
+    return null;
+  }
+
+  try {
+    const raw = readFileSync(filePath, "utf8");
+    const normalized = raw.charCodeAt(0) === 0xfeff ? raw.slice(1) : raw;
+    return JSON.parse(normalized);
+  } catch {
+    return null;
+  }
+}
+
+function getRuntimeIdentity() {
+  const runtimeRoot = resolveRuntimeRoot();
+  const manifestPath = path.join(runtimeRoot, "runtime-manifest.json");
+  const assemblyPath = path.join(
+    runtimeRoot,
+    "FHS_BackUpThisFolder_ButDontShipItWithYourGame",
+    "Managed",
+    "Assembly-CSharp.dll",
+  );
+  const gameAssemblyPath = path.join(runtimeRoot, "GameAssembly.so");
+  const manifest = readJsonFile(manifestPath);
+
+  return {
+    runtimeRoot,
+    manifestPath,
+    manifestPresent: Boolean(manifest),
+    buildId: String(manifest?.buildId || ""),
+    buildTimestampUtc: String(manifest?.buildTimestampUtc || ""),
+    runtimeType: String(manifest?.runtimeType || ""),
+    unityBinaryPath: path.resolve(config.unityBinaryPath),
+    unityBinaryName: String(manifest?.unityBinaryName || path.basename(config.unityBinaryPath)),
+    assemblyHash: String(manifest?.assemblyHash || computeFileSha256(assemblyPath)),
+    gameAssemblyHash: String(manifest?.gameAssemblyHash || computeFileSha256(gameAssemblyPath)),
+    gitSha: String(manifest?.gitSha || ""),
+  };
+}
+
 function allocationSummary(allocation) {
+  const runtime = getRuntimeIdentity();
   return {
     matchId: allocation.matchId,
     mode: allocation.mode,
@@ -1023,6 +1081,8 @@ function allocationSummary(allocation) {
     lastExitCode: allocation.lastExitCode ?? null,
     lastExitSignal: allocation.lastExitSignal ?? null,
     releaseReason: allocation.releaseReason || null,
+    runtimeBuildId: runtime.buildId || null,
+    assemblyHash: runtime.assemblyHash || null,
   };
 }
 
@@ -1610,6 +1670,7 @@ function startAllocationProcess(allocation) {
   scheduleHardTimeout(allocation);
 
   attachChildHandlers(allocation, child);
+  const runtime = getRuntimeIdentity();
 
   fastify.log.info(
     {
@@ -1619,6 +1680,10 @@ function startAllocationProcess(allocation) {
       mode: allocation.mode,
       command,
       useVirtualDisplay,
+      runtimeBuildId: runtime.buildId || null,
+      assemblyHash: runtime.assemblyHash || null,
+      runtimeType: runtime.runtimeType || null,
+      runtimeRoot: runtime.runtimeRoot,
     },
     "unity_process_started",
   );
@@ -1710,6 +1775,7 @@ fastify.get("/health", async () => ({
   nodeId: config.nodeId,
   timestamp: nowIso(),
   capacity: computeCapacity(),
+  runtime: getRuntimeIdentity(),
 }));
 
 fastify.get("/agent/v1/capacity", async (request, reply) => {
@@ -1881,6 +1947,7 @@ async function start() {
   await cleanupOrphanedUnityProcesses("startup");
 
   await fastify.listen({ host: config.host, port: config.port });
+  const runtime = getRuntimeIdentity();
   fastify.log.info(
     {
       host: config.host,
@@ -1888,6 +1955,10 @@ async function start() {
       nodeId: config.nodeId,
       slots: config.allocatablePorts,
       unityBinaryPath: config.unityBinaryPath,
+      runtimeBuildId: runtime.buildId || null,
+      assemblyHash: runtime.assemblyHash || null,
+      runtimeType: runtime.runtimeType || null,
+      runtimeRoot: runtime.runtimeRoot,
     },
     "node-agent started",
   );

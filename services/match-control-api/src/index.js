@@ -414,6 +414,33 @@ function normalizeAcceptedByKind(value) {
   return null;
 }
 
+function parseLifecycleTimestamp(value) {
+  if (value == null || value === "") {
+    return null;
+  }
+
+  if (typeof value === "number" && Number.isFinite(value) && value > 0) {
+    return new Date(value).toISOString();
+  }
+
+  const text = String(value).trim();
+  if (!text) {
+    return null;
+  }
+
+  const numeric = Number(text);
+  if (Number.isFinite(numeric) && numeric > 0) {
+    return new Date(numeric).toISOString();
+  }
+
+  const parsed = new Date(text);
+  if (Number.isNaN(parsed.getTime())) {
+    return null;
+  }
+
+  return parsed.toISOString();
+}
+
 function getPresenceMemoryRecord(userId) {
   const normalizedUserId = String(userId || "").trim();
   if (!normalizedUserId) return null;
@@ -1521,6 +1548,75 @@ function sanitizeMatch(row) {
     videoStatus: row.video_status ?? row.videoStatus ?? "none",
     videoStoragePath: row.video_storage_path ?? row.videoStoragePath ?? null,
     videoWatchUrl: row.video_watch_url ?? row.videoWatchUrl ?? null,
+    lastBootstrapStage:
+      row.last_bootstrap_stage ?? row.lastBootstrapStage ?? null,
+    lastBootstrapAt: row.last_bootstrap_at ?? row.lastBootstrapAt ?? null,
+    gameplaySceneAt: row.gameplay_scene_at ?? row.gameplaySceneAt ?? null,
+    gameplayGraphReadyAt:
+      row.gameplay_graph_ready_at ?? row.gameplayGraphReadyAt ?? null,
+    runtimeReplaySentAt:
+      row.runtime_replay_sent_at ?? row.runtimeReplaySentAt ?? null,
+    simulationReleaseState:
+      row.simulation_release_state ?? row.simulationReleaseState ?? null,
+    simulationReleasedAt:
+      row.simulation_released_at ?? row.simulationReleasedAt ?? null,
+    actorsReadyAt: row.actors_ready_at ?? row.actorsReadyAt ?? null,
+    bootstrapFailureReason:
+      row.bootstrap_failure_reason ?? row.bootstrapFailureReason ?? null,
+    missingEntityTargetCount:
+      row.missing_entity_target_count ?? row.missingEntityTargetCount ?? 0,
+    renderCompatProfile:
+      row.render_compat_profile ?? row.renderCompatProfile ?? null,
+    visualQualityPhase:
+      row.visual_quality_phase ?? row.visualQualityPhase ?? null,
+    renderScale:
+      row.render_scale ?? row.renderScale ?? null,
+    recordingSuppressed:
+      row.recording_suppressed ?? row.recordingSuppressed ?? null,
+    unsupportedRenderTextureErrorCount:
+      row.unsupported_render_texture_error_count ??
+      row.unsupportedRenderTextureErrorCount ??
+      0,
+    primaryCameraVisibleAt:
+      row.primary_camera_visible_at ?? row.primaryCameraVisibleAt ?? null,
+    stadiumSceneActivatedAt:
+      row.stadium_scene_activated_at ?? row.stadiumSceneActivatedAt ?? null,
+    stadiumTailWarmupCompletedAt:
+      row.stadium_tail_warmup_completed_at ??
+      row.stadiumTailWarmupCompletedAt ??
+      null,
+    mainThreadStallCount:
+      row.main_thread_stall_count ?? row.mainThreadStallCount ?? 0,
+    worstFrameMs: row.worst_frame_ms ?? row.worstFrameMs ?? 0,
+    loadingOverlayReleaseReason:
+      row.loading_overlay_release_reason ?? row.loadingOverlayReleaseReason ?? null,
+    hudVisible:
+      typeof row.hud_visible === "boolean"
+        ? row.hud_visible
+        : typeof row.hudVisible === "boolean"
+          ? row.hudVisible
+          : null,
+    graphicsApi: row.graphics_api ?? row.graphicsApi ?? null,
+    unityBuildFlavor: row.unity_build_flavor ?? row.unityBuildFlavor ?? null,
+    diagnosticLogLevel:
+      row.diagnostic_log_level ?? row.diagnosticLogLevel ?? null,
+    presentationPhase:
+      row.presentation_phase ?? row.presentationPhase ?? null,
+    commonPerfTier:
+      row.common_perf_tier ?? row.commonPerfTier ?? null,
+    firstVisibleGameplayAt:
+      row.first_visible_gameplay_at ?? row.firstVisibleGameplayAt ?? null,
+    loaderPhase: row.loader_phase ?? row.loaderPhase ?? null,
+    stadiumDataReadyAt:
+      row.stadium_data_ready_at ?? row.stadiumDataReadyAt ?? null,
+    createReadyAt: row.create_ready_at ?? row.createReadyAt ?? null,
+    criticalRelinkPendingCount:
+      row.critical_relink_pending_count ?? row.criticalRelinkPendingCount ?? 0,
+    presentationQueueDepth:
+      row.presentation_queue_depth ?? row.presentationQueueDepth ?? 0,
+    avgFpsWindow: row.avg_fps_window ?? row.avgFpsWindow ?? 0,
+    crowdPhase: row.crowd_phase ?? row.crowdPhase ?? null,
+    audioPhase: row.audio_phase ?? row.audioPhase ?? null,
     updatedAt: row.updated_at ?? row.updatedAt,
     createdAt: row.created_at ?? row.createdAt,
   };
@@ -1561,6 +1657,49 @@ function sanitizeInternalMatch(row) {
     videoStatus: match.videoStatus,
     videoStoragePath: match.videoStoragePath,
     videoWatchUrl: match.videoWatchUrl,
+    lastBootstrapStage: match.lastBootstrapStage,
+    lastBootstrapAt: match.lastBootstrapAt,
+    gameplaySceneAt: match.gameplaySceneAt,
+    gameplayGraphReadyAt: match.gameplayGraphReadyAt,
+    runtimeReplaySentAt: match.runtimeReplaySentAt,
+    simulationReleaseState: match.simulationReleaseState,
+    simulationReleasedAt: match.simulationReleasedAt,
+    actorsReadyAt: match.actorsReadyAt,
+    bootstrapFailureReason: match.bootstrapFailureReason,
+    missingEntityTargetCount: match.missingEntityTargetCount || 0,
+    renderCompatProfile: match.renderCompatProfile || null,
+    visualQualityPhase: match.visualQualityPhase || null,
+    renderScale: match.renderScale ?? null,
+    recordingSuppressed:
+      typeof match.recordingSuppressed === "boolean"
+        ? match.recordingSuppressed
+        : null,
+    unsupportedRenderTextureErrorCount:
+      match.unsupportedRenderTextureErrorCount || 0,
+    primaryCameraVisibleAt: match.primaryCameraVisibleAt || null,
+    stadiumSceneActivatedAt: match.stadiumSceneActivatedAt || null,
+    stadiumTailWarmupCompletedAt: match.stadiumTailWarmupCompletedAt || null,
+    mainThreadStallCount: match.mainThreadStallCount || 0,
+    worstFrameMs: Number.isFinite(match.worstFrameMs)
+      ? Number(match.worstFrameMs)
+      : 0,
+    loadingOverlayReleaseReason: match.loadingOverlayReleaseReason || null,
+    graphicsApi: match.graphicsApi || null,
+    unityBuildFlavor: match.unityBuildFlavor || null,
+    diagnosticLogLevel: match.diagnosticLogLevel || null,
+    presentationPhase: match.presentationPhase || null,
+    commonPerfTier: match.commonPerfTier || null,
+    firstVisibleGameplayAt: match.firstVisibleGameplayAt || null,
+    loaderPhase: match.loaderPhase || null,
+    stadiumDataReadyAt: match.stadiumDataReadyAt || null,
+    createReadyAt: match.createReadyAt || null,
+    criticalRelinkPendingCount: match.criticalRelinkPendingCount || 0,
+    presentationQueueDepth: match.presentationQueueDepth || 0,
+    avgFpsWindow: Number.isFinite(match.avgFpsWindow)
+      ? Number(match.avgFpsWindow)
+      : 0,
+    crowdPhase: match.crowdPhase || null,
+    audioPhase: match.audioPhase || null,
     updatedAt: match.updatedAt,
     createdAt: match.createdAt,
   };
@@ -1705,6 +1844,146 @@ async function initPg() {
   await pool.query(`
     ALTER TABLE matches
     ADD COLUMN IF NOT EXISTS friendly_request_id TEXT;
+  `);
+  await pool.query(`
+    ALTER TABLE matches
+    ADD COLUMN IF NOT EXISTS last_bootstrap_stage TEXT;
+  `);
+  await pool.query(`
+    ALTER TABLE matches
+    ADD COLUMN IF NOT EXISTS last_bootstrap_at TIMESTAMPTZ;
+  `);
+  await pool.query(`
+    ALTER TABLE matches
+    ADD COLUMN IF NOT EXISTS gameplay_scene_at TIMESTAMPTZ;
+  `);
+  await pool.query(`
+    ALTER TABLE matches
+    ADD COLUMN IF NOT EXISTS gameplay_graph_ready_at TIMESTAMPTZ;
+  `);
+  await pool.query(`
+    ALTER TABLE matches
+    ADD COLUMN IF NOT EXISTS runtime_replay_sent_at TIMESTAMPTZ;
+  `);
+  await pool.query(`
+    ALTER TABLE matches
+    ADD COLUMN IF NOT EXISTS simulation_release_state TEXT;
+  `);
+  await pool.query(`
+    ALTER TABLE matches
+    ADD COLUMN IF NOT EXISTS simulation_released_at TIMESTAMPTZ;
+  `);
+  await pool.query(`
+    ALTER TABLE matches
+    ADD COLUMN IF NOT EXISTS actors_ready_at TIMESTAMPTZ;
+  `);
+  await pool.query(`
+    ALTER TABLE matches
+    ADD COLUMN IF NOT EXISTS bootstrap_failure_reason TEXT;
+  `);
+  await pool.query(`
+    ALTER TABLE matches
+    ADD COLUMN IF NOT EXISTS missing_entity_target_count INTEGER NOT NULL DEFAULT 0;
+  `);
+  await pool.query(`
+    ALTER TABLE matches
+    ADD COLUMN IF NOT EXISTS render_compat_profile TEXT;
+  `);
+  await pool.query(`
+    ALTER TABLE matches
+    ADD COLUMN IF NOT EXISTS visual_quality_phase TEXT;
+  `);
+  await pool.query(`
+    ALTER TABLE matches
+    ADD COLUMN IF NOT EXISTS render_scale REAL;
+  `);
+  await pool.query(`
+    ALTER TABLE matches
+    ADD COLUMN IF NOT EXISTS recording_suppressed BOOLEAN NOT NULL DEFAULT FALSE;
+  `);
+  await pool.query(`
+    ALTER TABLE matches
+    ADD COLUMN IF NOT EXISTS unsupported_render_texture_error_count INTEGER NOT NULL DEFAULT 0;
+  `);
+  await pool.query(`
+    ALTER TABLE matches
+    ADD COLUMN IF NOT EXISTS primary_camera_visible_at TIMESTAMPTZ;
+  `);
+  await pool.query(`
+    ALTER TABLE matches
+    ADD COLUMN IF NOT EXISTS stadium_scene_activated_at TIMESTAMPTZ;
+  `);
+  await pool.query(`
+    ALTER TABLE matches
+    ADD COLUMN IF NOT EXISTS stadium_tail_warmup_completed_at TIMESTAMPTZ;
+  `);
+  await pool.query(`
+    ALTER TABLE matches
+    ADD COLUMN IF NOT EXISTS main_thread_stall_count INTEGER NOT NULL DEFAULT 0;
+  `);
+  await pool.query(`
+    ALTER TABLE matches
+    ADD COLUMN IF NOT EXISTS worst_frame_ms REAL NOT NULL DEFAULT 0;
+  `);
+  await pool.query(`
+    ALTER TABLE matches
+    ADD COLUMN IF NOT EXISTS loading_overlay_release_reason TEXT;
+  `);
+  await pool.query(`
+    ALTER TABLE matches
+    ADD COLUMN IF NOT EXISTS graphics_api TEXT;
+  `);
+  await pool.query(`
+    ALTER TABLE matches
+    ADD COLUMN IF NOT EXISTS unity_build_flavor TEXT;
+  `);
+  await pool.query(`
+    ALTER TABLE matches
+    ADD COLUMN IF NOT EXISTS diagnostic_log_level TEXT;
+  `);
+  await pool.query(`
+    ALTER TABLE matches
+    ADD COLUMN IF NOT EXISTS presentation_phase TEXT;
+  `);
+  await pool.query(`
+    ALTER TABLE matches
+    ADD COLUMN IF NOT EXISTS common_perf_tier TEXT;
+  `);
+  await pool.query(`
+    ALTER TABLE matches
+    ADD COLUMN IF NOT EXISTS first_visible_gameplay_at TIMESTAMPTZ;
+  `);
+  await pool.query(`
+    ALTER TABLE matches
+    ADD COLUMN IF NOT EXISTS loader_phase TEXT;
+  `);
+  await pool.query(`
+    ALTER TABLE matches
+    ADD COLUMN IF NOT EXISTS stadium_data_ready_at TIMESTAMPTZ;
+  `);
+  await pool.query(`
+    ALTER TABLE matches
+    ADD COLUMN IF NOT EXISTS create_ready_at TIMESTAMPTZ;
+  `);
+  await pool.query(`
+    ALTER TABLE matches
+    ADD COLUMN IF NOT EXISTS critical_relink_pending_count INTEGER NOT NULL DEFAULT 0;
+  `);
+  await pool.query(`
+    ALTER TABLE matches
+    ADD COLUMN IF NOT EXISTS presentation_queue_depth INTEGER NOT NULL DEFAULT 0;
+  `);
+  await pool.query(`
+    ALTER TABLE matches
+    ADD COLUMN IF NOT EXISTS avg_fps_window REAL NOT NULL DEFAULT 0;
+  `);
+  await pool.query(`
+    ALTER TABLE matches
+    ADD COLUMN IF NOT EXISTS crowd_phase TEXT;
+  `);
+  await pool.query(`
+    ALTER TABLE matches
+    ADD COLUMN IF NOT EXISTS audio_phase TEXT;
   `);
 
   pgReady = true;
@@ -2656,8 +2935,16 @@ async function storeMatch(match) {
       league_id, fixture_id, kickoff_at, ended_reason,
       home_score, away_score, home_team_name, away_team_name,
       live_minute, live_minute_at, result_payload, ended_at, replay_status, replay_storage_path,
-      video_status, video_storage_path, video_watch_url, updated_at
-    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26::jsonb,$27,$28,$29,$30,$31,$32,now())
+      video_status, video_storage_path, video_watch_url,
+      last_bootstrap_stage, last_bootstrap_at, gameplay_scene_at, gameplay_graph_ready_at, runtime_replay_sent_at,
+      simulation_release_state, simulation_released_at,
+      actors_ready_at, bootstrap_failure_reason, missing_entity_target_count, render_compat_profile,
+      visual_quality_phase, render_scale, recording_suppressed, unsupported_render_texture_error_count, primary_camera_visible_at,
+      stadium_scene_activated_at, stadium_tail_warmup_completed_at, main_thread_stall_count, worst_frame_ms, loading_overlay_release_reason,
+      graphics_api, unity_build_flavor, diagnostic_log_level, presentation_phase, common_perf_tier, first_visible_gameplay_at,
+      loader_phase, stadium_data_ready_at, create_ready_at, critical_relink_pending_count, presentation_queue_depth,
+      avg_fps_window, crowd_phase, audio_phase, updated_at
+    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26::jsonb,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,$37,$38,$39,$40,$41,$42,$43,$44,$45,$46,$47,$48,$49,$50,$51,$52,$53,$54,$55,$56,$57,$58,$59,$60,$61,$62,$63,$64,$65,$66,$67,now())
     ON CONFLICT (id) DO UPDATE SET
       mode = EXCLUDED.mode,
       status = EXCLUDED.status,
@@ -2690,6 +2977,41 @@ async function storeMatch(match) {
       video_status = EXCLUDED.video_status,
       video_storage_path = EXCLUDED.video_storage_path,
       video_watch_url = EXCLUDED.video_watch_url,
+      last_bootstrap_stage = EXCLUDED.last_bootstrap_stage,
+      last_bootstrap_at = EXCLUDED.last_bootstrap_at,
+      gameplay_scene_at = EXCLUDED.gameplay_scene_at,
+      gameplay_graph_ready_at = EXCLUDED.gameplay_graph_ready_at,
+      runtime_replay_sent_at = EXCLUDED.runtime_replay_sent_at,
+      simulation_release_state = EXCLUDED.simulation_release_state,
+      simulation_released_at = EXCLUDED.simulation_released_at,
+      actors_ready_at = EXCLUDED.actors_ready_at,
+      bootstrap_failure_reason = EXCLUDED.bootstrap_failure_reason,
+      missing_entity_target_count = EXCLUDED.missing_entity_target_count,
+      render_compat_profile = EXCLUDED.render_compat_profile,
+      visual_quality_phase = EXCLUDED.visual_quality_phase,
+      render_scale = EXCLUDED.render_scale,
+      recording_suppressed = EXCLUDED.recording_suppressed,
+      unsupported_render_texture_error_count = EXCLUDED.unsupported_render_texture_error_count,
+      primary_camera_visible_at = EXCLUDED.primary_camera_visible_at,
+      stadium_scene_activated_at = EXCLUDED.stadium_scene_activated_at,
+      stadium_tail_warmup_completed_at = EXCLUDED.stadium_tail_warmup_completed_at,
+      main_thread_stall_count = EXCLUDED.main_thread_stall_count,
+      worst_frame_ms = EXCLUDED.worst_frame_ms,
+      loading_overlay_release_reason = EXCLUDED.loading_overlay_release_reason,
+      graphics_api = EXCLUDED.graphics_api,
+      unity_build_flavor = EXCLUDED.unity_build_flavor,
+      diagnostic_log_level = EXCLUDED.diagnostic_log_level,
+      presentation_phase = EXCLUDED.presentation_phase,
+      common_perf_tier = EXCLUDED.common_perf_tier,
+      first_visible_gameplay_at = EXCLUDED.first_visible_gameplay_at,
+      loader_phase = EXCLUDED.loader_phase,
+      stadium_data_ready_at = EXCLUDED.stadium_data_ready_at,
+      create_ready_at = EXCLUDED.create_ready_at,
+      critical_relink_pending_count = EXCLUDED.critical_relink_pending_count,
+      presentation_queue_depth = EXCLUDED.presentation_queue_depth,
+      avg_fps_window = EXCLUDED.avg_fps_window,
+      crowd_phase = EXCLUDED.crowd_phase,
+      audio_phase = EXCLUDED.audio_phase,
       updated_at = now()`,
     [
       match.id,
@@ -2724,6 +3046,51 @@ async function storeMatch(match) {
       match.videoStatus || "none",
       match.videoStoragePath || null,
       match.videoWatchUrl || null,
+      match.lastBootstrapStage || null,
+      match.lastBootstrapAt || null,
+      match.gameplaySceneAt || null,
+      match.gameplayGraphReadyAt || null,
+      match.runtimeReplaySentAt || null,
+      match.simulationReleaseState || null,
+      match.simulationReleasedAt || null,
+      match.actorsReadyAt || null,
+      match.bootstrapFailureReason || null,
+      Number.isFinite(match.missingEntityTargetCount)
+        ? Number(match.missingEntityTargetCount)
+        : 0,
+      match.renderCompatProfile || null,
+      match.visualQualityPhase || null,
+      Number.isFinite(match.renderScale) ? Number(match.renderScale) : null,
+      Boolean(match.recordingSuppressed),
+      Number.isFinite(match.unsupportedRenderTextureErrorCount)
+        ? Number(match.unsupportedRenderTextureErrorCount)
+        : 0,
+      match.primaryCameraVisibleAt || null,
+      match.stadiumSceneActivatedAt || null,
+      match.stadiumTailWarmupCompletedAt || null,
+      Number.isFinite(match.mainThreadStallCount)
+        ? Number(match.mainThreadStallCount)
+        : 0,
+      Number.isFinite(match.worstFrameMs) ? Number(match.worstFrameMs) : 0,
+      match.loadingOverlayReleaseReason || null,
+      match.graphicsApi || null,
+      match.unityBuildFlavor || null,
+      match.diagnosticLogLevel || null,
+      match.presentationPhase || null,
+      match.commonPerfTier || null,
+      match.firstVisibleGameplayAt || null,
+      match.loaderPhase || null,
+      match.stadiumDataReadyAt || null,
+      match.createReadyAt || null,
+      Number.isFinite(match.criticalRelinkPendingCount)
+        ? Number(match.criticalRelinkPendingCount)
+        : 0,
+      Number.isFinite(match.presentationQueueDepth)
+        ? Number(match.presentationQueueDepth)
+        : 0,
+      Number.isFinite(match.avgFpsWindow) ? Number(match.avgFpsWindow) : 0,
+      match.crowdPhase || null,
+      match.audioPhase || null,
     ],
   );
 }
@@ -3330,9 +3697,22 @@ fastify.post("/v1/friendly/requests/:requestId/accept", async (request, reply) =
       }));
     }
 
+    const rawErrorCode = String(error?.code || "").trim();
+    const isInternalSqlError = /^42\d{3}$/.test(rawErrorCode);
+    if (isInternalSqlError) {
+      fastify.log.error(
+        { err: error, requestId, acceptingUserId },
+        "friendly_accept_internal_sql_error",
+      );
+    }
+
+    const clientErrorCode = isInternalSqlError
+      ? "friendly_accept_failed"
+      : (rawErrorCode || error?.message || "friendly_accept_failed");
+
     return reply
       .code(Number(error?.statusCode || 503))
-      .send({ error: error?.code || error?.message || "friendly_accept_failed" });
+      .send({ error: clientErrorCode });
   }
 });
 
@@ -3453,6 +3833,59 @@ fastify.get("/v1/matches/:matchId/status", async (request, reply) => {
     state: effectiveMatch.status,
     serverIp: effectiveMatch.serverIp,
     serverPort: effectiveMatch.serverPort,
+    lastBootstrapStage: effectiveMatch.lastBootstrapStage || null,
+    lastBootstrapAt: effectiveMatch.lastBootstrapAt || null,
+    gameplaySceneAt: effectiveMatch.gameplaySceneAt || null,
+    gameplayGraphReadyAt: effectiveMatch.gameplayGraphReadyAt || null,
+    runtimeReplaySentAt: effectiveMatch.runtimeReplaySentAt || null,
+    simulationReleaseState: effectiveMatch.simulationReleaseState || null,
+    simulationReleasedAt: effectiveMatch.simulationReleasedAt || null,
+    actorsReadyAt: effectiveMatch.actorsReadyAt || null,
+    bootstrapFailureReason: effectiveMatch.bootstrapFailureReason || null,
+    missingEntityTargetCount: effectiveMatch.missingEntityTargetCount || 0,
+    renderCompatProfile: effectiveMatch.renderCompatProfile || null,
+    visualQualityPhase: effectiveMatch.visualQualityPhase || null,
+    renderScale: effectiveMatch.renderScale ?? null,
+    recordingSuppressed:
+      typeof effectiveMatch.recordingSuppressed === "boolean"
+        ? effectiveMatch.recordingSuppressed
+        : null,
+    unsupportedRenderTextureErrorCount:
+      effectiveMatch.unsupportedRenderTextureErrorCount || 0,
+    primaryCameraVisibleAt: effectiveMatch.primaryCameraVisibleAt || null,
+    stadiumSceneActivatedAt: effectiveMatch.stadiumSceneActivatedAt || null,
+    stadiumTailWarmupCompletedAt:
+      effectiveMatch.stadiumTailWarmupCompletedAt || null,
+    mainThreadStallCount: effectiveMatch.mainThreadStallCount || 0,
+    worstFrameMs: Number.isFinite(effectiveMatch.worstFrameMs)
+      ? Number(effectiveMatch.worstFrameMs)
+      : 0,
+    loadingOverlayReleaseReason:
+      effectiveMatch.loadingOverlayReleaseReason || null,
+    hudVisible:
+      typeof effectiveMatch.hudVisible === "boolean"
+        ? effectiveMatch.hudVisible
+        : null,
+    graphicsApi: effectiveMatch.graphicsApi || null,
+    unityBuildFlavor: effectiveMatch.unityBuildFlavor || null,
+    diagnosticLogLevel: effectiveMatch.diagnosticLogLevel || null,
+    presentationPhase: effectiveMatch.presentationPhase || null,
+    commonPerfTier: effectiveMatch.commonPerfTier || null,
+    firstVisibleGameplayAt: effectiveMatch.firstVisibleGameplayAt || null,
+    loaderPhase: effectiveMatch.loaderPhase || null,
+    stadiumDataReadyAt: effectiveMatch.stadiumDataReadyAt || null,
+    createReadyAt: effectiveMatch.createReadyAt || null,
+    criticalRelinkPendingCount: Number.isFinite(effectiveMatch.criticalRelinkPendingCount)
+      ? Number(effectiveMatch.criticalRelinkPendingCount)
+      : 0,
+    presentationQueueDepth: Number.isFinite(effectiveMatch.presentationQueueDepth)
+      ? Number(effectiveMatch.presentationQueueDepth)
+      : 0,
+    avgFpsWindow: Number.isFinite(effectiveMatch.avgFpsWindow)
+      ? Number(effectiveMatch.avgFpsWindow)
+      : 0,
+    crowdPhase: effectiveMatch.crowdPhase || null,
+    audioPhase: effectiveMatch.audioPhase || null,
     updatedAt: effectiveMatch.updatedAt || nowIso(),
   });
 });
@@ -3684,11 +4117,132 @@ fastify.post("/v1/internal/matches/:matchId/lifecycle", async (request, reply) =
   const body = request.body || {};
   const rawState = typeof body.state === "string" ? body.state.trim() : "";
   const reason = String(body.reason || "").trim();
+  const callbackType =
+    typeof body.callbackType === "string" ? body.callbackType.trim() : "";
   const state =
     rawState === "starting" && reason === "network_server_started"
       ? "server_started"
       : rawState;
   const minute = parseLifecycleMinute(body.minute);
+  const bootstrapStage =
+    typeof body.bootstrapStage === "string" ? body.bootstrapStage.trim() : "";
+  const bootstrapAt =
+    parseLifecycleTimestamp(body.bootstrapAtMs ?? body.bootstrapAt) || null;
+  const gameplaySceneAt =
+    parseLifecycleTimestamp(body.gameplaySceneAtMs ?? body.gameplaySceneAt) ||
+    null;
+  const gameplayGraphReadyAt =
+    parseLifecycleTimestamp(
+      body.gameplayGraphReadyAtMs ?? body.gameplayGraphReadyAt,
+    ) || null;
+  const runtimeReplaySentAt =
+    parseLifecycleTimestamp(
+      body.runtimeReplaySentAtMs ?? body.runtimeReplaySentAt,
+    ) || null;
+  const simulationReleaseState =
+    typeof body.simulationReleaseState === "string"
+      ? body.simulationReleaseState.trim()
+      : "";
+  const simulationReleasedAt =
+    parseLifecycleTimestamp(
+      body.simulationReleasedAtMs ?? body.simulationReleasedAt,
+    ) || null;
+  const actorsReadyAt =
+    parseLifecycleTimestamp(body.actorsReadyAtMs ?? body.actorsReadyAt) || null;
+  const bootstrapFailureReason =
+    typeof body.bootstrapFailureReason === "string"
+      ? body.bootstrapFailureReason.trim()
+      : "";
+  const missingEntityTargetCount = Number.isFinite(body.missingEntityTargetCount)
+    ? Number(body.missingEntityTargetCount)
+    : 0;
+  const renderCompatProfile =
+    typeof body.renderCompatProfile === "string"
+      ? body.renderCompatProfile.trim()
+      : "";
+  const visualQualityPhase =
+    typeof body.visualQualityPhase === "string"
+      ? body.visualQualityPhase.trim()
+      : "";
+  const renderScale = Number.isFinite(body.renderScale)
+    ? Number(body.renderScale)
+    : null;
+  const recordingSuppressed =
+    typeof body.recordingSuppressed === "boolean"
+      ? body.recordingSuppressed
+      : null;
+  const unsupportedRenderTextureErrorCount = Number.isFinite(
+    body.unsupportedRenderTextureErrorCount,
+  )
+    ? Number(body.unsupportedRenderTextureErrorCount)
+    : 0;
+  const primaryCameraVisibleAt =
+    parseLifecycleTimestamp(
+      body.primaryCameraVisibleAtMs ?? body.primaryCameraVisibleAt,
+    ) || null;
+  const stadiumSceneActivatedAt =
+    parseLifecycleTimestamp(
+      body.stadiumSceneActivatedAtMs ?? body.stadiumSceneActivatedAt,
+    ) || null;
+  const stadiumTailWarmupCompletedAt =
+    parseLifecycleTimestamp(
+      body.stadiumTailWarmupCompletedAtMs ?? body.stadiumTailWarmupCompletedAt,
+    ) || null;
+  const mainThreadStallCount = Number.isFinite(body.mainThreadStallCount)
+    ? Number(body.mainThreadStallCount)
+    : 0;
+  const worstFrameMs = Number.isFinite(body.worstFrameMs)
+    ? Number(body.worstFrameMs)
+    : 0;
+  const loadingOverlayReleaseReason =
+    typeof body.loadingOverlayReleaseReason === "string"
+      ? body.loadingOverlayReleaseReason.trim()
+      : "";
+  const hudVisible =
+    typeof body.hudVisible === "boolean" ? body.hudVisible : null;
+  const graphicsApi =
+    typeof body.graphicsApi === "string" ? body.graphicsApi.trim() : "";
+  const unityBuildFlavor =
+    typeof body.unityBuildFlavor === "string"
+      ? body.unityBuildFlavor.trim()
+      : "";
+  const diagnosticLogLevel =
+    typeof body.diagnosticLogLevel === "string"
+      ? body.diagnosticLogLevel.trim()
+      : "";
+  const presentationPhase =
+    typeof body.presentationPhase === "string"
+      ? body.presentationPhase.trim()
+      : "";
+  const commonPerfTier =
+    typeof body.commonPerfTier === "string"
+      ? body.commonPerfTier.trim()
+      : "";
+  const firstVisibleGameplayAt =
+    parseLifecycleTimestamp(
+      body.firstVisibleGameplayAtMs ?? body.firstVisibleGameplayAt,
+    ) || null;
+  const loaderPhase =
+    typeof body.loaderPhase === "string" ? body.loaderPhase.trim() : "";
+  const stadiumDataReadyAt =
+    parseLifecycleTimestamp(
+      body.stadiumDataReadyAtMs ?? body.stadiumDataReadyAt,
+    ) || null;
+  const createReadyAt =
+    parseLifecycleTimestamp(body.createReadyAtMs ?? body.createReadyAt) || null;
+  const criticalRelinkPendingCount = Number.isFinite(body.criticalRelinkPendingCount)
+    ? Math.max(0, Number(body.criticalRelinkPendingCount))
+    : null;
+  const presentationQueueDepth = Number.isFinite(body.presentationQueueDepth)
+    ? Math.max(0, Number(body.presentationQueueDepth))
+    : null;
+  const avgFpsWindow = Number.isFinite(body.avgFpsWindow)
+    ? Number(body.avgFpsWindow)
+    : 0;
+  const crowdPhase =
+    typeof body.crowdPhase === "string" ? body.crowdPhase.trim() : "";
+  const audioPhase =
+    typeof body.audioPhase === "string" ? body.audioPhase.trim() : "";
   const resultPayload = normalizeObjectPayload(body.result);
   const replayPayload = normalizeObjectPayload(body.replay);
   const videoPayload = normalizeObjectPayload(body.video);
@@ -3707,9 +4261,161 @@ fastify.post("/v1/internal/matches/:matchId/lifecycle", async (request, reply) =
     match.endedReason = reason;
   }
 
+  if (callbackType) {
+    match.lastLifecycleCallbackType = callbackType;
+  }
+
   if (minute != null) {
     match.liveMinute = minute;
     match.liveMinuteAt = nowIso();
+  }
+
+  if (bootstrapStage) {
+    match.lastBootstrapStage = bootstrapStage;
+    match.lastBootstrapAt = bootstrapAt || nowIso();
+  }
+
+  if (gameplaySceneAt) {
+    match.gameplaySceneAt = gameplaySceneAt;
+  }
+
+  if (gameplayGraphReadyAt) {
+    match.gameplayGraphReadyAt = gameplayGraphReadyAt;
+  }
+
+  if (runtimeReplaySentAt) {
+    match.runtimeReplaySentAt = runtimeReplaySentAt;
+  }
+
+  if (simulationReleaseState) {
+    match.simulationReleaseState = simulationReleaseState;
+    if (simulationReleaseState === "released") {
+      match.simulationReleasedAt = simulationReleasedAt || nowIso();
+    }
+  }
+
+  if (actorsReadyAt) {
+    match.actorsReadyAt = actorsReadyAt;
+  }
+
+  if (bootstrapFailureReason) {
+    match.bootstrapFailureReason = bootstrapFailureReason;
+  } else if (state === "failed" && reason) {
+    match.bootstrapFailureReason = reason;
+  }
+
+  if (missingEntityTargetCount > 0) {
+    match.missingEntityTargetCount = missingEntityTargetCount;
+  }
+
+  if (renderCompatProfile) {
+    match.renderCompatProfile = renderCompatProfile;
+  }
+
+  if (visualQualityPhase) {
+    match.visualQualityPhase = visualQualityPhase;
+  }
+
+  if (renderScale != null) {
+    match.renderScale = renderScale;
+  }
+
+  if (recordingSuppressed != null) {
+    match.recordingSuppressed = recordingSuppressed;
+  }
+
+  if (unsupportedRenderTextureErrorCount > 0) {
+    match.unsupportedRenderTextureErrorCount = Math.max(
+      Number(match.unsupportedRenderTextureErrorCount || 0),
+      unsupportedRenderTextureErrorCount,
+    );
+  }
+
+  if (primaryCameraVisibleAt) {
+    match.primaryCameraVisibleAt = primaryCameraVisibleAt;
+  }
+
+  if (stadiumSceneActivatedAt) {
+    match.stadiumSceneActivatedAt = stadiumSceneActivatedAt;
+  }
+
+  if (stadiumTailWarmupCompletedAt) {
+    match.stadiumTailWarmupCompletedAt = stadiumTailWarmupCompletedAt;
+  }
+
+  if (mainThreadStallCount > 0) {
+    match.mainThreadStallCount = Math.max(
+      Number(match.mainThreadStallCount || 0),
+      mainThreadStallCount,
+    );
+  }
+
+  if (worstFrameMs > 0) {
+    match.worstFrameMs = Math.max(Number(match.worstFrameMs || 0), worstFrameMs);
+  }
+
+  if (loadingOverlayReleaseReason) {
+    match.loadingOverlayReleaseReason = loadingOverlayReleaseReason;
+  }
+
+  if (hudVisible != null) {
+    match.hudVisible = hudVisible;
+  }
+
+  if (graphicsApi) {
+    match.graphicsApi = graphicsApi;
+  }
+
+  if (unityBuildFlavor) {
+    match.unityBuildFlavor = unityBuildFlavor;
+  }
+
+  if (diagnosticLogLevel) {
+    match.diagnosticLogLevel = diagnosticLogLevel;
+  }
+
+  if (presentationPhase) {
+    match.presentationPhase = presentationPhase;
+  }
+
+  if (commonPerfTier) {
+    match.commonPerfTier = commonPerfTier;
+  }
+
+  if (firstVisibleGameplayAt) {
+    match.firstVisibleGameplayAt = firstVisibleGameplayAt;
+  }
+
+  if (loaderPhase) {
+    match.loaderPhase = loaderPhase;
+  }
+
+  if (stadiumDataReadyAt) {
+    match.stadiumDataReadyAt = stadiumDataReadyAt;
+  }
+
+  if (createReadyAt) {
+    match.createReadyAt = createReadyAt;
+  }
+
+  if (criticalRelinkPendingCount != null) {
+    match.criticalRelinkPendingCount = Number(criticalRelinkPendingCount);
+  }
+
+  if (presentationQueueDepth != null) {
+    match.presentationQueueDepth = Number(presentationQueueDepth);
+  }
+
+  if (avgFpsWindow > 0) {
+    match.avgFpsWindow = Number(avgFpsWindow);
+  }
+
+  if (crowdPhase) {
+    match.crowdPhase = crowdPhase;
+  }
+
+  if (audioPhase) {
+    match.audioPhase = audioPhase;
   }
 
   if (resultPayload) {

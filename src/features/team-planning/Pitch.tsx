@@ -3,12 +3,11 @@ import { Shirt } from 'lucide-react';
 import type { Player } from '@/types';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
+import { buildFormationSlotRect } from "@/lib/formations";
 import {
-  getZoneOverlayBounds,
   getZoneShortCode,
-  resolveZoneId,
+  resolveFormationSlotZoneId,
   type SlotFitLevel,
-  type ZoneId,
 } from './slotZones';
 import type { PitchSlot } from './teamPlanningUtils';
 export type { PitchSlot };
@@ -23,7 +22,7 @@ const PITCH_MARKER_SIZE = 75;
 
 type PitchProps = {
   slots: PitchSlot[];
-  zoneHighlights?: Array<{ zoneId: ZoneId; fitLevel: SlotFitLevel }>;
+  slotHighlights?: Array<{ slotIndex: number; fitLevel: SlotFitLevel }>;
   onPitchDrop: (event: React.DragEvent<HTMLDivElement>) => void;
   onPositionDrop: (event: React.DragEvent<HTMLDivElement>, slot: PitchSlot) => void;
   onPlayerDragStart: (player: Player, event: React.DragEvent<HTMLDivElement>) => void;
@@ -284,7 +283,7 @@ const mergeRefs = <T extends HTMLElement>(
 const Pitch = forwardRef<HTMLDivElement, PitchProps>((props, forwardedRef) => {
   const {
     slots,
-    zoneHighlights = [],
+    slotHighlights = [],
     onPitchDrop,
     onPositionDrop,
     onPlayerDragStart,
@@ -303,7 +302,7 @@ const Pitch = forwardRef<HTMLDivElement, PitchProps>((props, forwardedRef) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const fieldRef = useRef<HTMLDivElement | null>(null);
   const [markerScale, setMarkerScale] = useState(1);
-  const [activeDropZoneId, setActiveDropZoneId] = useState<ZoneId | null>(null);
+  const [activeDropSlotIndex, setActiveDropSlotIndex] = useState<number | null>(null);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -340,16 +339,19 @@ const Pitch = forwardRef<HTMLDivElement, PitchProps>((props, forwardedRef) => {
     event.preventDefault();
   }, []);
 
-  const zoneHighlightMap = useMemo(
-    () => new Map(zoneHighlights.map(highlight => [highlight.zoneId, highlight.fitLevel])),
-    [zoneHighlights],
+  const slotHighlightMap = useMemo(
+    () =>
+      new Map(
+        slotHighlights.map((highlight) => [highlight.slotIndex, highlight.fitLevel])
+      ),
+    [slotHighlights],
   );
 
   const updateTouchDragPreview = useCallback(
     (preview: { clientX: number; clientY: number } | null) => {
       const field = fieldRef.current;
       if (!preview || !field) {
-        setActiveDropZoneId(null);
+        setActiveDropSlotIndex(null);
         return;
       }
 
@@ -362,7 +364,7 @@ const Pitch = forwardRef<HTMLDivElement, PitchProps>((props, forwardedRef) => {
         preview.clientY < rect.top ||
         preview.clientY > rect.bottom
       ) {
-        setActiveDropZoneId(null);
+        setActiveDropSlotIndex(null);
         return;
       }
 
@@ -371,27 +373,27 @@ const Pitch = forwardRef<HTMLDivElement, PitchProps>((props, forwardedRef) => {
       const gameY = 100 - relativeX;
       const gameX = relativeY;
 
-      let bestZoneId: ZoneId | null = null;
+      let bestSlotIndex: number | null = null;
       let bestDistance = Number.POSITIVE_INFINITY;
 
-      slots.forEach(slot => {
+      slots.forEach((slot) => {
         const dx = slot.x - gameX;
         const dy = slot.y - gameY;
         const distance = dx * dx + dy * dy;
         if (distance < bestDistance) {
           bestDistance = distance;
-          bestZoneId = resolveZoneId(slot);
+          bestSlotIndex = slot.slotIndex;
         }
       });
 
-      setActiveDropZoneId(bestZoneId);
+      setActiveDropSlotIndex(bestSlotIndex);
     },
     [slots],
   );
 
   useEffect(() => {
     if (!draggedPlayerId) {
-      setActiveDropZoneId(null);
+      setActiveDropSlotIndex(null);
     }
   }, [draggedPlayerId]);
 
@@ -420,7 +422,7 @@ const Pitch = forwardRef<HTMLDivElement, PitchProps>((props, forwardedRef) => {
           className="relative h-full w-full"
           onDragOver={handleDragOver}
           onDrop={event => {
-            setActiveDropZoneId(null);
+            setActiveDropSlotIndex(null);
             onPitchDrop(event);
           }}
         >
@@ -471,13 +473,18 @@ const Pitch = forwardRef<HTMLDivElement, PitchProps>((props, forwardedRef) => {
           </div>
 
           <div className="pointer-events-none absolute inset-0 z-[1]">
-            {Array.from(zoneHighlightMap.entries()).map(([zoneId, fitLevel]) => {
-              const bounds = getZoneOverlayBounds(zoneId);
-              const isActiveDropTarget = activeDropZoneId === zoneId;
+            {slots.map((slot) => {
+              const fitLevel = slotHighlightMap.get(slot.slotIndex);
+              if (!fitLevel) {
+                return null;
+              }
+              const bounds =
+                slot.rect ?? buildFormationSlotRect(slot.position, slot.x, slot.y);
+              const isActiveDropTarget = activeDropSlotIndex === slot.slotIndex;
 
               return (
                 <div
-                  key={zoneId}
+                  key={`highlight-${slot.slotKey ?? slot.slotIndex}`}
                   className={cn(
                     'absolute flex items-start justify-center overflow-hidden rounded-[14px] border shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)] transition-all duration-150',
                     fitLevel === 'exact'
@@ -521,7 +528,7 @@ const Pitch = forwardRef<HTMLDivElement, PitchProps>((props, forwardedRef) => {
                       fitLevel === 'exact' ? 'bg-emerald-950/45' : 'bg-amber-950/45',
                     )}
                   >
-                    {getZoneShortCode(zoneId)}
+                    {getZoneShortCode(resolveFormationSlotZoneId(slot))}
                   </div>
                 </div>
               );
@@ -547,11 +554,11 @@ const Pitch = forwardRef<HTMLDivElement, PitchProps>((props, forwardedRef) => {
                   onDragOver={event => {
                     handleDragOver(event);
                     if (draggedPlayerId) {
-                      setActiveDropZoneId(resolveZoneId(slot));
+                      setActiveDropSlotIndex(slot.slotIndex);
                     }
                   }}
                   onDrop={event => {
-                    setActiveDropZoneId(null);
+                    setActiveDropSlotIndex(null);
                     onPositionDrop(event, slot);
                   }}
                   onClick={e => {
@@ -584,7 +591,7 @@ const Pitch = forwardRef<HTMLDivElement, PitchProps>((props, forwardedRef) => {
                       className="relative z-10 flex h-[3.5rem] w-[3.5rem] items-center justify-center rounded-full border-2 border-dashed border-white/30 bg-white/5 px-1.5 text-[10px] font-bold uppercase tracking-wider text-orange-100/50"
                       style={{ transform: `scale(${markerScale})`, transformOrigin: 'center' }}
                     >
-                      {getZoneShortCode(resolveZoneId(slot))}
+                      {getZoneShortCode(resolveFormationSlotZoneId(slot))}
                     </div>
                   )}
                 </div>

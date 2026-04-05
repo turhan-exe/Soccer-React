@@ -1,5 +1,6 @@
 import type { FirebaseTimestamp } from './common';
 import type { MatchVideoMeta } from './matchReplay';
+import type { CompetitionType, KnockoutDecision } from './tournament';
 
 export type FixtureStatus = 'scheduled' | 'running' | 'played' | 'failed';
 export type FixtureLiveStatus =
@@ -29,13 +30,18 @@ export interface FixtureLiveDoc {
   retryCount?: number;
   resultMissing?: boolean;
   reason?: string;
+  resultSource?: 'simulation' | 'fallback';
+  fallbackReason?: string;
+  fallbackStrength?: { home: number; away: number };
+  fallbackAppliedAt?: FirebaseTimestamp;
+  fallbackVersion?: 1;
 }
 
 export interface FixtureDoc {
   id: string;                 // matchId
   leagueId: string;           // copied from parent
   seasonId: string;           // copied from league
-  round: number;              // 1..30 for 16-team double round-robin
+  round: number;              // 1..N for the configured double round-robin capacity
   homeTeamId: string;
   awayTeamId: string;
   participants: string[];     // [home, away]
@@ -47,4 +53,14 @@ export interface FixtureDoc {
   videoMissing?: boolean;
   videoError?: string;
   live?: FixtureLiveDoc | null;
+  competitionType?: CompetitionType;
+  competitionName?: string;
+  competitionMatchId?: string;
+  competitionRound?: number;
+  knockoutResult?: {
+    winnerTeamId?: string | null;
+    loserTeamId?: string | null;
+    decidedBy?: KnockoutDecision;
+    penalties?: { home: number; away: number } | null;
+  } | null;
 }

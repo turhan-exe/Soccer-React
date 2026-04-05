@@ -11,7 +11,7 @@ const ADMIN_SECRET = functions.config()?.admin?.secret || '';
 const DEFAULT_FORMING_CAPACITY = normalizeCapacity(22);
 const LEAGUE_KICKOFF_HOURS_TR = parseKickoffHours(process.env.LEAGUE_KICKOFF_HOURS_TR ||
     functions.config()?.liveleague?.kickoff_hours_tr ||
-    '19');
+    '11,19');
 function parseKickoffHours(raw) {
     const input = String(raw || '').trim();
     const values = input

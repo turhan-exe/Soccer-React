@@ -19,6 +19,7 @@ import { httpsCallable } from 'firebase/functions';
 import { auth, db, functions } from './firebase';
 import type { League, Fixture, Standing } from '@/types';
 import { formatInTimeZone } from 'date-fns-tz';
+import { shouldHideLeagueFromList } from '@/lib/competition';
 
 export type LeagueBootstrapOptions = {
   forceReset?: boolean;
@@ -454,6 +455,11 @@ export async function getFixturesForTeam(
       videoError: raw.videoError,
       goalTimeline: raw.goalTimeline ?? [],
       live: raw.live ?? null,
+      competitionType: raw.competitionType,
+      competitionName: raw.competitionName,
+      competitionMatchId: raw.competitionMatchId,
+      competitionRound: raw.competitionRound,
+      knockoutResult: raw.knockoutResult ?? null,
     } satisfies Fixture;
   });
 
@@ -508,6 +514,11 @@ export async function getFixtureByIdAcrossLeagues(
     videoError: raw.videoError,
     goalTimeline: raw.goalTimeline ?? [],
     live: raw.live ?? null,
+    competitionType: raw.competitionType,
+    competitionName: raw.competitionName,
+    competitionMatchId: raw.competitionMatchId,
+    competitionRound: raw.competitionRound,
+    knockoutResult: raw.knockoutResult ?? null,
   };
   // leagues/{leagueId}/fixtures/{matchId}
   const leagueId = d.ref.parent.parent!.id;
@@ -833,7 +844,8 @@ export async function listLeagues(
   const snap = await getDocs(collection(db, 'leagues'));
 
   if (!includeTeams) {
-    return snap.docs.map((d) => {
+    return snap.docs
+      .map((d) => {
       const data = d.data() as any;
       const capacity = Number(data.capacity) || 0;
       const rawTeamCount = Number(data.teamCount);
@@ -850,13 +862,21 @@ export async function listLeagues(
         state: data.state,
         startDate: data.startDate,
         rounds: data.rounds,
+        competitionType: data.competitionType,
+        competitionFormat: data.competitionFormat,
+        hiddenFromLeagueList: data.hiddenFromLeagueList,
+        sourceMonth: data.sourceMonth,
+        snapshotAt: data.snapshotAt,
+        roundSpacingDays: data.roundSpacingDays,
+        championTeamId: data.championTeamId ?? null,
         teamCount:
           capacity > 0
             ? Math.min(normalizedTeamCount, capacity)
             : normalizedTeamCount,
         teams: [],
       } as League;
-    });
+      })
+      .filter((league) => !shouldHideLeagueFromList(league as unknown as Record<string, unknown>));
   }
 
   return Promise.all(
@@ -931,11 +951,18 @@ export async function listLeagues(
         state: data.state,
         startDate: data.startDate,
         rounds: data.rounds,
+        competitionType: data.competitionType,
+        competitionFormat: data.competitionFormat,
+        hiddenFromLeagueList: data.hiddenFromLeagueList,
+        sourceMonth: data.sourceMonth,
+        snapshotAt: data.snapshotAt,
+        roundSpacingDays: data.roundSpacingDays,
+        championTeamId: data.championTeamId ?? null,
         teamCount,
         teams: hydrateNames ? await hydrateTeamNames(teams) : teams,
       } as League;
     })
-  );
+  ).then((leagues) => leagues.filter((league) => !shouldHideLeagueFromList(league as unknown as Record<string, unknown>)));
 }
 
 /** Puan durumunu tek seferlik getir (istemcide sıralama) */

@@ -449,11 +449,19 @@ export const renameStadiumWithDiamonds = async (stadiumName: string): Promise<Re
 export const addPlayerToTeam = async (userId: string, player: Player) => {
   const team = await getTeam(userId);
   if (!team) return;
+  const promotedPlayer: Player = {
+    ...player,
+    ageUpdatedAt: player.ageUpdatedAt ?? new Date().toISOString(),
+    injuryStatus: player.injuryStatus ?? 'healthy',
+    squadRole: 'reserve',
+    contract: player.contract ?? createInitialContract(player.overall),
+    rename: player.rename ?? createInitialRenameState(),
+  };
   const updatedPlayers = normalizeTeamPlayers([
     ...team.players,
-    { ...player, injuryStatus: player.injuryStatus ?? 'healthy', squadRole: 'reserve' as const },
+    promotedPlayer,
   ]);
-  await setDoc(doc(db, 'teams', userId), { players: updatedPlayers }, { merge: true });
+  await saveTeamPlayers(userId, updatedPlayers);
   return updatedPlayers;
 };
 

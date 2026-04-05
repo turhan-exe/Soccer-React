@@ -25,6 +25,45 @@ const STATIC_BEARER = (import.meta.env.VITE_MATCH_CONTROL_BEARER || '').trim();
 const USE_NATIVE_HTTP =
   Capacitor.isNativePlatform() &&
   (BASE_URL.startsWith('http://') || BASE_URL.startsWith('https://'));
+const DEV_PROXY_PREFIX = '/__match-control';
+const USE_DEV_PROXY =
+  import.meta.env.DEV &&
+  !USE_NATIVE_HTTP &&
+  typeof window !== 'undefined' &&
+  (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') &&
+  (BASE_URL.startsWith('http://') || BASE_URL.startsWith('https://'));
+
+function getMatchControlRequestBase(): string {
+  if (USE_DEV_PROXY) {
+    return DEV_PROXY_PREFIX;
+  }
+  return BASE_URL.replace(/\/$/, '');
+}
+
+function getMatchControlRequestUrl(path: string): string {
+  return `${getMatchControlRequestBase()}${path}`;
+}
+
+function normalizeMatchControlErrorMessage(errorCode: string, fallback?: string): string {
+  const normalized = String(errorCode || '').trim().toLowerCase();
+  if (!normalized) {
+    return fallback || '';
+  }
+
+  if (normalized === 'friendly_servers_busy' || normalized === 'no_free_slot') {
+    return 'Dostluk maci icin sunucu dolu, lutfen bekleyin.';
+  }
+
+  if (normalized === 'friendly_server_unavailable' || normalized === 'allocation_failed') {
+    return 'Dostluk maci sunucusuna ulasilamiyor, lutfen tekrar deneyin.';
+  }
+
+  if (normalized === 'friendly_offline_daily_limit_reached') {
+    return 'Offline dostluk maci gunluk limitine ulasildi. Lutfen daha sonra tekrar deneyin.';
+  }
+
+  return fallback || errorCode;
+}
 
 export type FriendlyRequestResponse = {
   requestId: string;
@@ -149,6 +188,42 @@ export type MatchStatusResponse = {
   state: string;
   serverIp: string;
   serverPort: number;
+  lastBootstrapStage?: string | null;
+  lastBootstrapAt?: string | null;
+  gameplaySceneAt?: string | null;
+  gameplayGraphReadyAt?: string | null;
+  runtimeReplaySentAt?: string | null;
+  simulationReleaseState?: string | null;
+  simulationReleasedAt?: string | null;
+  actorsReadyAt?: string | null;
+  bootstrapFailureReason?: string | null;
+  missingEntityTargetCount?: number | null;
+  renderCompatProfile?: string | null;
+  visualQualityPhase?: string | null;
+  renderScale?: number | null;
+  recordingSuppressed?: boolean | null;
+  unsupportedRenderTextureErrorCount?: number | null;
+  primaryCameraVisibleAt?: string | null;
+  stadiumSceneActivatedAt?: string | null;
+  stadiumTailWarmupCompletedAt?: string | null;
+  mainThreadStallCount?: number | null;
+  worstFrameMs?: number | null;
+  loadingOverlayReleaseReason?: string | null;
+  hudVisible?: boolean | null;
+  graphicsApi?: string | null;
+  unityBuildFlavor?: string | null;
+  diagnosticLogLevel?: string | null;
+  presentationPhase?: string | null;
+  commonPerfTier?: string | null;
+  firstVisibleGameplayAt?: string | null;
+  loaderPhase?: string | null;
+  stadiumDataReadyAt?: string | null;
+  createReadyAt?: string | null;
+  criticalRelinkPendingCount?: number | null;
+  presentationQueueDepth?: number | null;
+  avgFpsWindow?: number | null;
+  crowdPhase?: string | null;
+  audioPhase?: string | null;
   updatedAt: string;
 };
 
@@ -268,7 +343,7 @@ async function executeNativeHttp(
   }
 
   const response = await CapacitorHttp.request({
-    url: `${BASE_URL.replace(/\/$/, '')}${path}`,
+    url: getMatchControlRequestUrl(path),
     method,
     headers,
     data,
@@ -299,7 +374,7 @@ async function requestPublicJson<T>(path: string, timeoutMs = 6000): Promise<T> 
   const timeout = window.setTimeout(() => controller.abort(), timeoutMs);
 
   try {
-    const response = await fetch(`${BASE_URL.replace(/\/$/, '')}${path}`, {
+    const response = await fetch(getMatchControlRequestUrl(path), {
       method: 'GET',
       signal: controller.signal,
     });
@@ -370,14 +445,8 @@ async function requestJson<T>(path: string, init?: MatchControlRequestInit): Pro
       }
 
       const errorCode = typeof parsed?.error === 'string' ? parsed.error.trim() : '';
-      if (errorCode === 'friendly_servers_busy' || errorCode === 'no_free_slot') {
-        throw new Error('Dostluk maci icin sunucu dolu, lutfen bekleyin.');
-      }
-      if (errorCode === 'friendly_server_unavailable' || errorCode === 'allocation_failed') {
-        throw new Error('Dostluk maci sunucusuna ulasilamiyor, lutfen tekrar deneyin.');
-      }
       if (errorCode) {
-        throw new Error(errorCode);
+        throw new Error(normalizeMatchControlErrorMessage(errorCode));
       }
 
       const message = typeof parsed?.message === 'string' ? parsed.message.trim() : '';
@@ -392,7 +461,7 @@ async function requestJson<T>(path: string, init?: MatchControlRequestInit): Pro
 
   let response: Response;
   try {
-    response = await fetch(`${BASE_URL.replace(/\/$/, '')}${path}`, {
+    response = await fetch(getMatchControlRequestUrl(path), {
       ...init,
       headers: buildHeaders(authHeader),
       signal: controller.signal,
@@ -402,7 +471,7 @@ async function requestJson<T>(path: string, init?: MatchControlRequestInit): Pro
       const refreshedAuthHeader = await resolveAuthHeaderWithRefresh();
       const retryAuthHeader = refreshedAuthHeader || authHeader;
       if (retryAuthHeader) {
-        response = await fetch(`${BASE_URL.replace(/\/$/, '')}${path}`, {
+        response = await fetch(getMatchControlRequestUrl(path), {
           ...init,
           headers: buildHeaders(retryAuthHeader),
           signal: controller.signal,
@@ -434,15 +503,8 @@ async function requestJson<T>(path: string, init?: MatchControlRequestInit): Pro
     }
 
     const errorCode = typeof parsed?.error === 'string' ? parsed.error.trim() : '';
-    if (errorCode === 'friendly_servers_busy' || errorCode === 'no_free_slot') {
-      throw new Error('Dostluk maci icin sunucu dolu, lutfen bekleyin.');
-    }
-    if (errorCode === 'friendly_server_unavailable' || errorCode === 'allocation_failed') {
-      throw new Error('Dostluk maci sunucusuna ulasilamiyor, lutfen tekrar deneyin.');
-    }
-
     if (errorCode) {
-      throw new Error(errorCode);
+      throw new Error(normalizeMatchControlErrorMessage(errorCode));
     }
 
     const message = typeof parsed?.message === 'string' ? parsed.message.trim() : '';
@@ -1022,14 +1084,24 @@ export async function waitForMatchReady(
     }
 
     if (MATCH_TERMINAL_STATES.has(normalizedState)) {
-      throw new Error(`Match hazir olmadan ${normalizedState} durumuna gecti.`);
+      throw new Error(
+        `Match hazir olmadan ${normalizedState} durumuna gecti.` +
+          (status.bootstrapFailureReason
+            ? ` Neden: ${status.bootstrapFailureReason}`
+            : ''),
+      );
     }
 
     await new Promise((resolve) => window.setTimeout(resolve, pollMs));
   }
 
   throw new Error(
-    `Match hazir olmadi. Son durum: ${lastStatus?.state || 'unknown'}.`,
+    `Match hazir olmadi. Son durum: ${lastStatus?.state || 'unknown'}.` +
+      (lastStatus?.bootstrapFailureReason
+        ? ` Neden: ${lastStatus.bootstrapFailureReason}`
+        : lastStatus?.lastBootstrapStage
+          ? ` Asama: ${lastStatus.lastBootstrapStage}`
+          : ''),
   );
 }
 

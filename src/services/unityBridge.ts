@@ -54,8 +54,55 @@ type UnityMatchPlugin = {
 
 const UnityMatch = registerPlugin<UnityMatchPlugin>('UnityMatch');
 
+type UnityBridgeEventListener = (event: UnityBridgeEvent) => void;
+
+let nextUnityEventListenerId = 1;
+const unityEventListeners = new Map<number, UnityBridgeEventListener>();
+let unityNativeEventSubscription:
+  | {
+      remove: () => Promise<void>;
+    }
+  | null = null;
+let unityNativeEventRegistrationPromise: Promise<void> | null = null;
+
 function isAndroidNativePlatform(): boolean {
   return Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'android';
+}
+
+function emitUnityBridgeEvent(event: UnityBridgeEvent): void {
+  const snapshot = Array.from(unityEventListeners.values());
+  snapshot.forEach((listener) => {
+    try {
+      listener(event);
+    } catch (error) {
+      console.warn('[UnityBridge] unity event listener failed', error);
+    }
+  });
+}
+
+async function ensureUnityNativeEventListener(): Promise<void> {
+  if (!isAndroidNativePlatform()) {
+    return;
+  }
+
+  if (unityNativeEventSubscription) {
+    return;
+  }
+
+  if (!unityNativeEventRegistrationPromise) {
+    unityNativeEventRegistrationPromise = UnityMatch.addListener('unityEvent', (event) => {
+      emitUnityBridgeEvent(event);
+    })
+      .then((subscription) => {
+        unityNativeEventSubscription = subscription;
+      })
+      .catch((error) => {
+        unityNativeEventRegistrationPromise = null;
+        throw error;
+      });
+  }
+
+  await unityNativeEventRegistrationPromise;
 }
 
 async function launchNativeOnAndroid(
@@ -138,9 +185,12 @@ export const unityBridge = {
       return async () => {};
     }
 
-    const subscription = await UnityMatch.addListener('unityEvent', callback);
+    await ensureUnityNativeEventListener();
+
+    const listenerId = nextUnityEventListenerId++;
+    unityEventListeners.set(listenerId, callback);
     return async () => {
-      await subscription.remove();
+      unityEventListeners.delete(listenerId);
     };
   },
 };

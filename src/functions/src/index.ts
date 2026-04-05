@@ -23,6 +23,12 @@ export {
   ingestLeagueMatchLifecycleHttp,
 } from './liveLeague.js';
 export {
+  bootstrapChampionsLeagueMonthly,
+  bootstrapChampionsLeagueMonthlyHttp,
+  syncChampionsLeagueProgressHttp,
+  syncChampionsLeagueProgressOnFixtureWrite,
+} from './championsLeague.js';
+export {
   marketCreateListing,
   marketCancelListing,
   marketPurchaseListing,

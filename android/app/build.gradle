@@ -34,6 +34,16 @@ def appVersionFile = rootProject.file("../app.version.json")
 def appVersionConfig = appVersionFile.exists()
     ? new JsonSlurper().parse(appVersionFile)
     : [versionName: "1.0.13", versionCode: 2026032613]
+def unityArtifactManifestFile = rootProject.file("../.tmp/current-android-artifact-manifest.json")
+def unityArtifactConfig = unityArtifactManifestFile.exists()
+    ? new JsonSlurper().parse(unityArtifactManifestFile)
+    : [buildId: "unknown", runtimeType: "unknown", buildTimestampUtc: ""]
+def unityExportBuildId = (unityArtifactConfig.buildId ?: "unknown").toString()
+def unityExportRuntimeType = (unityArtifactConfig.runtimeType ?: "unknown").toString()
+def unityExportBuildTimestampUtc = (unityArtifactConfig.buildTimestampUtc ?: "").toString()
+def unityDebugVersionSuffix = unityExportBuildId == "unknown"
+    ? ""
+    : "-u" + unityExportBuildId.replaceAll("[^A-Za-z0-9._-]", "_")
 def mobileExcludedMatchViewerDir = file("$projectDir/src/main/assets/public/Unity/match-viewer")
 
 gradle.taskGraph.whenReady { taskGraph ->
@@ -84,6 +94,10 @@ android {
         buildConfigField "String", "ADMOB_APP_ID", "\"${admobAppId}\""
         buildConfigField "String", "ADMOB_REWARDED_AD_UNIT_ID", "\"${admobRewardedUnitId}\""
         buildConfigField "boolean", "ADMOB_USE_TEST_IDS", admobUseTestIds.toString()
+        buildConfigField "String", "UNITY_EXPORT_BUILD_ID", "\"${unityExportBuildId}\""
+        buildConfigField "String", "UNITY_EXPORT_RUNTIME_TYPE", "\"${unityExportRuntimeType}\""
+        buildConfigField "String", "UNITY_EXPORT_BUILD_TIMESTAMP_UTC", "\"${unityExportBuildTimestampUtc}\""
+        buildConfigField "String", "UNITY_VERSION_NAME", "\"${appVersionConfig.versionName.toString()}\""
     }
     androidResources {
         ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
@@ -103,6 +117,9 @@ android {
     }
     
     buildTypes {
+        debug {
+            versionNameSuffix unityDebugVersionSuffix
+        }
         release {
             if (keystorePropertiesFile.exists()) {
                 signingConfig signingConfigs.release
@@ -137,6 +154,7 @@ dependencies {
     implementation "androidx.appcompat:appcompat:$androidxAppCompatVersion"
     implementation "androidx.coordinatorlayout:coordinatorlayout:$androidxCoordinatorLayoutVersion"
     implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
+    implementation "androidx.security:security-crypto:1.1.0-alpha06"
     implementation "com.android.billingclient:billing:8.3.0"
     implementation "com.google.android.play:app-update:2.1.0"
     implementation "com.google.android.gms:play-services-ads:25.1.0"

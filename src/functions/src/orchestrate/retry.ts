@@ -5,6 +5,8 @@ import { v2 as cloudTasks } from '@google-cloud/tasks';
 import { log } from '../logger.js';
 import { startMatchInternal } from './startMatch.js';
 import { sendSlack } from '../notify/slack.js';
+import { dayKeyTR } from '../utils/schedule.js';
+import { finalizeFixtureWithFallbackResult } from '../utils/matchResultFallback.js';
 
 
 const db = getFirestore();
@@ -64,6 +66,23 @@ async function markPoison(matchId: string, leagueId: string, reason: string, att
   } catch {}
 }
 
+async function updateFallbackHeartbeat(applied: number, failed: number) {
+  if (applied <= 0 && failed <= 0) {
+    return;
+  }
+
+  try {
+    await db.doc(`ops_heartbeats/${dayKeyTR()}`).set(
+      {
+        lastUpdated: FieldValue.serverTimestamp(),
+        leagueFallbackApplied: FieldValue.increment(applied),
+        leagueFallbackFailed: FieldValue.increment(failed),
+      },
+      { merge: true },
+    );
+  } catch {}
+}
+
 export const finalizeWatchdogHttp = functions
   .region(REGION)
   .https.onRequest(async (req, res) => {
@@ -105,6 +124,34 @@ export const finalizeWatchdogHttp = functions
       log.warn('watchdog_retry_scheduled', { matchId, leagueId, nextAttempt: attempt + 1 });
       res.json({ ok: true, retried: true, nextAttempt: attempt + 1 });
       return;
+    }
+
+    try {
+      const fallback = await finalizeFixtureWithFallbackResult({
+        leagueId,
+        fixtureId: matchId,
+        matchId,
+        reason: `watchdog_retry_exhausted:${fx.status || 'unknown_status'}`,
+      });
+
+      if (fallback.status === 'applied') {
+        await updateFallbackHeartbeat(1, 0);
+        log.warn('watchdog_fallback_applied', { matchId, leagueId, attempt, reason: fallback.reason });
+        res.json({ ok: true, fallback: true, result: fallback });
+        return;
+      }
+
+      res.json({ ok: true, fallback: false, played: true });
+      return;
+    } catch (error: any) {
+      await updateFallbackHeartbeat(0, 1);
+      log.error('watchdog_fallback_failed', {
+        matchId,
+        leagueId,
+        attempt,
+        errorClass: error?.code || error?.name || 'FallbackError',
+        err: String(error),
+      });
     }
 
     // Poison

@@ -8,27 +8,38 @@ import { toast } from 'sonner';
 import { unityBridge } from '@/services/unityBridge';
 import { getTeam } from '@/services/team';
 import {
+  type FriendlyMatchHistoryItem,
+  type FriendlyRequestListItem,
   acceptFriendlyRequest,
   buildUnityRuntimeTeamPayload,
   createFriendlyRequest,
-  getFriendlyRequestStatus,
   getMatchControlHealth,
   getMatchStatus,
-  getFriendlyMatchReadyStates,
   isMatchControlConfigured,
   listFriendlyMatchHistory,
   listFriendlyRequests,
-  requestJoinTicket,
-  waitForMatchReady,
-  type FriendlyMatchHistoryItem,
-  type FriendlyRequestListItem,
 } from '@/services/matchControl';
+import {
+  clearFriendlyLaunchClaim,
+  FriendlyLaunchError,
+  describeFriendlyLaunchPhase,
+  getFriendlyLaunchFailureMessage,
+  getFriendlyLaunchSnapshot,
+  isFriendlyLaunchClaimed,
+  resumeFriendlyLaunch,
+  startFriendlyLaunch,
+  subscribeFriendlyLaunch,
+} from '@/services/friendlyLaunchCoordinator';
 
 function normalizeFriendlyAcceptMode(value: unknown): 'manual' | 'offline_auto' | 'unknown' {
   const normalized = String(value || '').trim().toLowerCase();
   if (normalized === 'offline_auto') return 'offline_auto';
   if (normalized === 'manual') return 'manual';
   return 'unknown';
+}
+
+function normalizeFriendlyRequestStatus(value: unknown): string {
+  return String(value || '').trim().toLowerCase();
 }
 
 export default function FriendlyMatchPage() {
@@ -65,9 +76,22 @@ export default function FriendlyMatchPage() {
   const pollFailureCountRef = useRef(0);
   const hasLoggedConnectionErrorRef = useRef(false);
   const delayedHistoryRefreshTimersRef = useRef<number[]>([]);
+  const launchFailureToastAttemptIdRef = useRef<string | null>(null);
+  const launchSuccessToastAttemptIdRef = useRef<string | null>(null);
 
   const apiEnabled = useMemo(() => isMatchControlConfigured(), []);
   const canRunApiFlow = apiEnabled && !!user?.id;
+  const logFriendlyToast = useCallback(
+    (kind: 'success' | 'error' | 'info', message: string, extra?: Record<string, unknown>) => {
+      console.info('[friendly_launch_toast]', {
+        source: 'friendly-page',
+        kind,
+        message,
+        ...(extra || {}),
+      });
+    },
+    [],
+  );
 
   useEffect(() => {
     const queryOpponentUserId = (searchParams.get('opponentUserId') || '').trim();
@@ -151,6 +175,52 @@ export default function FriendlyMatchPage() {
     return fallback;
   };
 
+  const shouldSuppressHandledConsoleError = useCallback((error: unknown) => {
+    const message = getErrorMessage(error, '').trim().toLowerCase();
+    if (!message) {
+      return false;
+    }
+
+    return (
+      message.includes('offline dostluk maci gunluk limitine ulasildi') ||
+      message.includes('dostluk maci icin sunucu dolu') ||
+      message.includes('dostluk maci sunucusuna ulasilamiyor')
+    );
+  }, []);
+
+  const resolveFriendlyBootstrapFailureMessage = useCallback(async (
+    candidateMatchId: string | undefined,
+    fallback: string,
+  ): Promise<{ message: string; reason: string | null }> => {
+    const targetMatchId = String(candidateMatchId || matchId || '').trim();
+    if (!canRunApiFlow || !targetMatchId) {
+      return { message: fallback, reason: null };
+    }
+
+    try {
+      const status = await getMatchStatus(targetMatchId);
+      const failureReason = String(status?.bootstrapFailureReason || '').trim();
+      if (failureReason) {
+        return {
+          message: `${fallback} (${failureReason})`,
+          reason: failureReason,
+        };
+      }
+
+      const lastStage = String(status?.lastBootstrapStage || '').trim();
+      if (lastStage) {
+        return {
+          message: `${fallback} (stage=${lastStage})`,
+          reason: lastStage,
+        };
+      }
+    } catch (error) {
+      console.warn('[FriendlyMatchPage] Failed to resolve bootstrap failure status.', error);
+    }
+
+    return { message: fallback, reason: null };
+  }, [canRunApiFlow, matchId]);
+
   const showUnityLaunchOverlay = useCallback((title: string, detail: string) => {
     setUnityLaunchOverlay((current) => ({
       title,
@@ -209,33 +279,111 @@ export default function FriendlyMatchPage() {
     });
   };
 
-  const launchFriendlyMatchById = useCallback(async (targetMatchId: string) => {
+  const launchFriendlyMatch = useCallback(async (args: {
+    requestId?: string;
+    matchId?: string;
+    homeTeamId?: string;
+    awayTeamId?: string;
+    trigger?: 'manual' | 'auto' | 'resume';
+  }) => {
     if (!canRunApiFlow || !user?.id) {
       toast.error('API flow icin giris yap ve VITE_MATCH_CONTROL_BASE_URL tanimla.');
       return;
     }
 
-    showUnityLaunchOverlay('Mac baglantisi hazirlaniyor', 'Join ticket aliniyor ve mac sunucusunun hazir olmasi bekleniyor.');
-    const ticket = await requestJoinTicket({
-      matchId: targetMatchId.trim(),
+    await startFriendlyLaunch({
+      source: 'friendly-page',
       userId: user.id,
-      role: 'player',
+      homeId: (args.homeTeamId || homeId).trim() || homeId,
+      awayId: (args.awayTeamId || awayId).trim() || awayId,
+      requestId: args.requestId?.trim() || undefined,
+      matchId: args.matchId?.trim() || undefined,
+      trigger: args.trigger || 'manual',
     });
-    showUnityLaunchOverlay('Mac sunucusu hazirlaniyor', 'Sunucu running durumuna gelene kadar bekleniyor. Bu adim bazen 10-20 saniye surebilir.');
-    const readyMatch = await waitForMatchReady(ticket.matchId, {
-      timeoutMs: 90000,
-      pollMs: 700,
-      readyStates: getFriendlyMatchReadyStates(),
-    });
+  }, [awayId, canRunApiFlow, homeId, user?.id]);
 
-    setMatchId(readyMatch.matchId);
-    setIp(readyMatch.serverIp);
-    setPort(String(readyMatch.serverPort));
+  const autoLaunchAcceptedRequest = useCallback(async (item: FriendlyRequestListItem) => {
+    if (!canRunApiFlow || !user?.id) {
+      return;
+    }
 
-    showUnityLaunchOverlay('Unity aciliyor', 'Unity ekrani acilana kadar bu sayfada kal. Uygulama birazdan Unity alanina gececek.');
-    await launchUnity(readyMatch.serverIp, readyMatch.serverPort, ticket.joinTicket, readyMatch.matchId);
-    toast.success('Unity client baglantisi baslatildi.');
-  }, [canRunApiFlow, launchUnity, showUnityLaunchOverlay, user?.id]);
+    const targetRequestId = String(item.requestId || '').trim();
+    const targetMatchId = String(item.match?.matchId || item.matchId || '').trim();
+    if (!targetRequestId || !targetMatchId) {
+      return;
+    }
+
+    if (
+      requestState === 'accepted' &&
+      requestId === targetRequestId &&
+      matchId === targetMatchId
+    ) {
+      console.info('[FriendlyMatchPage] skipping auto launch for currently tracked accepted request', {
+        requestId: targetRequestId,
+        matchId: targetMatchId,
+        source: 'poll-sync',
+      });
+      return;
+    }
+
+    if (isFriendlyLaunchClaimed({ requestId: targetRequestId, matchId: targetMatchId })) {
+      console.info('[FriendlyMatchPage] skipping auto launch for claimed request', {
+        requestId: targetRequestId,
+        matchId: targetMatchId,
+        source: 'poll-sync',
+      });
+      return;
+    }
+
+    const launchSnapshot = getFriendlyLaunchSnapshot();
+    if (
+      launchSnapshot &&
+      launchSnapshot.phase !== 'done' &&
+      launchSnapshot.phase !== 'failed' &&
+      (launchSnapshot.requestId === targetRequestId || launchSnapshot.matchId === targetMatchId)
+    ) {
+      console.info('[FriendlyMatchPage] skipping auto launch for active attempt', {
+        requestId: targetRequestId,
+        matchId: targetMatchId,
+        source: 'poll-sync',
+        attemptId: launchSnapshot.attemptId,
+        phase: launchSnapshot.phase,
+      });
+      return;
+    }
+
+    try {
+      console.info('[FriendlyMatchPage] auto launching accepted request', {
+        requestId: targetRequestId,
+        matchId: targetMatchId,
+        source: 'poll-sync',
+      });
+
+      setRequestId(targetRequestId);
+      setMatchId(targetMatchId);
+      if (item.match?.serverIp) {
+        setIp(item.match.serverIp);
+      }
+      if (item.match?.serverPort) {
+        setPort(String(item.match.serverPort));
+      }
+      setRequestState('accepted');
+      setRequestAcceptMode(normalizeFriendlyAcceptMode(item.acceptMode));
+      setAutoAcceptAt(item.autoAcceptAt || null);
+
+      await launchFriendlyMatch({
+        requestId: targetRequestId,
+        matchId: targetMatchId,
+        homeTeamId: item.homeTeamId || homeId,
+        awayTeamId: item.awayTeamId || awayId,
+        trigger: 'auto',
+      });
+    } catch (error: unknown) {
+      if (!(error instanceof FriendlyLaunchError) && !shouldSuppressHandledConsoleError(error)) {
+        console.error('[FriendlyMatchPage] auto launch accepted request failed', error);
+      }
+    }
+  }, [awayId, canRunApiFlow, homeId, launchFriendlyMatch, matchId, requestId, requestState, shouldSuppressHandledConsoleError, user?.id]);
 
   const syncLists = useCallback(async () => {
     if (!canRunApiFlow || !user?.id) {
@@ -259,36 +407,68 @@ export default function FriendlyMatchPage() {
     setIncomingRequests(incoming);
     setOutgoingRequests(outgoing);
 
-    if (!requestId && opponentUserId) {
-      const pendingForOpponent = outgoing.find(
-        (item) => item.status === 'pending' && item.opponentUserId === opponentUserId,
-      );
-      if (pendingForOpponent?.requestId) {
-        setRequestId(pendingForOpponent.requestId);
-        setRequestState('pending');
-      }
+    const opponentTracked = opponentUserId
+      ? outgoing.find((item) => {
+          if (item.opponentUserId !== opponentUserId) return false;
+          const state = normalizeFriendlyRequestStatus(item.status);
+          return state === 'accepted' || state === 'pending';
+        })
+      : null;
+
+    const fallbackTracked =
+      opponentTracked ||
+      outgoing.find((item) => normalizeFriendlyRequestStatus(item.status) === 'accepted' && !!item.match?.matchId) ||
+      outgoing.find((item) => normalizeFriendlyRequestStatus(item.status) === 'pending') ||
+      null;
+
+    const tracked = (requestId
+      ? items.find((item) => item.requestId === requestId)
+      : fallbackTracked) || null;
+
+    if (!requestId && tracked?.requestId) {
+      setRequestId(tracked.requestId);
     }
 
-    if (requestId) {
-      const tracked = items.find((item) => item.requestId === requestId);
-      if (tracked?.status === 'accepted' && tracked.match) {
-        setMatchId(tracked.match.matchId);
-        setIp(tracked.match.serverIp);
-        setPort(String(tracked.match.serverPort));
-        setRequestState('accepted');
-        setRequestAcceptMode(normalizeFriendlyAcceptMode(tracked.acceptMode));
-        setAutoAcceptAt(tracked.autoAcceptAt || null);
-      } else if (tracked?.status === 'pending') {
-        setRequestState('pending');
-        setRequestAcceptMode(normalizeFriendlyAcceptMode(tracked.acceptMode));
-        setAutoAcceptAt(tracked.autoAcceptAt || null);
-      } else if (tracked?.status === 'expired') {
-        setRequestState('expired');
-        setRequestAcceptMode(normalizeFriendlyAcceptMode(tracked.acceptMode));
-        setAutoAcceptAt(null);
-      }
+    if (!tracked) {
+      clearFriendlyLaunchClaim({
+        requestId: requestId || undefined,
+        matchId: matchId || undefined,
+      });
+      return;
     }
-  }, [canRunApiFlow, user?.id, requestId, opponentUserId]);
+
+    const trackedState = normalizeFriendlyRequestStatus(tracked.status);
+    if (trackedState === 'accepted' && tracked.match) {
+      setMatchId(tracked.match.matchId);
+      setIp(tracked.match.serverIp);
+      setPort(String(tracked.match.serverPort));
+      setRequestState('accepted');
+      setRequestAcceptMode(normalizeFriendlyAcceptMode(tracked.acceptMode));
+      setAutoAcceptAt(tracked.autoAcceptAt || null);
+      void autoLaunchAcceptedRequest(tracked);
+    } else if (trackedState === 'pending') {
+      clearFriendlyLaunchClaim({
+        requestId: tracked.requestId,
+        matchId: tracked.match?.matchId || tracked.matchId || undefined,
+      });
+      setRequestState('pending');
+      setRequestAcceptMode(normalizeFriendlyAcceptMode(tracked.acceptMode));
+      setAutoAcceptAt(tracked.autoAcceptAt || null);
+    } else if (trackedState === 'expired') {
+      clearFriendlyLaunchClaim({
+        requestId: tracked.requestId,
+        matchId: tracked.match?.matchId || tracked.matchId || undefined,
+      });
+      setRequestState('expired');
+      setRequestAcceptMode(normalizeFriendlyAcceptMode(tracked.acceptMode));
+      setAutoAcceptAt(null);
+    } else {
+      clearFriendlyLaunchClaim({
+        requestId: tracked.requestId,
+        matchId: tracked.match?.matchId || tracked.matchId || undefined,
+      });
+    }
+  }, [autoLaunchAcceptedRequest, canRunApiFlow, matchId, opponentUserId, requestId, user?.id]);
 
   const refreshHistory = useCallback(async () => {
     if (!canRunApiFlow || !user?.id) {
@@ -307,41 +487,6 @@ export default function FriendlyMatchPage() {
       console.warn('[FriendlyMatchPage] Failed to load friendly history.', error);
     }
   }, [canRunApiFlow, opponentUserId, user?.id]);
-
-  const waitForOfflineAutoAcceptAndLaunch = useCallback(async (targetRequestId: string) => {
-    let deadline = Date.now() + 45_000;
-
-    while (Date.now() < deadline) {
-      const current = await getFriendlyRequestStatus(targetRequestId);
-      const currentState = String(current.status || '').trim().toLowerCase();
-      const expiresAtMs = current.expiresAt ? new Date(current.expiresAt).getTime() : Number.NaN;
-      if (Number.isFinite(expiresAtMs)) {
-        deadline = Math.max(deadline, Math.min(expiresAtMs + 1500, Date.now() + 115_000));
-      }
-      setRequestAcceptMode(normalizeFriendlyAcceptMode(current.acceptMode));
-      setAutoAcceptAt(current.autoAcceptAt || null);
-
-      if (currentState === 'accepted' && current.match?.matchId) {
-        setRequestState('accepted');
-        setMatchId(current.match.matchId);
-        setIp(current.match.serverIp);
-        setPort(String(current.match.serverPort));
-        await syncLists();
-        await refreshHistory();
-        await launchFriendlyMatchById(current.match.matchId);
-        return;
-      }
-
-      if (currentState === 'expired') {
-        setRequestState('expired');
-        throw new Error('Offline dostluk maci otomatik olarak baslatilamadi.');
-      }
-
-      await new Promise((resolve) => window.setTimeout(resolve, 600));
-    }
-
-    throw new Error('Offline dostluk maci zamaninda hazir olmadi.');
-  }, [launchFriendlyMatchById, refreshHistory, syncLists]);
 
   const scheduleDelayedHistoryRefreshes = useCallback(() => {
     delayedHistoryRefreshTimersRef.current.forEach((timerId) => window.clearTimeout(timerId));
@@ -362,12 +507,22 @@ export default function FriendlyMatchPage() {
       const type = String(event?.type || '').toLowerCase();
       if (type === 'error' || type === 'connection_failed') {
         hideUnityLaunchOverlay();
-        toast.error(event?.message || 'Unity baglanti hatasi.');
+        void resolveFriendlyBootstrapFailureMessage(
+          String(event?.matchId || '').trim() || matchId,
+          event?.message || 'Unity baglanti hatasi.',
+        ).then(({ message, reason }) => {
+          logFriendlyToast('error', message, {
+            eventType: type,
+            reason: reason || event?.reason || null,
+          });
+          toast.error(message);
+        });
         return;
       }
 
       if (type === 'match_ended') {
         hideUnityLaunchOverlay();
+        logFriendlyToast('info', 'Mac sona erdi.', { eventType: type });
         toast.info('Mac sona erdi.');
         void refreshHistory();
         scheduleDelayedHistoryRefreshes();
@@ -376,10 +531,21 @@ export default function FriendlyMatchPage() {
 
       if (type === 'closed') {
         hideUnityLaunchOverlay();
-        toast.info('Unity ekrani kapatildi.');
-        void syncLists();
-        void refreshHistory();
-        scheduleDelayedHistoryRefreshes();
+        void resolveFriendlyBootstrapFailureMessage(
+          String(event?.matchId || '').trim() || matchId,
+          'Unity ekrani kapatildi.',
+        ).then(({ message, reason }) => {
+          if (reason) {
+            logFriendlyToast('error', message, { eventType: type, reason });
+            toast.error(message);
+          } else {
+            logFriendlyToast('info', message, { eventType: type });
+            toast.info(message);
+          }
+          void syncLists();
+          void refreshHistory();
+          scheduleDelayedHistoryRefreshes();
+        });
       }
     }).then((remove) => {
       removeListener = remove;
@@ -395,15 +561,84 @@ export default function FriendlyMatchPage() {
       delayedHistoryRefreshTimersRef.current.forEach((timerId) => window.clearTimeout(timerId));
       delayedHistoryRefreshTimersRef.current = [];
     };
-  }, [hideUnityLaunchOverlay, refreshHistory, scheduleDelayedHistoryRefreshes, syncLists]);
+  }, [hideUnityLaunchOverlay, logFriendlyToast, matchId, refreshHistory, resolveFriendlyBootstrapFailureMessage, scheduleDelayedHistoryRefreshes, syncLists]);
+
+  useEffect(() => {
+    if (!canRunApiFlow || !user?.id) {
+      return;
+    }
+
+    const unsubscribe = subscribeFriendlyLaunch((context) => {
+      if (!context || context.userId !== user.id) {
+        return;
+      }
+
+      if (context.requestId) {
+        setRequestId(context.requestId);
+      }
+      if (context.matchId) {
+        setMatchId(context.matchId);
+      }
+
+      if (context.phase === 'done') {
+        hideUnityLaunchOverlay();
+        if (launchSuccessToastAttemptIdRef.current !== context.attemptId) {
+          launchSuccessToastAttemptIdRef.current = context.attemptId;
+          logFriendlyToast('success', 'Unity client baglantisi baslatildi.', {
+            attemptId: context.attemptId,
+            phase: context.phase,
+            requestId: context.requestId || null,
+            matchId: context.matchId || null,
+          });
+          toast.success('Unity client baglantisi baslatildi.');
+        }
+        return;
+      }
+
+      if (context.phase === 'failed') {
+        hideUnityLaunchOverlay();
+        if (launchFailureToastAttemptIdRef.current !== context.attemptId) {
+          launchFailureToastAttemptIdRef.current = context.attemptId;
+          const message = context.errorMessage || getFriendlyLaunchFailureMessage(context.failureReason);
+          logFriendlyToast('error', message, {
+            attemptId: context.attemptId,
+            phase: context.phase,
+            reason: context.failureReason || null,
+            requestId: context.requestId || null,
+            matchId: context.matchId || null,
+          });
+          toast.error(message);
+        }
+        return;
+      }
+
+      const overlay = describeFriendlyLaunchPhase(context.phase);
+      showUnityLaunchOverlay(overlay.title, overlay.detail);
+    });
+
+    return unsubscribe;
+  }, [canRunApiFlow, hideUnityLaunchOverlay, logFriendlyToast, showUnityLaunchOverlay, user?.id]);
 
   useEffect(() => {
     const handleVisibilityOrFocus = () => {
       if (document.visibilityState === 'hidden') {
         return;
       }
-      if (!loadingAction) {
+      const launchSnapshot = getFriendlyLaunchSnapshot();
+      if (!launchSnapshot || launchSnapshot.userId !== user?.id || launchSnapshot.phase === 'done' || launchSnapshot.phase === 'failed') {
         hideUnityLaunchOverlay();
+      }
+      if (canRunApiFlow && user?.id) {
+        void resumeFriendlyLaunch({
+          source: 'friendly-page',
+          userId: user.id,
+          homeId,
+          awayId,
+        }).catch((error) => {
+          if (!(error instanceof FriendlyLaunchError)) {
+            console.warn('[FriendlyMatchPage] friendly launch resume failed', error);
+          }
+        });
       }
       void syncLists();
       void refreshHistory();
@@ -417,7 +652,24 @@ export default function FriendlyMatchPage() {
       window.removeEventListener('focus', handleVisibilityOrFocus);
       document.removeEventListener('visibilitychange', handleVisibilityOrFocus);
     };
-  }, [hideUnityLaunchOverlay, loadingAction, refreshHistory, scheduleDelayedHistoryRefreshes, syncLists]);
+  }, [awayId, canRunApiFlow, hideUnityLaunchOverlay, homeId, refreshHistory, scheduleDelayedHistoryRefreshes, syncLists, user?.id]);
+
+  useEffect(() => {
+    if (!canRunApiFlow || !user?.id) {
+      return;
+    }
+
+    void resumeFriendlyLaunch({
+      source: 'friendly-page',
+      userId: user.id,
+      homeId,
+      awayId,
+    }).catch((error) => {
+      if (!(error instanceof FriendlyLaunchError)) {
+        console.warn('[FriendlyMatchPage] initial friendly launch resume failed', error);
+      }
+    });
+  }, [awayId, canRunApiFlow, homeId, user?.id]);
 
   useEffect(() => {
     if (!canRunApiFlow || !user?.id) {
@@ -427,11 +679,14 @@ export default function FriendlyMatchPage() {
 
     let alive = true;
     let timer: number | undefined;
+    const shouldThrottleMatchPolling =
+      !!unityLaunchOverlay || requestState === 'accepted' || requestState === 'running';
 
     const scheduleNext = () => {
       const failures = pollFailureCountRef.current;
+      const onlineDelayMs = shouldThrottleMatchPolling ? 5000 : 3000;
       const delayMs =
-        failures <= 0 ? 3000 : Math.min(30000, 3000 * Math.pow(2, Math.min(failures - 1, 3)));
+        failures <= 0 ? onlineDelayMs : Math.min(30000, onlineDelayMs * Math.pow(2, Math.min(failures - 1, 3)));
       timer = window.setTimeout(() => {
         void poll();
       }, delayMs);
@@ -445,7 +700,9 @@ export default function FriendlyMatchPage() {
         }
 
         try {
-          await syncLists();
+          if (!(shouldThrottleMatchPolling && document.visibilityState === 'hidden')) {
+            await syncLists();
+          }
         } catch (error) {
           console.warn('[FriendlyMatchPage] Request sync failed while API is online.', error);
         }
@@ -482,7 +739,7 @@ export default function FriendlyMatchPage() {
         window.clearTimeout(timer);
       }
     };
-  }, [canRunApiFlow, user?.id, syncLists]);
+  }, [canRunApiFlow, requestState, syncLists, unityLaunchOverlay, user?.id]);
 
   useEffect(() => {
     void refreshHistory();
@@ -493,7 +750,9 @@ export default function FriendlyMatchPage() {
     try {
       await launchUnity(ip, Number.parseInt(port, 10) || 7777);
     } catch (error: unknown) {
-      console.error(error);
+      if (!shouldSuppressHandledConsoleError(error)) {
+        console.error(error);
+      }
       toast.error(getErrorMessage(error, 'Unity acilamadi.'));
     }
   };
@@ -528,20 +787,28 @@ export default function FriendlyMatchPage() {
 
       if (normalizeFriendlyAcceptMode(result.acceptMode) === 'offline_auto') {
         toast.success('Rakip offline. 3 saniye icinde mac otomatik hazirlanacak.');
-        setLoadingAction('offline-auto');
-        await waitForOfflineAutoAcceptAndLaunch(result.requestId);
+        await launchFriendlyMatch({
+          requestId: result.requestId,
+          homeTeamId: homeId,
+          awayTeamId: awayId,
+          trigger: 'manual',
+        });
       } else {
         toast.success(`Dostluk istegi olusturuldu. RequestId: ${result.requestId}`);
       }
     } catch (error: unknown) {
-      console.error(error);
-      toast.error(getErrorMessage(error, 'Istek olusturulamadi.'));
+      if (!shouldSuppressHandledConsoleError(error)) {
+        console.error(error);
+      }
+      if (!(error instanceof FriendlyLaunchError)) {
+        toast.error(getErrorMessage(error, 'Istek olusturulamadi.'));
+      }
     } finally {
       setLoadingAction(null);
     }
   };
 
-  const joinMatchById = async (targetMatchId: string) => {
+  const joinMatchById = async (targetMatchId: string, targetRequestId?: string) => {
     if (!canRunApiFlow || !user?.id) {
       toast.error('API flow icin giris yap ve VITE_MATCH_CONTROL_BASE_URL tanimla.');
       return;
@@ -554,11 +821,18 @@ export default function FriendlyMatchPage() {
 
     setLoadingAction('join');
     try {
-      await launchFriendlyMatchById(targetMatchId);
+      await launchFriendlyMatch({
+        requestId: targetRequestId || requestId || undefined,
+        matchId: targetMatchId,
+        trigger: 'manual',
+      });
     } catch (error: unknown) {
-      hideUnityLaunchOverlay();
-      console.error(error);
-      toast.error(getErrorMessage(error, 'Join ticket alinamadi.'));
+      if (!shouldSuppressHandledConsoleError(error)) {
+        console.error(error);
+      }
+      if (!(error instanceof FriendlyLaunchError)) {
+        toast.error(getErrorMessage(error, 'Join ticket alinamadi.'));
+      }
     } finally {
       setLoadingAction(null);
     }
@@ -577,7 +851,6 @@ export default function FriendlyMatchPage() {
 
     setLoadingAction(`accept:${targetRequestId}`);
     try {
-      showUnityLaunchOverlay('Istek kabul ediliyor', 'Dostluk maci istegi kabul edildi. Dedicated sunucu hazirlaniyor.');
       const accepted = await acceptFriendlyRequest(targetRequestId.trim(), {
         acceptingUserId: user.id,
         role: 'player',
@@ -587,30 +860,20 @@ export default function FriendlyMatchPage() {
       setRequestState('accepted');
       setRequestAcceptMode('manual');
       setAutoAcceptAt(null);
-      showUnityLaunchOverlay('Mac sunucusu hazirlaniyor', 'Mac durumu running olana kadar bekleniyor. Unity birazdan acilacak.');
-      const readyMatch = await waitForMatchReady(accepted.matchId, {
-        timeoutMs: 90000,
-        pollMs: 700,
-        readyStates: getFriendlyMatchReadyStates(),
+      await launchFriendlyMatch({
+        requestId: targetRequestId.trim(),
+        matchId: accepted.matchId,
+        trigger: 'manual',
       });
-      setMatchId(readyMatch.matchId);
-      setIp(readyMatch.serverIp);
-      setPort(String(readyMatch.serverPort));
-
-      showUnityLaunchOverlay('Unity aciliyor', 'Unity alani acilana kadar bu ekranda kal. Ekran degisimi genelde 10-20 saniye icinde olur.');
-      await launchUnity(
-        readyMatch.serverIp,
-        readyMatch.serverPort,
-        accepted.joinTicket,
-        readyMatch.matchId,
-      );
-      toast.success('Mac baslatildi ve Unity acildi.');
       await syncLists();
       await refreshHistory();
     } catch (error: unknown) {
-      hideUnityLaunchOverlay();
-      console.error(error);
-      toast.error(getErrorMessage(error, 'Istek kabul edilemedi.'));
+      if (!shouldSuppressHandledConsoleError(error)) {
+        console.error(error);
+      }
+      if (!(error instanceof FriendlyLaunchError)) {
+        toast.error(getErrorMessage(error, 'Istek kabul edilemedi.'));
+      }
     } finally {
       setLoadingAction(null);
     }
@@ -629,7 +892,9 @@ export default function FriendlyMatchPage() {
       setPort(String(status.serverPort));
       toast.info(`Match state: ${status.state}`);
     } catch (error: unknown) {
-      console.error(error);
+      if (!shouldSuppressHandledConsoleError(error)) {
+        console.error(error);
+      }
       toast.error(getErrorMessage(error, 'Match state alinamadi.'));
     } finally {
       setLoadingAction(null);
@@ -781,7 +1046,7 @@ export default function FriendlyMatchPage() {
                     {item.match?.matchId ? (
                       <Button
                         size="sm"
-                        onClick={() => void joinMatchById(item.match?.matchId || '')}
+                        onClick={() => void joinMatchById(item.match?.matchId || '', item.requestId)}
                         disabled={!!loadingAction}
                         className="mt-1 bg-purple-600 hover:bg-purple-500"
                       >

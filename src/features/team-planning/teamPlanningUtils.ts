@@ -4,13 +4,18 @@ import {
   normalizePlayerVitals,
   normalizeTeamPlayers as normalizePlayerVitalsList,
 } from "@/lib/playerVitals";
+import type { FormationRect } from "@/lib/formations";
 import { CustomFormationMap, Player, Position } from "@/types";
 // Moved from Pitch.tsx to avoid circular dependency with slotZones.ts
 export type PitchSlot = {
   slotIndex: number;
+  slotKey?: string;
   position: Player["position"];
   x: number;
   y: number;
+  slotSource?: "template" | "manual";
+  zoneId?: string;
+  rect?: FormationRect;
   player: Player | null;
 };
 import { clampNumber } from "@/lib/contractNegotiation";

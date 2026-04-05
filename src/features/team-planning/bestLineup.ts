@@ -5,6 +5,7 @@ import {
   getZoneDefinition,
   positionAffinity,
   recommendPlayers,
+  resolveSlotZoneId,
 } from "./slotZones";
 import type { ZoneId } from "./slotZones";
 import type {
@@ -73,37 +74,6 @@ const isEligibleForBestLineup = (player: Player): boolean => {
   }
 
   return true;
-};
-
-const resolveFormationSlotZone = (
-  slot: Pick<PitchSlot, "position" | "x">
-): ZoneId => {
-  switch (slot.position) {
-    case "GK":
-      return "kaleci";
-    case "LB":
-      return "sol bek";
-    case "RB":
-      return "sağ bek";
-    case "CB":
-      return slot.x <= 50 ? "stoper sol" : "stoper sağ";
-    case "LM":
-      return "sol kanat";
-    case "RM":
-      return "sağ kanat";
-    case "LW":
-      return "sol açık";
-    case "RW":
-      return "sağ açık";
-    case "CAM":
-      return "ofansif orta saha";
-    case "CM":
-      return "merkez orta saha";
-    case "ST":
-      return "santrafor";
-    default:
-      return "merkez orta saha";
-  }
 };
 
 const rankFallbackCandidates = (
@@ -195,9 +165,10 @@ export const buildBestLineupForFormation = (
     const pitchSlot: PitchSlot = {
       ...slot,
       slotIndex,
+      slotSource: "template",
       player: null,
     };
-    const zoneId = resolveFormationSlotZone(pitchSlot);
+    const zoneId = resolveSlotZoneId(pitchSlot);
 
     return {
       slot: pitchSlot,

@@ -171,7 +171,7 @@ const MATCHES_PER_MONTH = 4;
 const DEFAULT_TEAM_STRENGTH = 58;
 const MIN_STARTERS_FOR_REAL_STRENGTH = 8;
 const REVENUE_ROUNDING_UNIT = 50;
-export const VIP_DAILY_CREDIT_AMOUNT = 2_000;
+export const VIP_DAILY_CREDIT_AMOUNT = 6_000;
 export const VIP_DAILY_CREDIT_DIAMOND_COST = 0;
 
 const istanbulDateKeyFormatter = new Intl.DateTimeFormat('en-US', {

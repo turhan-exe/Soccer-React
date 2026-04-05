@@ -276,7 +276,7 @@ const LegendPackPage = () => {
         setOwnedLegendIds((prev) =>
           prev.includes(legend.id) ? prev : [...prev, legend.id].sort((a, b) => a - b),
         );
-        toast.success(`${legend.name} kadro kaydÄ± onarÄ±ldÄ±`);
+        toast.success(`${legend.name} kadro kaydı onarıldı`);
         setCurrent(null);
         return;
       }
@@ -284,7 +284,7 @@ const LegendPackPage = () => {
         setOwnedLegendIds((prev) =>
           prev.includes(legend.id) ? prev : [...prev, legend.id].sort((a, b) => a - b),
         );
-        toast.info(`${legend.name} zaten takÄ±mÄ±ndaydÄ±, kayÄ±tlar senkronize edildi`);
+        toast.info(`${legend.name} zaten takımındaydı, kayıtlar senkronize edildi`);
         setCurrent(null);
         return;
       }

@@ -26,7 +26,7 @@ android {
         versionCode 131
 
         ndk {
-            abiFilters "armeabi-v7a", "arm64-v8a", "x86_64"
+            abiFilters "arm64-v8a"
             debugSymbolLevel "none"
         }
     }
@@ -52,14 +52,10 @@ android {
     tasks.register('buildIl2Cpp') {
         def workingDir = projectDir.toString().replaceAll('\\\\', '/');
         def archs = [
-            'armv7' : 'armeabi-v7a',
-            'arm64' : 'arm64-v8a',
-            'x64' : 'x86_64'
+            'arm64' : 'arm64-v8a'
         ]
         def staticLibs = [
-            'armv7' : [  ],
-            'arm64' : [  ],
-            'x64' : [  ]
+            'arm64' : [  ]
         ]
         inputs.files fileTree(dir: 'src/main/Il2CppOutputProject', include: ['**/*'])
         inputs.files fileTree(dir: 'src/main/jniStaticLibs', include: ['**/*'])
@@ -115,6 +111,23 @@ def getIl2CppSymbolPath(String workingDir, String abi) {
     return "${workingDir}/symbols/${abi}/libil2cpp.so";
 }
 
+def isUnityIl2CppDebuggerEnabled() {
+    if (!project.hasProperty("unityEnableIl2CppDebugger")) {
+        return false
+    }
+
+    def value = project.property("unityEnableIl2CppDebugger")
+    if (value == null) {
+        return false
+    }
+
+    def normalized = value.toString().trim().toLowerCase()
+    return normalized == "1" ||
+           normalized == "true" ||
+           normalized == "yes" ||
+           normalized == "on"
+}
+
 def buildIl2CppImpl(String workingDir, String configuration, String architecture, String abi, String[] staticLibraries) {
     def commandLineArgs = []
     commandLineArgs.add("--compile-cpp")
@@ -125,6 +138,9 @@ def buildIl2CppImpl(String workingDir, String configuration, String architecture
     commandLineArgs.add("--incremental-g-c-time-slice=3")
     commandLineArgs.add("--configuration=${configuration}")
     commandLineArgs.add("--dotnetprofile=unityaot-linux")
+    if (isUnityIl2CppDebuggerEnabled()) {
+        commandLineArgs.add("--enable-debugger")
+    }
     commandLineArgs.add("--usymtool-path=${workingDir}/src/main/Il2CppOutputProject/usymtool.exe")
     commandLineArgs.add("--profiler-report")
     commandLineArgs.add("--profiler-output-file=${workingDir}/build/il2cpp_${abi}_${configuration}/il2cpp_conv.traceevents")

@@ -11,6 +11,7 @@ import androidx.core.view.WindowInsetsCompat;
 import androidx.core.view.WindowInsetsControllerCompat;
 import com.getcapacitor.BridgeActivity;
 import com.nerbuss.fhsmanager.ads.RewardedAdsPlugin;
+import com.nerbuss.fhsmanager.auth.SecureCredentialsPlugin;
 import com.nerbuss.fhsmanager.billing.PlayBillingPlugin;
 import com.nerbuss.fhsmanager.update.PlayUpdatePlugin;
 import com.nerbuss.fhsmanager.unity.UnityBridgeState;
@@ -25,6 +26,7 @@ public class MainActivity extends BridgeActivity {
   @Override
   protected void onCreate(Bundle savedInstanceState) {
     registerPlugin(RewardedAdsPlugin.class);
+    registerPlugin(SecureCredentialsPlugin.class);
     registerPlugin(PlayBillingPlugin.class);
     registerPlugin(PlayUpdatePlugin.class);
     registerPlugin(UnityMatchPlugin.class);

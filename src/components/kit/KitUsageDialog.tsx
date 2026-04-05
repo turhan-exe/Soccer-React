@@ -19,6 +19,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useInventory } from "@/contexts/InventoryContext";
 import type { KitType, Player } from "@/types";
 import { KIT_CONFIG, formatKitEffect } from "@/lib/kits";
+import { getPositionLabel } from "@/lib/positionLabels";
 import {
   SAFE_KIT_THRESHOLD,
   buildThresholdKitPlan,
@@ -626,7 +627,7 @@ const KitUsageDialog = ({
                           {lockedPlayer.name}
                         </div>
                         <div className="text-xs text-muted-foreground">
-                          {lockedPlayer.position} - Güç{" "}
+                          {getPositionLabel(lockedPlayer.position)} - Güç{" "}
                           {formatRatingLabel(lockedPlayer.overall)}
                         </div>
                         <div className="flex flex-wrap gap-2 pt-1">
@@ -978,7 +979,7 @@ const KitUsageDialog = ({
                                 {player.name}
                               </div>
                               <div className="text-xs text-muted-foreground">
-                                {player.position} - Sağlık %{health} - Kondisyon
+                                {getPositionLabel(player.position)} - Sağlık %{health} - Kondisyon
                                 %{condition} - Motivasyon %{motivation}
                               </div>
                               <div className="flex flex-wrap gap-2 pt-1">

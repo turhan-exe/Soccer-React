@@ -79,7 +79,6 @@ echo "---- restart ----"
 sudo install -m 644 "$API_UNIT_SRC" "$API_UNIT_DST"
 sudo systemctl daemon-reload
 sudo systemctl enable match-control-api.service >/dev/null 2>&1 || true
-sudo fuser -k 8080/tcp || true
 sudo systemctl restart match-control-api.service
 sleep 3
 
@@ -91,15 +90,20 @@ sudo systemctl is-active --quiet match-control-api.service || {
   exit 1
 }
 
-ss -ltnp | grep ':8080' || {
-  echo "ERROR: nothing is listening on :8080"
+API_PORT="$(awk -F= '/^PORT=/{print $2; exit}' "$API_ENV")"
+if [[ -z "$API_PORT" ]]; then
+  API_PORT=8080
+fi
+
+ss -ltnp | grep ":$API_PORT" || {
+  echo "ERROR: nothing is listening on :$API_PORT"
   sudo systemctl status match-control-api.service --no-pager || true
   tail -n 60 "$API_LOG" || true
   exit 1
 }
 
 echo "---- health ----"
-HEALTH_JSON="$(curl -fsS http://127.0.0.1:8080/health)"
+HEALTH_JSON="$(curl -fsS "http://127.0.0.1:${API_PORT}/health")"
 echo "$HEALTH_JSON"
 
 if ! echo "$HEALTH_JSON" | grep -q '"nodeAgentsFriendly"'; then

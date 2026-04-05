@@ -1,8 +1,9 @@
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Loader2, PlusCircle } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { Player } from '@/types';
+import { getPositionShortLabel } from '@/lib/positionLabels';
 
 
 interface CreateListingProps {
@@ -49,7 +50,7 @@ export function CreateListing({
                                     <SelectItem key={player.id} value={player.id} className="text-slate-200 focus:bg-white/5 focus:text-white cursor-pointer">
                                         <span className="font-bold">{player.name}</span>{' '}
                                         <span className="text-xs text-muted-foreground ml-1">
-                                            ({player.position} - {Math.round(player.overall)})
+                                            ({getPositionShortLabel(player.position)} - {Math.round(player.overall)})
                                         </span>
                                     </SelectItem>
                                 ))

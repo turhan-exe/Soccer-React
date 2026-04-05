@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import AppLogo from '@/components/AppLogo';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
@@ -15,6 +16,11 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { useAuth } from '@/contexts/AuthContext';
+import {
+  clearRememberedCredentials,
+  loadRememberedCredentials,
+  saveRememberedCredentials,
+} from '@/services/rememberedCredentials';
 import { toast } from 'sonner';
 import { Loader2, Chrome } from 'lucide-react';
 import { FirebaseError } from 'firebase/app';
@@ -109,15 +115,15 @@ const getSocialAuthErrorMessage = (provider: 'google' | 'apple', error: unknown)
   if (message) {
     return message;
   }
-  return provider === 'google' ? 'Google ile giris basarisiz' : 'Apple ile giris basarisiz';
+  return provider === 'google' ? 'Google ile giriş başarısız' : 'Apple ile giriş başarısız';
 };
 
 const getPasswordResetErrorMessage = (error: unknown): string => {
   if (error instanceof FirebaseError) {
     const map: Record<string, string> = {
-      'auth/invalid-email': 'Ge��erli bir e-posta adresi girin.',
-      'auth/user-not-found': 'Bu e-posta ile kay��tl�� kullan��c�� bulunamad��.',
-      'auth/too-many-requests': 'Çok fazla deneme yap��ld��. Lütfen daha sonra tekrar deneyin.',
+      'auth/invalid-email': 'Geçerli bir e-posta adresi girin.',
+      'auth/user-not-found': 'Bu e-posta ile kayıtlı kullanıcı bulunamadı.',
+      'auth/too-many-requests': 'Çok fazla deneme yapıldı. Lütfen daha sonra tekrar deneyin.',
     };
     const friendly = map[error.code];
     if (friendly) {
@@ -130,7 +136,7 @@ const getPasswordResetErrorMessage = (error: unknown): string => {
   if (error instanceof Error && error.message) {
     return error.message;
   }
-  return '�?ifre s��f��rlama ba��lant��s�� g��nderilemedi';
+  return 'Şifre sıfırlama bağlantısı gönderilemedi';
 };
 
 export default function Auth() {
@@ -138,20 +144,46 @@ export default function Auth() {
     login,
     register,
     loginWithGoogle,
+    loginWithApple,
     registerWithGoogle,
+    registerWithApple,
     resetPassword,
     isLoading,
   } = useAuth();
   const [loginForm, setLoginForm] = useState({ email: '', password: '' });
+  const [rememberMe, setRememberMe] = useState(false);
   const [registerForm, setRegisterForm] = useState({ email: '', password: '', teamName: '' });
   const [socialTeamName, setSocialTeamName] = useState('');
-  const [socialProvider, setSocialProvider] = useState<'google' | null>(null);
+  const [socialProvider, setSocialProvider] = useState<'google' | 'apple' | null>(null);
   const [isSocialDialogOpen, setIsSocialDialogOpen] = useState(false);
   const [isResetDialogOpen, setIsResetDialogOpen] = useState(false);
   const [resetEmail, setResetEmail] = useState('');
   const [isSendingReset, setIsSendingReset] = useState(false);
 
-  const handleLogin = async (e: React.FormEvent) => {
+  useEffect(() => {
+    let cancelled = false;
+
+    const hydrateRememberedCredentials = async () => {
+      const remembered = await loadRememberedCredentials();
+      if (!remembered || cancelled) {
+        return;
+      }
+
+      setLoginForm({
+        email: remembered.email,
+        password: remembered.password,
+      });
+      setRememberMe(true);
+    };
+
+    void hydrateRememberedCredentials();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const legacyHandleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!loginForm.email || !loginForm.password) {
       toast.error('Lütfen tüm alanları doldurun');
@@ -168,6 +200,39 @@ export default function Auth() {
     }
   };
 
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!loginForm.email || !loginForm.password) {
+      toast.error('Lütfen tüm alanları doldurun');
+      return;
+    }
+
+    try {
+      await login(loginForm.email, loginForm.password);
+
+      if (rememberMe) {
+        await saveRememberedCredentials(loginForm.email, loginForm.password);
+      } else {
+        await clearRememberedCredentials();
+      }
+
+      toast.success('Başarıyla giriş yapıldı!');
+      console.log('login ok:', loginForm.email);
+    } catch (error) {
+      toast.error('Giriş başarısız');
+      console.error('login error:', error);
+    }
+  };
+
+  const handleRememberMeChange = (checked: boolean | 'indeterminate') => {
+    const nextValue = checked === true;
+    setRememberMe(nextValue);
+
+    if (!nextValue) {
+      void clearRememberedCredentials();
+    }
+  };
+
   const handlePasswordReset = async (event: React.FormEvent) => {
     event.preventDefault();
     const email = (resetEmail || loginForm.email).trim();
@@ -178,7 +243,7 @@ export default function Auth() {
     setIsSendingReset(true);
     try {
       await resetPassword(email);
-      toast.success('�?ifre s��f��rlama ba��lant��s�� e-postan��za g��nderildi.');
+      toast.success('Şifre sıfırlama bağlantısı e-postanıza gönderildi.');
       setIsResetDialogOpen(false);
     } catch (error) {
       toast.error(getPasswordResetErrorMessage(error));
@@ -298,7 +363,15 @@ export default function Auth() {
                     disabled={isLoading}
                   />
                 </div>
-                <div className="flex justify-end">
+                <div className="flex items-center justify-between gap-3">
+                  <label className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Checkbox
+                      checked={rememberMe}
+                      onCheckedChange={handleRememberMeChange}
+                      disabled={isLoading}
+                    />
+                    <span>Beni Hatırla</span>
+                  </label>
                   <Button
                     type="button"
                     variant="link"
@@ -428,9 +501,9 @@ export default function Auth() {
         <DialogContent>
           <form onSubmit={handlePasswordReset} className="space-y-4">
             <DialogHeader>
-              <DialogTitle>�?ifreyi S��f��rla</DialogTitle>
+              <DialogTitle>Şifreyi Sıfırla</DialogTitle>
               <DialogDescription>
-                Kay��tl�� e-posta adresine s��f��rlama ba��lant��s�� g��nderece�Yiz.
+                Kayıtlı e-posta adresine sıfırlama bağlantısı göndereceğiz.
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-2">
@@ -454,11 +527,11 @@ export default function Auth() {
                 }}
                 disabled={isSendingReset}
               >
-                Vazge��
+                Vazgeç
               </Button>
               <Button type="submit" disabled={isSendingReset || isLoading}>
                 {isSendingReset ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
-                Ba��lant�� G��nder
+                Bağlantı Gönder
               </Button>
             </DialogFooter>
           </form>

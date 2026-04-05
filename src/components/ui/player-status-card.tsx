@@ -4,6 +4,7 @@ import { Badge } from '@/components/ui/badge';
 import { PerformanceGauge, clampPerformanceGauge } from '@/components/ui/performance-gauge';
 import { StatBar } from '@/components/ui/stat-bar';
 import { calculatePowerIndex, formatRatingLabel, normalizeRatingTo100 } from '@/lib/player';
+import { getPositionLabel, getPositionShortLabel } from '@/lib/positionLabels';
 import { cn } from '@/lib/utils';
 
 interface PlayerStatusCardProps {
@@ -64,7 +65,7 @@ export function PlayerStatusCard({ player, className }: PlayerStatusCardProps) {
           <p className="text-xs uppercase tracking-wide text-muted-foreground">Oyuncu Statüleri</p>
           <h3 className="truncate text-base font-semibold">{player.name}</h3>
           <p className="text-xs text-muted-foreground">
-            {player.position} • Güç {normalizeRatingTo100(power)} • Genel {formatRatingLabel(player.overall)}
+            {getPositionLabel(player.position)} • Güç {normalizeRatingTo100(power)} • Genel {formatRatingLabel(player.overall)}
           </p>
           <div className="flex flex-wrap gap-1 pt-1">
             <Badge variant="secondary" className="text-[11px]">
@@ -80,7 +81,7 @@ export function PlayerStatusCard({ player, className }: PlayerStatusCardProps) {
             )}
             {player.roles?.map(role => (
               <Badge key={role} variant="outline" className="text-[11px]">
-                {role}
+                {getPositionShortLabel(role)}
               </Badge>
             ))}
           </div>

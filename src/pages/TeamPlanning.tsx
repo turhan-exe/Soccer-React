@@ -43,7 +43,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { formations } from "@/lib/formations";
+import { buildFormationSlotRect, formations } from "@/lib/formations";
 import {
   normalizeRatingTo100,
   calculatePowerIndex,
@@ -101,11 +101,11 @@ import {
 import { AlternativePlayerBubble } from "@/features/team-planning/components/AlternativePlayerBubble";
 import { buildBestLineupForFormation } from "@/features/team-planning/bestLineup";
 import {
-  ORDERED_ZONE_IDS,
-  getZoneFitLevel,
   getZoneDefinition,
+  getSlotFitLevel,
   recommendPlayers,
-  resolveZoneId,
+  resolveFormationSlotZoneId,
+  resolveSlotZoneId,
   resolveZoneIdFromCoordinates,
   positionAffinity,
   type SlotFitLevel,
@@ -132,8 +132,8 @@ type AutoFillAssignment = {
   y: number;
 };
 
-type DragZoneHighlight = {
-  zoneId: ZoneId;
+type DragSlotHighlight = {
+  slotIndex: number;
   fitLevel: SlotFitLevel;
 };
 
@@ -458,6 +458,63 @@ function TeamPlanningContent() {
       return next;
     });
   };
+
+  const removePlayerFromFormationLayout = useCallback(
+    (playerId: string, formationName = selectedFormation) => {
+      setCustomFormations((prev) => {
+        const currentFormation = prev[formationName];
+        if (!currentFormation || !(playerId in currentFormation)) {
+          return prev;
+        }
+
+        const { [playerId]: _removed, ...rest } = currentFormation;
+        if (Object.keys(rest).length === 0) {
+          const next = { ...prev };
+          delete next[formationName];
+          return next;
+        }
+
+        return {
+          ...prev,
+          [formationName]: rest as Record<string, FormationPlayerPosition>,
+        };
+      });
+
+      if (formationName !== selectedFormation) {
+        return;
+      }
+
+      setManualSlotPositions((prev) => {
+        if (!(playerId in prev)) {
+          return prev;
+        }
+        const next = { ...prev };
+        delete next[playerId];
+        return next;
+      });
+    },
+    [selectedFormation]
+  );
+
+  const clearFormationManualLayout = useCallback(
+    (formationName = selectedFormation) => {
+      setCustomFormations((prev) => {
+        if (!(formationName in prev)) {
+          return prev;
+        }
+        const next = { ...prev };
+        delete next[formationName];
+        return next;
+      });
+
+      if (formationName === selectedFormation) {
+        setManualSlotPositions((prev) =>
+          Object.keys(prev).length === 0 ? prev : {}
+        );
+      }
+    },
+    [selectedFormation]
+  );
 
   const updatePlayerManualPosition = useCallback(
     (
@@ -1161,11 +1218,11 @@ function TeamPlanningContent() {
       ) as CustomFormationState;
 
       const fallbackShape =
-        (derivedFormationShape && derivedFormationShape.trim().length > 0
-          ? derivedFormationShape
+        (selectedFormation && selectedFormation.trim().length > 0
+          ? selectedFormation
           : savedFormationShape && savedFormationShape.trim().length > 0
           ? savedFormationShape
-          : selectedFormation) ?? selectedFormation;
+          : derivedFormationShape) ?? selectedFormation;
       const shapeForSave = fallbackShape.trim();
 
       // Persist full roster and snapshot locally for Firestore
@@ -1454,6 +1511,7 @@ function TeamPlanningContent() {
     if (starters.length === 0) {
       return slots.map((slot, idx) => ({
         ...slot,
+        slotSource: "template" as const,
         player: null,
         slotIndex: idx,
       }));
@@ -1544,29 +1602,55 @@ function TeamPlanningContent() {
     return slots.map((slot, idx) => {
       const assigned = slotAssignments.get(idx);
       if (!assigned) {
-        return { ...slot, player: null, slotIndex: idx };
+        return {
+          ...slot,
+          slotSource: "template" as const,
+          zoneId: resolveSlotZoneId(slot),
+          player: null,
+          slotIndex: idx,
+        };
       }
 
       const { player, manual } = assigned;
       const manualOverride = manualSlotPositions[player.id];
       if (manualOverride) {
+        const nextPosition = manualOverride.position ?? slot.position;
+        const nextX = clampPercentageValue(manualOverride.x);
+        const nextY = clampPercentageValue(manualOverride.y);
         return {
-          position: manualOverride.position ?? slot.position,
-          x: clampPercentageValue(manualOverride.x),
-          y: clampPercentageValue(manualOverride.y),
+          ...slot,
+          position: nextPosition,
+          x: nextX,
+          y: nextY,
+          slotSource: "manual" as const,
+          zoneId: undefined,
+          rect: buildFormationSlotRect(nextPosition, nextX, nextY),
           player,
           slotIndex: idx,
         };
       }
 
       if (!manual) {
-        return { ...slot, player, slotIndex: idx };
+        return {
+          ...slot,
+          slotSource: "template" as const,
+          zoneId: resolveSlotZoneId(slot),
+          player,
+          slotIndex: idx,
+        };
       }
 
+      const nextPosition = manual.position ?? slot.position;
+      const nextX = clampPercentageValue(manual.x);
+      const nextY = clampPercentageValue(manual.y);
       return {
-        position: slot.position,
-        x: clampPercentageValue(manual.x),
-        y: clampPercentageValue(manual.y),
+        ...slot,
+        position: nextPosition,
+        x: nextX,
+        y: nextY,
+        slotSource: "manual" as const,
+        zoneId: undefined,
+        rect: buildFormationSlotRect(nextPosition, nextX, nextY),
         player,
         slotIndex: idx,
       };
@@ -1583,22 +1667,24 @@ function TeamPlanningContent() {
         : null,
     [displayPlayers, draggedPlayerId]
   );
-  const dragZoneHighlights = useMemo<DragZoneHighlight[]>(() => {
+  const dragSlotHighlights = useMemo<DragSlotHighlight[]>(() => {
     if (!draggedDisplayPlayer) {
       return [];
     }
 
-    return ORDERED_ZONE_IDS.map((zoneId) => {
-      const fitLevel = getZoneFitLevel(draggedDisplayPlayer, zoneId);
-      if (fitLevel === "invalid") {
-        return null;
-      }
-      return {
-        zoneId,
-        fitLevel,
-      };
-    }).filter((entry): entry is DragZoneHighlight => entry !== null);
-  }, [draggedDisplayPlayer]);
+    return formationPositions
+      .map((slot) => {
+        const fitLevel = getSlotFitLevel(draggedDisplayPlayer, slot);
+        if (fitLevel === "invalid") {
+          return null;
+        }
+        return {
+          slotIndex: slot.slotIndex,
+          fitLevel,
+        };
+      })
+      .filter((entry): entry is DragSlotHighlight => entry !== null);
+  }, [draggedDisplayPlayer, formationPositions]);
   const autoFillAssignments = useMemo<AutoFillAssignment[]>(() => {
     if (emptyFormationSlots.length === 0) {
       return [];
@@ -1626,7 +1712,7 @@ function TeamPlanningContent() {
 
     const slotCandidates = emptyFormationSlots
       .map((slot) => {
-        const zoneId = resolveZoneId(slot);
+        const zoneId = resolveFormationSlotZoneId(slot);
         const candidates = recommendPlayers(zoneId, eligiblePlayers, {
           limit: eligiblePlayers.length,
         });
@@ -2084,7 +2170,7 @@ function TeamPlanningContent() {
     (slot: PitchSlot) => {
       setSelectedSlotMeta({
         slotIndex: slot.slotIndex,
-        zoneId: resolveZoneId(slot),
+        zoneId: resolveFormationSlotZoneId(slot),
         x: slot.x,
         y: slot.y,
         position: slot.position,
@@ -2105,7 +2191,7 @@ function TeamPlanningContent() {
         // Apply position affinity penalty
         const slot = formationPositions.find((s) => s.player?.id === player.id);
         if (slot) {
-          const zoneId = resolveZoneId(slot);
+          const zoneId = resolveFormationSlotZoneId(slot);
           const zone = getZoneDefinition(zoneId);
           // Cast to DisplayPlayer is safe here as positionAffinity only checks position/roles
           // which exist on Player.
@@ -2149,7 +2235,7 @@ function TeamPlanningContent() {
       }
       return {
         slotIndex: slot.slotIndex,
-        zoneId: resolveZoneId(slot),
+        zoneId: resolveFormationSlotZoneId(slot),
         x: slot.x,
         y: slot.y,
         position: slot.position,
@@ -2168,7 +2254,7 @@ function TeamPlanningContent() {
       if (!slot) {
         return null;
       }
-      const nextZone = resolveZoneId(slot);
+      const nextZone = resolveFormationSlotZoneId(slot);
       if (
         slot.x === prev.x &&
         slot.y === prev.y &&
@@ -2190,6 +2276,7 @@ function TeamPlanningContent() {
   const handleFormationSelect = useCallback(
     (formationName: string) => {
       setSelectedFormation(formationName);
+      setSavedFormationShape(formationName);
       syncManualSlotsForFormation(formationName);
     },
     [syncManualSlotsForFormation]
@@ -2231,11 +2318,7 @@ function TeamPlanningContent() {
 
     setPlayers(nextPlayers);
     appliedAssignments.forEach((assignment) => {
-      applyManualPosition(assignment.playerId, {
-        x: assignment.x,
-        y: assignment.y,
-        position: assignment.position,
-      });
+      removePlayerFromFormationLayout(assignment.playerId);
     });
 
     setActiveTab("starting");
@@ -2253,10 +2336,10 @@ function TeamPlanningContent() {
 
     toast.success("Boş pozisyonlar dolduruldu.");
   }, [
-    applyManualPosition,
     autoFillAssignments,
     emptyFormationSlots.length,
     players,
+    removePlayerFromFormationLayout,
   ]);
 
   const handleBestLineupAutoArrange = useCallback(() => {
@@ -2274,16 +2357,7 @@ function TeamPlanningContent() {
     }
 
     setPlayers(result.players);
-    setCustomFormations((prev) => {
-      const next = { ...prev };
-      if (Object.keys(result.layout).length === 0) {
-        delete next[selectedFormation];
-      } else {
-        next[selectedFormation] = result.layout;
-      }
-      return next;
-    });
-    setManualSlotPositions(result.layout);
+    clearFormationManualLayout(selectedFormation);
     setSelectedSlotMeta(null);
     setFocusedPlayerId(null);
     setActiveTab("starting");
@@ -2296,7 +2370,7 @@ function TeamPlanningContent() {
     }
 
     toast.success("En iyi ilk 11 dizildi.");
-  }, [currentFormation, players, selectedFormation]);
+  }, [clearFormationManualLayout, currentFormation, players, selectedFormation]);
 
   const handlePositionDrop = (
     e: React.DragEvent<HTMLDivElement>,
@@ -2645,9 +2719,9 @@ function TeamPlanningContent() {
                 onValueChange={handleFormationSelect}
               >
                 <SelectTrigger className="h-9 border-white/30 bg-white/10 px-3 text-xs text-white shadow-sm transition hover:bg-white/20 hover:text-white sm:text-sm w-[140px]">
-                  <div className="flex items-center">
+                  <div className="flex min-w-0 items-center">
                     <Eye className="mr-1.5 h-3.5 w-3.5" />
-                    <span>{selectedFormation || "Formasyon"}</span>
+                    <span className="truncate">{selectedFormation || "Formasyon"}</span>
                   </div>
                 </SelectTrigger>
                 <SelectContent className="max-h-64">
@@ -2698,7 +2772,7 @@ function TeamPlanningContent() {
               <Pitch
                 ref={pitchRef}
                 slots={formationPositions}
-                zoneHighlights={dragZoneHighlights}
+                slotHighlights={dragSlotHighlights}
                 onPitchDrop={handlePitchDrop}
                 onPositionDrop={handlePositionDrop}
                 onPlayerDragStart={(player) => {

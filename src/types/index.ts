@@ -279,10 +279,17 @@ export interface League {
   // When fixtures start; stored as Firestore Timestamp
   startDate?: FirestoreTimestamp;
   // Metadata
-  rounds: number; // total rounds (16 teams => 30 in monthly leagues)
+  rounds: number; // total rounds for the configured league capacity
   teamCount?: number;
   // Optional mirror array for quick reads (not authoritative)
   teams?: { id: string; name: string }[];
+  competitionType?: import('./tournament').CompetitionType;
+  competitionFormat?: import('./tournament').CompetitionFormat;
+  hiddenFromLeagueList?: boolean;
+  sourceMonth?: string;
+  snapshotAt?: FirestoreTimestamp;
+  roundSpacingDays?: number;
+  championTeamId?: string | null;
 }
 
 export interface Fixture {
@@ -305,6 +312,16 @@ export interface Fixture {
   videoError?: string;
   goalTimeline?: MatchGoalEvent[];
   live?: FixtureLive | null;
+  competitionType?: import('./tournament').CompetitionType;
+  competitionName?: string;
+  competitionMatchId?: string;
+  competitionRound?: number;
+  knockoutResult?: {
+    winnerTeamId?: string | null;
+    loserTeamId?: string | null;
+    decidedBy?: import('./tournament').KnockoutDecision;
+    penalties?: { home: number; away: number } | null;
+  } | null;
 }
 
 export interface Standing {
@@ -399,6 +416,12 @@ export type {
   TournamentRound,
   TournamentBracket,
   KnockoutResult,
+  CompetitionType,
+  CompetitionFormat,
+  KnockoutDecision,
+  KnockoutMatchStatus,
+  ChampionsLeagueEntrantDoc,
+  KnockoutMatchDoc,
 } from './tournament';
 export type {
   MatchReplayPayload,

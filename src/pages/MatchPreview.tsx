@@ -11,6 +11,7 @@ import { getTeam } from '@/services/team';
 import { getMyLeagueId, getFixturesForTeamSlotAware, getLeagueTeams } from '@/services/leagues';
 import type { ClubTeam, Fixture, Match, Player } from '@/types';
 import { formatRatingLabel, normalizeRatingTo100, normalizeRatingTo100OrNull } from '@/lib/player';
+import { getPositionShortLabel } from '@/lib/positionLabels';
 import { useClubFinance } from '@/hooks/useClubFinance';
 import { formatClubCurrency } from '@/lib/clubFinance';
 import { Shield } from 'lucide-react';
@@ -365,7 +366,7 @@ export default function MatchPreview() {
       const formValue =
         derivedForm.length ? derivedForm : baseMatch?.opponentStats?.form ?? [];
 
-      const opponentLogoEmoji = opponent?.logo && opponent.logo.trim() ? opponent.logo : baseMatch?.opponentLogo ?? '⚽';
+      const opponentLogoEmoji = opponent?.logo && opponent.logo.trim() ? opponent.logo : baseMatch?.opponentLogo ?? 'âš½';
       const opponentStadiumName = opponent?.stadium?.name?.trim();
       const fallbackVenueName = baseMatch?.venueName;
       const resolvedVenueName = nextFixture.home
@@ -449,9 +450,10 @@ export default function MatchPreview() {
     );
   };
 
-  const opponentFormBadges = opponentForm.length
-    ? opponentForm
-    : matchInfo.opponentStats?.form ?? [];
+  const opponentFormBadges = useMemo(
+    () => (opponentForm.length ? opponentForm : matchInfo.opponentStats?.form ?? []),
+    [matchInfo.opponentStats?.form, opponentForm],
+  );
 
   const opponentOverallDisplay =
     typeof opponentOverall === 'number'
@@ -478,7 +480,7 @@ export default function MatchPreview() {
     : opponentStartingEleven.slice(0, 4);
 
   const formatPercentage = (value?: number | null) =>
-    typeof value === 'number' ? `${Math.round(value * 100)}%` : '—';
+    typeof value === 'number' ? `${Math.round(value * 100)}%` : 'â€”';
 
   const formatPlayerOverall = (value: number) => formatRatingLabel(value);
 
@@ -503,7 +505,7 @@ export default function MatchPreview() {
             <div>
               <div className="text-sm font-bold text-white">{teamName}</div>
               <div className="flex items-center gap-2 text-xs text-slate-400">
-                <span>Kul�p Bakiyesi</span>
+                <span>Kulüp Bakiyesi</span>
                 <div className="h-3 w-[1px] bg-white/10"></div>
                 <span className="text-emerald-400 font-mono">{formatClubCurrency(cashBalance)}</span>
               </div>
@@ -621,7 +623,7 @@ export default function MatchPreview() {
                       {visibleKeyPlayers.map(player => (
                         <div key={player.name} className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/5 hover:bg-white/10 transition-colors cursor-pointer" onClick={() => setSelectedKeyPlayer(player)}>
                           <div className="flex items-center gap-3">
-                            <Badge className="bg-[#2a2c3a] text-slate-300 border-white/5 w-8 h-8 flex items-center justify-center p-0">{player.position}</Badge>
+                            <Badge className="bg-[#2a2c3a] text-slate-300 border-white/5 w-8 h-8 flex items-center justify-center p-0">{getPositionShortLabel(player.position)}</Badge>
                             <div>
                               <div className="font-semibold text-white text-sm">{player.name}</div>
                               <div className="text-[11px] text-slate-400">{player.highlight}</div>
@@ -657,7 +659,7 @@ export default function MatchPreview() {
                     {visibleOpponentPlayers.map(player => (
                       <div key={player.id} className="flex items-center gap-3 p-2.5 rounded-xl bg-white/5 border border-transparent hover:border-white/10 transition-colors">
                         <div className="w-8 h-8 rounded-full bg-[#2a2c3a] flex items-center justify-center text-[10px] font-bold text-slate-300 border border-white/5">
-                          {player.position}
+                          {getPositionShortLabel(player.position)}
                         </div>
                         <div className="flex-1">
                           <div className="text-sm font-semibold text-white">{player.name}</div>

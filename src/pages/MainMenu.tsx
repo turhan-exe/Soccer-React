@@ -6,6 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useDiamonds } from '@/contexts/DiamondContext';
 import { useInventory } from '@/contexts/InventoryContext';
+import { useClubFinance } from '@/hooks/useClubFinance';
 import {
   getMyLeagueId,
   getFixturesForTeam,
@@ -14,7 +15,6 @@ import {
 } from '@/services/leagues';
 import { getTeam } from '@/services/team';
 import {
-  getFriendlyMatchReadyStates,
   getMatchStatus,
   isMatchControlConfigured,
   listFriendlyRequests,
@@ -23,6 +23,13 @@ import {
   type FriendlyRequestListItem,
 } from '@/services/matchControl';
 import { unityBridge } from '@/services/unityBridge';
+import {
+  FriendlyLaunchError,
+  getFriendlyLaunchFailureMessage,
+  resumeFriendlyLaunch,
+  startFriendlyLaunch,
+  subscribeFriendlyLaunch,
+} from '@/services/friendlyLaunchCoordinator';
 import {
   getUnviewedTrainingCount,
   getActiveTraining
@@ -35,6 +42,7 @@ import { upcomingMatches } from '@/lib/data';
 import type { Fixture, KitType } from '@/types';
 import { normalizeRatingTo100, normalizeRatingTo100OrNull } from '@/lib/player';
 import { KIT_CONFIG, formatKitEffect } from '@/lib/kits';
+import { isFixtureLiveJoinable, LIVE_JOINABLE_STATES } from '@/lib/fixtureLive';
 
 import {
   Plus,
@@ -49,7 +57,8 @@ import {
   UserPlus,
   Dumbbell,
   Star,
-  Loader2
+  Loader2,
+  Wallet,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -89,6 +98,8 @@ const KIT_ICONS: Record<KitType, { icon: any; color: string }> = {
   morale: { icon: Smile, color: 'text-amber-500' },
   health: { icon: HeartPulse, color: 'text-rose-500' },
 };
+
+const CLUB_BALANCE_FORMATTER = new Intl.NumberFormat('tr-TR');
 
 // --- Types ---
 type FormBadge = 'W' | 'D' | 'L';
@@ -156,28 +167,9 @@ const getValidLogo = (value?: string | null) => {
   return null;
 };
 
-const LIVE_JOINABLE_STATES = new Set(['server_started', 'running']);
 const FRIENDLY_ACTIVE_STATES = new Set(['warm', 'starting', 'server_started', 'running']);
 
 const normalizeStatus = (value: unknown) => String(value || '').trim().toLowerCase();
-
-const resolveLeagueLiveState = (fixture: Fixture): string => {
-  const fixtureStatus = normalizeStatus(fixture.status);
-  const liveState = normalizeStatus(fixture.live?.state);
-  if (fixtureStatus === 'played') return 'ended';
-  if (fixtureStatus === 'failed' && LIVE_JOINABLE_STATES.has(liveState)) return 'failed';
-  return liveState;
-};
-
-const isLeagueLiveJoinable = (fixture: Fixture): boolean => {
-  const matchId = String(fixture.live?.matchId || '').trim();
-  const fixtureStatus = normalizeStatus(fixture.status);
-  const liveState = resolveLeagueLiveState(fixture);
-  if (!matchId) return false;
-  if (fixtureStatus !== 'running') return false;
-  if (fixtureStatus === 'played' || fixtureStatus === 'failed') return false;
-  return LIVE_JOINABLE_STATES.has(liveState);
-};
 
 // --- Components ---
 const MenuButton = ({
@@ -230,15 +222,28 @@ export default function MainMenu() {
   const { theme, toggleTheme } = useTheme();
   const { balance } = useDiamonds();
   const { kits, purchaseKit, isProcessing, vipActive, vipStatus, vipNostalgiaFreeAvailable } = useInventory();
+  const { cashBalance, loading: financeLoading } = useClubFinance();
 
   const [matchHighlight, setMatchHighlight] = useState<MatchHighlight | null>(null);
   const [matchHighlightLoading, setMatchHighlightLoading] = useState(true);
   const [currentRank, setCurrentRank] = useState<number | null>(null);
   const [actionableMatchTile, setActionableMatchTile] = useState<ActionableMatchTile | null>(null);
   const [actionableMatchLoading, setActionableMatchLoading] = useState(false);
+  const launchFailureToastAttemptIdRef = useRef<string | null>(null);
   const matchControlReady = useMemo(() => isMatchControlConfigured(), []);
   const canLaunchNativeMatch = useMemo(
     () => Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'android',
+    [],
+  );
+  const logFriendlyToast = useCallback(
+    (kind: 'error' | 'info' | 'success', message: string, extra?: Record<string, unknown>) => {
+      console.info('[friendly_launch_toast]', {
+        source: 'main-menu',
+        kind,
+        message,
+        ...(extra || {}),
+      });
+    },
     [],
   );
 
@@ -259,6 +264,10 @@ export default function MainMenu() {
   const [isRewardingKit, setIsRewardingKit] = useState(false);
   const [activeKit, setActiveKit] = useState<KitType | null>(null);
   const [isUsageOpen, setIsUsageOpen] = useState(false);
+  const formattedClubBalance = useMemo(
+    () => CLUB_BALANCE_FORMATTER.format(cashBalance),
+    [cashBalance],
+  );
 
   // Auto-cycle kits every 5 seconds
   useEffect(() => {
@@ -494,7 +503,7 @@ export default function MainMenu() {
         ]);
 
         const liveFixture = fixtures
-          .filter((fixture) => isLeagueLiveJoinable(fixture))
+          .filter((fixture) => isFixtureLiveJoinable(fixture))
           .sort((a, b) => a.date.getTime() - b.date.getTime())[0];
 
         if (liveFixture) {
@@ -553,23 +562,14 @@ export default function MainMenu() {
     setActionableMatchLoading(true);
     try {
       if (actionableMatchTile.kind === 'friendly_live') {
-        const ticket = await requestJoinTicket({
-          matchId: actionableMatchTile.matchId,
+        await startFriendlyLaunch({
+          source: 'main-menu',
           userId: user.id,
-          role: 'player',
-        });
-        const readyMatch = await waitForMatchReady(ticket.matchId, {
-          timeoutMs: 90000,
-          pollMs: 700,
-          readyStates: getFriendlyMatchReadyStates(),
-        });
-        await unityBridge.launchMatchActivity(readyMatch.serverIp, readyMatch.serverPort, {
-          matchId: readyMatch.matchId,
-          joinTicket: ticket.joinTicket,
+          requestId: actionableMatchTile.requestId,
+          matchId: actionableMatchTile.matchId,
           homeId: actionableMatchTile.homeId || 'HOME',
           awayId: actionableMatchTile.awayId || 'AWAY',
-          mode: 'friendly',
-          role: 'player',
+          trigger: 'manual',
         });
         return;
       }
@@ -601,7 +601,9 @@ export default function MainMenu() {
       });
     } catch (error) {
       console.error('[MainMenu] actionable match launch failed', error);
-      toast.error('Mac baglantisi baslatilamadi.');
+      if (!(error instanceof FriendlyLaunchError)) {
+        toast.error('Mac baglantisi baslatilamadi.');
+      }
     } finally {
       setActionableMatchLoading(false);
     }
@@ -617,6 +619,33 @@ export default function MainMenu() {
   useEffect(() => {
     void loadActionableMatchTile();
   }, [loadActionableMatchTile]);
+
+  useEffect(() => {
+    if (!user?.id || !matchControlReady || !canLaunchNativeMatch) {
+      return;
+    }
+
+    const unsubscribe = subscribeFriendlyLaunch((context) => {
+      if (!context || context.userId !== user.id) {
+        return;
+      }
+
+      if (context.phase === 'failed' && launchFailureToastAttemptIdRef.current !== context.attemptId) {
+        launchFailureToastAttemptIdRef.current = context.attemptId;
+        const message = context.errorMessage || getFriendlyLaunchFailureMessage(context.failureReason);
+        logFriendlyToast('error', message, {
+          attemptId: context.attemptId,
+          phase: context.phase,
+          reason: context.failureReason || null,
+          requestId: context.requestId || null,
+          matchId: context.matchId || null,
+        });
+        toast.error(message);
+      }
+    });
+
+    return unsubscribe;
+  }, [canLaunchNativeMatch, logFriendlyToast, matchControlReady, user?.id]);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -636,8 +665,33 @@ export default function MainMenu() {
 
     const handleFocus = () => {
       if (document.visibilityState === 'hidden') return;
+      if (matchControlReady && canLaunchNativeMatch) {
+        void resumeFriendlyLaunch({
+          source: 'main-menu',
+          userId: user.id,
+          homeId: user.teamName || 'HOME',
+          awayId: 'AWAY',
+        }).catch((error) => {
+          if (!(error instanceof FriendlyLaunchError)) {
+            console.warn('[MainMenu] friendly launch resume failed', error);
+          }
+        });
+      }
       void loadActionableMatchTile();
     };
+
+    if (matchControlReady && canLaunchNativeMatch) {
+      void resumeFriendlyLaunch({
+        source: 'main-menu',
+        userId: user.id,
+        homeId: user.teamName || 'HOME',
+        awayId: 'AWAY',
+      }).catch((error) => {
+        if (!(error instanceof FriendlyLaunchError)) {
+          console.warn('[MainMenu] initial friendly launch resume failed', error);
+        }
+      });
+    }
 
     timerId = window.setTimeout(() => {
       void refresh();
@@ -653,7 +707,7 @@ export default function MainMenu() {
       window.removeEventListener('focus', handleFocus);
       document.removeEventListener('visibilitychange', handleFocus);
     };
-  }, [loadActionableMatchTile, user?.id]);
+  }, [canLaunchNativeMatch, loadActionableMatchTile, matchControlReady, user?.id, user?.teamName]);
 
   // --- Existing Logic (Quick Stats / Match Highlight) ---
   useEffect(() => {
@@ -889,6 +943,23 @@ export default function MainMenu() {
             </div>
 
             {/* Currency */}
+            <button
+              type="button"
+              onClick={() => navigate('/finance')}
+              className="hidden sm:flex items-center gap-3 rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1.5 text-white shadow-inner transition-colors hover:bg-emerald-500/15"
+              data-testid="mainmenu-club-balance"
+              title="Takım bakiyesi"
+            >
+              <Wallet size={16} className="text-emerald-300" />
+              <div className="flex flex-col leading-none">
+                <span className="text-[9px] font-bold uppercase tracking-[0.18em] text-emerald-100/70">
+                  Bakiye
+                </span>
+                <span className={`mt-1 text-sm font-black text-white ${financeLoading ? 'animate-pulse' : ''}`}>
+                  {financeLoading ? '...' : formattedClubBalance}
+                </span>
+              </div>
+            </button>
             <div className="hidden sm:flex items-center gap-2 pl-3 pr-1 py-1 rounded-full border border-white/10 bg-slate-900/50 shadow-inner">
               <div className="w-5 h-5 rotate-45 border-2 border-purple-500 bg-purple-400/20 shadow-[0_0_10px_rgba(168,85,247,0.5)]" />
               <span className="font-black text-sm pr-2 text-white">{balance.toLocaleString()}</span>

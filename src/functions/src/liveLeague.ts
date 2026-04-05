@@ -12,6 +12,7 @@ import {
   applyStandingResultInTx,
   resolveFixtureRevenueTeamIds,
 } from './utils/leagueMatchFinalize.js';
+import { finalizeFixtureWithFallbackResult } from './utils/matchResultFallback.js';
 import { enqueueRenderJob } from './replay/renderJob.js';
 import { enqueueLeagueMatchReminder } from './notify/matchReminder.js';
 
@@ -48,7 +49,7 @@ const ADMIN_SECRET =
 const LEAGUE_KICKOFF_HOURS_TR = parseKickoffHours(
   process.env.LEAGUE_KICKOFF_HOURS_TR ||
     (functions.config() as any)?.liveleague?.kickoff_hours_tr ||
-    '19',
+    '11,19',
 );
 const LEAGUE_PREWARM_LEAD_MINUTES = Number(
   process.env.LEAGUE_PREWARM_LEAD_MINUTES ||
@@ -579,13 +580,13 @@ async function writeSyntheticResult(
   const seasonId = deriveSeasonId(fixture, match);
   const score = normalizeScore(match);
   if (!score) {
-    return false;
+    return 'missing_score' as const;
   }
 
   const resultPath = `results/${seasonId}/${leagueId}/${fixtureId}.json`;
   const alreadyExists = await storageFileExists(resultPath);
   if (alreadyExists) {
-    return false;
+    return 'result_exists' as const;
   }
 
   const replayPath = deriveReplayPath(leagueId, seasonId, fixtureId, match, fixture);
@@ -604,7 +605,7 @@ async function writeSyntheticResult(
   await bucket.file(resultPath).save(JSON.stringify(payload), {
     contentType: 'application/json; charset=utf-8',
   });
-  return true;
+  return 'recovered' as const;
 }
 
 async function backfillLiveLeagueMediaInternal(now = new Date()) {
@@ -615,6 +616,8 @@ async function backfillLiveLeagueMediaInternal(now = new Date()) {
   let videoHealed = 0;
   let resultRecovered = 0;
   let renderQueued = 0;
+  let fallbackApplied = 0;
+  let fallbackFailed = 0;
   let failed = 0;
 
   for (const entry of fixtures) {
@@ -661,10 +664,33 @@ async function backfillLiveLeagueMediaInternal(now = new Date()) {
         match.status === 'ended' &&
         String(fixture.status || '').toLowerCase() !== 'played'
       ) {
-        const recovered = await writeSyntheticResult(entry.leagueId, entry.doc.id, fixture, match);
-        if (recovered) {
+        const recoveryStatus = await writeSyntheticResult(entry.leagueId, entry.doc.id, fixture, match);
+        if (recoveryStatus === 'recovered') {
           resultRecovered += 1;
           continue;
+        }
+        if (recoveryStatus === 'missing_score') {
+          try {
+            const fallback = await finalizeFixtureWithFallbackResult({
+              leagueId: entry.leagueId,
+              fixtureId: entry.doc.id,
+              matchId,
+              reason: match.endedReason || 'backfill_missing_score',
+            });
+            if (fallback.status === 'applied') {
+              fallbackApplied += 1;
+            }
+            continue;
+          } catch (error: any) {
+            failed += 1;
+            fallbackFailed += 1;
+            functions.logger.warn('[backfillLiveLeagueMedia] fallback failed', {
+              fixtureId: entry.doc.id,
+              leagueId: entry.leagueId,
+              matchId,
+              error: error?.message || String(error),
+            });
+          }
         }
       }
 
@@ -718,9 +744,21 @@ async function backfillLiveLeagueMediaInternal(now = new Date()) {
     leagueMediaBackfillResultRecovered: resultRecovered,
     leagueMediaBackfillRenderQueued: renderQueued,
     leagueMediaBackfillFailed: failed,
+    leagueFallbackApplied: FieldValue.increment(fallbackApplied),
+    leagueFallbackFailed: FieldValue.increment(fallbackFailed),
   });
 
-  return { day, checked, replaySynced, videoHealed, resultRecovered, renderQueued, failed };
+  return {
+    day,
+    checked,
+    replaySynced,
+    videoHealed,
+    resultRecovered,
+    renderQueued,
+    fallbackApplied,
+    fallbackFailed,
+    failed,
+  };
 }
 
 async function loadExactKickoffFixtures(targetTs: Timestamp) {
@@ -1234,7 +1272,14 @@ function resolveNextKickoffDate(now: Date, fixtureDate: Date) {
 
 async function autoRescheduleFailedLeagueFixturesInternal(now = new Date()) {
   if (!LEAGUE_FAILED_RESCHEDULE_ENABLED) {
-    return { checked: 0, rescheduled: 0, skipped: 0, failed: 0 };
+    return {
+      checked: 0,
+      rescheduled: 0,
+      skipped: 0,
+      failed: 0,
+      fallbackApplied: 0,
+      fallbackFailed: 0,
+    };
   }
 
   const fixtures = await loadFixturesForReconcile(now);
@@ -1242,6 +1287,8 @@ async function autoRescheduleFailedLeagueFixturesInternal(now = new Date()) {
   let rescheduled = 0;
   let skipped = 0;
   let failed = 0;
+  let fallbackApplied = 0;
+  let fallbackFailed = 0;
   const maxAttempts = Math.max(0, Number(LEAGUE_FAILED_RESCHEDULE_MAX_ATTEMPTS || 2));
 
   for (const entry of fixtures) {
@@ -1259,7 +1306,28 @@ async function autoRescheduleFailedLeagueFixturesInternal(now = new Date()) {
 
     const previousReschedules = Number(live?.rescheduleCount || 0);
     if (previousReschedules >= maxAttempts) {
-      skipped += 1;
+      try {
+        const fallback = await finalizeFixtureWithFallbackResult({
+          leagueId: entry.leagueId,
+          fixtureId: entry.doc.id,
+          matchId: String(live?.matchId || '').trim() || undefined,
+          reason: `reschedule_exhausted:${reason || 'failed'}`,
+        });
+        if (fallback.status === 'applied') {
+          fallbackApplied += 1;
+        } else {
+          skipped += 1;
+        }
+      } catch (error: any) {
+        failed += 1;
+        fallbackFailed += 1;
+        functions.logger.warn('[autoRescheduleFailedLeagueFixtures] fallback failed', {
+          fixtureId: entry.doc.id,
+          leagueId: entry.leagueId,
+          reason,
+          error: error?.message || String(error),
+        });
+      }
       continue;
     }
 
@@ -1322,7 +1390,7 @@ async function autoRescheduleFailedLeagueFixturesInternal(now = new Date()) {
     }
   }
 
-  return { checked, rescheduled, skipped, failed };
+  return { checked, rescheduled, skipped, failed, fallbackApplied, fallbackFailed };
 }
 
 async function recoverLeagueKickoffSlotsInternal(baseDate = new Date()) {
@@ -1371,6 +1439,8 @@ async function recoverLeagueKickoffSlotsInternal(baseDate = new Date()) {
     leagueAutoRescheduleRescheduled: autoReschedule.rescheduled,
     leagueAutoRescheduleSkipped: autoReschedule.skipped,
     leagueAutoRescheduleFailed: autoReschedule.failed,
+    leagueFallbackApplied: FieldValue.increment(Number(autoReschedule.fallbackApplied || 0)),
+    leagueFallbackFailed: FieldValue.increment(Number(autoReschedule.fallbackFailed || 0)),
   });
 
   return {

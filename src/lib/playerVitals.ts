@@ -71,14 +71,21 @@ export const normalizePlayerVitals = (player: Player): Player => {
   const injuryStatus = normalizeInjuryStatus(player.injuryStatus);
   const motivationState = normalizeMotivationState(player.motivationState);
 
-  return {
+  const normalized: Player = {
     ...player,
     health: resolvePlayerHealth(player.health, injuryStatus),
     condition: clampVitalGauge(player.condition),
     motivation: clampVitalGauge(player.motivation),
     injuryStatus,
-    motivationState,
   };
+
+  if (motivationState) {
+    normalized.motivationState = motivationState;
+  } else {
+    delete (normalized as Partial<Player>).motivationState;
+  }
+
+  return normalized;
 };
 
 export const normalizeTeamPlayers = (players: Player[]): Player[] => {

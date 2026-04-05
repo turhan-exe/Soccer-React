@@ -11,6 +11,7 @@ export { onMatchVideoFinalize } from './replay/onMatchVideoFinalize.js';
 export { renderMatchHttp } from './replay/renderJob.js';
 export { scheduleDailyMatches } from './replay/scheduleDailyMatches.js';
 export { prepareLeagueKickoffWindow, prepareLeagueKickoffWindowHttp, kickoffPreparedLeagueMatches, kickoffPreparedLeagueMatchesHttp, runLeagueCatchupForDateHttp, reconcileLeagueLiveMatches, recoverLeagueKickoffSlots, backfillLiveLeagueMedia, ingestLeagueMatchLifecycleHttp, } from './liveLeague.js';
+export { bootstrapChampionsLeagueMonthly, bootstrapChampionsLeagueMonthlyHttp, syncChampionsLeagueProgressHttp, syncChampionsLeagueProgressOnFixtureWrite, } from './championsLeague.js';
 export { marketCreateListing, marketCancelListing, marketPurchaseListing, expireStaleTransferListings, autoListExpiredContracts, } from './market.js';
 // Plan 4: Sözleşmeler (React ⇄ Functions ⇄ Unity)
 // League onboarding & fixtures management

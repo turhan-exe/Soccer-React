@@ -7,7 +7,7 @@ const db = getFirestore();
 const TIME_ZONE = 'Europe/Istanbul';
 const DAY_MS = 24 * 60 * 60 * 1000;
 const FINANCE_DEFAULT_BALANCE = 50_000;
-const VIP_DAILY_CREDIT_AMOUNT = 2_000;
+const VIP_DAILY_CREDIT_AMOUNT = 6_000;
 const VIP_DAILY_CREDIT_DIAMOND_COST = 0;
 
 const financeDoc = (uid: string) => db.collection('finance').doc(uid);

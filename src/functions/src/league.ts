@@ -20,7 +20,7 @@ const DEFAULT_FORMING_CAPACITY = normalizeCapacity(22);
 const LEAGUE_KICKOFF_HOURS_TR = parseKickoffHours(
   process.env.LEAGUE_KICKOFF_HOURS_TR ||
     (functions.config() as any)?.liveleague?.kickoff_hours_tr ||
-    '19',
+    '11,19',
 );
 
 function parseKickoffHours(raw: unknown) {

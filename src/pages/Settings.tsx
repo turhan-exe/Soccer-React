@@ -20,6 +20,7 @@ import {
   Phone,
   Wallet,
   ShieldCheck,
+  MessageCircle,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { BackButton } from '@/components/ui/back-button';
@@ -56,6 +57,9 @@ const CLUB_RENAME_COST = 300;
 const STADIUM_RENAME_COST = 220;
 const MIN_RENAME_LENGTH = 3;
 const MAX_RENAME_LENGTH = 32;
+const WHATSAPP_SUPPORT_PHONE = '+90 542 693 20 70';
+const WHATSAPP_SUPPORT_HREF =
+  'https://wa.me/905426932070?text=Merhaba%2C%20oyun%20icinde%20bir%20sorun%20yasadim%20ve%20destek%20almak%20istiyorum.';
 
 export default function SettingsPage() {
   const [isCleaningLeagues, setIsCleaningLeagues] = useState(false);
@@ -411,6 +415,15 @@ export default function SettingsPage() {
     toast.success('Veriler dışa aktarıldı');
   };
 
+  const handleOpenWhatsAppSupport = () => {
+    if (typeof window === 'undefined') {
+      toast.error('WhatsApp baglantisi su anda acilamadi.');
+      return;
+    }
+
+    window.open(WHATSAPP_SUPPORT_HREF, '_blank', 'noopener,noreferrer');
+  };
+
   const handleOpenAdPrivacyOptions = async () => {
     if (!isRewardedAdsSupported()) {
       toast.info('Reklam gizlilik tercihleri yalnizca Android uygulamasinda acilabilir.');
@@ -585,7 +598,7 @@ export default function SettingsPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-5">
-                <div className="space-y-2">
+                <div className="space-y-3">
                   <p className="text-sm text-slate-300">Kulup adi: <span className="font-semibold text-emerald-200">{user?.teamName ?? 'Takimim'}</span></p>
                   <p className="text-xs text-slate-400">Degistirme maliyeti: {CLUB_RENAME_COST} elmas</p>
                   <Button
@@ -1141,9 +1154,19 @@ export default function SettingsPage() {
                   <Button variant="ghost" className="w-full justify-start text-sm text-slate-200 hover:text-emerald-100">
                     Kullanım Şartları
                   </Button>
-                  <Button variant="ghost" className="w-full justify-start text-sm text-slate-200 hover:text-emerald-100">
-                    Destek
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full justify-start border-emerald-400/30 bg-emerald-500/10 text-sm text-emerald-100 hover:bg-emerald-500/20"
+                    onClick={handleOpenWhatsAppSupport}
+                  >
+                    <MessageCircle className="mr-2 h-4 w-4" />
+                    WhatsApp Destek Hatti
                   </Button>
+                  <p className="text-xs text-slate-400">
+                    Oyun icinde sorun yasayan kullanicilar bu hatta dogrudan mesaj atabilir:
+                    <span className="ml-1 font-medium text-emerald-200">{WHATSAPP_SUPPORT_PHONE}</span>
+                  </p>
                 </div>
               </div>
             </CardContent>

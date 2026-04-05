@@ -26,19 +26,6 @@ import { toast } from 'sonner';
 const STORAGE_KEY = 'academyCandidates';
 const NEXT_PULL_KEY = 'academyNextPullAt';
 
-const translateCandidatePosition = (pos: string): string => {
-  switch (pos) {
-    case 'DEF':
-      return 'CB';
-    case 'MID':
-      return 'CM';
-    case 'FWD':
-      return 'ST';
-    default:
-      return pos;
-  }
-};
-
 const AcademyPage = () => {
   const { user } = useAuth();
   const { balance } = useDiamonds();
@@ -57,7 +44,7 @@ const AcademyPage = () => {
       playerId: negotiationCandidate.id,
       playerName: negotiationCandidate.player.name,
       overall,
-      position: translateCandidatePosition(negotiationCandidate.player.position),
+      position: negotiationCandidate.player.position,
       transferFee: 0,
       source: 'academy',
       contextId: negotiationCandidate.id,

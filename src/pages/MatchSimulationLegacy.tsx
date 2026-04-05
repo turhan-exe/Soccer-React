@@ -23,6 +23,7 @@ import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip
 import type { Player } from '@/types';
 import { BackButton } from '@/components/ui/back-button';
 import { formatRatingLabel } from '@/lib/player';
+import { getPositionLabel, getPositionShortLabel } from '@/lib/positionLabels';
 
 type DisplayFixture = Fixture & { opponent: string; home: boolean };
 type SendFeedback = { type: 'success' | 'error'; message: string };
@@ -265,7 +266,7 @@ export default function MatchSimulation() {
         api.showTeams(showPayload);
         dispatched = true;
       } else if (typeof api.sendTeams === 'function') {
-        api.sendTeams(JSON.stringify(showPayload) as any);
+        api.sendTeams(JSON.stringify(showPayload));
         dispatched = true;
       }
       if (!dispatched) {
@@ -314,13 +315,13 @@ export default function MatchSimulation() {
 
   const formatPlayerLabel = (player: PublishedPlayer, index: number): string => {
     const tags: string[] = [];
-    if (player.position) tags.push(player.position);
+    if (player.position) tags.push(getPositionShortLabel(player.position));
     if (typeof player.overall === 'number') tags.push(`OVR ${formatRatingLabel(player.overall)}`);
     return `${index + 1}. ${player.name}${tags.length ? ` (${tags.join(', ')})` : ''}`;
   };
 
   const formatPlayerMeta = (player: PublishedPlayer): string => {
-    const segments: string[] = [player.position || '?'];
+    const segments: string[] = [player.position ? getPositionLabel(player.position) : '?'];
     if (typeof player.overall === 'number') segments.push(`OVR ${formatRatingLabel(player.overall)}`);
     return segments.join(' | ');
   };

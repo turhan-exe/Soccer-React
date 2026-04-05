@@ -13,6 +13,7 @@ import androidx.annotation.Nullable;
 import androidx.core.view.WindowCompat;
 import androidx.core.view.WindowInsetsCompat;
 import androidx.core.view.WindowInsetsControllerCompat;
+import com.nerbuss.fhsmanager.BuildConfig;
 import com.nerbuss.fhsmanager.MainActivity;
 public class UnityHostActivity extends Activity {
   private static final String TAG = "UnityHostActivity";
@@ -31,6 +32,7 @@ public class UnityHostActivity extends Activity {
     super.onCreate(savedInstanceState);
     enableImmersiveMode();
     UnityBridgeState.setActiveUnityHost(this);
+    logUnityBuildFingerprint("onCreate");
 
     Intent source = getIntent();
     matchId = source != null ? source.getStringExtra(UnityBridgeState.EXTRA_MATCH_ID) : null;
@@ -229,6 +231,7 @@ public class UnityHostActivity extends Activity {
 
   private void launchUnityActivity(Class<?> unityActivityClass) {
     try {
+      logUnityBuildFingerprint("launchUnityActivity");
       Intent source = getIntent();
       Intent unityIntent = new Intent(this, unityActivityClass);
       if (source != null && source.getExtras() != null) {
@@ -255,6 +258,21 @@ public class UnityHostActivity extends Activity {
           serverPort);
       finish();
     }
+  }
+
+  private void logUnityBuildFingerprint(String source) {
+    Log.d(
+        TAG,
+        "unity build fingerprint source="
+            + source
+            + " versionName="
+            + BuildConfig.UNITY_VERSION_NAME
+            + " exportBuildId="
+            + BuildConfig.UNITY_EXPORT_BUILD_ID
+            + " runtimeType="
+            + BuildConfig.UNITY_EXPORT_RUNTIME_TYPE
+            + " buildTimestampUtc="
+            + BuildConfig.UNITY_EXPORT_BUILD_TIMESTAMP_UTC);
   }
 
   private void enableImmersiveMode() {

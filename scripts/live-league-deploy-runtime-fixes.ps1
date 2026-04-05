@@ -253,13 +253,14 @@ test -f /tmp/match-control-api.service
 install -m 644 /tmp/match-control-api.service "$UNIT"
 systemctl daemon-reload
 systemctl enable match-control-api.service >/dev/null 2>&1 || true
-fuser -k 8080/tcp >/dev/null 2>&1 || true
 systemctl restart match-control-api.service
 sleep 3
 
 systemctl is-active --quiet match-control-api.service || { systemctl status match-control-api.service --no-pager; tail -n 80 "$LOG"; exit 1; }
-ss -ltnp | grep ':8080' || { systemctl status match-control-api.service --no-pager; tail -n 80 "$LOG"; exit 1; }
-curl -fsS http://127.0.0.1:8080/health
+APP_PORT="$(awk -F= '/^PORT=/{print $2; exit}' "$APP/.env")"
+[ -n "$APP_PORT" ] || APP_PORT=8080
+ss -ltnp | grep ":$APP_PORT" || { systemctl status match-control-api.service --no-pager; tail -n 80 "$LOG"; exit 1; }
+curl -fsS "http://127.0.0.1:$APP_PORT/health"
 '@
 
   Invoke-SafeSsh -TargetHost $ControlHost -RemoteScript $controlRemote

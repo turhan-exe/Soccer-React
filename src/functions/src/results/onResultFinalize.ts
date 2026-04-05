@@ -12,6 +12,7 @@ import {
   applyStandingResultInTx,
   resolveFixtureRevenueTeamIds,
 } from '../utils/leagueMatchFinalize.js';
+import { isKnockoutCompetition } from '../utils/competition.js';
 
 
 const db = getFirestore();
@@ -191,6 +192,11 @@ export const onResultFinalize = functions
 
       // If no more scheduled/running fixtures remain, mark league completed
       try {
+        const leagueSnap = await db.doc(`leagues/${leagueId}`).get();
+        const leagueData = leagueSnap.exists ? (leagueSnap.data() as Record<string, unknown>) : null;
+        if (isKnockoutCompetition(leagueData)) {
+          return;
+        }
         const remaining = await db
           .collection('leagues')
           .doc(leagueId)

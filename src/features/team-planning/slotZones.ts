@@ -1,11 +1,11 @@
 import type { Player } from "@/types";
+
 import {
   canonicalPosition,
   computePositionOverall,
   squadRoleWeight,
 } from "./teamPlanningUtils";
-import type { DisplayPlayer } from "./teamPlanningUtils";
-import type { PitchSlot } from "./teamPlanningUtils";
+import type { DisplayPlayer, PitchSlot } from "./teamPlanningUtils";
 import type { SkillTag } from "./skillTags";
 
 export type ZoneId =
@@ -204,9 +204,8 @@ const ZONE_OVERLAY_BOUNDS: Record<ZoneId, ZoneOverlayBounds> = {
   "sağ açık": { left: 60, top: 80, width: 40, height: 20 },
 };
 
-export const getZoneShortCode = (zoneId: ZoneId): string => {
-  return ZONE_SHORT_CODES[zoneId] ?? "MO";
-};
+export const getZoneShortCode = (zoneId: ZoneId): string =>
+  ZONE_SHORT_CODES[zoneId] ?? "MO";
 
 export const getZoneOverlayBounds = (zoneId: ZoneId): ZoneOverlayBounds =>
   ZONE_OVERLAY_BOUNDS[zoneId];
@@ -215,52 +214,41 @@ const resolveZoneIdFromVisualCoordinates = (
   visualX: number,
   visualY: number
 ): ZoneId => {
-  // 1. Flank Zones (Based on Visual Y)
   if (visualY <= 20) {
-    // Left Flank (Top)
     if (visualX < 35) return "sol bek";
     if (visualX > 60) return "sol açık";
     return "sol kanat";
   }
 
   if (visualY >= 80) {
-    // Right Flank (Bottom)
     if (visualX < 35) return "sağ bek";
     if (visualX > 60) return "sağ açık";
     return "sağ kanat";
   }
 
-  // 2. Central Zones (Based on Visual X)
-  // visualX < 14
   if (visualX < 14) {
     return "kaleci";
   }
-  // 14 <= visualX < 28
   if (visualX < 28) {
-    // Top half is Left for central defenders because visualY=0 is Top
     return visualY <= 50 ? "stoper sol" : "stoper sağ";
   }
-  // 28 <= visualX < 38
   if (visualX < 38) {
     return "ön libero";
   }
-  // 38 <= visualX < 45
   if (visualX < 45) {
-    return visualY <= 50 ? "defansif orta saha sol" : "defansif orta saha sağ";
+    return visualY <= 50
+      ? "defansif orta saha sol"
+      : "defansif orta saha sağ";
   }
-  // 45 <= visualX < 58
   if (visualX < 58) {
     return "merkez orta saha";
   }
-  // 58 <= visualX < 70
   if (visualX < 70) {
     return "ofansif orta saha";
   }
-  // 70 <= visualX < 75
   if (visualX < 75) {
     return "gizli forvet";
   }
-  // visualX >= 75
   return "santrafor";
 };
 
@@ -268,8 +256,67 @@ export const resolveZoneIdFromCoordinates = (
   coords: Pick<PitchSlot, "x" | "y">
 ): ZoneId => resolveZoneIdFromVisualCoordinates(100 - coords.y, coords.x);
 
+export const resolveSlotZoneId = (
+  slot: Pick<PitchSlot, "position" | "x" | "y">
+): ZoneId => {
+  switch (slot.position) {
+    case "GK":
+      return "kaleci";
+    case "LB":
+      return "sol bek";
+    case "RB":
+      return "sağ bek";
+    case "CB":
+      return slot.x <= 50 ? "stoper sol" : "stoper sağ";
+    case "LM":
+      return "sol kanat";
+    case "RM":
+      return "sağ kanat";
+    case "LW":
+      return "sol açık";
+    case "RW":
+      return "sağ açık";
+    case "CAM":
+      return "ofansif orta saha";
+    case "CM":
+      if (slot.y >= 60) {
+        return "ön libero";
+      }
+      if (slot.y >= 52) {
+        return slot.x <= 50
+          ? "defansif orta saha sol"
+          : "defansif orta saha sağ";
+      }
+      return "merkez orta saha";
+    case "ST":
+      return "santrafor";
+    default:
+      return resolveZoneIdFromCoordinates(slot);
+  }
+};
+
 export const resolveZoneId = (slot: PitchSlot): ZoneId =>
   resolveZoneIdFromCoordinates(slot);
+
+export const resolveFormationSlotZoneId = (
+  slot: Pick<PitchSlot, "position" | "x" | "y" | "slotSource"> & {
+    zoneId?: string;
+  }
+): ZoneId => {
+  if (slot.slotSource === "manual") {
+    return resolveZoneIdFromCoordinates(slot);
+  }
+
+  if (slot.slotSource === "template") {
+    return resolveSlotZoneId(slot);
+  }
+
+  if (slot.zoneId) {
+    return slot.zoneId as ZoneId;
+  }
+
+  return resolveSlotZoneId(slot);
+};
 
 export const getZoneDefinition = (zoneId: ZoneId): ZoneDefinition =>
   ZONES[zoneId];
@@ -307,7 +354,7 @@ export const positionAffinity = (
         (role) => canonicalPosition(role) === canonicalPosition(pos)
       )
   );
-  return fallbackMatch ? 0.6 : 0.3; // Significant penalty for mismatch
+  return fallbackMatch ? 0.6 : 0.3;
 };
 
 export type SlotFitLevel = "exact" | "near" | "invalid";
@@ -360,7 +407,7 @@ export const getSlotFitLevel = (
   slot: PitchSlot,
   nearDropThreshold = 6
 ): SlotFitLevel =>
-  getZoneFitLevel(player, resolveZoneId(slot), nearDropThreshold);
+  getZoneFitLevel(player, resolveFormationSlotZoneId(slot), nearDropThreshold);
 
 const skillScoreForZone = (
   player: DisplayPlayer,
@@ -412,7 +459,7 @@ export const recommendPlayers = (
       const totalScore = skillScore * matchMultiplier;
       return { player, score: totalScore, matchMultiplier };
     })
-    .filter((entry) => entry.matchMultiplier > 0.6); // Strict filter: Exclude mismatches (0.5)
+    .filter((entry) => entry.matchMultiplier > 0.6);
 
   scored.sort((a, b) => {
     const scoreDelta = b.score - a.score;

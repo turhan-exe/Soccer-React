@@ -63,8 +63,10 @@ const APP_CHECK_NATIVE_ANDROID_MODE = String(
 )
   .trim()
   .toLowerCase();
+const ENFORCE_NATIVE_ANDROID_APP_CHECK =
+  isNativeAndroid && APP_CHECK_NATIVE_ANDROID_MODE === 'enforce';
 const BYPASS_NATIVE_ANDROID_APP_CHECK =
-  isNativeAndroid && APP_CHECK_NATIVE_ANDROID_MODE === 'bypass';
+  isNativeAndroid && !ENFORCE_NATIVE_ANDROID_APP_CHECK;
 const SHOULD_INIT_APP_CHECK =
   !BYPASS_NATIVE_ANDROID_APP_CHECK &&
   !!APP_CHECK_SITE_KEY &&

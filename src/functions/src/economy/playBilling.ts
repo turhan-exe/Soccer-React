@@ -28,9 +28,9 @@ const DIAMOND_PRODUCT_CONFIG = {
 } as const;
 
 const CREDIT_PRODUCT_CONFIG = {
-  credits_10000: { packId: 'credit-10k', amount: 10_000 },
-  credits_25000: { packId: 'credit-25k', amount: 25_000 },
-  credits_60000: { packId: 'credit-60k', amount: 60_000 },
+  credits_10000: { packId: 'credit-10k', amount: 80_000 },
+  credits_25000: { packId: 'credit-25k', amount: 220_000 },
+  credits_60000: { packId: 'credit-60k', amount: 650_000 },
 } as const;
 
 type DiamondProductId = keyof typeof DIAMOND_PRODUCT_CONFIG;

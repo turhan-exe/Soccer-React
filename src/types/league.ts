@@ -1,4 +1,5 @@
 import type { FirebaseTimestamp } from './common';
+import type { CompetitionFormat, CompetitionType } from './tournament';
 
 export type LeagueState = 'forming' | 'scheduled' | 'finished';
 
@@ -9,5 +10,12 @@ export interface LeagueDoc {
   createdAt: FirebaseTimestamp;
   lockedAt?: FirebaseTimestamp;
   startDate?: FirebaseTimestamp; // 1. turun 19:00 TRT
-  rounds: number; // 16 takımlı çift devre ligde 30
+  rounds: number; // kapasiteye gore uretilen toplam tur sayisi
+  competitionType?: CompetitionType;
+  competitionFormat?: CompetitionFormat;
+  hiddenFromLeagueList?: boolean;
+  sourceMonth?: string;
+  snapshotAt?: FirebaseTimestamp;
+  roundSpacingDays?: number;
+  championTeamId?: string | null;
 }

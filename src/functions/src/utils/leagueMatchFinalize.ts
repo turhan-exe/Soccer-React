@@ -1,5 +1,6 @@
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import { ensureBotTeamDoc } from './bots.js';
+import { isKnockoutCompetition } from './competition.js';
 import {
   buildMatchRevenuePlan,
   resolveFixtureRevenueTeamIdsFromLookups,
@@ -268,6 +269,14 @@ export async function applyStandingResultInTx(
 
   const leagueRef = fixtureRef.parent.parent;
   if (!leagueRef) {
+    return;
+  }
+
+  const leagueSnap = await tx.get(leagueRef);
+  const leagueData = leagueSnap.exists
+    ? (leagueSnap.data() as Record<string, unknown>)
+    : null;
+  if (isKnockoutCompetition(leagueData)) {
     return;
   }
 

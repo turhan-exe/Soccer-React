@@ -885,7 +885,7 @@ const createAutoListingForPlayer = async (
         position: sanitizedPlayer.position,
         pos: sanitizedPlayer.position,
         overall: sanitizedPlayer.overall,
-        sellerTeamName: team.name ?? 'Tak��m��m',
+        sellerTeamName: team.name ?? 'Takımım',
         status: 'active',
         autoListed: true,
         autoListReason: 'contract_expired',

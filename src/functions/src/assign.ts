@@ -2,6 +2,7 @@ import * as functions from 'firebase-functions/v1';
 import './_firebase.js';
 import { getFirestore, FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { ensureBotTeamDoc } from './utils/bots.js';
+import { isDomesticCompetition } from './utils/competition.js';
 
 const db = getFirestore();
 const REGION = 'europe-west1';
@@ -152,6 +153,9 @@ async function chooseRandomBotSlotInNextLeague(): Promise<{ leagueId: string; sl
       .get();
   }
   for (const lg of leaguesSnap.docs) {
+    if (!isDomesticCompetition((lg.data() as Record<string, unknown>) ?? {})) {
+      continue;
+    }
     const slotsSnap = await lg.ref
       .collection('slots')
       .orderBy('slotIndex', 'asc')
