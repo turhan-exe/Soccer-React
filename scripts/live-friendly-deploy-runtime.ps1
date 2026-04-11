@@ -31,7 +31,9 @@ function Invoke-SafeSshCapture {
     [Parameter(Mandatory = $true)][string]$RemoteScript
   )
 
-  $remoteBytes = [System.Text.Encoding]::UTF8.GetBytes($RemoteScript)
+  # Normalize PowerShell CRLF here-strings so remote bash sees clean LF line endings.
+  $normalizedRemoteScript = $RemoteScript -replace "`r`n", "`n" -replace "`r", "`n"
+  $remoteBytes = [System.Text.Encoding]::UTF8.GetBytes($normalizedRemoteScript)
   $remoteB64 = [Convert]::ToBase64String($remoteBytes)
   $remoteCmd = "printf '%s' '$remoteB64' | base64 -d | bash -se"
 
@@ -196,7 +198,7 @@ if ($KeyPath -ne "") {
   $script:keyPathForProxy = ($KeyPath -replace '\\', '/')
 }
 
-$unityBuildDir = Join-Path $RepoRoot $UnityBuildRoot
+$unityBuildDir = [System.IO.Path]::GetFullPath((Join-Path $RepoRoot $UnityBuildRoot))
 $runtimeManifestPath = Join-Path $unityBuildDir "runtime-manifest.json"
 $unityBinary = Join-Path $unityBuildDir "FHS.x86_64"
 $unityGameAssembly = Join-Path $unityBuildDir "GameAssembly.so"
@@ -205,6 +207,10 @@ $unityDataDir = Join-Path $unityBuildDir "FHS_Data"
 $unityManagedAssembly = Join-Path $unityBuildDir "FHS_BackUpThisFolder_ButDontShipItWithYourGame/Managed/Assembly-CSharp.dll"
 $unityRuntimeStagingDir = [System.IO.Path]::GetFullPath((Join-Path $RepoRoot ".tmp/unity-linux-runtime-friendly"))
 $unityRuntimeArchive = [System.IO.Path]::GetFullPath((Join-Path $RepoRoot ".tmp/unity-linux-runtime-friendly.tar"))
+
+if ([string]::Equals($unityBuildDir, $unityRuntimeStagingDir, [System.StringComparison]::OrdinalIgnoreCase)) {
+  $unityRuntimeStagingDir = [System.IO.Path]::GetFullPath((Join-Path $RepoRoot ".tmp/unity-linux-runtime-friendly-staging"))
+}
 
 $requiredPaths = @(
   $unityBinary,
