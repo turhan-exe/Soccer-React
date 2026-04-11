@@ -1,14 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
-import type { LegendPlayer } from './players';
-import { Button } from '@/components/ui/button';
-import { getPositionLabel, getPositionShortLabel } from '@/lib/positionLabels';
-import './legend-card.css';
 
-const RARITY_LABELS: Record<LegendPlayer['rarity'], string> = {
-  legend: 'Efsane',
-  rare: 'Nadir',
-  common: 'Klasik',
-};
+import { Button } from '@/components/ui/button';
+import { useTranslation } from '@/contexts/LanguageContext';
+import { getPositionLabel, getPositionShortLabel } from '@/lib/positionLabels';
+
+import type { LegendPlayer } from './players';
+import './legend-card.css';
 
 interface Props {
   player: LegendPlayer;
@@ -17,6 +14,7 @@ interface Props {
 }
 
 export default function LegendCard({ player, onRent, onRelease }: Props) {
+  const { language, t } = useTranslation();
   const [show, setShow] = useState(false);
 
   useEffect(() => {
@@ -24,25 +22,23 @@ export default function LegendCard({ player, onRent, onRelease }: Props) {
     return () => clearTimeout(id);
   }, [player]);
 
-  const rarityLabel = RARITY_LABELS[player.rarity];
+  const rarityLabel = t(`legends.rarity.${player.rarity}`);
   const backgroundImage = useMemo(
     () => `url("${encodeURI(player.image)}")`,
     [player.image],
   );
-  const positionLabel = getPositionLabel(player.position);
-  const positionShortLabel = getPositionShortLabel(player.position);
+  const positionLabel = getPositionLabel(player.position, language);
+  const positionShortLabel = getPositionShortLabel(player.position, language);
 
   return (
     <div className="legend-card-wrapper">
       <div className={`legend-card ${show ? 'show' : 'reveal'} ${player.rarity}`}>
-        <div
-          className="legend-card-bg"
-          style={{ backgroundImage }}
-          aria-hidden
-        />
+        <div className="legend-card-bg" style={{ backgroundImage }} aria-hidden />
         <div className="legend-card-content">
           <div className="legend-card-meta">
-            <span className="legend-card-tag">Güç {player.rating}</span>
+            <span className="legend-card-tag">
+              {t('legends.card.power', { value: player.rating })}
+            </span>
             <span className={`legend-card-rarity ${player.rarity}`}>{rarityLabel}</span>
           </div>
           <div className="legend-card-bottom">
@@ -57,7 +53,7 @@ export default function LegendCard({ player, onRent, onRelease }: Props) {
                   className="legend-card-accept"
                   onClick={() => onRent(player)}
                 >
-                  Kabul Et
+                  {t('legends.card.accept')}
                 </Button>
               )}
               {onRelease && (
@@ -67,7 +63,7 @@ export default function LegendCard({ player, onRent, onRelease }: Props) {
                   className="legend-card-release"
                   onClick={() => onRelease(player)}
                 >
-                  Serbest Bırak
+                  {t('legends.card.release')}
                 </Button>
               )}
             </div>

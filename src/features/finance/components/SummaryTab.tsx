@@ -1,6 +1,7 @@
 import { ArrowDownRight, TrendingUp } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { useTranslation } from '@/contexts/LanguageContext';
 import type { ExpectedRevenueBreakdown, FinanceHistoryEntry } from '@/services/finance';
 import { formatCurrency } from './FinanceHeader';
 
@@ -33,16 +34,20 @@ export function SummaryTab({
   stadiumCapacity,
   onBuyCredit,
 }: SummaryTabProps) {
+  const { t, formatNumber } = useTranslation();
+
   return (
     <div className="animate-in fade-in slide-in-from-bottom-4 space-y-6 duration-500">
       <div>
-        <h2 className="mb-3 px-1 text-lg font-bold text-slate-200">Finans Durumu</h2>
-        <div className="-mx-4 flex gap-4 overflow-x-auto px-4 pb-4 scrollbar-hide snap-x">
-          <div className="h-[120px] w-[240px] shrink-0 snap-center overflow-hidden rounded-[24px] border border-white/5 bg-[#1a1b2e] group relative">
-            <div className="pointer-events-none absolute -mr-10 -mt-10 right-0 top-0 h-24 w-24 rounded-full bg-indigo-500/10 blur-2xl" />
+        <h2 className="mb-3 px-1 text-lg font-bold text-slate-200">{t('finance.summary.title')}</h2>
+        <div className="-mx-4 flex snap-x gap-4 overflow-x-auto px-4 pb-4 scrollbar-hide">
+          <div className="group relative h-[120px] w-[240px] shrink-0 snap-center overflow-hidden rounded-[24px] border border-white/5 bg-[#1a1b2e]">
+            <div className="pointer-events-none absolute right-0 top-0 -mr-10 -mt-10 h-24 w-24 rounded-full bg-indigo-500/10 blur-2xl" />
             <div className="relative z-10 flex h-full flex-col justify-between p-5">
               <div>
-                <p className="mb-1 text-xs font-medium text-slate-400">Mevcut Bakiye</p>
+                <p className="mb-1 text-xs font-medium text-slate-400">
+                  {t('finance.header.currentBalance')}
+                </p>
                 <p className="font-mono text-2xl font-bold tracking-tight text-white">
                   {formatCurrency(balance)}
                 </p>
@@ -52,13 +57,13 @@ export function SummaryTab({
                 onClick={onBuyCredit}
                 className="h-8 self-end rounded-full bg-cyan-500 px-4 text-[10px] font-bold uppercase tracking-wide text-white shadow-lg shadow-cyan-500/20 hover:bg-cyan-600"
               >
-                Bakiye Yükle
+                {t('finance.summary.loadBalance')}
               </Button>
             </div>
           </div>
 
-          <div className="h-[120px] w-[200px] shrink-0 snap-center overflow-hidden rounded-[24px] border border-white/5 bg-[#1a1b2e] relative">
-            <div className="pointer-events-none absolute -mb-10 -ml-10 bottom-0 left-0 h-24 w-24 rounded-full bg-purple-500/10 blur-2xl" />
+          <div className="relative h-[120px] w-[200px] shrink-0 snap-center overflow-hidden rounded-[24px] border border-white/5 bg-[#1a1b2e]">
+            <div className="pointer-events-none absolute bottom-0 left-0 -mb-10 -ml-10 h-24 w-24 rounded-full bg-purple-500/10 blur-2xl" />
             <div className="flex h-full flex-col justify-center p-5">
               <div className="mb-3 flex h-8 w-8 items-center justify-center rounded-full bg-purple-500/20 text-purple-400">
                 <svg
@@ -78,13 +83,17 @@ export function SummaryTab({
                   <path d="M15 14h4" />
                 </svg>
               </div>
-              <p className="mb-1 text-lg font-bold leading-none text-white">Stadyum Seviye {stadiumLevel}</p>
-              <p className="text-xs text-slate-500">{stadiumCapacity.toLocaleString('tr-TR')} Koltuk</p>
+              <p className="mb-1 text-lg font-bold leading-none text-white">
+                {t('finance.summary.stadiumLevel', { level: stadiumLevel })}
+              </p>
+              <p className="text-xs text-slate-500">
+                {t('finance.summary.seats', { count: formatNumber(stadiumCapacity) })}
+              </p>
             </div>
           </div>
 
-          <div className="h-[120px] w-[200px] shrink-0 snap-center overflow-hidden rounded-[24px] border border-white/5 bg-[#1a1b2e] relative">
-            <div className="pointer-events-none absolute -ml-10 -mt-10 left-0 top-0 h-24 w-24 rounded-full bg-emerald-500/10 blur-2xl" />
+          <div className="relative h-[120px] w-[200px] shrink-0 snap-center overflow-hidden rounded-[24px] border border-white/5 bg-[#1a1b2e]">
+            <div className="pointer-events-none absolute left-0 top-0 -ml-10 -mt-10 h-24 w-24 rounded-full bg-emerald-500/10 blur-2xl" />
             <div className="flex h-full flex-col justify-center p-5">
               <div
                 className={`mb-3 flex h-8 w-8 items-center justify-center rounded-full ${
@@ -93,7 +102,7 @@ export function SummaryTab({
               >
                 {totals.net >= 0 ? <TrendingUp className="h-4 w-4" /> : <ArrowDownRight className="h-4 w-4" />}
               </div>
-              <p className="mb-1 text-xs font-medium text-slate-400">Son 30 Gün Net</p>
+              <p className="mb-1 text-xs font-medium text-slate-400">{t('finance.summary.last30Net')}</p>
               <p
                 className={`font-mono text-xl font-bold tracking-tight ${
                   totals.net >= 0 ? 'text-emerald-400' : 'text-rose-400'
@@ -111,14 +120,14 @@ export function SummaryTab({
         <CardContent className="p-0">
           <div className="border-b border-white/5 bg-white/[0.03] px-5 py-4">
             <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-slate-400">
-              Gerçekleşen Finans
+              {t('finance.summary.realized')}
             </p>
           </div>
           <div className="divide-y divide-white/5">
-            <ListItem label="Son 30 Gün Gelir" value={formatCurrency(totals.totalIncome)} valueColor="text-emerald-400" />
-            <ListItem label="Son 30 Gün Gider" value={formatCurrency(totals.totalExpense)} valueColor="text-rose-400" />
+            <ListItem label={t('finance.summary.last30Income')} value={formatCurrency(totals.totalIncome)} valueColor="text-emerald-400" />
+            <ListItem label={t('finance.summary.last30Expense')} value={formatCurrency(totals.totalExpense)} valueColor="text-rose-400" />
             <ListItem
-              label="Son 30 Gün Net"
+              label={t('finance.summary.last30Net')}
               value={formatCurrency(totals.net)}
               valueColor={totals.net >= 0 ? 'text-emerald-400' : 'text-rose-400'}
             />
@@ -126,24 +135,24 @@ export function SummaryTab({
 
           <div className="border-y border-white/5 bg-white/[0.03] px-5 py-4">
             <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-slate-400">
-              Beklenen Nakit Akışı
+              {t('finance.summary.expectedCashFlow')}
             </p>
           </div>
           <div className="divide-y divide-white/5">
-            <ListItem label="Maç Başı Tahmini Gelir" value={formatCurrency(averageMatchIncome)} valueColor="text-emerald-300" />
-            <ListItem label="Aylık Tahmini Gelir" value={formatCurrency(expectedRevenue.monthly)} valueColor="text-emerald-400" />
-            <ListItem label="Aylık Sponsor Geliri" value={formatCurrency(expectedRevenue.sponsorEstimate)} />
-            <ListItem label="Aylık Maaş Gideri" value={formatCurrency(expectedRevenue.projectedMonthlyExpense)} valueColor="text-rose-400" />
+            <ListItem label={t('finance.summary.matchIncome')} value={formatCurrency(averageMatchIncome)} valueColor="text-emerald-300" />
+            <ListItem label={t('finance.summary.monthlyIncome')} value={formatCurrency(expectedRevenue.monthly)} valueColor="text-emerald-400" />
+            <ListItem label={t('finance.summary.monthlySponsor')} value={formatCurrency(expectedRevenue.sponsorEstimate)} />
+            <ListItem label={t('finance.summary.monthlySalary')} value={formatCurrency(expectedRevenue.projectedMonthlyExpense)} valueColor="text-rose-400" />
             <ListItem
-              label="Aylık Tahmini Net"
+              label={t('finance.summary.monthlyNet')}
               value={formatCurrency(expectedRevenue.projectedMonthlyNet)}
               valueColor={expectedRevenue.projectedMonthlyNet >= 0 ? 'text-emerald-400' : 'text-rose-400'}
             />
-            <ListItem label="Günlük Tahmini Gelir" value={formatCurrency(dailyIncomeEstimate)} valueColor="text-emerald-300" />
-            <ListItem label="Takım Gücü" value={expectedRevenue.teamStrength.toString()} />
+            <ListItem label={t('finance.summary.dailyIncome')} value={formatCurrency(dailyIncomeEstimate)} valueColor="text-emerald-300" />
+            <ListItem label={t('finance.summary.teamStrength')} value={expectedRevenue.teamStrength.toString()} />
             <ListItem
-              label="Doluluk / Seyirci"
-              value={`%${Math.round(expectedRevenue.attendanceRate * 100)} • ${expectedRevenue.occupiedSeats.toLocaleString('tr-TR')}`}
+              label={t('finance.summary.occupancy')}
+              value={`%${Math.round(expectedRevenue.attendanceRate * 100)} • ${formatNumber(expectedRevenue.occupiedSeats)}`}
             />
           </div>
         </CardContent>

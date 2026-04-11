@@ -10,6 +10,7 @@ import { ThemeProvider } from '@/contexts/ThemeContext';
 import { DiamondProvider } from '@/contexts/DiamondContext';
 import { router } from '@/routes/router';
 import { InventoryProvider } from '@/contexts/InventoryContext';
+import { LanguageProvider } from '@/contexts/LanguageContext';
 import { unityBridge } from '@/services/unityBridge';
 import { initializeRewardedAds, isRewardedAdsSupported } from '@/services/rewardedAds';
 import ForceUpdateGate from '@/components/system/ForceUpdateGate';
@@ -110,23 +111,25 @@ const App = () => {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <ThemeProvider>
-        <ForceUpdateGate>
-          <AuthProvider>
-            <KeyboardViewportManager />
-            <MatchControlPresenceHeartbeat />
-            <PushNotificationsBootstrap />
-            <DiamondProvider>
-              <InventoryProvider>
-                <TooltipProvider>
-                  <Toaster />
-                  <RouterProvider router={router} future={{ v7_startTransition: true }} />
-                </TooltipProvider>
-              </InventoryProvider>
-            </DiamondProvider>
-          </AuthProvider>
-        </ForceUpdateGate>
-      </ThemeProvider>
+      <LanguageProvider>
+        <ThemeProvider>
+          <ForceUpdateGate>
+            <AuthProvider>
+              <KeyboardViewportManager />
+              <MatchControlPresenceHeartbeat />
+              <PushNotificationsBootstrap />
+              <DiamondProvider>
+                <InventoryProvider>
+                  <TooltipProvider>
+                    <Toaster />
+                    <RouterProvider router={router} future={{ v7_startTransition: true }} />
+                  </TooltipProvider>
+                </InventoryProvider>
+              </DiamondProvider>
+            </AuthProvider>
+          </ForceUpdateGate>
+        </ThemeProvider>
+      </LanguageProvider>
     </QueryClientProvider>
   );
 };

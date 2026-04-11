@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useDiamonds } from '@/contexts/DiamondContext';
 import { useInventory } from '@/contexts/InventoryContext';
+import { useTranslation } from '@/contexts/LanguageContext';
 import { Button } from '@/components/ui/button';
 import { BackButton } from '@/components/ui/back-button';
 import InfoPopupButton from '@/components/ui/info-popup-button';
@@ -45,6 +46,7 @@ const LegendPackPage = () => {
   const { user } = useAuth();
   const { balance, spend } = useDiamonds();
   const { vipNostalgiaFreeAvailable, consumeVipNostalgiaReward } = useInventory();
+  const { t } = useTranslation();
   const [current, setCurrent] = useState<LegendPlayer | null>(null);
   const [isDialogOpen, setDialogOpen] = useState(false);
   const [rented, setRented] = useState<RentedLegend[]>([]);
@@ -54,11 +56,11 @@ const LegendPackPage = () => {
 
   const handlePackClick = () => {
     if (!user) {
-      toast.error('Giris yapmalisin');
+      toast.error(t('legends.toasts.loginRequired'));
       return;
     }
     if (current) {
-      toast.info('Önce mevcut kartın için karar vermelisin');
+      toast.info(t('legends.toasts.decideCurrent'));
       return;
     }
 
@@ -211,17 +213,17 @@ const LegendPackPage = () => {
 
   const handleOpen = async () => {
     if (!user) {
-      toast.error('Giris yapmalisin');
+      toast.error(t('legends.toasts.loginRequired'));
       return;
     }
     if (current) {
-      toast.info('Önce mevcut kartın için karar vermelisin');
+      toast.info(t('legends.toasts.decideCurrent'));
       return;
     }
 
     const isFree = Boolean(vipNostalgiaFreeAvailable);
     if (!isFree && balance < PACK_COST) {
-      toast.error('Yeterli elmas yok');
+      toast.error(t('legends.toasts.insufficientDiamonds'));
       return;
     }
 
@@ -230,7 +232,7 @@ const LegendPackPage = () => {
     );
 
     if (availableLegends.length === 0) {
-      toast.info('Tüm nostalji oyuncularını topladın');
+      toast.info(t('legends.toasts.allCollected'));
       return;
     }
 
@@ -250,11 +252,11 @@ const LegendPackPage = () => {
 
       if (isFree) {
         consumeVipNostalgiaReward();
-        toast.success('VIP nostalji paketi ucretsiz acildi.');
+        toast.success(t('legends.toasts.freeOpened'));
       }
     } catch (err) {
       console.warn(err);
-      toast.error('Islem basarisiz');
+      toast.error(t('legends.toasts.genericError'));
     } finally {
       setIsOpening(false);
     }
@@ -276,7 +278,7 @@ const LegendPackPage = () => {
         setOwnedLegendIds((prev) =>
           prev.includes(legend.id) ? prev : [...prev, legend.id].sort((a, b) => a - b),
         );
-        toast.success(`${legend.name} kadro kaydı onarıldı`);
+        toast.success(t('legends.toasts.repaired', { name: legend.name }));
         setCurrent(null);
         return;
       }
@@ -284,24 +286,24 @@ const LegendPackPage = () => {
         setOwnedLegendIds((prev) =>
           prev.includes(legend.id) ? prev : [...prev, legend.id].sort((a, b) => a - b),
         );
-        toast.info(`${legend.name} zaten takımındaydı, kayıtlar senkronize edildi`);
+        toast.info(t('legends.toasts.existing', { name: legend.name }));
         setCurrent(null);
         return;
       }
       setOwnedLegendIds((prev) =>
         prev.includes(legend.id) ? prev : [...prev, legend.id].sort((a, b) => a - b),
       );
-      toast.success(`${legend.name} ${RENT_DURATION_DAYS} günlüğüne kadrona katıldı`);
+      toast.success(t('legends.toasts.rented', { name: legend.name, days: RENT_DURATION_DAYS }));
       setCurrent(null);
     } catch (err) {
       console.warn(err);
-      const message = err instanceof Error ? err.message : 'İşlem başarısız';
+      const message = err instanceof Error ? err.message : t('legends.toasts.genericError');
       toast.error(message);
     }
   };
 
   const handleRelease = () => {
-    toast.message('Kart serbest bırakıldı');
+    toast.message(t('legends.toasts.release'));
     setCurrent(null);
   };
 
@@ -322,20 +324,16 @@ const LegendPackPage = () => {
           <div className="flex items-center gap-4">
             <BackButton className="static translate-y-0" />
             <div className="flex flex-col">
-              <h1 className="text-2xl font-bold tracking-tight text-white flex items-center gap-2">
-                <span className="text-purple-400">NOSTALJİ</span> PAKETİ
-              </h1>
+              <h1 className="text-2xl font-bold tracking-tight text-white flex items-center gap-2">{t('legends.title').toUpperCase()}</h1>
             </div>
           </div>
 
           <div className="flex items-center gap-6">
             {vipNostalgiaFreeAvailable && (
-              <div className="hidden md:flex px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-bold tracking-wider uppercase">
-                VIP Ücretsiz Hak Mevcut
-              </div>
+              <div className="hidden md:flex px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-bold tracking-wider uppercase">{t('legends.vipFreeAvailable')}</div>
             )}
             <div className="flex flex-col items-end">
-              <span className="text-[10px] uppercase tracking-widest text-slate-400 font-semibold">Bakiye</span>
+              <span className="text-[10px] uppercase tracking-widest text-slate-400 font-semibold">{t('legends.balance')}</span>
               <span className="text-xl font-bold text-cyan-300 flex items-center gap-1">
                 {balance} <span className="text-xs text-cyan-500/70">💎</span>
               </span>
@@ -353,15 +351,13 @@ const LegendPackPage = () => {
               <div className="absolute top-0 right-0 w-32 h-32 bg-purple-500/10 rounded-bl-full -mr-8 -mt-8 blur-2xl group-hover:bg-purple-500/20 transition-colors" />
 
               <div>
-                <h3 className="text-lg font-bold text-white mb-1">Koleksiyon</h3>
-                <p className="text-xs text-slate-400 leading-relaxed">
-                  80'ler ve 90'ların efsane oyuncularını topla. Efsaneler satılamaz.
-                </p>
+                <h3 className="text-lg font-bold text-white mb-1">{t('legends.collectionTitle')}</h3>
+                <p className="text-xs text-slate-400 leading-relaxed">{t('legends.collectionDescription')}</p>
               </div>
 
               <div className="grid grid-cols-1 gap-4">
                 <div className="bg-slate-950/50 rounded-xl p-4 border border-white/5">
-                  <span className="text-[10px] uppercase tracking-wider text-slate-500 font-bold block mb-1">Toplanan</span>
+                  <span className="text-[10px] uppercase tracking-wider text-slate-500 font-bold block mb-1">{t('legends.collected')}</span>
                   <div className="flex items-end gap-2">
                     <span className="text-3xl font-black text-white">{ownedCount}</span>
                     <span className="text-sm text-slate-500 font-medium mb-1.5">/ {TOTAL_LEGENDS}</span>
@@ -375,17 +371,15 @@ const LegendPackPage = () => {
                 </div>
 
                 <div className="bg-slate-950/50 rounded-xl p-4 border border-white/5">
-                  <span className="text-[10px] uppercase tracking-wider text-slate-500 font-bold block mb-1">Kira Süresi</span>
-                  <div className="text-2xl font-bold text-white">{RENT_DURATION_DAYS} GÜN</div>
-                  <p className="text-[10px] text-slate-500 mt-1">Süre bitiminde oyuncu ayrılır.</p>
+                  <span className="text-[10px] uppercase tracking-wider text-slate-500 font-bold block mb-1">{t('legends.rentDuration')}</span>
+                  <div className="text-2xl font-bold text-white">{t('legends.rentDurationValue', { days: RENT_DURATION_DAYS })}</div>
+                  <p className="text-[10px] text-slate-500 mt-1">{t('legends.rentDurationHelp')}</p>
                 </div>
               </div>
 
               <div className="mt-auto">
                 <div className="p-3 rounded-lg bg-indigo-500/10 border border-indigo-500/20">
-                  <p className="text-[11px] text-indigo-300 text-center">
-                    Mevcut kartları "Kiralananlar" listesinden takip edebilirsin.
-                  </p>
+                  <p className="text-[11px] text-indigo-300 text-center">{t('legends.rentalsHelp')}</p>
                 </div>
               </div>
             </div>
@@ -404,7 +398,7 @@ const LegendPackPage = () => {
                 {isLoadingTeam ? (
                   <div className="flex flex-col items-center gap-4 animate-pulse">
                     <div className="w-16 h-16 rounded-full border-4 border-white/10 border-t-purple-500 animate-spin" />
-                    <p className="text-sm text-slate-400 font-medium tracking-wider uppercase">Loading Data...</p>
+                    <p className="text-sm text-slate-400 font-medium tracking-wider uppercase">{t('legends.loading')}</p>
                   </div>
                 ) : isOpening ? (
                   // ANIMATION STATE
@@ -420,7 +414,7 @@ const LegendPackPage = () => {
                         ✨
                       </div>
                     </div>
-                    <p className="text-purple-300 font-bold tracking-widest animate-pulse uppercase">Efsane Çağırılıyor...</p>
+                    <p className="text-purple-300 font-bold tracking-widest animate-pulse uppercase">{t('legends.summoning')}</p>
                   </div>
                 ) : current ? (
                   // CARD REVEALED STATE
@@ -441,13 +435,13 @@ const LegendPackPage = () => {
                     </div>
 
                     <div className="flex flex-col gap-3 w-full">
-                      <p className="text-amber-200 text-sm font-medium">Yeni bir efsane yakaladın!</p>
+                      <p className="text-amber-200 text-sm font-medium">{t('legends.foundLegend')}</p>
                       <Button
                         size="lg"
                         className="w-full bg-amber-500 hover:bg-amber-600 text-black font-bold shadow-lg shadow-amber-900/20"
                         onClick={() => setDialogOpen(true)}
                       >
-                        KARTI İNCELE
+                        {t('legends.inspectCard')}
                       </Button>
                     </div>
                   </div>
@@ -471,9 +465,7 @@ const LegendPackPage = () => {
                       </div>
 
                       {/* Click Hint */}
-                      <div className="absolute -bottom-4 bg-white/10 backdrop-blur-md border border-white/20 px-4 py-1 rounded-full text-xs font-bold text-white opacity-0 group-hover:opacity-100 transition-opacity transform translate-y-2 group-hover:translate-y-0">
-                        TIKLA VE AÇ
-                      </div>
+                      <div className="absolute -bottom-4 bg-white/10 backdrop-blur-md border border-white/20 px-4 py-1 rounded-full text-xs font-bold text-white opacity-0 group-hover:opacity-100 transition-opacity transform translate-y-2 group-hover:translate-y-0">{t('legends.tapToOpen')}</div>
 
 
                     </div>
@@ -481,8 +473,8 @@ const LegendPackPage = () => {
                     <div className="space-y-4 w-full">
                       {allCollected ? (
                         <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-300">
-                          <p className="font-bold">Koleksiyon Tamamlandı!</p>
-                          <p className="text-xs opacity-70 mt-1">Tüm efsanelere sahipsin.</p>
+                          <p className="font-bold">{t('legends.collectionCompleteTitle')}</p>
+                          <p className="text-xs opacity-70 mt-1">{t('legends.collectionCompleteDescription')}</p>
                         </div>
                       ) : (
                         <Button
@@ -494,13 +486,13 @@ const LegendPackPage = () => {
                           onClick={handlePackClick}
                           disabled={!vipNostalgiaFreeAvailable && balance < PACK_COST}
                         >
-                          {vipNostalgiaFreeAvailable ? 'ÜCRETSİZ AÇ' : `PAKET AÇ (${PACK_COST} 💎)`}
+                          {vipNostalgiaFreeAvailable ? t('legends.freeOpen') : t('legends.openPack', { cost: PACK_COST })}
                         </Button>
                       )}
 
                       {!vipNostalgiaFreeAvailable && !allCollected && (
                         <p className="text-xs text-slate-500">
-                          Mevcut Bakiye: <span className={balance < PACK_COST ? "text-red-400" : "text-slate-300"}>{balance}</span> / {PACK_COST}
+                          {t('legends.currentBalance', { balance, cost: PACK_COST })}
                         </p>
                       )}
                     </div>
@@ -513,7 +505,7 @@ const LegendPackPage = () => {
           {/* RIGHT: Active Rentals (3 cols) */}
           <aside className="col-span-3 flex flex-col gap-2 sm:gap-4 min-h-0 overflow-hidden">
             <div className="flex items-center justify-between px-2">
-              <h3 className="text-sm font-bold text-slate-300 uppercase tracking-wider">Kiralananlar</h3>
+              <h3 className="text-sm font-bold text-slate-300 uppercase tracking-wider">{t('legends.rentedTitle')}</h3>
               <span className="bg-slate-800 text-slate-400 text-[10px] px-2 py-0.5 rounded-full font-bold">{rented.length}</span>
             </div>
 
@@ -529,9 +521,7 @@ const LegendPackPage = () => {
                         <div className="text-sm font-bold text-white truncate">{p.name}</div>
                         <div className="flex items-center gap-1.5 mt-0.5">
                           <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                          <span className="text-[10px] text-slate-400">
-                            {Math.ceil((p.expiresAt.getTime() - Date.now()) / (1000 * 60 * 60 * 24))} gün kaldı
-                          </span>
+                          <span className="text-[10px] text-slate-400">{t('legends.daysLeft', { count: Math.ceil((p.expiresAt.getTime() - Date.now()) / (1000 * 60 * 60 * 24)) })}</span>
                         </div>
                       </div>
                     </div>
@@ -542,7 +532,7 @@ const LegendPackPage = () => {
                   <div className="w-12 h-12 rounded-full bg-slate-800 mb-3 flex items-center justify-center">
                     <span className="text-xl">📋</span>
                   </div>
-                  <p className="text-sm text-slate-400">Henüz kiralanan efsane yok.</p>
+                  <p className="text-sm text-slate-400">{t('legends.noRented')}</p>
                 </div>
               )}
             </div>
@@ -558,9 +548,7 @@ const LegendPackPage = () => {
               <div className="absolute inset-0 bg-purple-500/20 blur-[60px] rounded-full pointer-events-none" />
 
               <div className="relative z-10 text-center animate-in slide-in-from-bottom-4 fade-in duration-700">
-                <h2 className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-b from-amber-200 to-amber-500 drop-shadow-sm tracking-wide uppercase">
-                  YENİ EFSANE!
-                </h2>
+                <h2 className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-b from-amber-200 to-amber-500 drop-shadow-sm tracking-wide uppercase">{t('legends.newLegend')}</h2>
               </div>
 
               <div className="relative z-10 transform transition-all duration-500 animate-in zoom-in-95 fade-in-0 scale-70 md:scale-90 pb-20">
@@ -574,18 +562,12 @@ const LegendPackPage = () => {
       <AlertDialog open={showConfirm} onOpenChange={setShowConfirm}>
         <AlertDialogContent className="bg-slate-900 border border-purple-500/30 text-white max-w-md w-full rounded-2xl shadow-[0_0_50px_rgba(168,85,247,0.2)]">
           <AlertDialogHeader>
-            <AlertDialogTitle className="text-2xl font-bold text-center text-purple-400">
-              NOSTALJİ PAKETİ AÇ
-            </AlertDialogTitle>
-            <AlertDialogDescription className="text-center text-slate-300 text-lg py-4">
-              Bu işlem için hesabınızdan <span className="font-bold text-amber-400">{PACK_COST} Elmas</span> düşülecektir.
-              <br /><br />
-              Efsane oyuncuyu açmak istediğinize emin misiniz?
-            </AlertDialogDescription>
+            <AlertDialogTitle className="text-2xl font-bold text-center text-purple-400">{t('legends.confirmTitle')}</AlertDialogTitle>
+            <AlertDialogDescription className="text-center text-slate-300 text-lg py-4">{t('legends.confirmDescription', { cost: PACK_COST })}<br /><br />{t('legends.confirmPrompt')}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="flex gap-4 justify-center sm:justify-center">
             <AlertDialogCancel className="bg-slate-800 text-white border-slate-700 hover:bg-slate-700 hover:text-white px-8">
-              VAZGEÇ
+              {t('common.cancel')}
             </AlertDialogCancel>
             <AlertDialogAction
               className="bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold px-8 shadow-lg shadow-purple-900/30 border-none"
@@ -594,7 +576,7 @@ const LegendPackPage = () => {
                 setShowConfirm(false);
               }}
             >
-              EVET, AÇ!
+              {t('legends.confirmOpen')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

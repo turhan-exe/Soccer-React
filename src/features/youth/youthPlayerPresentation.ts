@@ -1,3 +1,5 @@
+import { translate } from '@/i18n/runtime';
+import type { AppLanguage } from '@/i18n/types';
 import type { Player, Position } from '@/types';
 import { normalizeRatingTo100 } from '@/lib/player';
 import { getPositionLabel } from '@/lib/positionLabels';
@@ -24,31 +26,36 @@ export const getYouthReadiness = (player: Player): number =>
     (toPercent(player.health) + toPercent(player.condition) + toPercent(player.motivation)) / 3,
   );
 
-export const getYouthDevelopmentLabel = (gap: number): string => {
+export const getYouthDevelopmentLabel = (gap: number, language?: AppLanguage): string => {
   if (gap >= 30) {
-    return 'Çok Yüksek Potansiyel';
+    return translate('common.youthDevelopmentLabels.elite', undefined, language);
   }
   if (gap >= 20) {
-    return 'Yüksek Potansiyel';
+    return translate('common.youthDevelopmentLabels.high', undefined, language);
   }
   if (gap >= 10) {
-    return 'Gelişime Açık';
+    return translate('common.youthDevelopmentLabels.open', undefined, language);
   }
-  return 'Hazıra Yakın';
+  return translate('common.youthDevelopmentLabels.ready', undefined, language);
 };
 
-export const getYouthRoleSummary = (player: Player): {
+export const getYouthRoleSummary = (
+  player: Player,
+  language?: AppLanguage,
+): {
   primaryRole: string;
   secondaryRoles: string[];
 } => {
-  const primaryRole = getPositionLabel(player.position);
+  const primaryRole = getPositionLabel(player.position, language);
   const secondaryRoleSet = new Set<Position>(
     (player.roles ?? []).filter(role => role !== player.position),
   );
 
   return {
     primaryRole,
-    secondaryRoles: Array.from(secondaryRoleSet).map(getPositionLabel),
+    secondaryRoles: Array.from(secondaryRoleSet).map(role =>
+      getPositionLabel(role, language),
+    ),
   };
 };
 

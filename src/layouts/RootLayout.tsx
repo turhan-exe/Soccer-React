@@ -1,15 +1,17 @@
 import { Outlet } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { useTranslation } from '@/contexts/LanguageContext';
 import Auth from '@/pages/Auth';
 import HardwareBackHandler from '@/components/system/HardwareBackHandler';
 
 const RootLayout = () => {
   const { user, isAuthReady } = useAuth();
+  const { t } = useTranslation();
 
   if (!isAuthReady) {
     return (
       <div className="flex h-screen items-center justify-center text-muted-foreground">
-        Oturum yukleniyor...
+        {t('rootLayout.authLoading')}
       </div>
     );
   }

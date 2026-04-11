@@ -2,8 +2,9 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Capacitor } from '@capacitor/core';
 import { Shield, Loader2, Radio } from 'lucide-react';
-import { format } from 'date-fns';
+
 import { useAuth } from '@/contexts/AuthContext';
+import { useTranslation } from '@/contexts/LanguageContext';
 import { PagesHeader } from '@/components/layout/PagesHeader';
 import { Button } from '@/components/ui/button';
 import {
@@ -50,25 +51,31 @@ function getErrorMessage(error: unknown, fallback: string): string {
         const parsed = JSON.parse(trimmed) as { error?: string };
         const code = String(parsed?.error || '').trim().toLowerCase();
         if (code === 'unauthorized' || code === 'league_match_join_forbidden') {
-          return 'Canli maca baglanti yetkin yok veya mac kapanmis.';
+          return fallback;
         }
       } catch {
-        // Non-JSON message, use original text.
+        return trimmed;
       }
-      return message;
+      return trimmed;
     }
   }
   return fallback;
 }
 
-function getLiveStateLabel(fixture: DisplayFixture): string | null {
+function getLiveStateKey(
+  fixture: DisplayFixture,
+): 'live' | 'preparing' | 'finished' | 'error' | null {
   const state = resolveEffectiveLiveState(fixture);
   if (!state) return null;
-  if (state === 'running') return 'CANLI';
-  if (state === 'server_started' || state === 'starting' || state === 'warm') return 'HAZIRLANIYOR';
-  if (state === 'ended') return 'BİTTİ';
-  if (state === 'failed' || state === 'prepare_failed' || state === 'kickoff_failed') return 'HATA';
-  return state.toUpperCase();
+  if (state === 'running') return 'live';
+  if (state === 'server_started' || state === 'starting' || state === 'warm') {
+    return 'preparing';
+  }
+  if (state === 'ended') return 'finished';
+  if (state === 'failed' || state === 'prepare_failed' || state === 'kickoff_failed') {
+    return 'error';
+  }
+  return null;
 }
 
 function isLiveJoinable(fixture: DisplayFixture): boolean {
@@ -78,6 +85,7 @@ function isLiveJoinable(fixture: DisplayFixture): boolean {
 export default function MyFixturesPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { t, formatDate } = useTranslation();
   const [fixtures, setFixtures] = useState<DisplayFixture[]>([]);
   const [loading, setLoading] = useState(true);
   const [joiningFixtureId, setJoiningFixtureId] = useState<string | null>(null);
@@ -132,6 +140,7 @@ export default function MyFixturesPage() {
       if (!options?.silent) {
         setLoading(true);
       }
+
       try {
         const leagueId = await getMyLeagueId(user.id);
         if (!leagueId) {
@@ -157,20 +166,20 @@ export default function MyFixturesPage() {
           const opponentTeam = teamMap.get(opponentId);
           return {
             ...fixture,
-            opponent: opponentTeam?.name || 'Rakip',
+            opponent: opponentTeam?.name || t('common.rivalFallback'),
             opponentId,
             opponentLogo: opponentTeam?.logo,
             home,
-            competitionName: 'Süperlig',
+            competitionName: t('fixtures.labels.competitionName'),
           };
         });
 
-        mapped.sort((a, b) => a.date.getTime() - b.date.getTime());
+        mapped.sort((left, right) => left.date.getTime() - right.date.getTime());
         if (alive) {
           setFixtures(mapped);
         }
       } catch (error) {
-        console.error('Fikstür yüklenirken hata:', error);
+        console.error('[MyFixturesPage] fixtures load failed', error);
       } finally {
         if (alive) {
           setLoading(false);
@@ -197,30 +206,31 @@ export default function MyFixturesPage() {
       window.removeEventListener('focus', handleFocus);
       document.removeEventListener('visibilitychange', handleFocus);
     };
-  }, [user]);
+  }, [t, user]);
 
   const handleJoinLiveFixture = async (fixture: DisplayFixture) => {
     if (!user?.id) {
-      toast.error('Canlı maça bağlanmak için giriş yapmalısın.');
+      toast.error(t('fixtures.errors.loginRequired'));
       return;
     }
 
     if (!matchControlReady) {
-      toast.error('Match Control API ayarlı değil.');
+      toast.error(t('fixtures.errors.matchControlUnavailable'));
       return;
     }
 
     if (!fixture.live?.matchId) {
-      toast.error('Bu maç için canlı bağlantı bulunamadı.');
+      toast.error(t('fixtures.errors.noLiveConnection'));
       return;
     }
+
     if (!isLiveJoinable(fixture)) {
-      toast.error('Bu maç artık canlı bağlantıya açık değil.');
+      toast.error(t('fixtures.errors.noLongerJoinable'));
       return;
     }
 
     if (!canLaunchNativeLeagueMatch) {
-      toast.error('Canlı lig maçı şu anda yalnızca Android uygulamada açılabiliyor.');
+      toast.error(t('fixtures.errors.androidOnly'));
       return;
     }
 
@@ -228,6 +238,7 @@ export default function MyFixturesPage() {
     try {
       const status = await getMatchStatus(fixture.live.matchId);
       const latestState = normalizeFixtureStatus(status.state);
+
       if (!LIVE_JOINABLE_STATES.has(latestState)) {
         setFixtures((prev) =>
           prev.map((item) => {
@@ -250,7 +261,7 @@ export default function MyFixturesPage() {
             };
           }),
         );
-        toast.error('Bu mac canli baglantiya acik degil.');
+        toast.error(t('fixtures.errors.noLongerJoinable'));
         return;
       }
 
@@ -274,11 +285,14 @@ export default function MyFixturesPage() {
         role: 'player',
       });
 
-      toast.success('Canlı maç bağlantısı başlatıldı.');
+      toast.success(t('fixtures.toasts.joinStarted'));
     } catch (error) {
       leagueUnitySessionActiveRef.current = false;
       console.error('[MyFixturesPage] Live league join failed.', error);
-      toast.error(getErrorMessage(error, 'Canlı maça bağlanılamadı.'));
+      toast.error(
+        getErrorMessage(error, t('fixtures.errors.unauthorized')) ||
+          t('fixtures.errors.joinFailed'),
+      );
     } finally {
       setJoiningFixtureId(null);
     }
@@ -291,16 +305,24 @@ export default function MyFixturesPage() {
       const opponentScore = fixture.home ? awayScore : homeScore;
 
       if (myScore > opponentScore) {
-        return <div className="h-3 w-3 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]" />;
+        return (
+          <div className="h-3 w-3 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]" />
+        );
       }
       if (myScore < opponentScore) {
-        return <div className="h-3 w-3 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.6)]" />;
+        return (
+          <div className="h-3 w-3 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.6)]" />
+        );
       }
-      return <div className="h-3 w-3 rounded-full bg-yellow-500 shadow-[0_0_8px_rgba(234,179,8,0.6)]" />;
+      return (
+        <div className="h-3 w-3 rounded-full bg-yellow-500 shadow-[0_0_8px_rgba(234,179,8,0.6)]" />
+      );
     }
 
     if (isFixtureEffectivelyRunning(fixture)) {
-      return <div className="h-3 w-3 rounded-full bg-cyan-400 shadow-[0_0_8px_rgba(34,211,238,0.7)]" />;
+      return (
+        <div className="h-3 w-3 rounded-full bg-cyan-400 shadow-[0_0_8px_rgba(34,211,238,0.7)]" />
+      );
     }
 
     return <div className="h-3 w-3 rounded-full bg-slate-600" />;
@@ -309,16 +331,18 @@ export default function MyFixturesPage() {
   return (
     <div className="min-h-screen bg-slate-950 p-4 font-sans text-slate-100 md:p-6 lg:p-8">
       <PagesHeader
-        title="Fikstür"
-        description="Sezonluk maç programı, canlı durumlar ve sonuçlar."
+        title={t('fixtures.page.title')}
+        description={t('fixtures.page.description')}
       />
 
       <div className="relative mt-6 flex-1 rounded-[32px] border border-white/5 bg-[#13111c]/90 p-6 shadow-2xl backdrop-blur-sm md:p-8">
         <div className="mb-8 flex items-center justify-between">
           <div>
-            <h2 className="text-2xl font-bold tracking-wide text-purple-200">Fikstür Programı</h2>
+            <h2 className="text-2xl font-bold tracking-wide text-purple-200">
+              {t('fixtures.page.scheduleTitle')}
+            </h2>
             <p className="mt-1 text-xs text-slate-500">
-              Canlı durumdaki maçlar için Android uygulamadan doğrudan maça bağlanabilirsin.
+              {t('fixtures.page.scheduleDescription')}
             </p>
           </div>
           <Button
@@ -327,20 +351,22 @@ export default function MyFixturesPage() {
             onClick={() => navigate(-1)}
             className="text-slate-400 hover:bg-white/5 hover:text-white"
           >
-            Geri
+            {t('fixtures.page.back')}
           </Button>
         </div>
 
         <div className="space-y-3">
           {loading ? (
-            <div className="py-10 text-center text-slate-500">Yükleniyor...</div>
+            <div className="py-10 text-center text-slate-500">{t('fixtures.page.loading')}</div>
           ) : fixtures.length === 0 ? (
-            <div className="py-10 text-center text-slate-500">Henüz fikstür oluşturulmamış.</div>
+            <div className="py-10 text-center text-slate-500">{t('fixtures.page.empty')}</div>
           ) : (
             fixtures.map((fixture) => {
-              const liveLabel = getLiveStateLabel(fixture);
+              const liveStateKey = getLiveStateKey(fixture);
+              const liveLabel = liveStateKey ? t(`fixtures.labels.${liveStateKey}`) : null;
               const joinable = isLiveJoinable(fixture);
               const joining = joiningFixtureId === fixture.id;
+              const myTeamName = user?.teamName || t('common.teamFallback');
 
               return (
                 <div
@@ -348,7 +374,11 @@ export default function MyFixturesPage() {
                   className="group flex flex-col gap-4 rounded-2xl border border-white/5 bg-[#1a1725] p-4 transition-all duration-300 hover:border-purple-500/30 hover:bg-[#201c2d] md:flex-row md:items-center md:justify-between"
                 >
                   <div className="w-full text-xs font-semibold tracking-wider text-slate-400 md:w-32">
-                    {format(fixture.date, 'dd.MM.yyyy')}
+                    {formatDate(fixture.date, {
+                      day: '2-digit',
+                      month: '2-digit',
+                      year: 'numeric',
+                    })}
                   </div>
 
                   <div className="flex w-full flex-1 items-center justify-center gap-8 md:justify-start md:gap-12">
@@ -358,7 +388,7 @@ export default function MyFixturesPage() {
                           user?.teamLogo ? (
                             <img
                               src={user.teamLogo}
-                              alt={user.teamName || 'Takımım'}
+                              alt={myTeamName}
                               className="h-full w-full rounded-md object-cover"
                             />
                           ) : (
@@ -374,8 +404,10 @@ export default function MyFixturesPage() {
                           <Shield size={12} className="text-slate-500" />
                         )}
                       </div>
-                      <span className={`truncate text-sm font-bold ${fixture.home ? 'text-white' : 'text-slate-400'}`}>
-                        {fixture.home ? user?.teamName || 'Takımım' : fixture.opponent}
+                      <span
+                        className={`truncate text-sm font-bold ${fixture.home ? 'text-white' : 'text-slate-400'}`}
+                      >
+                        {fixture.home ? myTeamName : fixture.opponent}
                       </span>
                     </div>
 
@@ -385,7 +417,7 @@ export default function MyFixturesPage() {
                           user?.teamLogo ? (
                             <img
                               src={user.teamLogo}
-                              alt={user.teamName || 'Takımım'}
+                              alt={myTeamName}
                               className="h-full w-full rounded-md object-cover"
                             />
                           ) : (
@@ -401,8 +433,10 @@ export default function MyFixturesPage() {
                           <Shield size={12} className="text-slate-500" />
                         )}
                       </div>
-                      <span className={`truncate text-sm font-bold ${!fixture.home ? 'text-white' : 'text-slate-400'}`}>
-                        {!fixture.home ? user?.teamName || 'Takımım' : fixture.opponent}
+                      <span
+                        className={`truncate text-sm font-bold ${!fixture.home ? 'text-white' : 'text-slate-400'}`}
+                      >
+                        {!fixture.home ? myTeamName : fixture.opponent}
                       </span>
                     </div>
                   </div>
@@ -415,10 +449,15 @@ export default function MyFixturesPage() {
 
                       <div className="flex min-w-[80px] items-center justify-end gap-3">
                         {renderStatusIndicator(fixture)}
-                        <span className={`text-lg font-black ${fixture.status === 'played' ? 'text-white' : 'text-slate-500'}`}>
+                        <span
+                          className={`text-lg font-black ${fixture.status === 'played' ? 'text-white' : 'text-slate-500'}`}
+                        >
                           {fixture.status === 'played' && fixture.score
                             ? `${fixture.score.home} - ${fixture.score.away}`
-                            : format(fixture.date, 'HH:mm')}
+                            : formatDate(fixture.date, {
+                                hour: '2-digit',
+                                minute: '2-digit',
+                              })}
                         </span>
                       </div>
                     </div>
@@ -427,11 +466,11 @@ export default function MyFixturesPage() {
                       {liveLabel ? (
                         <span
                           className={`inline-flex items-center gap-1 rounded-full border px-3 py-1 text-[11px] font-bold tracking-[0.2em] ${
-                            liveLabel === 'CANLI'
+                            liveStateKey === 'live'
                               ? 'border-cyan-400/40 bg-cyan-500/10 text-cyan-200'
-                              : liveLabel === 'HAZIRLANIYOR'
+                              : liveStateKey === 'preparing'
                                 ? 'border-amber-400/40 bg-amber-500/10 text-amber-200'
-                                : liveLabel === 'HATA'
+                                : liveStateKey === 'error'
                                   ? 'border-rose-400/40 bg-rose-500/10 text-rose-200'
                                   : 'border-white/10 bg-white/5 text-slate-300'
                           }`}
@@ -443,7 +482,7 @@ export default function MyFixturesPage() {
 
                       {isFixtureEffectivelyRunning(fixture) && !liveLabel ? (
                         <span className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-200">
-                          Maç oynanıyor
+                          {t('fixtures.labels.currentlyPlaying')}
                         </span>
                       ) : null}
 
@@ -456,7 +495,7 @@ export default function MyFixturesPage() {
                           className="bg-cyan-500 font-bold text-slate-950 hover:bg-cyan-400"
                         >
                           {joining ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                          İzle
+                          {t('fixtures.labels.watch')}
                         </Button>
                       ) : null}
                     </div>

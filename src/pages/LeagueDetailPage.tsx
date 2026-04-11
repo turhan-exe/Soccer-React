@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
+import { useTranslation } from '@/contexts/LanguageContext';
 import { listenStandings, getLeagueTeams } from '@/services/leagues';
 import type { Standing } from '@/types';
 import { PagesHeader } from '@/components/layout/PagesHeader';
@@ -7,6 +8,7 @@ import { Shield } from 'lucide-react';
 
 export default function LeagueDetailPage() {
   const { leagueId } = useParams();
+  const { t } = useTranslation();
   const [rows, setRows] = useState<Standing[]>([]);
 
   useEffect(() => {
@@ -44,7 +46,7 @@ export default function LeagueDetailPage() {
     if (raw.toLowerCase().startsWith('bot ')) {
       const parts = raw.split(' ');
       if (parts.length > 1) {
-        return `Bot ${parts[1].slice(0, 3).toUpperCase()}`;
+        return `${t('leagues.detailPage.botPrefix')} ${parts[1].slice(0, 3).toUpperCase()}`;
       }
     }
 
@@ -53,11 +55,16 @@ export default function LeagueDetailPage() {
 
   return (
     <div className="flex min-h-screen flex-col gap-4 overflow-x-hidden bg-slate-950 p-3 font-sans text-slate-100 sm:p-4 md:gap-6 md:p-6 lg:p-8">
-      <PagesHeader title="Lig Detay\u0131" description="Puan durumu ve istatistikler.." />
+      <PagesHeader
+        title={t('leagues.detailPage.title')}
+        description={t('leagues.detailPage.description')}
+      />
 
       <div className="relative flex-1 overflow-hidden rounded-[24px] border border-white/5 bg-[#13111c]/90 p-3 shadow-2xl backdrop-blur-sm sm:p-4 md:rounded-[32px] md:p-8">
         <div className="mb-4 md:mb-6">
-          <h2 className="text-xl font-bold tracking-wide text-purple-200 md:text-2xl">Puan Durumu</h2>
+          <h2 className="text-xl font-bold tracking-wide text-purple-200 md:text-2xl">
+            {t('leagues.detailPage.standingsTitle')}
+          </h2>
         </div>
 
         <div className="overflow-hidden rounded-xl border border-white/5">
@@ -76,16 +83,16 @@ export default function LeagueDetailPage() {
             </colgroup>
             <thead className="border-b border-white/5 bg-[#1a1725]/50 text-[10px] uppercase text-slate-500 sm:text-xs">
               <tr>
-                <th className="px-2 py-3 text-center font-bold tracking-wider sm:px-3 md:px-4">S</th>
-                <th className="px-2 py-3 font-bold tracking-wider sm:px-3 md:px-4">{'Tak\u0131m'}</th>
-                <th className="px-1 py-3 text-center font-bold tracking-wider sm:px-2 md:px-3">O</th>
-                <th className="px-1 py-3 text-center font-bold tracking-wider sm:px-2 md:px-3">G</th>
-                <th className="px-1 py-3 text-center font-bold tracking-wider sm:px-2 md:px-3">B</th>
-                <th className="px-1 py-3 text-center font-bold tracking-wider sm:px-2 md:px-3">M</th>
-                <th className="hidden px-2 py-3 text-center font-bold tracking-wider md:table-cell md:px-3">AG</th>
-                <th className="hidden px-2 py-3 text-center font-bold tracking-wider md:table-cell md:px-3">YG</th>
-                <th className="hidden px-2 py-3 text-center font-bold tracking-wider sm:table-cell sm:px-3">AV</th>
-                <th className="border-l border-white/5 bg-white/5 px-1 py-3 text-center font-black tracking-wider text-white sm:px-2 md:px-3">P</th>
+                <th className="px-2 py-3 text-center font-bold tracking-wider sm:px-3 md:px-4">{t('leagues.detailPage.columns.rank')}</th>
+                <th className="px-2 py-3 font-bold tracking-wider sm:px-3 md:px-4">{t('leagues.detailPage.columns.team')}</th>
+                <th className="px-1 py-3 text-center font-bold tracking-wider sm:px-2 md:px-3">{t('leagues.detailPage.columns.played')}</th>
+                <th className="px-1 py-3 text-center font-bold tracking-wider sm:px-2 md:px-3">{t('leagues.detailPage.columns.won')}</th>
+                <th className="px-1 py-3 text-center font-bold tracking-wider sm:px-2 md:px-3">{t('leagues.detailPage.columns.draw')}</th>
+                <th className="px-1 py-3 text-center font-bold tracking-wider sm:px-2 md:px-3">{t('leagues.detailPage.columns.lost')}</th>
+                <th className="hidden px-2 py-3 text-center font-bold tracking-wider md:table-cell md:px-3">{t('leagues.detailPage.columns.goalsFor')}</th>
+                <th className="hidden px-2 py-3 text-center font-bold tracking-wider md:table-cell md:px-3">{t('leagues.detailPage.columns.goalsAgainst')}</th>
+                <th className="hidden px-2 py-3 text-center font-bold tracking-wider sm:table-cell sm:px-3">{t('leagues.detailPage.columns.goalDiff')}</th>
+                <th className="border-l border-white/5 bg-white/5 px-1 py-3 text-center font-black tracking-wider text-white sm:px-2 md:px-3">{t('leagues.detailPage.columns.points')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-white/5">

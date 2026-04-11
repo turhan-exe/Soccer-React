@@ -1,6 +1,7 @@
 ﻿import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { useTranslation } from '@/contexts/LanguageContext';
 import {
   ensureDefaultLeague,
   hydrateLeagueTeamCounts,
@@ -15,6 +16,7 @@ import { format } from 'date-fns';
 export default function LeaguesListPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { t } = useTranslation();
   const [leagues, setLeagues] = useState<League[]>([]);
   const [myLeagueId, setMyLeagueId] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
@@ -84,27 +86,32 @@ export default function LeaguesListPage() {
 
   return (
     <div className="min-h-screen bg-slate-950 p-4 md:p-6 lg:p-8 font-sans text-slate-100 flex flex-col gap-6">
-      <PagesHeader title="Ligler" description="Lig açıklaması.." />
+      <PagesHeader
+        title={t('leagues.listPage.title')}
+        description={t('leagues.listPage.description')}
+      />
 
       <div className="bg-[#13111c]/90 border border-white/5 rounded-[32px] p-6 md:p-8 flex-1 relative shadow-2xl backdrop-blur-sm">
         <div className="mb-6 flex items-center justify-between">
-          <h2 className="text-2xl font-bold text-purple-200 tracking-wide">Lig Listesi</h2>
+          <h2 className="text-2xl font-bold text-purple-200 tracking-wide">
+            {t('leagues.listPage.listTitle')}
+          </h2>
         </div>
 
         {/* Table Header (Desktop) */}
         <div className="hidden md:grid grid-cols-12 gap-4 text-slate-500 text-xs font-bold uppercase tracking-wider mb-4 px-4">
-          <div className="col-span-5">Lig Detayı</div>
-          <div className="col-span-2 text-center">Sezon</div>
-          <div className="col-span-2 text-center">Doluluk</div>
-          <div className="col-span-2 text-center">Durum</div>
+          <div className="col-span-5">{t('leagues.listPage.columns.detail')}</div>
+          <div className="col-span-2 text-center">{t('leagues.listPage.columns.season')}</div>
+          <div className="col-span-2 text-center">{t('leagues.listPage.columns.occupancy')}</div>
+          <div className="col-span-2 text-center">{t('leagues.listPage.columns.status')}</div>
           <div className="col-span-1"></div>
         </div>
 
         <div className="space-y-3">
           {loading ? (
-            <div className="text-center py-10 text-slate-500">Ligler yükleniyor...</div>
+            <div className="text-center py-10 text-slate-500">{t('leagues.listPage.loading')}</div>
           ) : leagues.length === 0 ? (
-            <div className="text-center py-10 text-slate-500">Henüz lig bulunamadı.</div>
+            <div className="text-center py-10 text-slate-500">{t('leagues.listPage.empty')}</div>
           ) : (
             <>
               {/* My League Section */}
@@ -120,7 +127,7 @@ export default function LeaguesListPage() {
                     <div>
                       <div className="text-white font-bold text-lg">{myLeague.name}</div>
                       <div className="text-purple-300 text-xs font-medium bg-purple-500/10 px-2 py-0.5 rounded-full w-fit mt-1">
-                        Mevcut Ligin
+                        {t('leagues.listPage.currentLeague')}
                       </div>
                     </div>
                   </div>
@@ -135,7 +142,7 @@ export default function LeaguesListPage() {
                     <span className={`px-3 py-1 rounded-full text-xs font-bold border ${myLeague.state === 'active' ? 'bg-green-500/10 text-green-400 border-green-500/20' :
                       'bg-slate-800 text-slate-400 border-white/5'
                       }`}>
-                      {myLeague.state === 'active' ? 'Aktif' : myLeague.state}
+                      {t(`leagues.states.${myLeague.state}`)}
                     </span>
                   </div>
                   <div className="col-span-1 flex justify-end text-slate-500 group-hover:text-white transition-colors">
@@ -170,7 +177,7 @@ export default function LeaguesListPage() {
                     <span className={`px-3 py-1 rounded-full text-xs font-bold border ${l.state === 'active' ? 'bg-green-500/10 text-green-400 border-green-500/20' :
                       'bg-slate-800 text-slate-400 border-white/5'
                       }`}>
-                      {l.state === 'active' ? 'Aktif' : l.state}
+                      {t(`leagues.states.${l.state}`)}
                     </span>
                   </div>
                   <div className="col-span-1 flex justify-end text-slate-600 group-hover:text-white transition-colors">

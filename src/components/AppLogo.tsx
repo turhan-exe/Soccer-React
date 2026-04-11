@@ -24,10 +24,10 @@ const AppLogo = ({
   return (
     <div className={cn('flex items-center gap-2 select-none', className)}>
       <img
-        src="/Logo/Logo.png"
+        src="/Logo/app-logo-circle.png"
         alt="FHS Futbol Menajerlik logo"
-        className={cn('object-contain', dimensionClasses)}
-        loading="lazy"
+        className={cn('block rounded-full object-contain', dimensionClasses)}
+        loading="eager"
       />
       {showText ? (
         <span className={cn('font-semibold tracking-tight text-foreground', textClassName)}>

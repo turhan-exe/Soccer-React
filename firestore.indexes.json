@@ -1,6 +1,20 @@
 {
   "indexes": [
     {
+      "collectionGroup": "academyCandidates",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
       "collectionId": "leagues",
       "queryScope": "COLLECTION",
       "fields": [

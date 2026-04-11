@@ -5,8 +5,10 @@ import { StatBar } from '@/components/ui/stat-bar';
 import { Button } from '@/components/ui/button';
 import { TrendingUp } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { useTranslation } from '@/contexts/LanguageContext';
 import { formatRatingLabel } from '@/lib/player';
 import { getPositionShortLabel } from '@/lib/positionLabels';
+import { getTrainingAttributeLabel } from '@/lib/trainingLabels';
 
 interface Props {
   candidate: YouthCandidate;
@@ -15,28 +17,29 @@ interface Props {
 }
 
 const YouthCandidateCard: React.FC<Props> = ({ candidate, onAccept, onRelease }) => {
+  const { t } = useTranslation();
   const { player } = candidate;
   const initials = player.name
     .split(' ')
-    .map((n) => n[0])
+    .map((name) => name[0])
     .join('');
 
   const attributeEntries: [string, number][] = [
-    ['Hız', player.attributes.topSpeed],
-    ['Şut', player.attributes.shooting],
-    ['Güç', player.attributes.strength],
-    ['İvme', player.attributes.acceleration],
-    ['Top Sürme', player.attributes.dribbleSpeed],
-    ['Zıplama', player.attributes.jump],
-    ['Savunma', player.attributes.tackling],
-    ['Top Saklama', player.attributes.ballKeeping],
-    ['Pas', player.attributes.passing],
-    ['Uzun Pas', player.attributes.longBall],
-    ['Çeviklik', player.attributes.agility],
-    ['Şut Gücü', player.attributes.shootPower],
-    ['Pozisyon Alma', player.attributes.positioning],
-    ['Reaksiyon', player.attributes.reaction],
-    ['Top Kontrolü', player.attributes.ballControl],
+    [getTrainingAttributeLabel('topSpeed'), player.attributes.topSpeed],
+    [getTrainingAttributeLabel('shooting'), player.attributes.shooting],
+    [getTrainingAttributeLabel('strength'), player.attributes.strength],
+    [getTrainingAttributeLabel('acceleration'), player.attributes.acceleration],
+    [getTrainingAttributeLabel('dribbleSpeed'), player.attributes.dribbleSpeed],
+    [getTrainingAttributeLabel('jump'), player.attributes.jump],
+    [getTrainingAttributeLabel('tackling'), player.attributes.tackling],
+    [getTrainingAttributeLabel('ballKeeping'), player.attributes.ballKeeping],
+    [getTrainingAttributeLabel('passing'), player.attributes.passing],
+    [getTrainingAttributeLabel('longBall'), player.attributes.longBall],
+    [getTrainingAttributeLabel('agility'), player.attributes.agility],
+    [getTrainingAttributeLabel('shootPower'), player.attributes.shootPower],
+    [getTrainingAttributeLabel('positioning'), player.attributes.positioning],
+    [getTrainingAttributeLabel('reaction'), player.attributes.reaction],
+    [getTrainingAttributeLabel('ballControl'), player.attributes.ballControl],
   ];
 
   const basicStats = attributeEntries.slice(0, 2);
@@ -65,18 +68,18 @@ const YouthCandidateCard: React.FC<Props> = ({ candidate, onAccept, onRelease })
               <h3 className="truncate text-base font-semibold tracking-tight">{player.name}</h3>
               <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs">
                 <Badge variant="secondary" className="border-white/20 bg-white/10 text-white backdrop-blur">
-                  {player.age} yaş
+                  {t('common.ageLong', { age: player.age })}
                 </Badge>
                 <div className="flex items-center gap-1 rounded-full border border-white/10 bg-white/10 px-2 py-0.5 text-[11px] font-medium text-cyan-100 shadow-inner shadow-cyan-500/10">
                   <TrendingUp className="h-3 w-3" />
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <span className="font-semibold">
-                        {formatRatingLabel(player.overall)}
-                      </span>
+                      <span className="font-semibold">{formatRatingLabel(player.overall)}</span>
                     </TooltipTrigger>
                     <TooltipContent>
-                      Maks. Potansiyel: {formatRatingLabel(player.potential)}
+                      {t('academy.candidate.potential', {
+                        value: formatRatingLabel(player.potential),
+                      })}
                     </TooltipContent>
                   </Tooltip>
                 </div>
@@ -101,7 +104,7 @@ const YouthCandidateCard: React.FC<Props> = ({ candidate, onAccept, onRelease })
                 data-testid={`youth-accept-${candidate.id}`}
                 className="rounded-full border border-transparent bg-white/5 px-3 text-xs font-semibold text-cyan-100 shadow-sm transition hover:border-cyan-400/60 hover:bg-cyan-500/20 hover:text-white"
               >
-                Takıma Al
+                {t('academy.candidate.promote')}
               </Button>
               <Button
                 variant="ghost"
@@ -110,7 +113,7 @@ const YouthCandidateCard: React.FC<Props> = ({ candidate, onAccept, onRelease })
                 data-testid={`youth-release-${candidate.id}`}
                 className="rounded-full border border-transparent bg-white/5 px-3 text-xs font-semibold text-slate-200 shadow-sm transition hover:border-rose-500/60 hover:bg-rose-500/20 hover:text-white"
               >
-                Serbest Bırak
+                {t('academy.candidate.release')}
               </Button>
             </div>
           </div>
@@ -126,10 +129,10 @@ const YouthCandidateCard: React.FC<Props> = ({ candidate, onAccept, onRelease })
               ))}
               <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] uppercase tracking-wide text-slate-300/90">
                 <span className="rounded-full border border-white/10 bg-white/5 px-2 py-1">
-                  Boy: {player.height} cm
+                  {t('academy.candidate.height', { value: player.height })}
                 </span>
                 <span className="rounded-full border border-white/10 bg-white/5 px-2 py-1">
-                  Kilo: {player.weight} kg
+                  {t('academy.candidate.weight', { value: player.weight })}
                 </span>
               </div>
             </div>

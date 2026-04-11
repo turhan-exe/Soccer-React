@@ -6,27 +6,29 @@ import React, {
   useState,
 } from 'react';
 import { toast } from 'sonner';
+
 import { useAuth } from '@/contexts/AuthContext';
-import { Player, TransferListing } from '@/types';
+import { useTranslation } from '@/contexts/LanguageContext';
+import { useClubFinance } from '@/hooks/useClubFinance';
+import { getLegendIdFromPlayer } from '@/services/legends';
+import { syncTeamSalaries } from '@/services/finance';
 import { getTeam } from '@/services/team';
 import {
-  createTransferListing,
   cancelTransferListing,
+  createTransferListing,
   listenAvailableTransferListings,
   listenUserTransferListings,
   purchaseTransferListing,
   type MarketSortOption,
 } from '@/services/transferMarket';
-import { getLegendIdFromPlayer } from '@/services/legends';
-import { syncTeamSalaries } from '@/services/finance';
-import './transfer-market.css';
-import { useClubFinance } from '@/hooks/useClubFinance';
+import type { Player, TransferListing } from '@/types';
 
-// Components
-import { TransferHeader } from '@/features/transfer/components/TransferHeader';
-import { MarketList } from '@/features/transfer/components/MarketList';
-import { CreateListing } from '@/features/transfer/components/CreateListing';
 import { ActiveListings } from '@/features/transfer/components/ActiveListings';
+import { CreateListing } from '@/features/transfer/components/CreateListing';
+import { MarketList } from '@/features/transfer/components/MarketList';
+import { TransferHeader } from '@/features/transfer/components/TransferHeader';
+
+import './transfer-market.css';
 
 type SortOption =
   | 'overall-desc' | 'overall-asc'
@@ -63,27 +65,8 @@ const extractIndexLink = (message: string): string | null => {
   return match[0].replace(/[).,]$/, '');
 };
 
-const resolveMarketplaceError = (error: unknown) => {
-  const err = error instanceof Error ? error : new Error(String(error));
-  const message = err.message || '';
-
-  if (message.includes('requires an index') || err.name === 'FirebaseError') {
-    const link = extractIndexLink(message);
-    if (link) {
-      return {
-        title: 'Veritabanı İndeksi Gerekli',
-        description: 'Bu filtreleme kombinasyonu için yeni bir indeks oluşturulmalı.',
-        action: {
-          label: 'İndeksi Oluştur',
-          onClick: () => window.open(link, '_blank')
-        }
-      };
-    }
-  }
-  return { title: 'Pazar verisi alınamadı', description: message };
-};
-
 export default function TransferMarket() {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const [teamPlayers, setTeamPlayers] = useState<Player[]>([]);
   const [teamName, setTeamName] = useState<string>('');
@@ -98,7 +81,6 @@ export default function TransferMarket() {
   const [isMyListingsLoading, setIsMyListingsLoading] = useState(false);
   const [cancellingId, setCancellingId] = useState<string>('');
 
-  // Filters (for now keeping default, but ready for UI expansion)
   const [filters, setFilters] = useState<FilterState>({
     position: 'all',
     maxPrice: '',
@@ -107,24 +89,43 @@ export default function TransferMarket() {
 
   const previousListingCount = useRef<number>(0);
 
-  // Load Team Data
+  const resolveMarketplaceError = useCallback((error: unknown) => {
+    const err = error instanceof Error ? error : new Error(String(error));
+    const message = err.message || '';
+
+    if (message.includes('requires an index') || err.name === 'FirebaseError') {
+      const link = extractIndexLink(message);
+      if (link) {
+        return {
+          title: t('transfer.indexRequired'),
+          description: t('transfer.indexRequiredDescription'),
+          action: {
+            label: t('transfer.createIndex'),
+            onClick: () => window.open(link, '_blank'),
+          },
+        };
+      }
+    }
+
+    return { title: t('transfer.marketDataError'), description: message };
+  }, [t]);
+
   const loadTeam = useCallback(async () => {
     if (!user) return;
     try {
       const team = await getTeam(user.id);
       setTeamPlayers(team?.players ?? []);
-      setTeamName(team?.name ?? user.teamName ?? 'Takımım');
+      setTeamName(team?.name ?? user.teamName ?? t('transfer.myTeamFallback'));
     } catch (error) {
-      console.error('[TransferMarket] takimi yukleme hatasi', error);
-      toast.error('Takım bilgileri alınamadı.');
+      console.error('[TransferMarket] team load failed', error);
+      toast.error(t('transfer.teamLoadError'));
     }
-  }, [user]);
+  }, [t, user]);
 
   useEffect(() => {
-    loadTeam();
+    void loadTeam();
   }, [loadTeam]);
 
-  // Listen Available Listings
   useEffect(() => {
     if (!user) {
       setListings([]);
@@ -162,9 +163,8 @@ export default function TransferMarket() {
       isMounted = false;
       unsubscribe();
     };
-  }, [filters, user]);
+  }, [filters, resolveMarketplaceError, user]);
 
-  // Listen My Listings
   useEffect(() => {
     if (!user?.id) {
       setMyListings([]);
@@ -195,18 +195,16 @@ export default function TransferMarket() {
       isMounted = false;
       unsubscribe();
     };
-  }, [user?.id]);
+  }, [resolveMarketplaceError, user?.id]);
 
-  // Refresh team if my listings change count
   useEffect(() => {
     if (!user) return;
     if (previousListingCount.current > myListings.length) {
-      loadTeam();
+      void loadTeam();
     }
     previousListingCount.current = myListings.length;
   }, [loadTeam, myListings.length, user]);
 
-  // Calculate Available Players (for selling)
   const availablePlayers = useMemo(() => {
     const listedIds = new Set(myListings.map(listing => listing.playerId));
     return teamPlayers.filter(player => {
@@ -217,31 +215,29 @@ export default function TransferMarket() {
     });
   }, [myListings, teamPlayers]);
 
-
-  // Actions
   const handleCreateListing = async () => {
     if (!user) return;
     const player = availablePlayers.find(p => p.id === selectedPlayerId);
     if (!player) {
-      toast.error('Pazara koymak için bir oyuncu seç.');
+      toast.error(t('transfer.selectPlayerError'));
       return;
     }
 
     const priceValue = Number(price);
     if (!Number.isFinite(priceValue) || priceValue <= 0) {
-      toast.error('Geçerli bir fiyat gir.');
+      toast.error(t('transfer.invalidPriceError'));
       return;
     }
 
     setIsListing(true);
     try {
       await createTransferListing({ player, price: priceValue });
-      toast.success(`${player.name} transfer pazarına eklendi.`);
+      toast.success(t('transfer.createSuccess', { name: player.name }));
       setSelectedPlayerId('');
       setPrice('');
       await loadTeam();
     } catch (error) {
-      toast.error('İlan oluşturulamadı.', { description: (error as Error).message });
+      toast.error(t('transfer.createError'), { description: (error as Error).message });
     } finally {
       setIsListing(false);
     }
@@ -252,10 +248,10 @@ export default function TransferMarket() {
     setCancellingId(listingId);
     try {
       await cancelTransferListing(listingId);
-      toast.success('İlan kaldırıldı.');
+      toast.success(t('transfer.cancelSuccess'));
       await loadTeam();
     } catch (error) {
-      toast.error('İlan kaldırılamadı.', { description: (error as Error).message });
+      toast.error(t('transfer.cancelError'), { description: (error as Error).message });
     } finally {
       setCancellingId('');
     }
@@ -264,7 +260,7 @@ export default function TransferMarket() {
   const handlePurchase = async (listing: TransferListing) => {
     if (!user) return;
     if (teamBudget < listing.price) {
-      toast.error('Bütçen yetersiz.');
+      toast.error(t('transfer.insufficientBudget'));
       return;
     }
 
@@ -273,33 +269,26 @@ export default function TransferMarket() {
       await purchaseTransferListing(listing.id, user.id);
       await loadTeam();
 
-      const player = listing.player;
-      if (player) {
-        // Simple transfer logic, skipping negotiation dialog for this refactor to keep it clean first
-        // Ideally we would integrate the negotiation flow here if requested, but maintaining existing simple flow for now
+      if (listing.player) {
         await syncTeamSalaries(user.id);
       }
-      toast.success('Transfer başarılı!');
+
+      toast.success(t('transfer.purchaseSuccess', {
+        name: listing.player?.name ?? t('transfer.unknownPlayer'),
+      }));
     } catch (error) {
-      toast.error('Satın alma başarısız.', { description: (error as Error).message });
+      toast.error(t('transfer.purchaseError'), { description: (error as Error).message });
     } finally {
       setPurchasingId('');
     }
   };
 
-
-
   return (
     <div className="min-h-screen bg-[#14151f] p-4 pb-24 font-sans text-slate-100">
       <div className="mx-auto max-w-7xl">
-        {/* Header Section */}
-        <TransferHeader
-          teamName={teamName}
-          budget={teamBudget}
-        />
+        <TransferHeader teamName={teamName} budget={teamBudget} />
 
         <div className="flex flex-col gap-6">
-          {/* Top Section: Market List */}
           <div className="w-full">
             <MarketList
               listings={listings}
@@ -313,9 +302,7 @@ export default function TransferMarket() {
             />
           </div>
 
-          {/* Bottom Section: Actions & My Listings */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
-            {/* Left: Create Listing */}
+          <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-2">
             <CreateListing
               availablePlayers={availablePlayers}
               selectedPlayerId={selectedPlayerId}
@@ -326,7 +313,6 @@ export default function TransferMarket() {
               onSubmit={handleCreateListing}
             />
 
-            {/* Right: Active Listings */}
             <div className="min-h-[400px]">
               <ActiveListings
                 listings={myListings}
@@ -341,5 +327,3 @@ export default function TransferMarket() {
     </div>
   );
 }
-
-

@@ -1,5 +1,6 @@
 import YouthCandidateCard from './YouthCandidateCard';
 import InfoPopupButton from '@/components/ui/info-popup-button';
+import { useTranslation } from '@/contexts/LanguageContext';
 import { YouthCandidate } from '@/services/youth';
 import { cn } from '@/lib/utils';
 
@@ -18,23 +19,26 @@ const YouthList: React.FC<Props> = ({
   className,
   emptyStateClassName,
 }) => {
+  const { t } = useTranslation();
+
   if (candidates.length === 0) {
     return (
       <div className={cn('flex justify-center py-6', emptyStateClassName)}>
         <InfoPopupButton
-          title="Oyuncu Havuzu"
-          triggerLabel="Altyapı oyuncusu bulunmadığında bilgi mesajını aç"
-          message="Henüz altyapı oyuncusu yok. Yeni aday üret."
+          title={t('academy.candidate.poolTitle')}
+          triggerLabel={t('academy.candidate.poolTrigger')}
+          message={t('academy.candidate.poolEmpty')}
         />
       </div>
     );
   }
+
   return (
     <div className={cn('grid gap-4 md:grid-cols-2 xl:grid-cols-3', className)}>
-      {candidates.map((c) => (
+      {candidates.map((candidate) => (
         <YouthCandidateCard
-          key={c.id}
-          candidate={c}
+          key={candidate.id}
+          candidate={candidate}
           onAccept={onAccept}
           onRelease={onRelease}
         />

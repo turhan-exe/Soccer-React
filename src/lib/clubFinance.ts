@@ -1,3 +1,5 @@
+import { formatCurrencyValue } from '@/i18n/runtime';
+
 export const INITIAL_CLUB_BALANCE = 50_000;
 
 export const normalizeClubBalance = (value: unknown, fallback = 0): number => {
@@ -9,8 +11,4 @@ export const normalizeClubBalance = (value: unknown, fallback = 0): number => {
 };
 
 export const formatClubCurrency = (value: number): string =>
-  new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    maximumFractionDigits: 0,
-  }).format(normalizeClubBalance(value));
+  formatCurrencyValue(normalizeClubBalance(value));

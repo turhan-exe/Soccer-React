@@ -33,6 +33,7 @@ import {
 } from "@/services/rewardedAds";
 import { useAuth } from "@/contexts/AuthContext";
 import { useDiamonds } from "@/contexts/DiamondContext";
+import { useTranslation } from "@/contexts/LanguageContext";
 import { Search, Save, Eye, X, ChevronLeft } from "lucide-react";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
@@ -80,6 +81,7 @@ import {
   getLineupReadinessIssues,
   getPlayerMotivation,
   getPlayerPower,
+  getMetricLabel,
   getPositionLabel,
   getRenameAdAvailability,
   HOURS_IN_MS,
@@ -141,6 +143,7 @@ function TeamPlanningContent() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { balance, spend } = useDiamonds();
+  const { t, formatDate, language } = useTranslation();
   const [players, setPlayers] = useState<Player[]>([]);
   const playerBaselineRef = useRef<Record<string, PlayerBaseline>>({});
   const [searchTerm, setSearchTerm] = useState("");
@@ -568,7 +571,7 @@ function TeamPlanningContent() {
     setPlayers((prev) => {
       const playerIndex = prev.findIndex((player) => player.id === playerId);
       if (playerIndex === -1) {
-        errorMessage = "Oyuncu bulunamadı.";
+        errorMessage = t("teamPlanning.errors.playerNotFound");
         return prev;
       }
 
@@ -606,7 +609,9 @@ function TeamPlanningContent() {
     });
 
     if (errorMessage) {
-      toast.error("işlem tamamlanamadı", { description: errorMessage });
+      toast.error(t("teamPlanning.toasts.actionFailed"), {
+        description: errorMessage,
+      });
     } else if (changed) {
       if (newRole !== "starting") {
         removePlayerFromCustomFormations(playerId);
@@ -615,21 +620,23 @@ function TeamPlanningContent() {
       }
       if (newRole === "starting") {
         if (filledStartingVacancy) {
-          toast.success("Oyuncu bos slota alindi", {
+          toast.success(t("teamPlanning.toasts.movedToEmptySlot"), {
             description: movedPlayerPosition
-              ? `${movedPlayerPosition} icin bos slot dolduruldu.`
-              : "Ilk 11 icindeki bos alan dolduruldu.",
+              ? t("teamPlanning.toasts.movedToEmptySlotDescription", {
+                  position: getPositionLabel(movedPlayerPosition, language),
+                })
+              : t("teamPlanning.toasts.movedToEmptySlotDescriptionGeneric"),
           });
         } else if (swappedPlayerId) {
-          toast.success("Oyuncu ilk 11'e alindi", {
-            description: "Ilk 11 dolu oldugu icin swap yapildi.",
+          toast.success(t("teamPlanning.toasts.movedToStarting"), {
+            description: t("teamPlanning.toasts.movedToStartingSwapDescription"),
           });
         } else {
-          toast.success("Oyuncu ilk 11'e alindi");
+          toast.success(t("teamPlanning.toasts.movedToStarting"));
         }
         return;
       }
-      toast.success("Oyuncu başarıyla taşındı");
+      toast.success(t("teamPlanning.toasts.movedSuccess"));
     }
   };
 
@@ -641,28 +648,31 @@ function TeamPlanningContent() {
     const userId = user.id;
     const trimmed = renameInput.trim();
     if (trimmed.length < 2) {
-      toast.error("İsim en az 2 karakter olmalı");
+      toast.error(t("teamPlanning.errors.invalidName"));
       return;
     }
 
     if (trimmed === renamePlayer.name) {
-      toast.info("Oyuncu adı değişmedi");
+      toast.info(t("teamPlanning.toasts.renameUnchanged"));
       return;
     }
 
     if (method === "ad" && !isRenameAdAvailable) {
       const availableAt = getRenameAdAvailability(renamePlayer);
       const message = availableAt
-        ? `Reklam ${availableAt.toLocaleString(
-            "tr-TR"
-          )} sonrasında tekrar izlenebilir.`
-        : "Reklam hakkı şu anda kullanılamıyor.";
+        ? t("teamPlanning.toasts.renameAdAvailableAt", {
+            date: formatDate(availableAt, {
+              dateStyle: "medium",
+              timeStyle: "short",
+            }),
+          })
+        : t("teamPlanning.toasts.renameAdUnavailable");
       toast.error(message);
       return;
     }
 
     if (method === "purchase" && balance < PLAYER_RENAME_DIAMOND_COST) {
-      toast.error("Yetersiz elmas bakiyesi");
+      toast.error(t("teamPlanning.errors.insufficientDiamonds"));
       return;
     }
 
@@ -691,15 +701,15 @@ function TeamPlanningContent() {
           if (refreshedTeam) {
             setPlayers(normalizePlayers(refreshedTeam.players));
           }
-          toast.success("Oyuncu adi guncellendi");
+          toast.success(t("teamPlanning.toasts.renameUpdatedLegacy"));
           setRenamePlayerId(null);
           return;
         }
 
         if (result.outcome === "dismissed") {
-          toast.info("Reklam tamamlanmadi, isim degismedi.");
+          toast.info(t("teamPlanning.toasts.renameAdDismissed"));
         } else if (result.outcome === "pending_verification") {
-          toast.info("Reklam dogrulaniyor. Biraz sonra yeniden deneyin.");
+          toast.info(t("teamPlanning.toasts.renameAdPending"));
         } else {
           toast.error(getRewardedAdFailureMessage(result.ad));
         }
@@ -740,18 +750,16 @@ function TeamPlanningContent() {
 
       setPlayers(updatedPlayers);
       await saveTeamPlayers(userId, updatedPlayers);
-      toast.success("Oyuncu adı güncellendi");
+      toast.success(t("teamPlanning.toasts.renameUpdated"));
       setRenamePlayerId(null);
     } catch (error) {
       console.error("[TeamPlanning] player rename failed", error);
-      toast.error("Oyuncu adı güncellenemedi");
+      toast.error(t("teamPlanning.errors.renameFailed"));
       if (method === "purchase") {
         setPlayers(previousPlayers);
       }
       if (method === "purchase" && diamondsSpent) {
-        toast.error(
-          "Elmas harcaması yapıldı, lütfen destek ekibiyle iletişime geçin."
-        );
+        toast.error(t("teamPlanning.toasts.renameRefundSupport"));
       }
     } finally {
       setIsRenamingPlayer(false);
@@ -759,144 +767,150 @@ function TeamPlanningContent() {
   };
 
   const openSalaryNegotiation = (playerId: string) => {
-    const target = displayPlayers.find((player) => player.id === playerId);
-    if (!target) {
-      return;
-    }
-    if (getLegendIdFromPlayer(target) !== null) {
-      toast.error("Nostalji oyuncularıyla maaş pazarlığı yapılamaz.");
-      return;
-    }
-    resetNegotiationState();
-    setNegotiationPlayerId(playerId);
-  };
+  const target = displayPlayers.find((player) => player.id === playerId);
+  if (!target) {
+    return;
+  }
+  if (getLegendIdFromPlayer(target) !== null) {
+    toast.error(t("teamPlanning.errors.negotiationLegend"));
+    return;
+  }
+  resetNegotiationState();
+  setNegotiationPlayerId(playerId);
+};
 
-  const completeSalaryNegotiation = async (agreedSalary: number) => {
-    if (!user || !negotiationPlayer || !salaryNegotiationProfile) {
-      return;
+const completeSalaryNegotiation = async (agreedSalary: number) => {
+  if (!user || !negotiationPlayer || !salaryNegotiationProfile) {
+    return;
+  }
+  const clampedOffer = clampNumber(
+    Math.round(agreedSalary),
+    salaryNegotiationProfile.floor,
+    salaryNegotiationProfile.ceiling
+  );
+  const userId = user.id;
+  const previousPlayers = players.map((player) => ({ ...player }));
+  const now = new Date();
+  const currentExpiry = getContractExpiration(negotiationPlayer);
+  const baseDate =
+    currentExpiry && currentExpiry.getTime() > now.getTime()
+      ? currentExpiry
+      : now;
+  const newExpiry = addMonths(baseDate, CONTRACT_EXTENSION_MONTHS);
+
+  const confidence = negotiationConfidenceFromOffer(
+    clampedOffer,
+    salaryNegotiationProfile,
+    negotiationPlayer
+  );
+
+  const updatedPlayers = players.map((player) => {
+    if (player.id !== negotiationPlayer.id) {
+      return player;
     }
-    const clampedOffer = clampNumber(
-      Math.round(agreedSalary),
-      salaryNegotiationProfile.floor,
-      salaryNegotiationProfile.ceiling
-    );
-    const userId = user.id;
-    const previousPlayers = players.map((player) => ({ ...player }));
-    const now = new Date();
-    const currentExpiry = getContractExpiration(negotiationPlayer);
-    const baseDate =
-      currentExpiry && currentExpiry.getTime() > now.getTime()
-        ? currentExpiry
-        : now;
-    const newExpiry = addMonths(baseDate, CONTRACT_EXTENSION_MONTHS);
-
-    const confidence = negotiationConfidenceFromOffer(
-      clampedOffer,
-      salaryNegotiationProfile,
-      negotiationPlayer
-    );
-
-    const updatedPlayers = players.map((player) => {
-      if (player.id !== negotiationPlayer.id) {
-        return player;
-      }
-      const currentContract = player.contract ?? {
+    const currentContract = player.contract ?? {
+      expiresAt: newExpiry.toISOString(),
+      status: "active" as const,
+      salary: clampedOffer,
+      extensions: 0,
+    };
+    return {
+      ...player,
+      contract: {
+        ...currentContract,
+        salary: clampedOffer,
         expiresAt: newExpiry.toISOString(),
         status: "active" as const,
-        salary: clampedOffer,
-        extensions: 0,
-      };
-      return {
-        ...player,
-        contract: {
-          ...currentContract,
-          salary: clampedOffer,
-          expiresAt: newExpiry.toISOString(),
-          status: "active" as const,
-          extensions: (currentContract.extensions ?? 0) + 1,
-        },
-        motivation: clampPerformanceGauge(
-          player.motivation + Math.min(0.08, confidence * 0.2),
-          DEFAULT_GAUGE_VALUE
-        ),
-      };
-    });
+        extensions: (currentContract.extensions ?? 0) + 1,
+      },
+      motivation: clampPerformanceGauge(
+        player.motivation + Math.min(0.08, confidence * 0.2),
+        DEFAULT_GAUGE_VALUE
+      ),
+    };
+  });
 
-    const normalized = normalizePlayers(updatedPlayers);
-    setPlayers(normalized);
-    setIsNegotiatingSalary(true);
-    try {
-      await saveTeamPlayers(userId, normalized);
-      toast.success(
-        `${negotiationPlayer.name} maaşı ${formatSalary(
-          clampedOffer
-        )} oldu ve sözleşmesi ${CONTRACT_EXTENSION_MONTHS} ay uzatıldı.`
-      );
-      finalizeContractDecision(negotiationPlayer.id);
-      setNegotiationPlayerId(null);
-      resetNegotiationState();
-    } catch (error) {
-      console.error("[TeamPlanning] salary negotiation failed", error);
-      toast.error("Maaş pazarlığı tamamlanamadı.");
-      toast.error("Maaş pazarlığı tamamlanamadı.");
-    } finally {
-      setIsNegotiatingSalary(false);
-    }
-  };
-
-  const handleConfirmSalaryNegotiation = async () => {
-    if (!user || !negotiationPlayer || !salaryNegotiationProfile) {
-      return;
-    }
-    if (isFinalCounterStage && playerCounterOffer !== null) {
-      return;
-    }
-
-    const clampedOffer = clampNumber(
-      Math.round(negotiationOffer),
-      salaryNegotiationProfile.floor,
-      salaryNegotiationProfile.ceiling
+  const normalized = normalizePlayers(updatedPlayers);
+  setPlayers(normalized);
+  setIsNegotiatingSalary(true);
+  try {
+    await saveTeamPlayers(userId, normalized);
+    toast.success(
+      t("teamPlanning.toasts.negotiationSuccess", {
+        name: negotiationPlayer.name,
+        salary: formatSalary(clampedOffer),
+        months: CONTRACT_EXTENSION_MONTHS,
+      })
     );
+    finalizeContractDecision(negotiationPlayer.id);
+    setNegotiationPlayerId(null);
+    resetNegotiationState();
+  } catch (error) {
+    console.error("[TeamPlanning] salary negotiation failed", error);
+    toast.error(t("teamPlanning.toasts.negotiationFailed"));
+    setPlayers(previousPlayers);
+  } finally {
+    setIsNegotiatingSalary(false);
+  }
+};
 
-    const attemptNumber = negotiationAttempts + 1;
-    const acceptanceChance = negotiationConfidenceFromOffer(
-      clampedOffer,
-      salaryNegotiationProfile,
-      negotiationPlayer
-    );
-    const autoAccept = clampedOffer >= salaryNegotiationProfile.demand * 0.98;
-    const accepted = autoAccept || Math.random() < acceptanceChance;
+const handleConfirmSalaryNegotiation = async () => {
+  if (!user || !negotiationPlayer || !salaryNegotiationProfile) {
+    return;
+  }
+  if (isFinalCounterStage && playerCounterOffer !== null) {
+    return;
+  }
 
-    if (accepted) {
-      await completeSalaryNegotiation(clampedOffer);
-      return;
-    }
+  const clampedOffer = clampNumber(
+    Math.round(negotiationOffer),
+    salaryNegotiationProfile.floor,
+    salaryNegotiationProfile.ceiling
+  );
 
-    const counter = buildPlayerCounterOffer(
-      clampedOffer,
-      salaryNegotiationProfile,
-      attemptNumber
-    );
-    const remainingAttempts = Math.max(
-      MAX_NEGOTIATION_ATTEMPTS - attemptNumber,
-      0
-    );
-    const isFinal = attemptNumber >= MAX_NEGOTIATION_ATTEMPTS;
+  const attemptNumber = negotiationAttempts + 1;
+  const acceptanceChance = negotiationConfidenceFromOffer(
+    clampedOffer,
+    salaryNegotiationProfile,
+    negotiationPlayer
+  );
+  const autoAccept = clampedOffer >= salaryNegotiationProfile.demand * 0.98;
+  const accepted = autoAccept || Math.random() < acceptanceChance;
 
-    setNegotiationAttempts(attemptNumber);
-    setPlayerCounterOffer(counter);
-    setIsFinalCounterStage(isFinal);
-    setNegotiationOffer(counter);
+  if (accepted) {
+    await completeSalaryNegotiation(clampedOffer);
+    return;
+  }
 
-    const counterMessage = isFinal
-      ? `Kabul edilmedi. Oyuncunun son teklifi: ${formatSalary(counter)}.`
-      : `Kabul edilmedi. Oyuncunun karşı teklifi: ${formatSalary(
-          counter
-        )}. Kalan hak: ${remainingAttempts}`;
-    toast.info(counterMessage);
-  };
+  const counter = buildPlayerCounterOffer(
+    clampedOffer,
+    salaryNegotiationProfile,
+    attemptNumber
+  );
+  const remainingAttempts = Math.max(
+    MAX_NEGOTIATION_ATTEMPTS - attemptNumber,
+    0
+  );
+  const isFinal = attemptNumber >= MAX_NEGOTIATION_ATTEMPTS;
 
-  const handleAcceptCounterOffer = async () => {
+  setNegotiationAttempts(attemptNumber);
+  setPlayerCounterOffer(counter);
+  setIsFinalCounterStage(isFinal);
+  setNegotiationOffer(counter);
+
+  const counterMessage = isFinal
+    ? t("teamPlanning.toasts.negotiationRejectedFinal", {
+        value: formatSalary(counter),
+      })
+    : `${t("teamPlanning.toasts.negotiationRejectedCounter", {
+        value: formatSalary(counter),
+      })} ${t("teamPlanning.salaryDialog.attemptsLeft", {
+        value: remainingAttempts,
+      })}`;
+  toast.info(counterMessage);
+};
+
+const handleAcceptCounterOffer = async () => {
     if (playerCounterOffer === null) {
       return;
     }
@@ -904,12 +918,12 @@ function TeamPlanningContent() {
   };
 
   const handleRejectCounterOffer = () => {
-    toast.info("Pazarlık sonuçsuz kaldı, sözleşme değişmedi.");
-    setNegotiationPlayerId(null);
-    resetNegotiationState();
-  };
+  toast.info(t("teamPlanning.toasts.negotiationNoResult"));
+  setNegotiationPlayerId(null);
+  resetNegotiationState();
+};
 
-  const handleExtendContract = (playerId: string) => {
+const handleExtendContract = (playerId: string) => {
     openSalaryNegotiation(playerId);
   };
 
@@ -935,11 +949,11 @@ function TeamPlanningContent() {
         await completeLegendRental(userId, playerId, {
           players: previousPlayers,
         });
-        toast.info(`${target.name} ile yapılan kiralama sona erdi.`);
+        toast.info(t("teamPlanning.toasts.rentalEnded", { name: target.name }));
         finalizeContractDecision(playerId);
       } catch (error) {
         console.error("[TeamPlanning] legend rental release failed", error);
-        toast.error("Oyuncu kadrodan kaldırılamadı");
+        toast.error(t("teamPlanning.errors.contractReleaseFailed"));
         setPlayers(previousPlayers);
       } finally {
         setIsProcessingContract(false);
@@ -977,13 +991,11 @@ function TeamPlanningContent() {
     setPlayers(updatedPlayers);
     try {
       await saveTeamPlayers(userId, updatedPlayers);
-      toast.info(
-        `${target.name} serbest bırakıldı ve transfer listesine eklendi`
-      );
+      toast.info(t("teamPlanning.toasts.releasedToMarket", { name: target.name }));
       finalizeContractDecision(playerId);
     } catch (error) {
       console.error("[TeamPlanning] release contract failed", error);
-      toast.error("Oyuncu serbest bırakılamadı");
+      toast.error(t("teamPlanning.errors.contractReleaseFailed"));
       setPlayers(previousPlayers);
     } finally {
       setIsProcessingContract(false);
@@ -1008,11 +1020,11 @@ function TeamPlanningContent() {
     try {
       await saveTeamPlayers(user.id, updatedPlayers);
       removePlayerFromCustomFormations(playerId);
-      toast.success(`${target.name} takımdan gönderildi`);
+      toast.success(t("teamPlanning.toasts.playerFired", { name: target.name }));
       finalizeContractDecision(playerId);
     } catch (error) {
       console.error("[TeamPlanning] fire player failed", error);
-      toast.error("Oyuncu kovulamadı");
+      toast.error(t("teamPlanning.errors.playerFireFailed"));
       setPlayers(previousPlayers);
     }
   };
@@ -1101,41 +1113,43 @@ function TeamPlanningContent() {
   // Removed duplicate getPitchMetricValue
 
   const renderPitchTooltip = useCallback(
-    (player: DisplayPlayer) => (
-      <div className="space-y-2">
-        <div className="text-xs font-semibold">{player.name}</div>
-        <PerformanceGauge
-          label="Güç"
-          value={getPlayerPower(player)}
-          variant="dark"
-        />
-        <PerformanceGauge
-          label="Sağlık"
-          value={getPlayerHealth(player)}
-          variant="dark"
-        />
-        <PerformanceGauge
-          label="Kondisyon"
-          value={getPlayerCondition(player)}
-          variant="dark"
-        />
-        <PerformanceGauge
-          label="Motivasyon"
-          value={getPlayerMotivation(player)}
-          variant="dark"
-        />
-        {player.originalOverall > player.overall ? (
-          <div className="text-[11px] text-muted-foreground">
-            Orjinal: {formatRatingLabel(player.originalOverall)} / Şuanki:{" "}
-            {formatRatingLabel(player.overall)}
-          </div>
-        ) : null}
-      </div>
-    ),
-    []
-  );
+  (player: DisplayPlayer) => (
+    <div className="space-y-2">
+      <div className="text-xs font-semibold">{player.name}</div>
+      <PerformanceGauge
+        label={getMetricLabel("power")}
+        value={getPlayerPower(player)}
+        variant="dark"
+      />
+      <PerformanceGauge
+        label={getMetricLabel("health")}
+        value={getPlayerHealth(player)}
+        variant="dark"
+      />
+      <PerformanceGauge
+        label={getMetricLabel("condition")}
+        value={getPlayerCondition(player)}
+        variant="dark"
+      />
+      <PerformanceGauge
+        label={getMetricLabel("motivation")}
+        value={getPlayerMotivation(player)}
+        variant="dark"
+      />
+      {player.originalOverall > player.overall ? (
+        <div className="text-[11px] text-muted-foreground">
+          {t("teamPlanning.pitchTooltip.originalCurrent", {
+            original: formatRatingLabel(player.originalOverall),
+            current: formatRatingLabel(player.overall),
+          })}
+        </div>
+      ) : null}
+    </div>
+  ),
+  [t]
+);
 
-  const handleListForTransfer = (playerId: string) => {
+const handleListForTransfer = (playerId: string) => {
     navigate("/transfer-market", { state: { listPlayerId: playerId } });
   };
 
@@ -1152,113 +1166,112 @@ function TeamPlanningContent() {
     });
     if (removedName) {
       setFocusedPlayerId((current) => (current === playerId ? null : current));
-      toast.success(`${removedName} serbest brakld`, {
-        description: "Değişlikleri kaydetmeyi unutmayn.",
+      toast.success(t("teamPlanning.toasts.playerReleased", { name: removedName }), {
+        description: t("teamPlanning.toasts.saveReminder"),
       });
     }
   };
 
   const handleSave = async () => {
-    if (!user) return;
-    try {
-      const collectIds = (role: Player["squadRole"]) =>
-        players
-          .filter((p) => p.squadRole === role && p.id)
-          .map((p) => String(p.id));
+  if (!user) return;
+  try {
+    const collectIds = (role: Player["squadRole"]) =>
+      players
+        .filter((p) => p.squadRole === role && p.id)
+        .map((p) => String(p.id));
 
-      const unique = (ids: string[]) =>
-        Array.from(new Set(ids.filter(Boolean)));
+    const unique = (ids: string[]) =>
+      Array.from(new Set(ids.filter(Boolean)));
 
-      const starters = unique(collectIds("starting"));
-      if (starters.length !== 11) {
-        toast.error("Kadro tamamlanmadı", {
-          description: "Kaydetmeden önce 11 oyuncuyu ilk 11 olarak belirleyin.",
-        });
-        return;
-      }
-
-      const currentLineupReadinessIssues =
-        getLineupReadinessIssues(startingEleven);
-      if (currentLineupReadinessIssues.length > 0) {
-        setIsLineupReadinessOpen(true);
-        return;
-      }
-
-      const bench = unique(collectIds("bench")).filter(
-        (id) => !starters.includes(id)
-      );
-      const reserves = unique(collectIds("reserve")).filter(
-        (id) => !starters.includes(id) && !bench.includes(id)
-      );
-
-      const startersSet = new Set(starters);
-      const customForSave = Object.fromEntries(
-        Object.entries(customFormations).flatMap(([formationKey, layout]) => {
-          if (!layout || typeof layout !== "object") {
-            return [];
-          }
-          const filteredEntries = Object.entries(layout).filter(([playerId]) =>
-            startersSet.has(playerId)
-          );
-          if (filteredEntries.length === 0) {
-            return [];
-          }
-          const sanitizedLayout = Object.fromEntries(
-            filteredEntries.map(([playerId, value]) => [
-              playerId,
-              {
-                x: clampPercentageValue(value.x),
-                y: clampPercentageValue(value.y),
-                position: value.position,
-              },
-            ])
-          );
-          return [[formationKey, sanitizedLayout]];
-        })
-      ) as CustomFormationState;
-
-      const fallbackShape =
-        (selectedFormation && selectedFormation.trim().length > 0
-          ? selectedFormation
-          : savedFormationShape && savedFormationShape.trim().length > 0
-          ? savedFormationShape
-          : derivedFormationShape) ?? selectedFormation;
-      const shapeForSave = fallbackShape.trim();
-
-      // Persist full roster and snapshot locally for Firestore
-      await saveTeamPlayers(user.id, players, {
-        formation: selectedFormation,
-        shape: shapeForSave,
-        squads: {
-          starters,
-          bench,
-          reserves,
-        },
-        customFormations:
-          Object.keys(customForSave).length > 0 ? customForSave : undefined,
+    const starters = unique(collectIds("starting"));
+    if (starters.length !== 11) {
+      toast.error(t("teamPlanning.errors.lineupIncomplete"), {
+        description: t("teamPlanning.errors.lineupIncompleteDescription"),
       });
-
-      setSavedFormationShape(shapeForSave);
-      toast.success("Takım planı kaydedildi!");
-    } catch (error) {
-      console.error("[TeamPlanning] saveTeamPlayers failed", error);
-      const description =
-        error &&
-        typeof error === "object" &&
-        "details" in error &&
-        typeof (error as { details?: unknown }).details === "string"
-          ? String((error as { details?: unknown }).details)
-          : error &&
-            typeof error === "object" &&
-            "message" in error &&
-            typeof (error as { message?: unknown }).message === "string"
-          ? String((error as { message?: unknown }).message)
-          : "Kadro kaydı başarısız. Lütfen tekrar deneyin.";
-      toast.error("Sunucu hatası", { description });
+      return;
     }
-  };
 
-  const activeUserId = user?.id ?? null;
+    const currentLineupReadinessIssues =
+      getLineupReadinessIssues(startingEleven);
+    if (currentLineupReadinessIssues.length > 0) {
+      setIsLineupReadinessOpen(true);
+      return;
+    }
+
+    const bench = unique(collectIds("bench")).filter(
+      (id) => !starters.includes(id)
+    );
+    const reserves = unique(collectIds("reserve")).filter(
+      (id) => !starters.includes(id) && !bench.includes(id)
+    );
+
+    const startersSet = new Set(starters);
+    const customForSave = Object.fromEntries(
+      Object.entries(customFormations).flatMap(([formationKey, layout]) => {
+        if (!layout || typeof layout !== "object") {
+          return [];
+        }
+        const filteredEntries = Object.entries(layout).filter(([playerId]) =>
+          startersSet.has(playerId)
+        );
+        if (filteredEntries.length === 0) {
+          return [];
+        }
+        const sanitizedLayout = Object.fromEntries(
+          filteredEntries.map(([playerId, value]) => [
+            playerId,
+            {
+              x: clampPercentageValue(value.x),
+              y: clampPercentageValue(value.y),
+              position: value.position,
+            },
+          ])
+        );
+        return [[formationKey, sanitizedLayout]];
+      })
+    ) as CustomFormationState;
+
+    const fallbackShape =
+      (selectedFormation && selectedFormation.trim().length > 0
+        ? selectedFormation
+        : savedFormationShape && savedFormationShape.trim().length > 0
+        ? savedFormationShape
+        : derivedFormationShape) ?? selectedFormation;
+    const shapeForSave = fallbackShape.trim();
+
+    await saveTeamPlayers(user.id, players, {
+      formation: selectedFormation,
+      shape: shapeForSave,
+      squads: {
+        starters,
+        bench,
+        reserves,
+      },
+      customFormations:
+        Object.keys(customForSave).length > 0 ? customForSave : undefined,
+    });
+
+    setSavedFormationShape(shapeForSave);
+    toast.success(t("teamPlanning.toasts.saveSuccess"));
+  } catch (error) {
+    console.error("[TeamPlanning] saveTeamPlayers failed", error);
+    const description =
+      error &&
+      typeof error === "object" &&
+      "details" in error &&
+      typeof (error as { details?: unknown }).details === "string"
+        ? String((error as { details?: unknown }).details)
+        : error &&
+          typeof error === "object" &&
+          "message" in error &&
+          typeof (error as { message?: unknown }).message === "string"
+        ? String((error as { message?: unknown }).message)
+        : t("teamPlanning.errors.saveServerDescription");
+    toast.error(t("teamPlanning.errors.saveServer"), { description });
+  }
+};
+
+const activeUserId = user?.id ?? null;
 
   useEffect(() => {
     if (!activeUserId) {
@@ -1276,7 +1289,7 @@ function TeamPlanningContent() {
       const preferredTeamName =
         (user.teamName?.includes("@")
           ? user.teamName.split("@")[0]
-          : user.teamName) || "Takimim";
+          : user.teamName) || t("common.teamFallback");
       const managerName = user.username || preferredTeamName;
 
       let team: Awaited<ReturnType<typeof getTeam>> | null = null;
@@ -1284,7 +1297,7 @@ function TeamPlanningContent() {
         team = await getTeam(user.id);
       } catch (error) {
         console.error("[TeamPlanning] getTeam failed", error);
-        toast.error("Takim bilgisi yuklenemedi. Lutfen tekrar deneyin.");
+        toast.error(t("teamPlanning.errors.teamLoad"));
         return;
       }
 
@@ -1306,7 +1319,7 @@ function TeamPlanningContent() {
           );
         } catch (error) {
           console.error("[TeamPlanning] createInitialTeam failed", error);
-          toast.error("Takim olusturulamadi. Lutfen tekrar deneyin.");
+          toast.error(t("teamPlanning.errors.teamCreate"));
           return;
         }
       }
@@ -1331,8 +1344,8 @@ function TeamPlanningContent() {
       setPlayers(normalized);
 
       if (rawStartingCount > normalizedStartingCount) {
-        toast.warning(`\u0130lk 11 d\u00fczenlendi`, {
-          description: `Fazla oyuncular otomatik olarak yede\u011fe al\u0131nd\u0131. Kaydetmeyi unutmay\u0131n.`,
+        toast.warning(t("teamPlanning.toasts.lineupAdjusted"), {
+          description: t("teamPlanning.toasts.duplicateOverflow"),
         });
       }
 
@@ -1486,11 +1499,11 @@ function TeamPlanningContent() {
   );
   const hasStartingVacancy = startingEleven.length < 11;
   const getMoveToStartingLabel = useCallback(
-    (player: Pick<Player, "position">) =>
+    (_player: Pick<Player, "position">) =>
       hasStartingVacancy
-        ? `İlk 11'e Al (Bos slot - ${player.position})`
-        : `İlk 11'e Al (Swap - ${player.position})`,
-    [hasStartingVacancy]
+        ? t("common.playerCard.moveToStarting")
+        : t("common.playerCard.moveToStarting"),
+    [hasStartingVacancy, t]
   );
 
   const currentFormation =
@@ -1801,10 +1814,11 @@ function TeamPlanningContent() {
     const targetPlayer = nearbyTargetSlot?.player ?? null;
     const isTargetSlotGK = canonicalPosition(finalPosition) === "GK";
     const isTargetOccupied = !!targetPlayer;
+    const previousRole = player.squadRole;
 
     // Rule 1: If Target is GK Slot AND Occupied -> BLOCK (No Swap allowed)
     if (isTargetSlotGK && isTargetOccupied && targetPlayer?.id !== player.id) {
-      toast.warning("Kaleci pozisyonu doluyken başka oyuncu eklenemez.");
+      toast.warning(t("teamPlanning.errors.goalkeeperFull"));
       setDraggedPlayerId(null);
       return;
     }
@@ -1812,11 +1826,9 @@ function TeamPlanningContent() {
     // Rule 2: Strict Type Matching
     if (isGK !== !!isTargetSlotGK) {
       if (isGK) {
-        toast.warning(
-          "Kaleciler sadece (boş) kaleci pozisyonunda oynayabilir."
-        );
+        toast.warning(t("teamPlanning.errors.goalkeeperMismatch"));
       } else {
-        toast.warning("Kaleci pozisyonuna sadece kaleci girebilir.");
+        toast.warning(t("teamPlanning.errors.goalkeeperFull"));
       }
       setDraggedPlayerId(null);
       return;
@@ -1858,7 +1870,7 @@ function TeamPlanningContent() {
         }
 
         setFocusedPlayerId(playerId);
-        toast.success("Oyuncular yer değiştirdi");
+        toast.success(t("teamPlanning.toasts.swapSuccess"));
         setDraggedPlayerId(null);
         return;
       }
@@ -1880,7 +1892,7 @@ function TeamPlanningContent() {
         position: finalPosition,
       });
       setFocusedPlayerId(playerId);
-      toast.success("Oyuncu sahada yeniden konumlandirildi");
+      toast.success(t("teamPlanning.toasts.repositionSuccess"));
       setDraggedPlayerId(null);
       return;
     }
@@ -1911,7 +1923,7 @@ function TeamPlanningContent() {
     });
 
     if (errorMessage) {
-      toast.error("Oyuncu eklenemedi", { description: errorMessage });
+      toast.error(t("teamPlanning.errors.playerAddFailed"), { description: errorMessage });
     } else if (updated) {
       applyManualPosition(playerId, {
         x: coordinates.x,
@@ -1930,7 +1942,7 @@ function TeamPlanningContent() {
         }
       }
       setFocusedPlayerId(playerId);
-      toast.success("Oyuncu sahada konumlandirildi");
+      toast.success(t("teamPlanning.toasts.placeSuccess"));
     }
 
     setDraggedPlayerId(null);
@@ -1973,7 +1985,7 @@ function TeamPlanningContent() {
         isTargetOccupied &&
         targetPlayer?.id !== player.id
       ) {
-        toast.warning("Kaleci pozisyonu doluyken başka oyuncu eklenemez.");
+        toast.warning(t("teamPlanning.errors.goalkeeperFull"));
         setDraggedPlayerId(null);
         return;
       }
@@ -1981,11 +1993,9 @@ function TeamPlanningContent() {
       // Rule 2: Strict Type Matching
       if (isGK !== !!isTargetSlotGK) {
         if (isGK) {
-          toast.warning(
-            "Kaleciler sadece (boş) kaleci pozisyonunda oynayabilir."
-          );
+          toast.warning(t("teamPlanning.errors.goalkeeperMismatch"));
         } else {
-          toast.warning("Kaleci pozisyonuna sadece kaleci girebilir.");
+          toast.warning(t("teamPlanning.errors.goalkeeperFull"));
         }
         setDraggedPlayerId(null);
         return;
@@ -2099,7 +2109,7 @@ function TeamPlanningContent() {
       setResumeLineupReadinessAfterKit(Boolean(options?.reopenLineupReadiness));
       setIsKitUsageOpen(true);
     },
-    []
+    [t]
   );
 
   const handleOpenKitUsage = useCallback(
@@ -2284,13 +2294,13 @@ function TeamPlanningContent() {
 
   const handleAutoFill = useCallback(() => {
     if (emptyFormationSlots.length === 0) {
-      toast.info("Boş pozisyon yok.");
+      toast.info(t("teamPlanning.errors.emptyNoSlots"));
       return;
     }
 
     if (autoFillAssignments.length === 0) {
-      toast.warning("Uygun oyuncu bulunamadı", {
-        description: "Boş pozisyonlar için uygun yedek veya rezerv oyuncu yok.",
+      toast.warning(t("teamPlanning.errors.noSuitablePlayer"), {
+        description: t("teamPlanning.errors.noSuitablePlayerDescription"),
       });
       return;
     }
@@ -2312,7 +2322,7 @@ function TeamPlanningContent() {
     });
 
     if (appliedAssignments.length === 0) {
-      toast.warning("Boş alanlar doldurulamadı.");
+      toast.warning(t("teamPlanning.errors.emptyNoMatch"));
       return;
     }
 
@@ -2328,18 +2338,22 @@ function TeamPlanningContent() {
       emptyFormationSlots.length - appliedAssignments.length
     );
     if (remainingSlots > 0) {
-      toast.success(`${appliedAssignments.length} boş pozisyon dolduruldu`, {
-        description: `${remainingSlots} pozisyon için uygun oyuncu bulunamadı.`,
-      });
+      toast.success(
+        t("teamPlanning.toasts.emptyFilledPartial", {
+          count: appliedAssignments.length,
+          missing: remainingSlots,
+        })
+      );
       return;
     }
 
-    toast.success("Boş pozisyonlar dolduruldu.");
+    toast.success(t("teamPlanning.toasts.emptyFilledAll"));
   }, [
     autoFillAssignments,
     emptyFormationSlots.length,
     players,
     removePlayerFromFormationLayout,
+    t,
   ]);
 
   const handleBestLineupAutoArrange = useCallback(() => {
@@ -2350,8 +2364,8 @@ function TeamPlanningContent() {
     );
 
     if (result.eligiblePlayerCount === 0 || result.assignments.length === 0) {
-      toast.warning("İlk 11 kurulamadı", {
-        description: "Seçili formasyon için uygun oyuncu bulunamadı.",
+      toast.warning(t("teamPlanning.errors.bestLineupFailed"), {
+        description: t("teamPlanning.errors.bestLineupFailedDescription"),
       });
       return;
     }
@@ -2362,15 +2376,13 @@ function TeamPlanningContent() {
     setFocusedPlayerId(null);
     setActiveTab("starting");
 
-    if (result.missingSlotCount > 0) {
-      toast.success("İlk 11 yeniden dizildi", {
-        description: `${result.assignments.length} oyuncu yerleşti. ${result.missingSlotCount} pozisyon için uygun oyuncu bulunamadı.`,
-      });
-      return;
-    }
-
-    toast.success("En iyi ilk 11 dizildi.");
-  }, [clearFormationManualLayout, currentFormation, players, selectedFormation]);
+    toast.success(
+      t("teamPlanning.toasts.bestLineupSuccess", {
+        count: result.assignments.length,
+        missing: result.missingSlotCount,
+      })
+    );
+  }, [clearFormationManualLayout, currentFormation, players, selectedFormation, t]);
 
   const handlePositionDrop = (
     e: React.DragEvent<HTMLDivElement>,
@@ -2400,7 +2412,7 @@ function TeamPlanningContent() {
       isTargetOccupied &&
       targetPlayer?.id !== draggedPlayer.id
     ) {
-      toast.warning("Kaleci pozisyonu doluyken başka oyuncu eklenemez.");
+      toast.warning(t("teamPlanning.errors.goalkeeperFull"));
       setDraggedPlayerId(null);
       return;
     }
@@ -2408,9 +2420,9 @@ function TeamPlanningContent() {
     // Rule 2: Strict Type Matching
     if (isGK !== isTargetSlotGK) {
       if (isGK) {
-        toast.warning("Kaleciler sadece kaleci pozisyonunda oynayabilir.");
+        toast.warning(t("teamPlanning.errors.goalkeeperMismatch"));
       } else {
-        toast.warning("Kaleci pozisyonuna sadece kaleci girebilir.");
+        toast.warning(t("teamPlanning.errors.goalkeeperFull"));
       }
       setDraggedPlayerId(null);
       return;
@@ -2434,9 +2446,8 @@ function TeamPlanningContent() {
         (player) => player.squadRole === "starting"
       ).length;
       if (startingCount >= 11) {
-        toast.error("Pozisyon güncellenemedi", {
-          description:
-            "İlk 11 dolu. Aynı mevkideki bir oyuncuyu çıkarmadan yeni oyuncu ekleyemezsin.",
+        toast.error(t("teamPlanning.errors.positionUpdateFailed"), {
+          description: t("teamPlanning.errors.startingLineupFull"),
         });
         setDraggedPlayerId(null);
         return;
@@ -2454,7 +2465,7 @@ function TeamPlanningContent() {
     setPlayers((prev) => {
       const draggedState = prev.find((player) => player.id === playerId);
       if (!draggedState) {
-        errorMessage = "Oyuncu bulunamad.";
+        errorMessage = t("teamPlanning.errors.playerNotFound");
         return prev;
       }
 
@@ -2463,7 +2474,7 @@ function TeamPlanningContent() {
         : null;
 
       if (targetPlayer && !targetState) {
-        errorMessage = "Hedef oyuncu bulunamadı.";
+        errorMessage = t("teamPlanning.errors.playerNotFound");
         return prev;
       }
 
@@ -2472,8 +2483,7 @@ function TeamPlanningContent() {
           (player) => player.squadRole === "starting"
         ).length;
         if (starters >= 11) {
-          errorMessage =
-            "İlk 11 dolu. Aynı mevkideki bir oyuncuyu çıkarmadan yeni oyuncu ekleyemezsin.";
+          errorMessage = t("teamPlanning.errors.startingLineupFull");
           return prev;
         }
       }
@@ -2523,7 +2533,7 @@ function TeamPlanningContent() {
       });
 
       if (!updated) {
-        errorMessage = "Pozisyon güncellenemedi.";
+        errorMessage = t("teamPlanning.errors.positionUpdateFailed");
         return prev;
       }
 
@@ -2531,7 +2541,9 @@ function TeamPlanningContent() {
     });
 
     if (errorMessage) {
-      toast.error("Pozisyon güncellenemedi", { description: errorMessage });
+      toast.error(t("teamPlanning.errors.positionUpdateFailed"), {
+        description: errorMessage,
+      });
       setDraggedPlayerId(null);
       return;
     }
@@ -2562,12 +2574,10 @@ function TeamPlanningContent() {
 
       setFocusedPlayerId(playerId);
       const successMessage = targetPlayer
-        ? previousRole === "starting"
-          ? "Oyuncular yer değiştirdi"
-          : "Oyuncular değişti"
+        ? t("teamPlanning.toasts.swapSuccess")
         : previousRole === "starting"
-        ? "Oyuncu sahada yeniden konumlandırıldı"
-        : "Oyuncu ilk 11'e taşındı";
+        ? t("teamPlanning.toasts.repositionSuccess")
+        : t("teamPlanning.toasts.placeSuccess");
       toast.success(successMessage);
     }
 
@@ -2576,8 +2586,8 @@ function TeamPlanningContent() {
 
   const handleAlternativeSelection = (alternativeId: string) => {
     if (!selectedSlotMeta) {
-      toast.error("Alan seçilmedi", {
-        description: "Lütfen önce öneri almak istediğin slotu seç.",
+      toast.error(t("teamPlanning.errors.selectSlot"), {
+        description: t("teamPlanning.errors.selectSlotDescription"),
       });
       return;
     }
@@ -2626,7 +2636,9 @@ function TeamPlanningContent() {
     });
 
     if (errorMessage) {
-      toast.error("Oyuncu yerleştirilemedi", { description: errorMessage });
+      toast.error(t("teamPlanning.errors.playerPlaceFailed"), {
+        description: errorMessage,
+      });
       return;
     }
     if (!updated) {
@@ -2662,7 +2674,7 @@ function TeamPlanningContent() {
 
     setFocusedPlayerId(alternativeId);
     setActiveTab("starting");
-    toast.success("Oyuncu ilk 11'e taşındı");
+    toast.success(t("teamPlanning.toasts.suggestionApplied"));
   };
 
   return (
@@ -2676,10 +2688,10 @@ function TeamPlanningContent() {
             <BackButton onClick={handleBackNavigation} />
             <div>
               <h1 className="text-base font-semibold sm:text-lg">
-                Takım Planı
+                {t("teamPlanning.page.title")}
               </h1>
               <p className="text-[11px] text-orange-100/70 sm:text-xs">
-                Formasyonunuzu yönetin ve kadronuzu düzenleyin
+                {t("teamPlanning.page.subtitle")}
               </p>
               <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
                 <div className="grid grid-cols-2 gap-1.5 sm:flex sm:flex-wrap">
@@ -2697,7 +2709,7 @@ function TeamPlanningContent() {
                             : "border-white/15 bg-white/5 text-orange-50/80 hover:bg-white/10 hover:text-white"
                         )}
                       >
-                        {option.label}
+                        {getMetricLabel(option.key)}
                       </button>
                     );
                   })}
@@ -2707,7 +2719,7 @@ function TeamPlanningContent() {
                   onClick={handleBestLineupAutoArrange}
                   className="h-8 self-start rounded-full border border-cyan-300/40 bg-cyan-400/15 px-3 text-[10px] font-semibold tracking-wide text-cyan-50 shadow-[0_10px_30px_rgba(34,211,238,0.16)] transition hover:bg-cyan-400/25 sm:text-[11px]"
                 >
-                  En İyi Kadroyu Diz
+                  {t("teamPlanning.page.bestLineup")}
                 </Button>
               </div>
             </div>
@@ -2721,7 +2733,9 @@ function TeamPlanningContent() {
                 <SelectTrigger className="h-9 border-white/30 bg-white/10 px-3 text-xs text-white shadow-sm transition hover:bg-white/20 hover:text-white sm:text-sm w-[140px]">
                   <div className="flex min-w-0 items-center">
                     <Eye className="mr-1.5 h-3.5 w-3.5" />
-                    <span className="truncate">{selectedFormation || "Formasyon"}</span>
+                    <span className="truncate">
+                      {selectedFormation || t("teamPlanning.page.formationPlaceholder")}
+                    </span>
                   </div>
                 </SelectTrigger>
                 <SelectContent className="max-h-64">
@@ -2741,7 +2755,7 @@ function TeamPlanningContent() {
                 disabled={autoFillAssignments.length === 0}
                 className="tp-topbar-button h-9 border border-white/15 bg-white/10 px-3 text-xs text-white shadow-lg transition hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-50 sm:text-sm"
               >
-                Doldur
+                {t("teamPlanning.page.fillEmpty")}
               </Button>
             )}
             <Button
@@ -2750,7 +2764,7 @@ function TeamPlanningContent() {
               className="tp-topbar-button bg-emerald-400 text-emerald-950 shadow-lg transition hover:bg-emerald-300 h-9 px-3 text-xs sm:text-sm"
             >
               <Save className="mr-1.5 h-3.5 w-3.5" />
-              Kaydet
+              {t("common.save")}
             </Button>
           </div>
         </header>
@@ -2844,7 +2858,7 @@ function TeamPlanningContent() {
                       <div className="relative flex-1">
                         <Search className="pointer-events-none absolute left-2 top-1/2 h-2.5 w-2.5 -translate-y-1/2 text-orange-100/60" />
                         <Input
-                          placeholder="Oyuncu ara..."
+                          placeholder={t("teamPlanning.page.searchPlaceholder")}
                           value={searchTerm}
                           onChange={(event) =>
                             setSearchTerm(event.target.value)
@@ -2859,15 +2873,15 @@ function TeamPlanningContent() {
                         }
                       >
                         <SelectTrigger className="h-6 border-white/20 bg-white/10 text-[9px] text-white focus:ring-orange-500/50 sm:w-24">
-                          <SelectValue placeholder="Sırala" />
+                          <SelectValue placeholder={t("teamPlanning.page.sortPlaceholder")} />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="role">Role göre</SelectItem>
+                          <SelectItem value="role">{t("teamPlanning.page.sortRole")}</SelectItem>
                           <SelectItem value="overall">
-                            Ortalamaya göre
+                            {t("teamPlanning.page.sortOverall")}
                           </SelectItem>
                           <SelectItem value="potential">
-                            Maks. potansiyel
+                            {t("teamPlanning.page.sortPotential")}
                           </SelectItem>
                         </SelectContent>
                       </Select>
@@ -2882,25 +2896,31 @@ function TeamPlanningContent() {
                         )}
                         disabled={!selectedSlotMeta}
                       >
-                        Öneriler
+                        {t("teamPlanning.page.tabs.suggestions")}
                       </TabsTrigger>
                       <TabsTrigger
                         value="starting"
                         className="rounded-full px-1 py-0.5 text-[8px] font-bold uppercase tracking-wide text-orange-100 data-[state=active]:bg-orange-500 data-[state=active]:text-white"
                       >
-                        İlk 11 ({startingEleven.length})
+                        {t("teamPlanning.page.tabs.starting", {
+                          count: startingEleven.length,
+                        })}
                       </TabsTrigger>
                       <TabsTrigger
                         value="bench"
                         className="rounded-full px-1 py-0.5 text-[8px] font-bold uppercase tracking-wide text-orange-100 data-[state=active]:bg-orange-500 data-[state=active]:text-white"
                       >
-                        Yedek ({benchPlayers.length})
+                        {t("teamPlanning.page.tabs.bench", {
+                          count: benchPlayers.length,
+                        })}
                       </TabsTrigger>
                       <TabsTrigger
                         value="reserve"
                         className="rounded-full px-1 py-0.5 text-[8px] font-bold uppercase tracking-wide text-orange-100 data-[state=active]:bg-orange-500 data-[state=active]:text-white"
                       >
-                        Rezerv ({reservePlayers.length})
+                        {t("teamPlanning.page.tabs.reserve", {
+                          count: reservePlayers.length,
+                        })}
                       </TabsTrigger>
                     </TabsList>
                   </div>
@@ -2916,17 +2936,17 @@ function TeamPlanningContent() {
                     <TabsContent value="suggestions" className="mt-0 space-y-4">
                       {!selectedSlotMeta ? (
                         <div className="flex h-full flex-col items-center justify-center space-y-2 text-center text-orange-100/50">
-                          <p className="text-sm">Bir oyuncu slotu seçin.</p>
+                          <p className="text-sm">{t("teamPlanning.page.suggestionsSelectSlot")}</p>
                         </div>
                       ) : recommendedPlayers.length === 0 ? (
                         <Card className="border-white/10 bg-white/5 text-center text-white shadow-lg backdrop-blur">
                           <CardContent className="p-8">
                             <div className="mb-4 text-4xl">⚽</div>
                             <h3 className="mb-2 text-base font-semibold">
-                              Öneri Bulunamadı
+                              {t("teamPlanning.page.noSuggestionsTitle")}
                             </h3>
                             <p className="text-sm text-emerald-100/70">
-                              Bu pozisyon için uygun oyuncu yok.
+                              {t("teamPlanning.page.noSuggestionsDescription")}
                             </p>
                           </CardContent>
                         </Card>
@@ -2934,10 +2954,14 @@ function TeamPlanningContent() {
                         <>
                           <div className="flex items-center justify-between border-b border-white/10 pb-2">
                             <h3 className="font-semibold text-orange-100">
-                              {selectedZoneDefinition?.label} Önerileri
+                              {t("teamPlanning.page.suggestionsTitle", {
+                                label: selectedZoneDefinition?.label ?? "",
+                              })}
                             </h3>
                             <span className="text-xs text-orange-100/60">
-                              {recommendedPlayers.length} Oyuncu
+                              {t("teamPlanning.page.playersCount", {
+                                count: recommendedPlayers.length,
+                              })}
                             </span>
                           </div>
                           {recommendedPlayers.map((player) => {
@@ -2977,11 +3001,10 @@ function TeamPlanningContent() {
                           <CardContent className="p-8">
                             <div className="mb-4 text-4xl">⚽</div>
                             <h3 className="mb-2 text-base font-semibold">
-                              İlk 11'inizi oluşturun
+                              {t("teamPlanning.page.emptyStartingTitle")}
                             </h3>
                             <p className="text-sm text-emerald-100/70">
-                              Yedek kulübesinden oyuncularınızı ilk 11'e
-                              taşıyın.
+                              {t("teamPlanning.page.emptyStartingDescription")}
                             </p>
                           </CardContent>
                         </Card>
@@ -3045,10 +3068,10 @@ function TeamPlanningContent() {
                           <CardContent className="p-8">
                             <div className="mb-4 text-4xl">⚽</div>
                             <h3 className="mb-2 text-base font-semibold">
-                              Yedek kulübesi boş
+                              {t("teamPlanning.page.emptyBenchTitle")}
                             </h3>
                             <p className="text-sm text-emerald-100/70">
-                              Rezerv oyuncularınızı yedek kulübesine taşıyın.
+                              {t("teamPlanning.page.emptyBenchDescription")}
                             </p>
                           </CardContent>
                         </Card>
@@ -3115,10 +3138,10 @@ function TeamPlanningContent() {
                           <CardContent className="p-8">
                             <div className="mb-4 text-4xl">⚽</div>
                             <h3 className="mb-2 text-base font-semibold">
-                              Rezerv oyuncu yok
+                              {t("teamPlanning.page.emptyReserveTitle")}
                             </h3>
                             <p className="text-sm text-emerald-100/70">
-                              Altyapıdan oyuncu alın veya pazardan oyuncu satın.
+                              {t("teamPlanning.page.emptyReserveDescription")}
                             </p>
                           </CardContent>
                         </Card>

@@ -5,6 +5,13 @@ import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { useDiamonds } from '@/contexts/DiamondContext';
 import { useInventory } from '@/contexts/InventoryContext';
+import { useTranslation } from '@/contexts/LanguageContext';
+import { generateRandomName } from '@/lib/names';
+import { calculateOverall, getRoles, normalizeRatingTo100 } from '@/lib/player';
+import {
+  getRewardedAdFailureMessage,
+  runRewardedAdFlow,
+} from '@/services/rewardedAds';
 import { db } from '@/services/firebase';
 import {
   acceptYouthCandidate,
@@ -18,12 +25,6 @@ import {
   YOUTH_RESET_DIAMOND_COST,
   type YouthCandidate,
 } from '@/services/youth';
-import {
-  getRewardedAdFailureMessage,
-  runRewardedAdFlow,
-} from '@/services/rewardedAds';
-import { generateRandomName } from '@/lib/names';
-import { calculateOverall, getRoles, normalizeRatingTo100 } from '@/lib/player';
 import type { Player } from '@/types';
 
 import { YouthDashboard } from './components/YouthDashboard';
@@ -43,23 +44,6 @@ const getRewardedTimestampMs = (reward: Record<string, unknown>): number | null 
 const getRewardedReductionMs = (reward: Record<string, unknown>): number | null => {
   const raw = reward.reductionMs;
   return typeof raw === 'number' && Number.isFinite(raw) ? raw : null;
-};
-
-const formatRewardDuration = (ms: number): string => {
-  const totalSeconds = Math.max(0, Math.floor(ms / 1000));
-  const hours = Math.floor(totalSeconds / 3600);
-  const minutes = Math.floor((totalSeconds % 3600) / 60);
-  const seconds = totalSeconds % 60;
-
-  if (hours > 0) {
-    return `${hours} sa ${minutes} dk`;
-  }
-
-  if (minutes > 0) {
-    return `${minutes} dk`;
-  }
-
-  return `${Math.max(1, seconds)} sn`;
 };
 
 const upsertYouthCandidate = (
@@ -111,6 +95,7 @@ const generatePlayer = (): Player => {
 };
 
 const YouthPage = () => {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const { balance } = useDiamonds();
   const { vipDurationMultiplier } = useInventory();
@@ -123,6 +108,23 @@ const YouthPage = () => {
   const optimisticRewardedNextGenerateAtMsRef = useRef<number | null>(null);
   const optimisticRewardedExpiryMsRef = useRef<number>(0);
   const youthCooldownMs = Math.round(YOUTH_COOLDOWN_MS * vipDurationMultiplier);
+
+  const formatRewardDuration = useCallback((ms: number): string => {
+    const totalSeconds = Math.max(0, Math.floor(ms / 1000));
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+
+    if (hours > 0) {
+      return t('youth.hoursMinutes', { hours, minutes });
+    }
+
+    if (minutes > 0) {
+      return t('youth.minutesOnly', { minutes });
+    }
+
+    return t('youth.secondsOnly', { seconds: Math.max(1, seconds) });
+  }, [t]);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -143,19 +145,19 @@ const YouthPage = () => {
           optimisticMs !== null && Date.now() < optimisticRewardedExpiryMsRef.current;
 
         if (
-          optimisticStillActive
-          && nextGenerateAtMs !== null
-          && nextGenerateAtMs > optimisticMs
+          optimisticStillActive &&
+          nextGenerateAtMs !== null &&
+          nextGenerateAtMs > optimisticMs
         ) {
           return;
         }
 
         if (
-          optimisticMs !== null
-          && (
-            nextGenerateAtMs === null
-            || nextGenerateAtMs <= optimisticMs
-            || !optimisticStillActive
+          optimisticMs !== null &&
+          (
+            nextGenerateAtMs === null ||
+            nextGenerateAtMs <= optimisticMs ||
+            !optimisticStillActive
           )
         ) {
           optimisticRewardedNextGenerateAtMsRef.current = null;
@@ -173,14 +175,14 @@ const YouthPage = () => {
     const updateState = () => {
       if (!nextGenerateAt) {
         setCanGenerate(true);
-        setCountdown('Hazır');
+        setCountdown(t('youth.countdownReady'));
         return;
       }
 
       const diff = nextGenerateAt.getTime() - Date.now();
       if (diff <= 0) {
         setCanGenerate(true);
-        setCountdown('Hazır');
+        setCountdown(t('youth.countdownReady'));
         return;
       }
 
@@ -205,7 +207,7 @@ const YouthPage = () => {
     updateState();
     const intervalId = setInterval(updateState, 1000);
     return () => clearInterval(intervalId);
-  }, [nextGenerateAt]);
+  }, [nextGenerateAt, t]);
 
   const handleGenerate = async () => {
     if (!user?.id) return;
@@ -216,27 +218,27 @@ const YouthPage = () => {
       });
       setCandidates(prev => upsertYouthCandidate(prev, candidate));
       setNextGenerateAt(new Date(Date.now() + youthCooldownMs));
-      toast.success('Altyapı adayı oluşturuldu');
+      toast.success(t('youth.createSuccess'));
     } catch (err) {
       console.warn(err);
-      toast.error((err as Error).message || 'İşlem başarısız');
+      toast.error((err as Error).message || t('youth.genericError'));
     }
   };
 
   const handleReset = async () => {
     if (!user?.id) return;
     if (balance < YOUTH_RESET_DIAMOND_COST) {
-      toast.error('Yetersiz elmas');
+      toast.error(t('youth.insufficientDiamonds'));
       return;
     }
 
     try {
       await resetCooldownWithDiamonds(user.id);
       setNextGenerateAt(new Date());
-      toast.success('Süre sıfırlandı');
+      toast.success(t('youth.resetSuccess'));
     } catch (err) {
       console.warn(err);
-      toast.error('Elmas ile hızlandırma başarısız');
+      toast.error(t('youth.resetError'));
     }
   };
 
@@ -282,19 +284,23 @@ const YouthPage = () => {
 
         toast.success(
           reductionMs && reductionMs > 0
-            ? `Kalan süre ${formatRewardDuration(reductionMs)} azaltıldı`
-            : 'Kalan süre %15 azaltıldı',
+            ? t('youth.adReducedWithDuration', {
+              duration: formatRewardDuration(reductionMs),
+            })
+            : t('youth.adReducedFallback', {
+              percent: Math.round(YOUTH_AD_REDUCTION_PERCENT * 100),
+            }),
         );
         return;
       }
 
       if (result.outcome === 'dismissed') {
-        toast.info('Reklam tamamlanmadı.');
+        toast.info(t('youth.adDismissed'));
         return;
       }
 
       if (result.outcome === 'pending_verification') {
-        toast.info('Reklam doğrulanıyor. Biraz sonra tekrar deneyin.');
+        toast.info(t('youth.adPending'));
         return;
       }
 
@@ -305,17 +311,17 @@ const YouthPage = () => {
     } finally {
       setIsWatchingAd(false);
     }
-  }, [canGenerate, isWatchingAd, user?.id]);
+  }, [canGenerate, formatRewardDuration, isWatchingAd, t, user?.id]);
 
   const handleAccept = async (id: string) => {
     if (!user?.id) return;
     try {
       await acceptYouthCandidate(user.id, id);
       setCandidates(prev => prev.filter(candidate => candidate.id !== id));
-      toast.success('Oyuncu A takıma eklendi');
+      toast.success(t('youth.acceptSuccess'));
     } catch (err) {
       console.warn(err);
-      toast.error('İşlem başarısız');
+      toast.error(t('youth.genericError'));
     }
   };
 
@@ -324,15 +330,15 @@ const YouthPage = () => {
     try {
       await releaseYouthCandidate(user.id, id);
       setCandidates(prev => prev.filter(candidate => candidate.id !== id));
-      toast.success('Oyuncu serbest bırakıldı');
+      toast.success(t('youth.releaseSuccess'));
     } catch (err) {
       console.warn(err);
-      toast.error('İşlem başarısız');
+      toast.error(t('youth.genericError'));
     }
   };
 
   if (!user) {
-    return <div className="p-4">Giriş yapmalısın</div>;
+    return <div className="p-4">{t('youth.loginRequired')}</div>;
   }
 
   const candidateCount = candidates.length;
@@ -369,10 +375,8 @@ const YouthPage = () => {
 
         <section className="mb-8">
           <div className="mb-4 px-1">
-            <h2 className="text-xl font-bold text-white">Oyuncu Havuzu</h2>
-            <p className="text-sm text-slate-400">
-              Gelişime hazır genç yetenekleri filtrele ve doğru zamanda A takıma yükselt.
-            </p>
+            <h2 className="text-xl font-bold text-white">{t('youth.playerPoolTitle')}</h2>
+            <p className="text-sm text-slate-400">{t('youth.playerPoolSubtitle')}</p>
           </div>
 
           <div className="grid grid-cols-[repeat(auto-fit,minmax(320px,1fr))] gap-6">
@@ -387,10 +391,8 @@ const YouthPage = () => {
             ))}
             {candidates.length === 0 && (
               <div className="col-span-full rounded-[32px] border border-dashed border-white/10 bg-white/5 py-12 text-center text-slate-500">
-                <p>Henüz aday bulunmuyor.</p>
-                <p className="mt-1 text-xs opacity-60">
-                  "Yetenek Ara" butonunu kullanarak yeni yetenekler keşfedin.
-                </p>
+                <p>{t('youth.noCandidates')}</p>
+                <p className="mt-1 text-xs opacity-60">{t('youth.noCandidatesHelp')}</p>
               </div>
             )}
           </div>

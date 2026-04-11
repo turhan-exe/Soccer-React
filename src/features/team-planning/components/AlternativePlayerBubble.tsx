@@ -1,9 +1,13 @@
 import React from 'react';
 import { ArrowDown, ArrowUp } from 'lucide-react';
+
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { cn } from '@/lib/utils';
+import { useTranslation } from '@/contexts/LanguageContext';
 import { formatRatingLabel } from '@/lib/player';
-import { DisplayPlayer, getPlayerPower, getPositionLabel } from '../teamPlanningUtils';
+import { getPositionLabel } from '@/lib/positionLabels';
+import { cn } from '@/lib/utils';
+
+import { DisplayPlayer, getPlayerPower } from '../teamPlanningUtils';
 
 const STRENGTH_DIFF_EPSILON = 0.1;
 
@@ -20,18 +24,20 @@ export const AlternativePlayerBubble: React.FC<AlternativePlayerBubbleProps> = (
   variant = 'pitch',
   compareToPlayer,
 }) => {
+  const { t } = useTranslation();
+
   const badgeLabel =
     player.squadRole === 'bench'
-      ? 'YDK'
+      ? t('teamPlanning.alternative.benchBadge')
       : player.squadRole === 'reserve'
-        ? 'RZV'
-        : 'KDR';
+        ? t('teamPlanning.alternative.reserveBadge')
+        : t('teamPlanning.alternative.squadBadge');
   const badgeTitle =
     player.squadRole === 'bench'
-      ? 'Yedek'
+      ? t('teamPlanning.alternative.benchTitle')
       : player.squadRole === 'reserve'
-        ? 'Rezerv'
-        : 'Kadro Dışı';
+        ? t('teamPlanning.alternative.reserveTitle')
+        : t('teamPlanning.alternative.squadTitle');
 
   const comparisonPower = compareToPlayer ? getPlayerPower(compareToPlayer) : null;
   const playerPower = getPlayerPower(player);
@@ -62,13 +68,17 @@ export const AlternativePlayerBubble: React.FC<AlternativePlayerBubbleProps> = (
           </div>
 
           <div className="min-w-0 flex-1 flex flex-col justify-center gap-0.5 py-0.5">
-            <span className="text-[10.5px] font-bold tracking-wide text-white/90 truncate pr-2">
+            <span className="truncate pr-2 text-[10.5px] font-bold tracking-wide text-white/90">
               {positionLabel}
             </span>
             <div className="flex flex-wrap items-center gap-x-2 text-[10px] text-white/60">
-              <span>{player.age} yaş</span>
+              <span>{t('teamPlanning.alternative.age', { age: player.age })}</span>
               <span className="text-white/30">•</span>
-              <span className="font-medium text-emerald-100">GEN {formatRatingLabel(player.overall)}</span>
+              <span className="font-medium text-emerald-100">
+                {t('teamPlanning.alternative.overall', {
+                  value: formatRatingLabel(player.overall),
+                })}
+              </span>
 
               {player.originalOverall > player.assignedOverall && (
                 <>
@@ -96,8 +106,8 @@ export const AlternativePlayerBubble: React.FC<AlternativePlayerBubbleProps> = (
           </div>
 
           <div className="hidden shrink-0 flex-col items-end text-[10px] font-medium text-white/50 xl:flex">
-            <span className="uppercase tracking-wide text-[9px]">{badgeTitle}</span>
-            <span className="text-white/30 font-mono text-[9px]">
+            <span className="text-[9px] uppercase tracking-wide">{badgeTitle}</span>
+            <span className="font-mono text-[9px] text-white/30">
               #{player.squadRole === 'bench' ? '02' : player.squadRole === 'reserve' ? '03' : '04'}
             </span>
           </div>

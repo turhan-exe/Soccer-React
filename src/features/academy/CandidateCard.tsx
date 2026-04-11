@@ -4,10 +4,12 @@ import { Badge } from '@/components/ui/badge';
 import { StatBar } from '@/components/ui/stat-bar';
 import { Button } from '@/components/ui/button';
 import { TrendingUp } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { useTranslation } from '@/contexts/LanguageContext';
 import { formatRatingLabel, getRoles } from '@/lib/player';
 import { canonicalizePosition, getPositionShortLabel } from '@/lib/positionLabels';
+import { getTrainingAttributeLabel } from '@/lib/trainingLabels';
 import type { Player } from '@/types';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
 interface Props {
   candidate: AcademyCandidate;
@@ -16,18 +18,19 @@ interface Props {
 }
 
 const CandidateCard: React.FC<Props> = ({ candidate, onAccept, onRelease }) => {
+  const { t } = useTranslation();
   const { player } = candidate;
   const canonicalPosition = canonicalizePosition(player.position) ?? 'CM';
   const roles = getRoles(canonicalPosition);
   const initials = player.name
     .split(' ')
-    .map((n) => n[0])
+    .map((name) => name[0])
     .join('');
 
   const attributes = player.attributes as Partial<Player['attributes']>;
   const primaryStats: [string, number][] = [
-    ['Hız', attributes.topSpeed ?? player.overall ?? 0],
-    ['Şut', attributes.shooting ?? player.overall ?? 0],
+    [getTrainingAttributeLabel('topSpeed'), attributes.topSpeed ?? player.overall ?? 0],
+    [getTrainingAttributeLabel('shooting'), attributes.shooting ?? player.overall ?? 0],
   ];
 
   const secondaryStatKeys: Array<keyof Player['attributes']> = [
@@ -46,31 +49,13 @@ const CandidateCard: React.FC<Props> = ({ candidate, onAccept, onRelease }) => {
     'ballControl',
   ];
 
-  const attributeLabelMap: Record<keyof Player['attributes'], string> = {
-    strength: 'Güç',
-    acceleration: 'İvme',
-    topSpeed: 'Hız',
-    dribbleSpeed: 'Top Sürme',
-    jump: 'Zıplama',
-    tackling: 'Savunma',
-    ballKeeping: 'Top Saklama',
-    passing: 'Pas',
-    longBall: 'Uzun Pas',
-    agility: 'Çeviklik',
-    shooting: 'Şut',
-    shootPower: 'Şut Gücü',
-    positioning: 'Pozisyon Alma',
-    reaction: 'Reaksiyon',
-    ballControl: 'Top Kontrolü',
-  };
-
   const secondaryStats = secondaryStatKeys
     .map<[string, number] | null>((key) => {
       const value = attributes?.[key];
       if (typeof value !== 'number') {
         return null;
       }
-      return [attributeLabelMap[key], value];
+      return [getTrainingAttributeLabel(key), value];
     })
     .filter((entry): entry is [string, number] => entry !== null);
 
@@ -97,7 +82,7 @@ const CandidateCard: React.FC<Props> = ({ candidate, onAccept, onRelease }) => {
               <h3 className="truncate text-base font-semibold tracking-tight">{player.name}</h3>
               <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
                 <Badge variant="secondary" className="border-white/20 bg-white/10 text-white backdrop-blur">
-                  {player.age} yaş
+                  {t('common.ageLong', { age: player.age })}
                 </Badge>
                 <div className="flex items-center gap-1 rounded-full border border-white/10 bg-white/10 px-2 py-1 text-[11px] font-medium text-cyan-100 shadow-inner shadow-cyan-500/10">
                   <TrendingUp className="h-3 w-3" />
@@ -106,7 +91,9 @@ const CandidateCard: React.FC<Props> = ({ candidate, onAccept, onRelease }) => {
                       <span className="font-semibold">{formatRatingLabel(player.overall)}</span>
                     </TooltipTrigger>
                     <TooltipContent>
-                      Maks. Potansiyel: {formatRatingLabel(player.potential)}
+                      {t('academy.candidate.potential', {
+                        value: formatRatingLabel(player.potential),
+                      })}
                     </TooltipContent>
                   </Tooltip>
                 </div>
@@ -131,7 +118,7 @@ const CandidateCard: React.FC<Props> = ({ candidate, onAccept, onRelease }) => {
               onClick={() => onAccept(candidate.id)}
               className="rounded-full border border-transparent bg-white/5 px-4 text-xs font-semibold text-cyan-100 shadow-sm transition hover:border-cyan-400/60 hover:bg-cyan-500/20 hover:text-white"
             >
-              Takıma Al
+              {t('academy.candidate.promote')}
             </Button>
             <Button
               variant="ghost"
@@ -139,7 +126,7 @@ const CandidateCard: React.FC<Props> = ({ candidate, onAccept, onRelease }) => {
               onClick={() => onRelease(candidate.id)}
               className="rounded-full border border-transparent bg-white/5 px-4 text-xs font-semibold text-slate-200 shadow-sm transition hover:border-rose-500/60 hover:bg-rose-500/20 hover:text-white"
             >
-              Serbest Bırak
+              {t('academy.candidate.release')}
             </Button>
           </div>
         </div>
@@ -161,4 +148,3 @@ const CandidateCard: React.FC<Props> = ({ candidate, onAccept, onRelease }) => {
 };
 
 export default CandidateCard;
-

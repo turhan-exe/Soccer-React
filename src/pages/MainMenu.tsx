@@ -1,7 +1,8 @@
-
+﻿
 import React, { useCallback, useEffect, useState, useMemo, useRef } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { useAuth } from '@/contexts/AuthContext';
+import { useTranslation } from '@/contexts/LanguageContext';
 import { useNavigate } from 'react-router-dom';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useDiamonds } from '@/contexts/DiamondContext';
@@ -99,8 +100,6 @@ const KIT_ICONS: Record<KitType, { icon: any; color: string }> = {
   health: { icon: HeartPulse, color: 'text-rose-500' },
 };
 
-const CLUB_BALANCE_FORMATTER = new Intl.NumberFormat('tr-TR');
-
 // --- Types ---
 type FormBadge = 'W' | 'D' | 'L';
 type MatchHighlightClub = {
@@ -122,7 +121,7 @@ type MatchHighlight = {
 
 type ActionableMatchTile = {
   kind: 'friendly_pending' | 'friendly_live' | 'league_live';
-  matchTypeLabel: 'DOSTLUK' | 'LIG';
+  matchTypeLabel: string;
   statusLabel: string;
   title: string;
   subtitle: string;
@@ -218,10 +217,11 @@ const MenuButton = ({
 
 export default function MainMenu() {
   const { user, logout } = useAuth();
+  const { formatDate, formatNumber, t } = useTranslation();
   const navigate = useNavigate();
   const { theme, toggleTheme } = useTheme();
   const { balance } = useDiamonds();
-  const { kits, purchaseKit, isProcessing, vipActive, vipStatus, vipNostalgiaFreeAvailable } = useInventory();
+  const { kits, purchaseKit, isProcessing, vipActive, vipNostalgiaFreeAvailable } = useInventory();
   const { cashBalance, loading: financeLoading } = useClubFinance();
 
   const [matchHighlight, setMatchHighlight] = useState<MatchHighlight | null>(null);
@@ -265,8 +265,8 @@ export default function MainMenu() {
   const [activeKit, setActiveKit] = useState<KitType | null>(null);
   const [isUsageOpen, setIsUsageOpen] = useState(false);
   const formattedClubBalance = useMemo(
-    () => CLUB_BALANCE_FORMATTER.format(cashBalance),
-    [cashBalance],
+    () => formatNumber(cashBalance),
+    [cashBalance, formatNumber],
   );
 
   // Auto-cycle kits every 5 seconds
@@ -286,7 +286,7 @@ export default function MainMenu() {
   const handlePurchase = async (type: KitType, method: 'ad' | 'diamonds') => {
     if (method === 'ad') {
       if (!user) {
-        toast.error('Kit odulu icin giris yapmalisin.');
+        toast.error(t('mainMenu.toasts.loginRequiredForKitReward'));
         return;
       }
 
@@ -302,11 +302,11 @@ export default function MainMenu() {
         });
 
         if (result.outcome === 'claimed' || result.outcome === 'already_claimed') {
-          toast.success(`Reklam odulu verildi: +1 ${KIT_CONFIG[type].label}.`);
+          toast.success(t('mainMenu.toasts.rewardGranted', { kitLabel: t(`common.kits.${type}`) }));
         } else if (result.outcome === 'dismissed') {
-          toast.info('Odul almak icin reklami tamamlamalisin.');
+          toast.info(t('mainMenu.toasts.rewardRequiresCompletion'));
         } else if (result.outcome === 'pending_verification') {
-          toast.info('Reklam odulu dogrulaniyor. Birazdan envanterine yansiyacak.');
+          toast.info(t('mainMenu.toasts.rewardPendingVerification'));
         } else {
           toast.error(getRewardedAdFailureMessage(result.ad));
         }
@@ -388,22 +388,22 @@ export default function MainMenu() {
     const items: { id: string; message: string; icon: any; path: string; accent: string }[] = [];
 
     if (isTrainingFacilityAvailable && !hasUnseenTrainingResults) {
-      items.push({ id: 'training-ready', message: 'Antrenman sahasi musait.', icon: Dumbbell, path: '/training', accent: 'text-orange-400' });
+      items.push({ id: 'training-ready', message: t('mainMenu.notifications.trainingReady'), icon: Dumbbell, path: '/training', accent: 'text-orange-400' });
     }
     if (hasUnseenTrainingResults) {
-      items.push({ id: 'training', message: 'Antrenman sonuclari hazir.', icon: Dumbbell, path: '/training', accent: 'text-orange-400' });
+      items.push({ id: 'training', message: t('mainMenu.notifications.trainingResults'), icon: Dumbbell, path: '/training', accent: 'text-orange-400' });
     }
     if (hasYouthCandidates) {
-      items.push({ id: 'youth', message: 'Altyapida yeni yetenekler var.', icon: UserPlus, path: '/youth', accent: 'text-emerald-400' });
+      items.push({ id: 'youth', message: t('mainMenu.notifications.youthCandidates'), icon: UserPlus, path: '/youth', accent: 'text-emerald-400' });
     } else if (canGenerateYouthCandidate) {
-      items.push({ id: 'youth-generate', message: 'Altyapi raporu isteyebilirsin.', icon: UserPlus, path: '/youth', accent: 'text-emerald-400' });
+      items.push({ id: 'youth-generate', message: t('mainMenu.notifications.youthGenerate'), icon: UserPlus, path: '/youth', accent: 'text-emerald-400' });
     }
     if (vipNostalgiaFreeAvailable) {
-      items.push({ id: 'nostalgia', message: 'Ucretsiz Nostalji Paketin hazir!', icon: Star, path: '/legend-pack', accent: 'text-pink-400' });
+      items.push({ id: 'nostalgia', message: t('mainMenu.notifications.nostalgiaReady'), icon: Star, path: '/legend-pack', accent: 'text-pink-400' });
     }
 
     return items.filter(i => !dismissedIds.includes(i.id));
-  }, [isTrainingFacilityAvailable, hasUnseenTrainingResults, hasYouthCandidates, canGenerateYouthCandidate, vipNostalgiaFreeAvailable, dismissedIds]);
+  }, [canGenerateYouthCandidate, dismissedIds, hasUnseenTrainingResults, hasYouthCandidates, isTrainingFacilityAvailable, t, vipNostalgiaFreeAvailable]);
 
   const handleNotificationClick = (id: string, path: string) => {
     setDismissedIds(prev => [...prev, id]);
@@ -438,16 +438,16 @@ export default function MainMenu() {
     });
 
     if (liveOrAccepted) {
-      const homeName = String(liveOrAccepted.homeTeamId || user.teamName || 'Takimim').trim();
-      const awayName = String(liveOrAccepted.awayTeamId || 'Rakip').trim();
+      const homeName = String(liveOrAccepted.homeTeamId || user.teamName || t('common.teamFallback')).trim();
+      const awayName = String(liveOrAccepted.awayTeamId || t('common.rivalFallback')).trim();
       const state = normalizeStatus(liveOrAccepted.match?.state || liveOrAccepted.status);
       return {
         kind: 'friendly_live',
-        matchTypeLabel: 'DOSTLUK',
-        statusLabel: state === 'running' ? 'CANLI' : 'HAZIR',
-        title: 'Dostluk Maci',
+        matchTypeLabel: t('mainMenu.matchTile.friendly'),
+        statusLabel: state === 'running' ? t('mainMenu.matchTile.live') : t('mainMenu.matchTile.ready'),
+        title: t('mainMenu.matchTile.friendlyMatch'),
         subtitle: `${homeName} vs ${awayName}`,
-        actionLabel: 'IZLE',
+        actionLabel: t('mainMenu.matchTile.watch'),
         fallbackRoute: '/friendly-match',
         matchId: liveOrAccepted.match?.matchId || liveOrAccepted.matchId || undefined,
         requestId: liveOrAccepted.requestId,
@@ -459,22 +459,22 @@ export default function MainMenu() {
     const pending = relevant.find((item) => normalizeStatus(item.status) === 'pending');
     if (!pending) return null;
 
-    const homeName = String(pending.homeTeamId || user.teamName || 'Takimim').trim();
-    const awayName = String(pending.awayTeamId || 'Rakip').trim();
+    const homeName = String(pending.homeTeamId || user.teamName || t('common.teamFallback')).trim();
+    const awayName = String(pending.awayTeamId || t('common.rivalFallback')).trim();
     const isIncoming = pending.opponentUserId === user.id && pending.requesterUserId !== user.id;
     return {
       kind: 'friendly_pending',
-      matchTypeLabel: 'DOSTLUK',
-      statusLabel: isIncoming ? 'ISTEK' : 'BEKLIYOR',
-      title: isIncoming ? 'Dostluk Istegi' : 'Dostluk Bekliyor',
+      matchTypeLabel: t('mainMenu.matchTile.friendly'),
+      statusLabel: isIncoming ? t('mainMenu.matchTile.request') : t('mainMenu.matchTile.pending'),
+      title: isIncoming ? t('mainMenu.matchTile.friendlyRequest') : t('mainMenu.matchTile.friendlyWaiting'),
       subtitle: `${homeName} vs ${awayName}`,
-      actionLabel: isIncoming ? 'AC' : 'GIT',
+      actionLabel: isIncoming ? t('mainMenu.matchTile.open') : t('mainMenu.matchTile.go'),
       fallbackRoute: '/friendly-match',
       requestId: pending.requestId,
       homeId: homeName,
       awayId: awayName,
     };
-  }, [user?.id, user?.teamName]);
+  }, [t, user?.id, user?.teamName]);
 
   const loadActionableMatchTile = useCallback(async () => {
     if (!user?.id) {
@@ -512,11 +512,11 @@ export default function MainMenu() {
           const opponentTeam = teams.find((team: { id: string; name: string }) => team.id === opponentId);
           leagueTile = {
             kind: 'league_live',
-            matchTypeLabel: 'LIG',
-            statusLabel: 'CANLI',
-            title: 'Lig Maci',
-            subtitle: `${user.teamName || 'Takimim'} vs ${opponentTeam?.name || 'Rakip'}`,
-            actionLabel: 'IZLE',
+            matchTypeLabel: t('mainMenu.matchTile.league'),
+            statusLabel: t('mainMenu.matchTile.live'),
+            title: t('mainMenu.matchTile.leagueMatch'),
+            subtitle: `${user.teamName || t('common.teamFallback')} vs ${opponentTeam?.name || t('common.rivalFallback')}`,
+            actionLabel: t('mainMenu.matchTile.watch'),
             fallbackRoute: '/fixtures',
             matchId: liveFixture.live?.matchId,
             homeId: liveFixture.homeTeamId,
@@ -539,7 +539,7 @@ export default function MainMenu() {
     }
 
     setActionableMatchTile(friendlyTile);
-  }, [buildFriendlyTile, matchControlReady, user?.id, user?.teamName]);
+  }, [buildFriendlyTile, matchControlReady, t, user?.id, user?.teamName]);
 
   const handleActionableMatchClick = useCallback(async () => {
     if (!actionableMatchTile) return;
@@ -577,7 +577,7 @@ export default function MainMenu() {
       const latestMatch = await getMatchStatus(actionableMatchTile.matchId);
       const latestState = normalizeStatus(latestMatch.state);
       if (!LIVE_JOINABLE_STATES.has(latestState)) {
-        toast.error('Bu lig maci artik canli izlemeye acik degil.');
+        toast.error(t('mainMenu.toasts.leagueWatchUnavailable'));
         void loadActionableMatchTile();
         return;
       }
@@ -602,7 +602,7 @@ export default function MainMenu() {
     } catch (error) {
       console.error('[MainMenu] actionable match launch failed', error);
       if (!(error instanceof FriendlyLaunchError)) {
-        toast.error('Mac baglantisi baslatilamadi.');
+        toast.error(t('mainMenu.toasts.matchConnectionFailed'));
       }
     } finally {
       setActionableMatchLoading(false);
@@ -613,6 +613,7 @@ export default function MainMenu() {
     loadActionableMatchTile,
     matchControlReady,
     navigate,
+    t,
     user?.id,
   ]);
 
@@ -730,12 +731,12 @@ export default function MainMenu() {
           const fallbackDate = new Date(`${fallbackMatch.date}T${fallbackMatch.time ?? '00:00'}`);
           const hasValidDate = !Number.isNaN(fallbackDate.getTime());
           applyMatchHighlight({
-            competition: fallbackMatch.competition ?? 'Lig Maci',
-            dateText: hasValidDate ? fallbackDate.toLocaleDateString('tr-TR') : fallbackMatch.date,
+            competition: fallbackMatch.competition ?? t('mainMenu.matchTile.leagueMatch'),
+            dateText: hasValidDate ? formatDate(fallbackDate) : fallbackMatch.date,
             timeText: fallbackMatch.time || '',
             venue: fallbackMatch.venue ?? 'home',
             venueName: fallbackMatch.venueName,
-            team: { name: 'Takimim', form: [] },
+            team: { name: t('common.teamFallback'), form: [] },
             opponent: {
               name: fallbackMatch.opponent,
               logo: fallbackMatch.opponentLogo,
@@ -752,7 +753,7 @@ export default function MainMenu() {
       }
       try {
         const leagueId = await getMyLeagueId(user.id);
-        let teamName = user.teamName ?? 'Takimim';
+        let teamName = user.teamName ?? t('common.teamFallback');
         let teamLogo = user.teamLogo ?? null;
         let teamForm: FormBadge[] = [];
         let teamOverall: number | null = null;
@@ -772,7 +773,7 @@ export default function MainMenu() {
             const isHome = next.homeTeamId === user.id;
             const opponentId = isHome ? next.awayTeamId : next.homeTeamId;
             const teamMap = new Map<string, string>(leagueTeams.map((t: { id: string; name: string }) => [t.id, t.name] as [string, string]));
-            const opponentName = teamMap.get(opponentId) ?? 'Rakip';
+            const opponentName = teamMap.get(opponentId) ?? t('common.rivalFallback');
             let opponentLogo = null;
             let opponentForm: FormBadge[] = [];
             let opponentOverall = null;
@@ -789,9 +790,9 @@ export default function MainMenu() {
             if (!opponentLogo && fallbackStatic?.opponentLogo) opponentLogo = fallbackStatic.opponentLogo;
             if (opponentOverall == null && fallbackStatic?.opponentStats?.overall) opponentOverall = normalizeRatingTo100(fallbackStatic.opponentStats.overall);
             applyMatchHighlight({
-              competition: 'Lig Maci',
-              dateText: next.date.toLocaleDateString('tr-TR'),
-              timeText: next.date.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }),
+              competition: t('mainMenu.matchTile.leagueMatch'),
+              dateText: formatDate(next.date),
+              timeText: formatDate(next.date, { hour: '2-digit', minute: '2-digit' }),
               venue: isHome ? 'home' : 'away',
               venueName: undefined,
               team: { name: teamName, logo: teamLogo, form: teamForm, overall: teamOverall },
@@ -803,8 +804,8 @@ export default function MainMenu() {
         const fallbackMatch = upcomingMatches[0];
         if (fallbackMatch) {
           applyMatchHighlight({
-            competition: fallbackMatch.competition ?? 'Dostluk Maci',
-            dateText: 'Bugun',
+            competition: fallbackMatch.competition ?? t('mainMenu.matchTile.friendlyMatch'),
+            dateText: t('common.today'),
             timeText: fallbackMatch.time || '',
             venue: 'home',
             team: { name: teamName, logo: teamLogo, form: teamForm, overall: teamOverall },
@@ -824,7 +825,7 @@ export default function MainMenu() {
     return () => {
       cancelled = true;
     };
-  }, [user]);
+  }, [formatDate, t, user]);
 
   const renderLogo = (logo?: string | null, alt?: string, size = 'w-16 h-16') => {
     const src = getValidLogo(logo);
@@ -838,16 +839,21 @@ export default function MainMenu() {
     );
   };
 
-  const headerTextClass = isDark ? "text-white" : "text-white";
-  const headerSubTextClass = isDark ? "text-slate-300" : "text-blue-200";
-  const cardHomeName = actionableMatchTile?.homeId || matchHighlight?.team?.name || user?.teamName || 'TAKIM';
-  const cardAwayName = actionableMatchTile?.awayId || matchHighlight?.opponent?.name || 'RAKIP';
+  const cardHomeName =
+    actionableMatchTile?.homeId
+    || matchHighlight?.team?.name
+    || user?.teamName
+    || t('common.teamFallbackUpper');
+  const cardAwayName =
+    actionableMatchTile?.awayId
+    || matchHighlight?.opponent?.name
+    || t('common.rivalFallbackUpper');
   const matchTimeText = matchHighlight?.timeText?.trim() || '';
   const actionableButtonLabel =
     actionableMatchTile?.kind === 'friendly_pending'
       ? actionableMatchTile.actionLabel
       : actionableMatchTile
-        ? 'IZLE'
+        ? t('mainMenu.matchTile.watch')
         : null;
 
   return (
@@ -860,18 +866,19 @@ export default function MainMenu() {
       {/* Main Container - No Scroll, h-full Layout */}
       <div className="relative z-10 w-full h-full flex flex-col">
         {/* Header - Custom for Main Menu */}
-        <header className={`shrink-0 h-20 w-full px-4 sm:px-6 flex items-center justify-between shadow-xl z-50 transition-colors duration-300 ${isDark ? 'bg-gradient-to-b from-[#0f1016] to-[#1a1b26] border-b border-white/5' : 'bg-gradient-to-b from-[#154c79] to-[#0f3a5e] text-white border-b border-white/10'}`}>
-          <div className="flex items-center gap-4 h-full py-2">
+        <header className={`shrink-0 h-20 w-full px-3 sm:px-4 lg:px-6 shadow-xl z-50 transition-colors duration-300 ${isDark ? 'bg-gradient-to-b from-[#0f1016] to-[#1a1b26] border-b border-white/5' : 'bg-gradient-to-b from-[#154c79] to-[#0f3a5e] text-white border-b border-white/10'}`}>
+          <div className="flex w-full items-center justify-between h-full gap-4">
+          <div className="flex min-w-0 items-center gap-3">
             <div className={`aspect-square h-14 w-14 rounded-2xl overflow-hidden shadow-lg border-2 ${isDark ? 'border-amber-500/20' : 'border-white/20'}`}>
-              <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.username || 'User'}`} alt="Avatar" className="w-full h-full object-cover bg-slate-900" />
+              <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.username || 'User'}`} alt={t('mainMenu.header.avatarAlt')} className="w-full h-full object-cover bg-slate-900" />
             </div>
-            <div className="flex flex-col justify-center">
-              <span className="text-xl font-black leading-none tracking-wide uppercase text-white drop-shadow-md">{matchHighlight?.team.name || user?.teamName || 'TAKIM İSMİ'}</span>
+            <div className="flex flex-col justify-center min-w-0">
+              <span className="truncate text-xl font-black leading-none tracking-wide uppercase text-white drop-shadow-md">{matchHighlight?.team.name || user?.teamName || t('mainMenu.matchCard.teamNamePlaceholder')}</span>
               {/* Rank Display */}
               <div className="flex items-center gap-2 mt-1">
                 {currentRank ? (
                   <Badge variant="secondary" className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 text-[10px] font-bold tracking-wider">
-                    LIG SIRALAMASI: #{currentRank}
+                    {t('mainMenu.header.rankLabel')}: #{currentRank}
                   </Badge>
                 ) : (
                   <div className="h-5 w-24 bg-white/5 rounded animate-pulse" />
@@ -886,7 +893,7 @@ export default function MainMenu() {
               {currentKitType ? (
                 <DropdownMenu open={isKitMenuOpen} onOpenChange={setIsKitMenuOpen}>
                   <DropdownMenuTrigger asChild>
-                    <button className={`flex items-center gap-2 px-3 py-1.5 rounded-full border border-white/10 bg-white/5 hover:bg-white/10 transition-colors ${KIT_ICONS[currentKitType]?.color}`}>
+                    <button className={`inline-flex items-center gap-2 h-12 rounded-[22px] px-3.5 border border-white/10 bg-white/5 hover:bg-white/10 transition-colors ${KIT_ICONS[currentKitType]?.color}`}>
                       {(() => {
                         const { icon: Icon } = KIT_ICONS[currentKitType];
                         const count = kits[currentKitType] ?? 0;
@@ -894,7 +901,7 @@ export default function MainMenu() {
                         return (
                           <>
                             <Icon className="w-4 h-4" />
-                            <span className="text-xs font-bold text-slate-200">{config.label}</span>
+                            <span className="text-xs font-bold text-slate-200">{t(`common.kits.${currentKitType}`)}</span>
                             <Badge variant="secondary" className="bg-white/10 text-white ml-1 px-1.5 h-5 min-w-[20px] justify-center">{count}</Badge>
                           </>
                         );
@@ -909,12 +916,12 @@ export default function MainMenu() {
                       const effectText = formatKitEffect(currentKitType);
                       return (
                         <>
-                          <DropdownMenuLabel>{config.label}</DropdownMenuLabel>
+                          <DropdownMenuLabel>{t(`common.kits.${currentKitType}`)}</DropdownMenuLabel>
                           <p className="px-2 text-xs text-slate-400 mb-2">{config.description}</p>
                           {effectText && <p className="px-2 pb-2 text-xs font-medium text-emerald-400">{effectText}</p>}
                           <div className="grid grid-cols-2 gap-2 p-2">
                             <Button variant="outline" size="sm" className="h-8 text-xs border-white/10 hover:bg-white/5" disabled={isProcessing || isRewardingKit} onClick={() => handlePurchase(currentKitType, 'ad')}>
-                              {isRewardingKit ? 'Reklam Yukleniyor...' : 'Reklam Izle'}
+                              {isRewardingKit ? t('mainMenu.rewardMenu.loadingAd') : t('mainMenu.rewardMenu.watchAd')}
                             </Button>
                             <Button variant="outline" size="sm" className="h-8 text-xs border-white/10 hover:bg-white/5" disabled={isProcessing || isRewardingKit} onClick={() => handlePurchase(currentKitType, 'diamonds')}>{config.diamondCost} Elmas</Button>
                           </div>
@@ -932,7 +939,7 @@ export default function MainMenu() {
                               handleUse(currentKitType);
                             }}
                           >
-                            {count === 0 ? 'Reklam İzle (+1)' : 'Kullan'}
+                            {count === 0 ? `${t('mainMenu.rewardMenu.watchAd')} (+1)` : t('mainMenu.rewardMenu.useKit')}
                           </Button>
                         </>
                       );
@@ -946,35 +953,35 @@ export default function MainMenu() {
             <button
               type="button"
               onClick={() => navigate('/finance')}
-              className="hidden sm:flex items-center gap-3 rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1.5 text-white shadow-inner transition-colors hover:bg-emerald-500/15"
+              className="hidden sm:inline-flex items-center gap-3 h-12 rounded-[22px] px-3.5 border border-emerald-400/20 bg-emerald-500/10 text-white shadow-inner transition-colors hover:bg-emerald-500/15"
               data-testid="mainmenu-club-balance"
-              title="Takım bakiyesi"
+              title={t('mainMenu.header.clubBalanceTooltip')}
             >
               <Wallet size={16} className="text-emerald-300" />
               <div className="flex flex-col leading-none">
                 <span className="text-[9px] font-bold uppercase tracking-[0.18em] text-emerald-100/70">
-                  Bakiye
+                  {t('mainMenu.header.clubBalance')}
                 </span>
                 <span className={`mt-1 text-sm font-black text-white ${financeLoading ? 'animate-pulse' : ''}`}>
                   {financeLoading ? '...' : formattedClubBalance}
                 </span>
               </div>
             </button>
-            <div className="hidden sm:flex items-center gap-2 pl-3 pr-1 py-1 rounded-full border border-white/10 bg-slate-900/50 shadow-inner">
+            <div className="hidden sm:inline-flex items-center gap-2 h-12 rounded-[22px] border border-white/10 bg-slate-900/50 shadow-inner pl-3 pr-1">
               <div className="w-5 h-5 rotate-45 border-2 border-purple-500 bg-purple-400/20 shadow-[0_0_10px_rgba(168,85,247,0.5)]" />
-              <span className="font-black text-sm pr-2 text-white">{balance.toLocaleString()}</span>
+              <span className="font-black text-sm pr-2 text-white">{formatNumber(balance)}</span>
               <button onClick={() => navigate('/store/diamonds')} className="w-7 h-7 bg-emerald-500 hover:scale-105 text-white rounded-full flex items-center justify-center shadow-lg transition-transform">
                 <Plus size={16} strokeWidth={4} />
               </button>
             </div>
 
             {/* Actions: VIP, Notifications, Theme, Logout */}
-            <div className="flex items-center gap-1 sm:gap-2 border-l border-white/10 pl-3 ml-2">
+            <div className="flex items-center gap-2 border-l border-white/10 pl-3 ml-2">
               {/* VIP Button */}
               <button
                 onClick={() => navigate('/store/vip')}
-                className={`p-2 rounded-lg transition-all relative group ${vipActive ? 'bg-amber-500/10 text-amber-300' : 'text-slate-400 hover:text-white'}`}
-                title={vipActive ? 'VIP Aktif' : 'VIP Ol'}
+                className={`h-11 w-11 rounded-[20px] transition-all relative group ${vipActive ? 'bg-amber-500/10 text-amber-300' : 'text-slate-400 hover:text-white'}`}
+                title={vipActive ? t('mainMenu.header.vipActiveTitle') : t('mainMenu.header.vipInactiveTitle')}
               >
                 <Crown size={22} className={vipActive ? 'drop-shadow-[0_0_8px_rgba(251,191,36,0.5)]' : ''} />
                 {vipActive && <span className="absolute top-1 right-1 w-2 h-2 bg-emerald-500 rounded-full shadow-lg border border-slate-900" />}
@@ -983,15 +990,15 @@ export default function MainMenu() {
               {/* Notifications */}
               <Popover open={isNotificationOpen} onOpenChange={setIsNotificationOpen}>
                 <PopoverTrigger asChild>
-                  <button className="p-2 text-slate-300 hover:text-white transition-colors relative">
+                  <button className="text-slate-300 hover:text-white transition-colors relative h-11 w-11 rounded-[20px]">
                     <Bell size={22} />
                     {notifications.length > 0 && <span className="absolute top-2 right-2 w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse border-2 border-slate-900" />}
                   </button>
                 </PopoverTrigger>
                 <PopoverContent align="end" className="w-80 p-0 border border-white/10 bg-[#1a1b26]/95 backdrop-blur-xl shadow-2xl rounded-xl">
                   <div className="px-4 py-3 border-b border-white/5 bg-white/5 flex justify-between items-center">
-                    <span className="font-bold text-white text-sm">Bildirimler</span>
-                    {notifications.length > 0 && <span className="text-[10px] bg-red-500/20 text-red-200 px-2 py-0.5 rounded-full">{notifications.length} Yeni</span>}
+                    <span className="font-bold text-white text-sm">{t('mainMenu.notifications.title')}</span>
+                    {notifications.length > 0 && <span className="text-[10px] bg-red-500/20 text-red-200 px-2 py-0.5 rounded-full">{t('mainMenu.notifications.newCount', { count: notifications.length })}</span>}
                   </div>
                   <div className="max-h-[300px] overflow-y-auto p-1">
                     {notifications.length > 0 ? (
@@ -1008,25 +1015,26 @@ export default function MainMenu() {
                         ))}
                       </div>
                     ) : (
-                      <div className="py-8 text-center text-slate-500 text-xs">Yeni bildirim yok</div>
+                      <div className="py-8 text-center text-slate-500 text-xs">{t('mainMenu.notifications.empty')}</div>
                     )}
                   </div>
                 </PopoverContent>
               </Popover>
 
-              <button onClick={toggleTheme} className="p-2 text-slate-300 hover:text-white transition-colors">
+              <button onClick={toggleTheme} className="text-slate-300 hover:text-white transition-colors h-11 w-11 rounded-[20px]">
                 {isDark ? <Sun size={22} /> : <Moon size={22} />}
               </button>
 
-              <button onClick={logout} className="p-2 text-slate-400 hover:text-red-400 transition-colors">
+              <button onClick={logout} className="text-slate-400 hover:text-red-400 transition-colors h-11 w-11 rounded-[20px]">
                 <LogOut size={22} />
               </button>
             </div>
           </div>
+          </div>
         </header>
 
         {/* Content - 6x3 Grid Layout (No scroll, fits screen) */}
-        <div className="flex-1 w-full max-w-[1400px] mx-auto p-4 sm:p-6 grid grid-cols-6 grid-rows-3 gap-4 min-h-0">
+        <div className="flex-1 w-full max-w-[1400px] mx-auto grid grid-cols-6 grid-rows-3 gap-4 p-6 overflow-hidden min-h-0">
 
           {/* Match Card (Starts Col 0, Spans 3 Cols, Spans 2 Rows) [Indices: 0,0 - 2,1] */}
           <button
@@ -1049,10 +1057,10 @@ export default function MainMenu() {
               <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
             </div>
 
-            {/* Sabitlenmiş Sol Üst Badge */}
+            {/* SabitlenmiÅŸ Sol Ãœst Badge */}
             <div className="absolute top-0 left-0 z-20">
               <div className="bg-slate-900 text-white text-[10px] font-bold px-3 py-1 rounded-br-xl border-r border-b border-white/20 uppercase tracking-wider shadow-lg">
-                {actionableMatchTile?.matchTypeLabel || matchHighlight?.competition || 'LIG MACI'}
+                {actionableMatchTile?.matchTypeLabel || matchHighlight?.competition || t('mainMenu.matchCard.defaultCompetition')}
               </div>
             </div>
 
@@ -1095,7 +1103,7 @@ export default function MainMenu() {
                 <div className="min-w-[220px] rounded-xl border border-white/15 bg-slate-950/58 p-[2px] shadow-2xl backdrop-blur-md">
                   <div className="rounded-[10px] bg-gradient-to-r from-cyan-500 via-emerald-400 to-sky-500 bg-[length:200%_200%] px-5 py-2 text-center text-slate-950 animate-pulse">
                     <div className="text-[10px] font-black uppercase tracking-[0.22em]">
-                      {actionableMatchTile.matchTypeLabel} {actionableMatchTile.kind === 'friendly_pending' ? 'ISTEGI' : 'MACI'}
+                      {actionableMatchTile.matchTypeLabel} {actionableMatchTile.kind === 'friendly_pending' ? t('mainMenu.matchCard.requestSuffix') : t('mainMenu.matchCard.matchSuffix')}
                     </div>
                     <div className="flex items-center justify-center gap-2">
                       {actionableMatchLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
@@ -1106,14 +1114,14 @@ export default function MainMenu() {
               ) : (
                 <div className="bg-slate-800/90 backdrop-blur-md border border-white/20 px-4 py-1 rounded-lg shadow-xl text-center min-w-[100px]">
                   <div className="text-gray-300 text-[9px] uppercase font-bold tracking-widest leading-none mb-0.5">
-                    {matchHighlight?.dateText || (matchHighlightLoading ? 'YUKLENIYOR' : 'FIKSTUR')}
+                    {matchHighlight?.dateText || (matchHighlightLoading ? t('common.loadingUpper') : t('mainMenu.matchCard.fixture'))}
                   </div>
                   {matchTimeText ? (
                     <div className="text-white text-lg font-black tracking-wider leading-none">{matchTimeText}</div>
                   ) : (
                     <div className="flex items-center justify-center gap-1.5 text-[9px] font-bold uppercase tracking-[0.16em] text-slate-200">
                       <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      <span>MAC SAATI YUKLENIYOR</span>
+                      <span>{t('mainMenu.matchCard.timeLoading')}</span>
                     </div>
                   )}
                 </div>
@@ -1123,14 +1131,14 @@ export default function MainMenu() {
 
           {/* Altyapi (Col 3 [Index 3], Row 0) */}
           <MenuButton
-            label="ALTYAPI" icon={iconYouth} onClick={() => navigate('/youth')}
+            label={t('mainMenu.menus.academy')} icon={iconYouth} onClick={() => navigate('/youth')}
             className={`col-span-1 ${isDark ? 'border-white/10' : 'border-white/60 shadow-blue-900/10'}`}
             bgClass={isDark ? "bg-slate-900" : "bg-gradient-to-br from-[#122e5d] to-[#1e58a3]"}
           />
 
           {/* Transfer (Starts Col 4 [Index 4], Row 0) */}
           <MenuButton
-            label="TRANSFER" icon={iconTransfer} onClick={() => navigate('/transfer-market')}
+            label={t('mainMenu.menus.transfer')} icon={iconTransfer} onClick={() => navigate('/transfer-market')}
             className={`col-span-1 ${isDark ? 'border-white/10' : 'border-white/60 shadow-blue-900/10'}`}
             bgClass={isDark ? "bg-slate-900" : "bg-gradient-to-b from-[#0f4c81] via-[#1e60a3] to-[#3b82f6]"}
             layout="vertical"
@@ -1138,7 +1146,7 @@ export default function MainMenu() {
 
           {/* Nostalgia Pack (Col 5, Row 0) */}
           <MenuButton
-            label="NOSTALJİ" icon={iconNostalgia} onClick={() => navigate('/legend-pack')}
+            label={t('mainMenu.menus.nostalgia')} icon={iconNostalgia} onClick={() => navigate('/legend-pack')}
             className={`col-span-1 ${isDark ? 'border-white/10' : 'border-white/60 shadow-purple-900/10'}`}
             bgClass={isDark ? "bg-slate-900" : "bg-gradient-to-br from-[#5b21b6] to-[#7c3aed]"}
             layout="vertical"
@@ -1146,14 +1154,14 @@ export default function MainMenu() {
 
           {/* Ligler (Col 3 [Index 3], Row 1) */}
           <MenuButton
-            label="LIGLER" icon={iconLeagues} onClick={() => navigate('/leagues')}
+            label={t('mainMenu.menus.leagues')} icon={iconLeagues} onClick={() => navigate('/leagues')}
             className={`col-span-1 ${isDark ? 'border-white/10' : 'border-white/60 shadow-blue-900/10'}`}
             bgClass={isDark ? "bg-slate-900" : "bg-gradient-to-br from-[#1e4b8a] to-[#2563eb]"}
           />
 
           {/* Match Preview (Col 4, Row 1) */}
           <MenuButton
-            label="MAC ONIZLEME" icon={iconMatchPreview} onClick={() => navigate('/match-preview')}
+            label={t('mainMenu.menus.matchPreview')} icon={iconMatchPreview} onClick={() => navigate('/match-preview')}
             className={`col-span-1 ${isDark ? 'border-white/10' : 'border-white/60 shadow-blue-900/10'}`}
             bgClass={isDark ? "bg-slate-900" : "bg-gradient-to-br from-[#2c5282] to-[#2b6cb0]"}
             layout="vertical"
@@ -1161,7 +1169,7 @@ export default function MainMenu() {
 
           {/* NEW: Fixtures (Col 5, Row 1) */}
           <MenuButton
-            label="FIKSTUR" icon={iconFixtures} onClick={() => navigate('/fixtures')}
+            label={t('mainMenu.menus.fixtures')} icon={iconFixtures} onClick={() => navigate('/fixtures')}
             className={`col-span-1 ${isDark ? 'border-white/10' : 'border-white/60 shadow-blue-900/10'}`}
             bgClass={isDark ? "bg-slate-900" : "bg-gradient-to-br from-[#dd6b20] to-[#ed8936]"}
             layout="vertical"
@@ -1171,17 +1179,17 @@ export default function MainMenu() {
 
           {/* (0,2) Takim */}
           <MenuButton
-            label="TAKIM YONETIMI" icon={iconTeam} onClick={() => navigate('/team-planning')}
+            label={t('mainMenu.menus.teamManagement')} icon={iconTeam} onClick={() => navigate('/team-planning')}
             className={`col-span-1 border-b-4 border-green-500`} bgClass={isDark ? "bg-slate-900" : "bg-[#183a28]"} layout="vertical"
           />
           {/* (1,2) Arkadaslar */}
           <MenuButton
-            label="ARKADASLAR" icon={iconFriends} onClick={() => navigate('/friends')}
+            label={t('mainMenu.menus.friends')} icon={iconFriends} onClick={() => navigate('/friends')}
             className={`col-span-1 border-b-4 border-purple-500`} bgClass={isDark ? "bg-slate-900" : "bg-[#2e1a47]"} layout="vertical"
           />
           {/* (2,2) NEW: Champions League */}
           <MenuButton
-            label="SAMPIYONLAR LIGI" icon={iconChampions} onClick={() => navigate('/champions-league')}
+            label={t('mainMenu.menus.championsLeague')} icon={iconChampions} onClick={() => navigate('/champions-league')}
             className={`col-span-1 border-b-4 border-sky-400`}
             bgClass={isDark ? "bg-slate-900" : "bg-[#2a4365]"}
             layout="vertical"
@@ -1189,17 +1197,17 @@ export default function MainMenu() {
 
           {/* (3,2) Antrenman */}
           <MenuButton
-            label="ANTRENMAN" icon={iconTraining} onClick={() => navigate('/training')}
+            label={t('mainMenu.menus.training')} icon={iconTraining} onClick={() => navigate('/training')}
             className={`col-span-1 border-b-4 border-blue-500`} bgClass={isDark ? "bg-slate-900" : "bg-[#183152]"} layout="vertical"
           />
           {/* (4,2) Finans */}
           <MenuButton
-            label="FINANS" icon={iconFinance} onClick={() => navigate('/finance')}
+            label={t('mainMenu.menus.finance')} icon={iconFinance} onClick={() => navigate('/finance')}
             className={`col-span-1 border-b-4 border-emerald-500`} bgClass={isDark ? "bg-slate-900" : "bg-[#104233]"} layout="vertical"
           />
           {/* (5,2) Ayarlar */}
           <MenuButton
-            label="AYARLAR" icon={iconSettings} onClick={() => navigate('/settings')}
+            label={t('mainMenu.menus.settings')} icon={iconSettings} onClick={() => navigate('/settings')}
             className={`col-span-1 border-b-4 border-slate-500`} bgClass={isDark ? "bg-slate-900" : "bg-[#2d3748]"} layout="vertical"
           />
 
@@ -1218,3 +1226,4 @@ export default function MainMenu() {
     </div>
   );
 }
+

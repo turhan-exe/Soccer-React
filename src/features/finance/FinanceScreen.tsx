@@ -5,6 +5,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent } from '@/components/ui/card';
 import { useAuth } from '@/contexts/AuthContext';
 import { useInventory } from '@/contexts/InventoryContext';
+import { useTranslation } from '@/contexts/LanguageContext';
 import { useClubFinance } from '@/hooks/useClubFinance';
 import { useCollection } from '@/hooks/useCollection';
 import {
@@ -92,34 +93,45 @@ const readVipDailyCreditSummary = (value: unknown): VipDailyCreditSummary => {
   };
 };
 
-const formatSponsorErrorMessage = (error: unknown, fallback: string): string => {
+const formatSponsorErrorMessage = (
+  error: unknown,
+  fallback: string,
+  formatDate: (value: Date | string | number, options?: Intl.DateTimeFormatOptions) => string,
+  t: (key: string, params?: Record<string, string | number>) => string,
+): string => {
   const details = getErrorDetails(error);
   const nextPayoutAtRaw = typeof details?.nextPayoutAt === 'string' ? details.nextPayoutAt : '';
   if (nextPayoutAtRaw) {
     const nextPayoutAt = new Date(nextPayoutAtRaw);
     if (!Number.isNaN(nextPayoutAt.getTime())) {
-      return `Bir sonraki sponsorluk odemesi ${new Intl.DateTimeFormat('tr-TR', {
-        day: '2-digit',
-        month: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-      }).format(nextPayoutAt)} tarihinde hazir olacak.`;
+      return t('finance.errors.sponsorNextReady', {
+        date: formatDate(nextPayoutAt, {
+          day: '2-digit',
+          month: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit',
+        }),
+      });
     }
   }
 
   return getErrorMessage(error, fallback);
 };
 
-const formatVipDailyCreditErrorMessage = (error: unknown, fallback: string): string => {
+const formatVipDailyCreditErrorMessage = (
+  error: unknown,
+  fallback: string,
+  t: (key: string, params?: Record<string, string | number>) => string,
+): string => {
   const details = getErrorDetails(error);
   if (details?.reason === 'already_claimed') {
-    return 'Bugunku VIP kredi bonusunu zaten aldin.';
+    return t('finance.errors.vipAlreadyClaimed');
   }
   if (details?.reason === 'vip_inactive') {
-    return 'Bu bonus sadece aktif VIP uyeler icin acik.';
+    return t('finance.errors.vipInactive');
   }
   if (details?.reason === 'insufficient_diamonds') {
-    return 'VIP kredi bonusu icin yeterli elmasin yok.';
+    return t('finance.errors.vipInsufficientDiamonds');
   }
 
   return getErrorMessage(error, fallback);
@@ -144,7 +156,7 @@ const logSponsorActionError = ({
     sponsorId,
     sponsorType: sponsorType ?? null,
     code: getErrorCode(error) || null,
-    message: getErrorMessage(error, 'Bilinmeyen sponsor hatasi.'),
+    message: getErrorMessage(error, 'Unknown sponsor error.'),
     details: getErrorDetails(error),
   };
   console.error(`[FinanceScreen] sponsor action failed ${JSON.stringify(payload)}`);
@@ -153,6 +165,7 @@ const logSponsorActionError = ({
 const getPurchaseErrorMessage = (
   error: unknown,
   fallback: string,
+  permissionFallback?: string,
 ): string => {
   const rawMessage = getErrorMessage(error, fallback);
   const normalized = rawMessage.toLowerCase();
@@ -162,11 +175,7 @@ const getPurchaseErrorMessage = (
     normalized.includes('missing or insufficient permissions') ||
     normalized.includes('insufficient permissions')
   ) {
-    return (
-      "Google Play satin alma dogrulamasi icin yetki eksik. " +
-      "Play Console'da osm-react@appspot.gserviceaccount.com hesabinin uygulama erisimi, " +
-      'siparis ve finansal veri izinlerini kontrol et.'
-    );
+    return permissionFallback ?? fallback;
   }
 
   if (firebaseCode === 'functions/permission-denied') {
@@ -179,6 +188,7 @@ const getPurchaseErrorMessage = (
 export default function FinanceSummaryScreen() {
   const { user } = useAuth();
   const { vipActive } = useInventory();
+  const { t, formatDate } = useTranslation();
   const [activeTab, setActiveTab] = useState('summary');
   const [isTeamOwner, setIsTeamOwner] = useState<boolean | null>(null);
   const [creditLoading, setCreditLoading] = useState<string | null>(null);
@@ -241,11 +251,14 @@ export default function FinanceSummaryScreen() {
       return;
     }
     void ensureMonthlySalaryCharge(user.id).catch((err) => {
-      if (err instanceof Error && err.message !== 'Yetersiz bakiye.') {
+      if (
+        err instanceof Error &&
+        err.message !== t('finance.stadium.insufficientBalance')
+      ) {
         console.warn('[FinanceScreen] ensure salary charge failed', err);
       }
     });
-  }, [user]);
+  }, [t, user]);
 
   const stadiumLevel = stadium?.level ?? 1;
   const stadiumConfig = STADIUM_LEVELS[stadiumLevel];
@@ -262,12 +275,14 @@ export default function FinanceSummaryScreen() {
   }, [last30dExpense, last30dIncome, last30dNet]);
 
   const dateFormatter = useMemo(
-    () =>
-      new Intl.DateTimeFormat('tr-TR', {
-        day: '2-digit',
-        month: '2-digit',
-      }),
-    [],
+    () => ({
+      format: (value: Date) =>
+        formatDate(value, {
+          day: '2-digit',
+          month: '2-digit',
+        }),
+    }),
+    [formatDate],
   );
 
   const chartData = useMemo(() => {
@@ -362,7 +377,7 @@ export default function FinanceSummaryScreen() {
           setStoreError(
             error instanceof Error
               ? error.message
-              : 'Play Store baglantisi kurulurken hata olustu.',
+              : t('finance.errors.playStorePrepare'),
           );
         }
       } finally {
@@ -375,12 +390,10 @@ export default function FinanceSummaryScreen() {
         const creditSync = await syncPendingAndroidCreditPurchases();
         if (!isCancelled) {
           if (creditSync.processed > 0) {
-            toast.success(`${creditSync.processed} bekleyen kredi satin almasi hesaba islendi.`);
+            toast.success(t('finance.errors.pendingCreditSync', { count: creditSync.processed }));
           }
           if (creditSync.pending > 0) {
-            toast(
-              `${creditSync.pending} kredi satin almasi beklemede. Onaylandiginda otomatik islenecek.`,
-            );
+            toast(t('finance.errors.pendingCreditWait', { count: creditSync.pending }));
           }
         }
       } catch (error) {
@@ -395,12 +408,10 @@ export default function FinanceSummaryScreen() {
         const sponsorSync = await syncPendingAndroidSponsorPurchases(premiumSponsorEntries);
         if (!isCancelled) {
           if (sponsorSync.processed > 0) {
-            toast.success(`${sponsorSync.processed} bekleyen sponsor satin almasi aktif edildi.`);
+            toast.success(t('finance.errors.pendingSponsorSync', { count: sponsorSync.processed }));
           }
           if (sponsorSync.pending > 0) {
-            toast(
-              `${sponsorSync.pending} sponsor satin almasi beklemede. Onaylandiginda otomatik islenecek.`,
-            );
+            toast(t('finance.errors.pendingSponsorWait', { count: sponsorSync.pending }));
           }
         }
       } catch (error) {
@@ -427,8 +438,8 @@ export default function FinanceSummaryScreen() {
       <div className="flex min-h-screen items-center justify-center bg-slate-950 p-6 text-white">
         <Card className="border-white/10 bg-slate-900">
           <CardContent className="space-y-4 p-8 text-center">
-            <h2 className="text-xl font-bold">Finans Ekranina Erisim</h2>
-            <p className="text-slate-400">Verileri goruntulemek icin lutfen giris yapin.</p>
+            <h2 className="text-xl font-bold">{t('finance.page.loginTitle')}</h2>
+            <p className="text-slate-400">{t('finance.page.loginDescription')}</p>
           </CardContent>
         </Card>
       </div>
@@ -449,8 +460,8 @@ export default function FinanceSummaryScreen() {
 
   const handleUpgrade = async () => {
     if (isTeamOwner !== true) {
-      toast.error('Yetki Hatasi', {
-        description: 'Stadyum guncellemesi icin sadece takim sahibi yetkilidir.',
+      toast.error(t('finance.errors.ownerOnlyTitle'), {
+        description: t('finance.errors.ownerOnlyDescription'),
       });
       return;
     }
@@ -458,18 +469,20 @@ export default function FinanceSummaryScreen() {
     setUpgrading(true);
     try {
       await upgradeStadiumLevel(user.id);
-      toast.success('Basarili', { description: 'Stadyum seviyesi guncellendi.' });
+      toast.success(t('finance.errors.upgradeSuccessTitle'), {
+        description: t('finance.errors.upgradeSuccessDescription'),
+      });
     } catch (error) {
       if (
         error instanceof Error &&
         error.message.toLowerCase().includes('missing or insufficient permissions')
       ) {
-        toast.error('Yetki Hatasi', {
-          description: 'Stadyum guncellemesi icin takim sahibi olmalisin.',
+        toast.error(t('finance.errors.ownerOnlyTitle'), {
+          description: t('finance.errors.ownerOnlyDescription'),
         });
       } else {
-        toast.error('Hata', {
-          description: error instanceof Error ? error.message : 'Stadyum guncellenemedi.',
+        toast.error(t('finance.errors.genericTitle'), {
+          description: error instanceof Error ? error.message : t('finance.errors.upgradeFailed'),
         });
       }
     } finally {
@@ -482,14 +495,16 @@ export default function FinanceSummaryScreen() {
     try {
       if (entry.type !== 'premium') {
         const activated = await activateSponsor(entry);
-        toast.success('Basarili', { description: `${activated.sponsorName} sponsoru aktif edildi.` });
+        toast.success(t('finance.errors.upgradeSuccessTitle'), {
+          description: t('finance.errors.sponsorActivated', { name: activated.sponsorName }),
+        });
         return;
       }
 
       const productId = buildSponsorStoreProductId(entry);
       const storeProduct = productId ? productsById[productId] ?? null : null;
       if (!productId || !storeProduct) {
-        throw new Error('Premium sponsor icin Play Store urunu bulunamadi.');
+        throw new Error(t('finance.errors.sponsorPremiumProductMissing'));
       }
 
       const purchaseResult = await beginPlayBillingPurchase(productId);
@@ -498,9 +513,7 @@ export default function FinanceSummaryScreen() {
       }
 
       if (purchaseResult.status === 'pending' || purchaseResult.purchaseState === 'PENDING') {
-        toast(
-          'Sponsor satin alma islemi beklemede. Google Play onayindan sonra otomatik aktif edilecek.',
-        );
+        toast(t('finance.errors.sponsorPending'));
         return;
       }
 
@@ -518,22 +531,22 @@ export default function FinanceSummaryScreen() {
 
       if (finalized.granted) {
         if (finalized.consumeAttempted && !finalized.consumed) {
-          toast.warning(
-            'Sponsor aktif edildi. Satin alma tuketimi tamamlanamadi; finans ekranini tekrar acman gerekebilir.',
-          );
+          toast.warning(t('finance.errors.sponsorActivated', { name: finalized.sponsorName }));
           return;
         }
 
-        toast.success('Basarili', { description: `${finalized.sponsorName} sponsoru aktif edildi.` });
+        toast.success(t('finance.errors.upgradeSuccessTitle'), {
+          description: t('finance.errors.sponsorActivated', { name: finalized.sponsorName }),
+        });
         return;
       }
 
       if (finalized.alreadyProcessed) {
-        toast.success('Bu sponsor satin almasi daha once islenmis.');
+        toast.success(t('finance.errors.sponsorAlreadyProcessed'));
         return;
       }
 
-      toast.success('Odeme dogrulandi.');
+      toast.success(t('finance.errors.sponsorValidated'));
     } catch (error) {
       logSponsorActionError({
         action: 'activate',
@@ -542,8 +555,12 @@ export default function FinanceSummaryScreen() {
         sponsorType: entry.type,
         error,
       });
-      toast.error('Hata', {
-        description: getPurchaseErrorMessage(error, 'Sponsor aktive edilemedi.'),
+      toast.error(t('finance.errors.genericTitle'), {
+        description: getPurchaseErrorMessage(
+          error,
+          t('finance.errors.sponsorPremiumProductMissing'),
+          t('finance.errors.purchasePermissionDetailed'),
+        ),
       });
     } finally {
       setSponsorLoading(null);
@@ -554,7 +571,11 @@ export default function FinanceSummaryScreen() {
     setSponsorLoading(sponsorId);
     try {
       const payout = await applySponsorEarnings(sponsorId);
-      toast.success('Odeme Alindi', { description: `Sponsor kazanci: ${formatCurrency(payout.payout)}` });
+      toast.success(t('finance.errors.sponsorCollectTitle'), {
+        description: t('finance.errors.sponsorCollectDescription', {
+          value: formatCurrency(payout.payout),
+        }),
+      });
     } catch (error) {
       logSponsorActionError({
         action: 'collect',
@@ -562,8 +583,13 @@ export default function FinanceSummaryScreen() {
         sponsorId,
         error,
       });
-      toast.error('Hata', {
-        description: formatSponsorErrorMessage(error, 'Sponsor kazanci alinamadi.'),
+      toast.error(t('finance.errors.genericTitle'), {
+        description: formatSponsorErrorMessage(
+          error,
+          t('finance.errors.sponsorCollectFailed'),
+          formatDate,
+          t,
+        ),
       });
     } finally {
       setSponsorLoading(null);
@@ -575,7 +601,7 @@ export default function FinanceSummaryScreen() {
     try {
       const storeProduct = productsById[pack.productId] ?? null;
       if (!storeProduct) {
-        throw new Error('Bu kredi paketi icin Play Store urunu bulunamadi.');
+        throw new Error(t('finance.errors.creditProductMissing'));
       }
 
       const purchaseResult = await beginPlayBillingPurchase(pack.productId);
@@ -584,7 +610,7 @@ export default function FinanceSummaryScreen() {
       }
 
       if (purchaseResult.status === 'pending' || purchaseResult.purchaseState === 'PENDING') {
-        toast('Odeme islemi beklemede. Onaylandiginda kredi paketi otomatik islenecek.');
+        toast(t('finance.errors.creditPending'));
         return;
       }
 
@@ -602,26 +628,34 @@ export default function FinanceSummaryScreen() {
       if (finalized.granted) {
         if (finalized.consumeAttempted && !finalized.consumed) {
           toast.warning(
-            'Krediler hesaba eklendi. Satin alma tuketimi tamamlanamadi; finans ekranini tekrar acman gerekebilir.',
+            t('finance.errors.creditLoadedDescription', {
+              value: formatCurrency(pack.amount),
+            }),
           );
           return;
         }
 
-        toast.success('Kredi Yuklendi', {
-          description: `${formatCurrency(pack.amount)} kredi hesabina eklendi`,
+        toast.success(t('finance.errors.creditLoadedTitle'), {
+          description: t('finance.errors.creditLoadedDescription', {
+            value: formatCurrency(pack.amount),
+          }),
         });
         return;
       }
 
       if (finalized.alreadyProcessed) {
-        toast.success('Bu kredi satin almasi daha once hesaba islenmis.');
+        toast.success(t('finance.errors.creditAlreadyProcessed'));
         return;
       }
 
-      toast.success('Odeme dogrulandi.');
+      toast.success(t('finance.errors.sponsorValidated'));
     } catch (error) {
-      toast.error('Hata', {
-        description: getPurchaseErrorMessage(error, 'Kredi satin alinamadi.'),
+      toast.error(t('finance.errors.genericTitle'), {
+        description: getPurchaseErrorMessage(
+          error,
+          t('finance.errors.creditProductMissing'),
+          t('finance.errors.purchasePermissionDetailed'),
+        ),
       });
     } finally {
       setCreditLoading(null);
@@ -632,12 +666,18 @@ export default function FinanceSummaryScreen() {
     setCreditLoading('vip-daily-credit');
     try {
       const claimed: ClaimVipDailyCreditResponse = await claimVipDailyCredits();
-      toast.success('VIP Bonusu Alindi', {
-        description: `${formatCurrency(claimed.amount)} kredi hesabina eklendi.`,
+      toast.success(t('finance.errors.vipClaimTitle'), {
+        description: t('finance.errors.vipClaimDescription', {
+          value: formatCurrency(claimed.amount),
+        }),
       });
     } catch (error) {
-      toast.error('Hata', {
-        description: formatVipDailyCreditErrorMessage(error, 'VIP kredi bonusu alinamadi.'),
+      toast.error(t('finance.errors.genericTitle'), {
+        description: formatVipDailyCreditErrorMessage(
+          error,
+          t('finance.errors.vipClaimFailed'),
+          t,
+        ),
       });
     } finally {
       setCreditLoading(null);
@@ -658,11 +698,11 @@ export default function FinanceSummaryScreen() {
           <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
             <div className="-mx-4 overflow-x-auto px-4 pb-2 scrollbar-hide">
               <TabsList className="flex h-auto w-max rounded-full border border-white/5 bg-slate-900/80 p-1 backdrop-blur">
-                <TabItem value="summary" label="OZET" />
-                <TabItem value="stadium" label="STADYUM" />
-                <TabItem value="salaries" label="MAASLAR" />
-                <TabItem value="sponsors" label="SPONSORLAR" />
-                <TabItem value="credits" label="KREDI" />
+                <TabItem value="summary" label={t('finance.tabs.summary')} />
+                <TabItem value="stadium" label={t('finance.tabs.stadium')} />
+                <TabItem value="salaries" label={t('finance.tabs.salaries')} />
+                <TabItem value="sponsors" label={t('finance.tabs.sponsors')} />
+                <TabItem value="credits" label={t('finance.tabs.credits')} />
               </TabsList>
             </div>
 

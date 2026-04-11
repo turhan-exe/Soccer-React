@@ -1,5 +1,7 @@
-import { Button } from '@/components/ui/button';
 import { Clapperboard, Gem } from 'lucide-react';
+
+import { Button } from '@/components/ui/button';
+import { useTranslation } from '@/contexts/LanguageContext';
 
 interface YouthDashboardProps {
   candidateCount: number;
@@ -30,6 +32,8 @@ export function YouthDashboard({
   diamondCost = 100,
   adReductionPercent = 15,
 }: YouthDashboardProps) {
+  const { t } = useTranslation();
+
   const handleAction = () => {
     if (canGenerate) {
       onGenerate();
@@ -44,41 +48,43 @@ export function YouthDashboard({
   return (
     <div className="mb-8">
       <div className="mb-6 px-1">
-        <h1 className="mb-2 text-2xl font-bold text-white">Altyapı Merkezi</h1>
-        <p className="text-sm text-slate-400">
-          Kulübün için gelişime açık genç yetenekleri takip et, doğru zamanda A takıma yükselt.
-        </p>
+        <h1 className="mb-2 text-2xl font-bold text-white">{t('youth.pageTitle')}</h1>
+        <p className="text-sm text-slate-400">{t('youth.pageSubtitle')}</p>
       </div>
 
       <div className="relative overflow-hidden rounded-[32px] border border-white/5 bg-[#1e1f2e] shadow-2xl">
         <div className="relative border-b border-white/5 bg-slate-900/40 p-6">
           <div className="absolute left-0 top-0 h-px w-full bg-gradient-to-r from-transparent via-purple-500/50 to-transparent" />
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-bold text-purple-400">Genel Durum</h2>
+            <h2 className="text-lg font-bold text-purple-400">{t('youth.summaryTitle')}</h2>
           </div>
           <p className="mt-1 text-xs text-slate-500">
-            {candidateCount > 0
-              ? 'Altyapı havuzundaki adaylar değerlendirilmeyi bekliyor.'
-              : 'Şu anda aktif aday bulunmuyor.'}
+            {candidateCount > 0 ? t('youth.summaryWaiting') : t('youth.summaryEmpty')}
           </p>
         </div>
 
         <div className="p-8">
           <div className="mb-8 grid grid-cols-2 gap-8 lg:grid-cols-4">
             <div>
-              <p className="mb-1 text-xs font-medium text-slate-400">Aday Havuzu</p>
-              <p className="mb-0.5 text-xl font-bold text-white">{candidateCount} Aday</p>
+              <p className="mb-1 text-xs font-medium text-slate-400">{t('youth.poolSize')}</p>
+              <p className="mb-0.5 text-xl font-bold text-white">
+                {t('youth.poolSizeValue', { count: candidateCount })}
+              </p>
             </div>
             <div>
-              <p className="mb-1 text-xs font-medium text-slate-400">Ortalama Genel</p>
-              <p className="mb-0.5 text-xl font-bold text-white">{averageOverall} Ortalama</p>
+              <p className="mb-1 text-xs font-medium text-slate-400">{t('youth.averageOverall')}</p>
+              <p className="mb-0.5 text-xl font-bold text-white">
+                {t('youth.averageOverallValue', { value: averageOverall })}
+              </p>
             </div>
             <div>
-              <p className="mb-1 text-xs font-medium text-slate-400">En Yüksek Potansiyel</p>
-              <p className="mb-0.5 text-xl font-bold text-white">{topPotential} Potansiyel</p>
+              <p className="mb-1 text-xs font-medium text-slate-400">{t('youth.topPotential')}</p>
+              <p className="mb-0.5 text-xl font-bold text-white">
+                {t('youth.topPotentialValue', { value: topPotential })}
+              </p>
             </div>
             <div>
-              <p className="mb-1 text-xs font-medium text-slate-400">Yeni Aday Süresi</p>
+              <p className="mb-1 text-xs font-medium text-slate-400">{t('youth.nextCandidate')}</p>
               <p className="mb-0.5 font-mono text-xl font-bold text-emerald-400">
                 {nextGenerateTime}
               </p>
@@ -95,14 +101,14 @@ export function YouthDashboard({
               <span className="relative z-10 flex items-center gap-2 text-lg font-semibold text-white">
                 {!canGenerate && onReset ? (
                   <>
-                    Yetenek Ara
+                    {t('youth.scoutTalent')}
                     <div className="ml-2 flex items-center gap-1 rounded bg-emerald-500/20 px-2 py-0.5 text-sm text-emerald-400">
                       <Gem className="h-3 w-3 fill-current" />
                       {diamondCost}
                     </div>
                   </>
                 ) : (
-                  'Yetenek Ara'
+                  t('youth.scoutTalent')
                 )}
               </span>
               <div className="absolute inset-0 rounded-full border-2 border-transparent transition-colors group-hover:border-purple-500/30" />
@@ -118,11 +124,11 @@ export function YouthDashboard({
                 >
                   <Clapperboard className="mr-2 h-4 w-4" />
                   {isWatchingAd
-                    ? 'Reklam Yükleniyor...'
-                    : `Reklam İzle (-%${adReductionPercent} Süre)`}
+                    ? t('youth.loadingAd')
+                    : t('youth.watchAd', { percent: adReductionPercent })}
                 </Button>
                 <p className="text-center text-xs text-slate-400">
-                  Reklam ödülü kalan bekleme süresini %{adReductionPercent} azaltır.
+                  {t('youth.adHelp', { percent: adReductionPercent })}
                 </p>
               </div>
             )}

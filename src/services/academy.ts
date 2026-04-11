@@ -10,19 +10,24 @@ import {
   serverTimestamp,
   Timestamp,
   increment,
-  getDoc,
   updateDoc,
 } from 'firebase/firestore';
 import { db } from './firebase';
 import { toast } from 'sonner';
 import { generateMockCandidate, CandidatePlayer } from '@/features/academy/generateMockCandidate';
-import { addPlayerToTeam, updatePlayerSalary } from './team';
 import type { Player } from '@/types';
 import { calculateOverall, getRoles } from '@/lib/player';
 import { addGameYears } from '@/lib/gameTime';
 import { getSalaryForOverall } from '@/lib/salary';
+import { normalizeTeamPlayers } from '@/lib/playerVitals';
 
 export const ACADEMY_COOLDOWN_MS = 2 * 60 * 60 * 1000; // 2 saat
+export const ACADEMY_RESET_DIAMOND_COST = 180;
+
+type FirestoreLikeError = {
+  code?: string;
+  message?: string;
+};
 
 interface UserDoc {
   diamondBalance?: number;
@@ -39,19 +44,96 @@ export interface AcademyCandidate {
   source?: string;
 }
 
+export type AcademyCandidateListenerErrorCode =
+  | 'permission-denied'
+  | 'index-required'
+  | 'unknown';
+
+export interface AcademyCandidateListenerError {
+  code: AcademyCandidateListenerErrorCode;
+  message: string;
+  cause: unknown;
+}
+
+type AcademyCandidateListenerErrorHandler =
+  (error: AcademyCandidateListenerError) => void | Promise<void>;
+
+const isFirestorePermissionError = (error: unknown): boolean =>
+  typeof error === 'object' &&
+  error !== null &&
+  'code' in error &&
+  (error as FirestoreLikeError).code === 'permission-denied';
+
+const isFirestoreIndexError = (error: unknown): boolean => {
+  if (typeof error !== 'object' || error === null) {
+    return false;
+  }
+
+  const firestoreError = error as FirestoreLikeError;
+  const message = String(firestoreError.message ?? '').toLowerCase();
+  return (
+    firestoreError.code === 'failed-precondition' &&
+    (message.includes('requires an index') || message.includes('create it here'))
+  );
+};
+
+const toAcademyListenerError = (error: unknown): AcademyCandidateListenerError => {
+  if (isFirestorePermissionError(error)) {
+    return {
+      code: 'permission-denied',
+      message: 'Missing or insufficient permissions.',
+      cause: error,
+    };
+  }
+
+  if (isFirestoreIndexError(error)) {
+    return {
+      code: 'index-required',
+      message: 'The academy candidate query requires an index.',
+      cause: error,
+    };
+  }
+
+  return {
+    code: 'unknown',
+    message: 'Academy candidates could not be loaded.',
+    cause: error,
+  };
+};
+
+const createInitialRenameState = (): NonNullable<Player['rename']> => ({
+  adAvailableAt: new Date(0).toISOString(),
+  lastMethod: undefined,
+  lastUpdatedAt: undefined,
+});
+
 export function listenPendingCandidates(
   uid: string,
   cb: (candidates: AcademyCandidate[]) => void,
+  onError?: AcademyCandidateListenerErrorHandler,
 ): Unsubscribe {
   const col = collection(db, 'users', uid, 'academyCandidates');
   const q = query(col, where('status', '==', 'pending'), orderBy('createdAt', 'desc'));
-  return onSnapshot(q, (snap) => {
-    const list: AcademyCandidate[] = snap.docs.map((d) => ({
-      id: d.id,
-      ...(d.data() as Omit<AcademyCandidate, 'id'>),
-    }));
-    cb(list);
-  });
+  return onSnapshot(
+    q,
+    (snap) => {
+      const list: AcademyCandidate[] = snap.docs.map((d) => ({
+        id: d.id,
+        ...(d.data() as Omit<AcademyCandidate, 'id'>),
+      }));
+      cb(list);
+    },
+    (error) => {
+      const nextError = toAcademyListenerError(error);
+      if (nextError.code === 'unknown') {
+        console.error('[academy.listenPendingCandidates] Snapshot failed', error);
+      } else {
+        console.warn('[academy.listenPendingCandidates] Snapshot failed', error);
+      }
+      cb([]);
+      void onError?.(nextError);
+    },
+  );
 }
 
 export async function pullNewCandidate(uid: string): Promise<AcademyCandidate> {
@@ -111,11 +193,11 @@ export async function resetCooldownWithDiamonds(uid: string): Promise<void> {
       const snap = await tx.get(userRef);
       const data = snap.data() as UserDoc;
       const balance = data.diamondBalance ?? 0;
-      if (balance < 180) {
+      if (balance < ACADEMY_RESET_DIAMOND_COST) {
         throw new Error('Yetersiz elmas');
       }
       tx.update(userRef, {
-        diamondBalance: increment(-180),
+        diamondBalance: increment(-ACADEMY_RESET_DIAMOND_COST),
         'academy.lastPullAt': serverTimestamp(),
         'academy.nextPullAt': Timestamp.fromDate(now),
       });
@@ -183,6 +265,7 @@ function candidateToPlayer(id: string, c: CandidatePlayer, salaryOverride?: numb
       expiresAt: addGameYears(new Date(), 1).toISOString(),
       extensions: 0,
     },
+    rename: createInitialRenameState(),
   };
 }
 
@@ -192,23 +275,61 @@ export interface AcceptCandidateOptions {
 
 export async function acceptCandidate(uid: string, candidateId: string, options?: AcceptCandidateOptions): Promise<Player> {
   const candidateRef = doc(db, 'users', uid, 'academyCandidates', candidateId);
+  const teamRef = doc(db, 'teams', uid);
+  let acceptedPlayer: Player | null = null;
+
   try {
-    const snap = await getDoc(candidateRef);
-    if (!snap.exists()) {
-      throw new Error('Aday bulunamadi');
+    await runTransaction(db, async (tx) => {
+      const candidateSnap = await tx.get(candidateRef);
+      const teamSnap = await tx.get(teamRef);
+
+      if (!candidateSnap.exists()) {
+        throw new Error('Aday bulunamadi');
+      }
+      if (!teamSnap.exists()) {
+        throw new Error('Takim bulunamadi.');
+      }
+
+      const candidateData = candidateSnap.data() as {
+        status?: AcademyCandidate['status'];
+        player?: CandidatePlayer;
+      };
+      if (candidateData.status !== 'pending') {
+        throw new Error('Bu aday zaten isleme alinmis.');
+      }
+      if (!candidateData.player) {
+        throw new Error('Aday verisi eksik.');
+      }
+
+      const player = candidateToPlayer(candidateId, candidateData.player, options?.salary);
+      const teamData = teamSnap.data() as { players?: Player[] } | undefined;
+      const currentPlayers = Array.isArray(teamData?.players) ? teamData.players : [];
+      const alreadyInTeam = currentPlayers.some(
+        existingPlayer => String(existingPlayer.id) === String(player.id),
+      );
+      if (alreadyInTeam) {
+        throw new Error('Oyuncu zaten takimda.');
+      }
+
+      const nextPlayers = normalizeTeamPlayers([...currentPlayers, player]);
+      tx.update(teamRef, { players: nextPlayers });
+      tx.update(candidateRef, {
+        status: 'accepted',
+        updatedAt: serverTimestamp(),
+      });
+      acceptedPlayer = player;
+    });
+
+    const player = acceptedPlayer;
+    if (!player) {
+      throw new Error('Oyuncu takima eklenemedi');
     }
-    const data = snap.data() as { player: CandidatePlayer };
-    const player = candidateToPlayer(candidateId, data.player, options?.salary);
-    await addPlayerToTeam(uid, player);
-    if (options?.salary) {
-      await updatePlayerSalary(uid, player.id, options.salary);
-    }
-    await updateDoc(candidateRef, { status: 'accepted' });
+
     toast.success('Oyuncu takimina eklendi');
     return player;
   } catch (err) {
     console.warn(err);
-    toast.error('Islem basarisiz');
+    toast.error(err instanceof Error ? err.message : 'Islem basarisiz');
     throw err;
   }
 }

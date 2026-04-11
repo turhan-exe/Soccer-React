@@ -16,6 +16,8 @@ import {
 import { PagesHeader } from '@/components/layout/PagesHeader';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { useTranslation } from '@/contexts/LanguageContext';
+import { formatDateValue, translate } from '@/i18n/runtime';
 import { getLatestChampionsLeagueOverview } from '@/services/championsLeague';
 import { auth } from '@/services/firebase';
 import { getTeam } from '@/services/team';
@@ -54,32 +56,32 @@ function getBracketSize(teamCount: number) {
 }
 
 function formatKickoff(date: Date, withWeekday = false) {
-  return new Intl.DateTimeFormat('tr-TR', {
+  return formatDateValue(date, {
     weekday: withWeekday ? 'short' : undefined,
     day: '2-digit',
     month: '2-digit',
     hour: '2-digit',
     minute: '2-digit',
     timeZone: 'Europe/Istanbul',
-  }).format(date);
+  });
 }
 
 function formatStageDay(date: Date) {
-  return new Intl.DateTimeFormat('tr-TR', {
+  return formatDateValue(date, {
     day: '2-digit',
     month: 'long',
     timeZone: 'Europe/Istanbul',
-  }).format(date);
+  });
 }
 
 function scoreLabel(match: KnockoutMatchDoc) {
   if (!match.score) return null;
   const base = `${match.score.home} - ${match.score.away}`;
   if (match.decidedBy === 'penalties' && match.penalties) {
-    return `${base} • P ${match.penalties.home}-${match.penalties.away}`;
+    return `${base} | P ${match.penalties.home}-${match.penalties.away}`;
   }
   if (match.decidedBy === 'bye') {
-    return 'Bay geçti';
+    return translate('championsLeague.byePassed');
   }
   return base;
 }
@@ -87,8 +89,8 @@ function scoreLabel(match: KnockoutMatchDoc) {
 function getMatchStatusMeta(match: KnockoutMatchDoc) {
   if (match.decidedBy === 'bye') {
     return {
-      label: 'Bay geçti',
-      detail: 'Rakipsiz tur atladı',
+      label: translate('championsLeague.byePassed'),
+      detail: translate('championsLeague.byeDetail'),
       pillClass:
         'border-emerald-400/30 bg-emerald-400/12 text-emerald-100 shadow-[0_0_24px_rgba(52,211,153,0.18)]',
     };
@@ -96,8 +98,8 @@ function getMatchStatusMeta(match: KnockoutMatchDoc) {
 
   if (match.status === 'running') {
     return {
-      label: 'Canlı',
-      detail: 'Maç şu anda oynanıyor',
+      label: translate('championsLeague.live'),
+      detail: translate('championsLeague.liveDetail'),
       pillClass:
         'border-rose-400/35 bg-rose-400/12 text-rose-100 shadow-[0_0_24px_rgba(251,113,133,0.18)]',
     };
@@ -105,8 +107,13 @@ function getMatchStatusMeta(match: KnockoutMatchDoc) {
 
   if (match.status === 'completed') {
     return {
-      label: match.decidedBy === 'penalties' ? 'Penaltılarla bitti' : 'Tamamlandı',
-      detail: match.winnerTeamName ? `Kazanan: ${match.winnerTeamName}` : 'Tur sonucu işlendi',
+      label:
+        match.decidedBy === 'penalties'
+          ? translate('championsLeague.penaltiesFinished')
+          : translate('championsLeague.completed'),
+      detail: match.winnerTeamName
+        ? translate('championsLeague.winnerPrefix', { name: match.winnerTeamName })
+        : translate('championsLeague.resultProcessed'),
       pillClass:
         'border-sky-400/30 bg-sky-400/12 text-sky-100 shadow-[0_0_24px_rgba(56,189,248,0.16)]',
     };
@@ -114,22 +121,22 @@ function getMatchStatusMeta(match: KnockoutMatchDoc) {
 
   if (match.homeTeamId && match.awayTeamId) {
     return {
-      label: 'Planlandı',
-      detail: 'Kart hazır, kickoff saati bekleniyor',
+      label: translate('championsLeague.scheduled'),
+      detail: translate('championsLeague.scheduledDetail'),
       pillClass: 'border-white/12 bg-white/6 text-slate-100',
     };
   }
 
   return {
-    label: 'Eşleşme bekleniyor',
-    detail: 'Kaynak maç sonucu gelecek',
+    label: translate('championsLeague.waiting'),
+    detail: translate('championsLeague.waitingDetail'),
     pillClass: 'border-white/10 bg-white/5 text-slate-200',
   };
 }
 
 function getStageTitle(matches: KnockoutMatchDoc[], round: number) {
   const firstNamed = matches.find((match) => match.roundName)?.roundName?.trim();
-  return firstNamed || `Tur ${round}`;
+  return firstNamed || translate('championsLeague.roundLabel', { round });
 }
 
 function TeamSlot(props: {
@@ -163,9 +170,9 @@ function TeamSlot(props: {
         {seed ? `#${seed}` : '?'}
       </div>
       <div className="min-w-0 flex-1">
-        <div className="truncate text-sm font-semibold">{name || 'Bekleniyor'}</div>
+        <div className="truncate text-sm font-semibold">{name || translate('championsLeague.waiting')}</div>
         <div className="truncate text-[11px] uppercase tracking-[0.22em] text-white/50">
-          {leagueName || 'Kaynak maç bekleniyor'}
+          {leagueName || translate('championsLeague.waitingSourceMatch')}
         </div>
       </div>
       {winner && <Medal className="h-4 w-4 shrink-0 text-emerald-300" />}
@@ -190,6 +197,12 @@ function BracketMatchCard(props: {
   const statusMeta = getMatchStatusMeta(match);
   const isCenter = side === 'center';
   const winnerName = match.winnerTeamName || null;
+  const openLabel =
+    match.status === 'running'
+      ? translate('championsLeague.openLive')
+      : match.status === 'completed'
+        ? translate('championsLeague.openReplay')
+        : translate('championsLeague.openCard');
 
   return (
     <div
@@ -249,14 +262,16 @@ function BracketMatchCard(props: {
             <div className="text-lg font-black tracking-tight text-white">{scoreLabel(match) || statusMeta.label}</div>
             <div className="mt-1 text-xs text-white/55">{statusMeta.detail}</div>
           </div>
-          <span className={`rounded-full border px-3 py-1 text-[10px] font-bold uppercase tracking-[0.24em] ${statusMeta.pillClass}`}>
+          <span
+            className={`rounded-full border px-3 py-1 text-[10px] font-bold uppercase tracking-[0.24em] ${statusMeta.pillClass}`}
+          >
             {statusMeta.label}
           </span>
         </div>
 
         {match.winnerTeamName && (
           <div className="mt-4 rounded-2xl border border-white/8 bg-black/15 px-3 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-amber-100/80">
-            Tur atlayan: {match.winnerTeamName}
+            {translate('championsLeague.winnerPrefix', { name: match.winnerTeamName })}
           </div>
         )}
 
@@ -266,9 +281,7 @@ function BracketMatchCard(props: {
             onClick={() => onOpenMatch(match.fixtureId!)}
             className="mt-4 flex w-full items-center justify-between rounded-[20px] border border-white/10 bg-white/6 px-3 py-3 text-sm font-semibold text-white transition hover:border-sky-300/35 hover:bg-sky-300/10"
           >
-            <span>
-              {match.status === 'running' ? 'Canlı maça git' : match.status === 'completed' ? 'Maç kaydını aç' : 'Maç kartını aç'}
-            </span>
+            <span>{openLabel}</span>
             <ArrowRight className="h-4 w-4" />
           </button>
         )}
@@ -321,6 +334,7 @@ function StageColumn(props: {
 
 export default function ChampionsLeaguePage() {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const [state, setState] = useState<OverviewState>({ status: 'loading' });
 
   useEffect(() => {
@@ -352,7 +366,7 @@ export default function ChampionsLeaguePage() {
 
         setState({
           status: 'error',
-          message: error?.message || 'Şampiyonlar Ligi verisi alınamadı.',
+          message: error?.message || t('championsLeague.errorFallback'),
         });
       }
     })();
@@ -360,7 +374,7 @@ export default function ChampionsLeaguePage() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [t]);
 
   const content = useMemo(() => {
     if (state.status !== 'ready') {
@@ -380,23 +394,21 @@ export default function ChampionsLeaguePage() {
       return {
         round,
         title: getStageTitle(matches, round),
-        subtitle: `${matches.length} eşleşme`,
+        subtitle: t('championsLeague.matchesCount', { count: matches.length }),
         matches,
       };
     });
-    const rightColumns = [...roundsBeforeFinal]
-      .reverse()
-      .map((round) => {
-        const roundMatches = state.matches.filter((match) => match.round === round);
-        const half = Math.ceil(roundMatches.length / 2);
-        const matches = roundMatches.filter((match) => match.slot > half);
-        return {
-          round,
-          title: getStageTitle(matches, round),
-          subtitle: `${matches.length} eşleşme`,
-          matches,
-        };
-      });
+    const rightColumns = [...roundsBeforeFinal].reverse().map((round) => {
+      const roundMatches = state.matches.filter((match) => match.round === round);
+      const half = Math.ceil(roundMatches.length / 2);
+      const matches = roundMatches.filter((match) => match.slot > half);
+      return {
+        round,
+        title: getStageTitle(matches, round),
+        subtitle: t('championsLeague.matchesCount', { count: matches.length }),
+        matches,
+      };
+    });
 
     const orderedUpcoming = [...state.matches]
       .filter((match) => match.status !== 'completed' && match.status !== 'failed')
@@ -435,15 +447,12 @@ export default function ChampionsLeaguePage() {
       totalRounds,
       topSeeds: state.entrants.slice(0, 6),
     };
-  }, [state]);
+  }, [state, t]);
 
   return (
     <div className="min-h-screen overflow-hidden bg-[radial-gradient(circle_at_top_left,rgba(56,189,248,0.2),transparent_28%),radial-gradient(circle_at_top_right,rgba(245,158,11,0.12),transparent_22%),radial-gradient(circle_at_bottom_right,rgba(16,185,129,0.14),transparent_24%),linear-gradient(180deg,#081120_0%,#050912_48%,#02050b_100%)] px-4 py-6 text-slate-100 md:px-6 lg:px-8">
       <div className="mx-auto flex w-full max-w-[1760px] flex-col gap-6">
-        <PagesHeader
-          title="Şampiyonlar Ligi"
-          description="Lig şampiyonları sabah 11:00 slotunda tek maç eleme ile kupaya ilerliyor."
-        />
+        <PagesHeader title={t('championsLeague.title')} description={t('championsLeague.description')} />
 
         {state.status === 'loading' && (
           <Card className="overflow-hidden border-white/10 bg-[linear-gradient(180deg,rgba(8,15,28,0.92),rgba(4,8,18,0.98))] p-7 text-slate-200">
@@ -452,8 +461,8 @@ export default function ChampionsLeaguePage() {
                 <Sparkles className="h-5 w-5 text-sky-200" />
               </div>
               <div>
-                <div className="text-lg font-black text-white">Turnuva sahnesi yükleniyor</div>
-                <div className="text-sm text-slate-400">Bracket, eşleşmeler ve kulübünün yolu hazırlanıyor.</div>
+                <div className="text-lg font-black text-white">{t('championsLeague.loadingTitle')}</div>
+                <div className="text-sm text-slate-400">{t('championsLeague.loadingDescription')}</div>
               </div>
             </div>
           </Card>
@@ -468,12 +477,12 @@ export default function ChampionsLeaguePage() {
             <div className="mx-auto mb-5 flex h-20 w-20 items-center justify-center rounded-full border border-amber-300/20 bg-amber-300/10">
               <Trophy className="h-10 w-10 text-amber-300" />
             </div>
-            <div className="text-2xl font-black text-white">Henüz aktif bir Şampiyonlar Ligi yok</div>
+            <div className="text-2xl font-black text-white">{t('championsLeague.emptyTitle')}</div>
             <div className="mx-auto mt-3 max-w-2xl text-sm leading-6 text-slate-300">
-              Turnuva ayın son gününde oluşturulur. Lig şampiyonları kesinleşince sahne burada açılır ve tüm eleme ağacı gerçek zamanlı turnuva verisiyle görünür.
+              {t('championsLeague.emptyDescription')}
             </div>
             <Button className="mt-6" onClick={() => navigate('/leagues')}>
-              Liglere dön
+              {t('championsLeague.backToLeagues')}
             </Button>
           </Card>
         )}
@@ -488,25 +497,25 @@ export default function ChampionsLeaguePage() {
                 <div className="relative z-10">
                   <div className="flex flex-wrap items-center gap-3">
                     <span className="rounded-full border border-sky-400/30 bg-sky-400/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.24em] text-sky-100">
-                      {state.league.sourceMonth || 'Aylık Turnuva'}
+                      {state.league.sourceMonth || t('championsLeague.monthlyTournament')}
                     </span>
                     <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.24em] text-white/65">
-                      {state.entrants.length} şampiyon
+                      {t('championsLeague.championsCount', { count: state.entrants.length })}
                     </span>
                     <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.24em] text-white/65">
-                      {content.totalRounds} tur
+                      {t('championsLeague.roundCount', { count: content.totalRounds })}
                     </span>
                     <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.24em] text-white/65">
-                      Sabah 11:00
+                      {t('championsLeague.morningSlot')}
                     </span>
                   </div>
 
                   <div className="mt-5 max-w-3xl">
                     <div className="text-4xl font-black tracking-tight text-white md:text-[2.8rem]">
-                      Karanlık sahnede net akış, tek merkezde final.
+                      {t('championsLeague.heroTitle')}
                     </div>
                     <div className="mt-3 max-w-2xl text-sm leading-7 text-slate-300">
-                      Turlar iki günde bir açılır. Her eşleşme aynı sahne diliyle okunur; seed, kaynak lig, sonuç ve canlı bağlantı tek kartta kalır. Amaç boşluk değil, turnuva tansiyonu hissettiren yoğun bir okuma akışı.
+                      {t('championsLeague.heroDescription')}
                     </div>
                   </div>
 
@@ -514,48 +523,60 @@ export default function ChampionsLeaguePage() {
                     <div className="rounded-[26px] border border-white/10 bg-black/15 p-4">
                       <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-white/48">
                         <CalendarClock className="h-4 w-4 text-sky-300" />
-                        Sonraki kickoff
+                        {t('matchPreview.kickoff')}
                       </div>
                       <div className="mt-3 text-2xl font-black text-white">
-                        {content.nextKickoff ? formatKickoff(content.nextKickoff.scheduledAt) : 'Hazır'}
+                        {content.nextKickoff ? formatKickoff(content.nextKickoff.scheduledAt) : t('championsLeague.ready')}
                       </div>
                       <div className="mt-1 text-sm text-slate-400">
-                        {content.nextKickoff ? content.nextKickoff.roundName : 'Yeni tur bekleniyor'}
+                        {content.nextKickoff ? content.nextKickoff.roundName : t('championsLeague.waiting')}
                       </div>
                     </div>
 
                     <div className="rounded-[26px] border border-white/10 bg-black/15 p-4">
                       <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-white/48">
                         <Shield className="h-4 w-4 text-emerald-300" />
-                        Bracket boyutu
+                        {t('championsLeague.bracketLabel')}
                       </div>
                       <div className="mt-3 text-2xl font-black text-white">{content.bracketSize}</div>
                       <div className="mt-1 text-sm text-slate-400">
-                        {content.byeCount > 0 ? `${content.byeCount} bay slotu` : 'Tam dolu eleme ağacı'}
+                        {content.byeCount > 0
+                          ? t('championsLeague.byeSlots', { count: content.byeCount })
+                          : t('championsLeague.fullBracket')}
                       </div>
                     </div>
 
                     <div className="rounded-[26px] border border-white/10 bg-black/15 p-4">
                       <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-white/48">
                         <Clock3 className="h-4 w-4 text-amber-300" />
-                        Tur ritmi
+                        {t('championsLeague.paceLabel')}
                       </div>
                       <div className="mt-3 text-2xl font-black text-white">
-                        {state.league.roundSpacingDays || 2} günde 1
+                        {t('championsLeague.roundEvery', {
+                          days: state.league.roundSpacingDays || 2,
+                        })}
                       </div>
                       <div className="mt-1 text-sm text-slate-400">
-                        {content.competitionStart ? `${formatStageDay(content.competitionStart)} başlangıç` : 'Başlangıç hazır'}
+                        {content.competitionStart
+                          ? t('championsLeague.startLabel', {
+                              day: formatStageDay(content.competitionStart),
+                            })
+                          : t('championsLeague.ready')}
                       </div>
                     </div>
 
                     <div className="rounded-[26px] border border-white/10 bg-black/15 p-4">
                       <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-white/48">
                         <ShieldCheck className="h-4 w-4 text-violet-300" />
-                        Turnuva durumu
+                        {t('championsLeague.statusLabel')}
                       </div>
-                      <div className="mt-3 text-2xl font-black text-white">{content.completedMatches}/{state.matches.length}</div>
+                      <div className="mt-3 text-2xl font-black text-white">
+                        {content.completedMatches}/{state.matches.length}
+                      </div>
                       <div className="mt-1 text-sm text-slate-400">
-                        {content.liveMatches > 0 ? `${content.liveMatches} canlı eşleşme var` : 'Skor akışı sakin'}
+                        {content.liveMatches > 0
+                          ? t('championsLeague.liveCount', { count: content.liveMatches })
+                          : t('championsLeague.calmFlow')}
                       </div>
                     </div>
                   </div>
@@ -570,7 +591,9 @@ export default function ChampionsLeaguePage() {
                             : 'border-white/10 bg-white/5 text-white'
                         }`}
                       >
-                        <div className="text-xs font-black uppercase tracking-[0.18em]">Seed #{entrant.seed}</div>
+                        <div className="text-xs font-black uppercase tracking-[0.18em]">
+                          {t('championsLeague.seedLabel', { seed: entrant.seed })}
+                        </div>
                         <div className="mt-1 text-sm font-semibold">{entrant.teamName}</div>
                         <div className="text-[11px] uppercase tracking-[0.22em] text-white/48">{entrant.leagueName}</div>
                       </div>
@@ -581,13 +604,15 @@ export default function ChampionsLeaguePage() {
 
               <Card className="relative overflow-hidden border-white/10 bg-[radial-gradient(circle_at_top,rgba(250,204,21,0.14),transparent_30%),linear-gradient(180deg,rgba(11,18,34,0.98),rgba(5,9,18,0.98))] p-6 shadow-[0_24px_70px_rgba(2,6,23,0.32)]">
                 <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/35 to-transparent" />
-                <div className="text-[11px] font-semibold uppercase tracking-[0.28em] text-white/48">Benim Yolum</div>
+                <div className="text-[11px] font-semibold uppercase tracking-[0.28em] text-white/48">
+                  {t('championsLeague.myPathTitle')}
+                </div>
 
                 {!content.myEntrant && (
                   <div className="mt-5 rounded-[28px] border border-white/10 bg-white/5 p-5">
-                    <div className="text-xl font-black text-white">Bu ay turnuvada yoksun</div>
+                    <div className="text-xl font-black text-white">{t('championsLeague.notInTournamentTitle')}</div>
                     <div className="mt-3 text-sm leading-6 text-slate-300">
-                      Kendi ligini lider bitirdiğinde burada seed kartın, bir sonraki maçın ve kupaya giden özel yolun görünür.
+                      {t('championsLeague.myPathDescription')}
                     </div>
                   </div>
                 )}
@@ -598,21 +623,27 @@ export default function ChampionsLeaguePage() {
                       <div>
                         <div className="text-3xl font-black tracking-tight text-white">{content.myEntrant.teamName}</div>
                         <div className="mt-2 text-sm text-slate-300">
-                          Seed #{content.myEntrant.seed} • {content.myEntrant.leagueName}
+                          {t('championsLeague.seedLeagueLabel', {
+                            seed: content.myEntrant.seed,
+                            league: content.myEntrant.leagueName,
+                          })}
                         </div>
                       </div>
                       <div className="rounded-2xl border border-amber-300/25 bg-amber-300/10 px-3 py-2 text-xs font-bold uppercase tracking-[0.2em] text-amber-100">
-                        Katıldı
+                        {t('championsLeague.joined')}
                       </div>
                     </div>
 
                     {content.myActiveMatch && (
                       <div className="mt-5 rounded-[30px] border border-amber-300/22 bg-amber-300/10 p-5 shadow-[0_18px_50px_rgba(250,204,21,0.08)]">
-                        <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-amber-100/78">Sıradaki maçım</div>
+                        <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-amber-100/78">
+                          {t('championsLeague.nextMyMatch')}
+                        </div>
                         <div className="mt-2 text-xl font-black text-white">{content.myActiveMatch.roundName}</div>
                         <div className="mt-2 text-sm text-amber-50/85">{formatKickoff(content.myActiveMatch.scheduledAt, true)}</div>
                         <div className="mt-4 text-sm text-amber-50/70">
-                          {content.myActiveMatch.homeTeamName || 'Bekleniyor'} vs {content.myActiveMatch.awayTeamName || 'Bekleniyor'}
+                          {(content.myActiveMatch.homeTeamName || t('championsLeague.waiting'))} vs{' '}
+                          {(content.myActiveMatch.awayTeamName || t('championsLeague.waiting'))}
                         </div>
                         {content.myActiveMatch.fixtureId && (
                           <button
@@ -620,7 +651,11 @@ export default function ChampionsLeaguePage() {
                             onClick={() => navigate(`/match/${content.myActiveMatch!.fixtureId}`)}
                             className="mt-5 flex w-full items-center justify-between rounded-[20px] border border-white/12 bg-white/10 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/15"
                           >
-                            <span>{content.myActiveMatch.status === 'running' ? 'Canlı maça git' : 'Maç kartını aç'}</span>
+                            <span>
+                              {content.myActiveMatch.status === 'running'
+                                ? t('championsLeague.openLive')
+                                : t('championsLeague.openCard')}
+                            </span>
                             <Tv className="h-4 w-4" />
                           </button>
                         )}
@@ -629,16 +664,16 @@ export default function ChampionsLeaguePage() {
 
                     {!content.myActiveMatch && content.myLastCompleted && (
                       <div className="mt-5 rounded-[26px] border border-white/10 bg-white/5 p-4 text-sm text-slate-200">
-                        Son durum:{' '}
+                        {t('championsLeague.latestPrefix')}{' '}
                         {content.myLastCompleted.winnerTeamId === state.myTeamId
-                          ? 'tur atladın, yeni eşleşme bekleniyor'
-                          : 'turnuva yolculuğun sona erdi'}
+                          ? t('championsLeague.advancedWaiting')
+                          : t('championsLeague.journeyEnded')}
                       </div>
                     )}
 
                     {state.league.championTeamId === state.myTeamId && (
                       <div className="mt-5 rounded-[26px] border border-emerald-300/28 bg-emerald-300/12 p-4 text-sm font-semibold text-emerald-50">
-                        Kupa sende. Final kazanıldı.
+                        {t('championsLeague.championLine')}
                       </div>
                     )}
                   </>
@@ -652,16 +687,22 @@ export default function ChampionsLeaguePage() {
 
               <div className="relative z-10 mb-6 flex flex-wrap items-end justify-between gap-4">
                 <div>
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.28em] text-white/48">Turnuva Akışı</div>
-                  <div className="mt-2 text-3xl font-black tracking-tight text-white">Merkezde final, iki yanda net eleme akışı</div>
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.28em] text-white/48">
+                    {t('championsLeague.flowEyebrow')}
+                  </div>
+                  <div className="mt-2 text-3xl font-black tracking-tight text-white">
+                    {t('championsLeague.flowTitle')}
+                  </div>
                   <div className="mt-2 max-w-3xl text-sm leading-6 text-slate-300">
-                    Her kolon kendi turunu taşır; maç kartları seed, lig ve skor bilgisini aynı yoğunlukta verir. Final kartı ayrı sahnelenir, böylece göz doğrudan kupaya giden merkeze akar.
+                    {t('championsLeague.flowDescription')}
                   </div>
                 </div>
 
                 {content.finalMatch?.winnerTeamName ? (
                   <div className="rounded-[28px] border border-amber-300/30 bg-amber-300/10 px-4 py-3 text-right">
-                    <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-amber-100/75">Son şampiyon</div>
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-amber-100/75">
+                      {t('championsLeague.lastChampion')}
+                    </div>
                     <div className="mt-1 text-lg font-black text-white">{content.finalMatch.winnerTeamName}</div>
                   </div>
                 ) : null}
@@ -690,7 +731,7 @@ export default function ChampionsLeaguePage() {
                     {content.finalMatch ? (
                       <div className="relative w-full">
                         <div className="mb-4 text-center text-[11px] font-semibold uppercase tracking-[0.3em] text-amber-100/70">
-                          Final sahnesi
+                          {t('championsLeague.finalLabel')}
                         </div>
                         <BracketMatchCard
                           match={content.finalMatch}
@@ -701,7 +742,7 @@ export default function ChampionsLeaguePage() {
                       </div>
                     ) : (
                       <div className="w-full rounded-[34px] border border-white/10 bg-white/5 p-6 text-center text-sm text-slate-300">
-                        Final eşleşmesi henüz oluşmadı.
+                        {t('championsLeague.finalPending')}
                       </div>
                     )}
                   </div>

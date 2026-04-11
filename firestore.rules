@@ -15,6 +15,9 @@ service cloud.firestore {
       allow write: if isOwner(uid);
       
       // Subcollections
+      match /academyCandidates/{candidateId} {
+        allow read, write: if isOwner(uid);
+      }
       match /youthCandidates/{candidateId} {
         allow read, write: if isOwner(uid);
       }
@@ -95,6 +98,14 @@ service cloud.firestore {
     }
 
     match /finance/history/{uid}/{entryId} {
+      allow read, write: if isOwner(uid);
+    }
+
+    match /transfer_attempts/{uid}/attempts/{attemptId} {
+      allow read, write: if isOwner(uid);
+    }
+
+    match /transfers/history/{uid}/{entryId} {
       allow read, write: if isOwner(uid);
     }
 

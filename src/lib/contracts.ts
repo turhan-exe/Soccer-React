@@ -1,4 +1,7 @@
 import { differenceInCalendarDays, differenceInCalendarMonths } from 'date-fns';
+
+import { translate } from '@/i18n/runtime';
+import type { AppLanguage } from '@/i18n/types';
 import { getGameTimeScale } from '@/lib/gameTime';
 
 const safeNumber = (value: unknown, fallback: number): number => {
@@ -11,19 +14,20 @@ const safeNumber = (value: unknown, fallback: number): number => {
 export const formatContractCountdown = (
   expiry: Date | string | null | undefined,
   leagueId?: string | null,
+  language?: AppLanguage,
 ): string => {
   if (!expiry) {
-    return 'Söz.: -';
+    return translate('common.contract.empty', undefined, language);
   }
 
   const date = expiry instanceof Date ? expiry : new Date(expiry);
   if (Number.isNaN(date.getTime())) {
-    return 'Söz.: -';
+    return translate('common.contract.empty', undefined, language);
   }
 
   const now = new Date();
   if (date.getTime() <= now.getTime()) {
-    return 'Söz.: 0 gün';
+    return translate('common.contract.expired', undefined, language);
   }
 
   const { monthsPerSeason } = getGameTimeScale(leagueId);
@@ -34,10 +38,17 @@ export const formatContractCountdown = (
 
   if (normalizedMonths >= 1) {
     const monthsRemaining = Math.max(1, Math.ceil(normalizedMonths));
-    return `Söz.: ${monthsRemaining} ay`;
+    return translate(
+      'common.contract.monthsRemaining',
+      { count: monthsRemaining },
+      language,
+    );
   }
 
   const diffDays = Math.max(0, differenceInCalendarDays(date, now));
-  return `Söz.: ${diffDays} gün`;
+  return translate(
+    'common.contract.daysRemaining',
+    { count: diffDays },
+    language,
+  );
 };
-

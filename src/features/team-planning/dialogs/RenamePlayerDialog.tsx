@@ -1,7 +1,9 @@
 import React from 'react';
+
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import { useTranslation } from '@/contexts/LanguageContext';
 import type { Player } from '@/types';
 
 type RenamePlayerDialogProps = {
@@ -33,39 +35,54 @@ export function RenamePlayerDialog({
   onRenameWithAd,
   onRenameWithPurchase,
 }: RenamePlayerDialogProps) {
+  const { t, formatDate } = useTranslation();
+
   return (
     <Dialog open={Boolean(player)} onOpenChange={open => !open && onClose()}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Oyuncu Adını Özelleştir</DialogTitle>
+          <DialogTitle>{t('teamPlanning.renameDialog.title')}</DialogTitle>
           <DialogDescription>
-            {player ? `${player.name} için yeni bir isim belirleyin.` : 'Oyuncu adını güncelleyin.'}
+            {player
+              ? t('teamPlanning.renameDialog.subtitleWithName', { name: player.name })
+              : t('teamPlanning.renameDialog.subtitleFallback')}
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-3">
           <Input
             value={renameInput}
             onChange={event => onChangeInput(event.target.value)}
-            placeholder="Yeni oyuncu adı"
+            placeholder={t('teamPlanning.renameDialog.placeholder')}
             disabled={isRenaming}
             autoFocus
           />
           <p className="text-xs text-muted-foreground">
-            Reklam seçeneği {adCooldownHours} saatte bir kullanılabilir. Elmas seçeneği {diamondCost} elmas
-            harcar. Bakiyeniz: {balance}
+            {t('teamPlanning.renameDialog.help', {
+              hours: adCooldownHours,
+              diamonds: diamondCost,
+              balance,
+            })}
           </p>
           {!isAdAvailable && adAvailableAt && (
             <p className="text-xs text-amber-600 dark:text-amber-400">
-              Bir sonraki reklam hakkı {adAvailableAt.toLocaleString('tr-TR')} tarihinde yenilenecek.
+              {t('teamPlanning.renameDialog.adRefreshAt', {
+                date: formatDate(adAvailableAt, {
+                  year: 'numeric',
+                  month: '2-digit',
+                  day: '2-digit',
+                  hour: '2-digit',
+                  minute: '2-digit',
+                }),
+              })}
             </p>
           )}
         </div>
         <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:justify-end">
           <Button variant="secondary" disabled={!isAdAvailable || isRenaming} onClick={onRenameWithAd}>
-            Reklam İzle ve Aç
+            {t('teamPlanning.renameDialog.adAction')}
           </Button>
           <Button disabled={isRenaming} onClick={onRenameWithPurchase}>
-            {diamondCost} Elmasla Onayla
+            {t('teamPlanning.renameDialog.purchaseAction', { diamonds: diamondCost })}
           </Button>
         </div>
       </DialogContent>

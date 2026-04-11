@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useTranslation } from '@/contexts/LanguageContext';
 import {
      getFriends,
      removeFriend,
@@ -35,13 +36,14 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { markChatAsRead, getChatId } from '@/services/privateChat';
 
-// Arama sonuçları için genişletilmiş tip
+// {t('friends.tabs.searchMobile')}ma sonuçları için genişletilmiş tip
 interface SearchResultUser extends User {
      friendStatus?: 'none' | 'friend' | 'request_sent' | 'request_received';
 }
 
 export default function FriendsPage() {
      const { user } = useAuth();
+     const { t, formatDate } = useTranslation();
      const navigate = useNavigate();
      const [searchParams] = useSearchParams();
      const [friends, setFriends] = useState<Friend[]>([]);
@@ -61,10 +63,10 @@ export default function FriendsPage() {
                setFriends(friendsData);
                setRequests(requestsData);
           } catch (error) {
-               console.error("Veriler yuklenemedi", error);
-               toast.error("Veriler yuklenirken hata olustu.");
+               console.error('Friends data load failed', error);
+               toast.error(t('friends.toasts.loadFailed'));
           }
-     }, [user]);
+     }, [t, user]);
 
      useEffect(() => {
           loadData();
@@ -86,7 +88,7 @@ export default function FriendsPage() {
           }
      }, [searchParams, friends, user]);
 
-     // Arkadaş Arama
+     // Arkadaş {t('friends.tabs.searchMobile')}ma
      const handleSearch = async () => {
           if (!user || !searchQuery.trim()) return;
           setLoading(true);
@@ -105,16 +107,16 @@ export default function FriendsPage() {
                setSearchResults(resultsWithStatus);
 
                if (resultsWithStatus.length === 0) {
-                    toast.info("Kullanici bulunamadi.");
+                    toast.info(t('friends.toasts.userNotFound'));
                }
           } catch (error) {
                console.error(error);
                const msg =
                     error && typeof error === 'object' && 'message' in error
-                         ? String((error as { message?: string }).message || 'Bilinmeyen hata')
-                         : 'Bilinmeyen hata';
+                         ? String((error as { message?: string }).message || t('common.unknown'))
+                         : t('common.unknown');
                window.alert(`MOBIL HATA DETAYI:\n${msg}`);
-               toast.error(`Arama hatasi: ${msg}`);
+               toast.error(t('friends.toasts.searchFailed', { message: msg }));
           } finally {
                setLoading(false);
           }
@@ -125,7 +127,7 @@ export default function FriendsPage() {
           if (!user) return;
           try {
                await sendFriendRequest(user, targetUser);
-               toast.success("Arkadaslik istegi gonderildi!");
+               toast.success(t('friends.toasts.requestSent'));
 
                // UI güncelle
                setSearchResults(prev => prev.map(u =>
@@ -133,11 +135,11 @@ export default function FriendsPage() {
                ));
           } catch (error) {
                console.error(error);
-               toast.error("Istek gonderilirken hata olustu.");
+               toast.error(t('friends.toasts.requestFailed'));
           }
      };
 
-     // İsteği Kabul Et
+     // İsteği {t('friends.actions.accept')} Et
      const handleAcceptRequest = async (request: FriendRequest) => {
           if (!user) return;
           try {
@@ -149,38 +151,38 @@ export default function FriendsPage() {
                };
 
                await acceptFriendRequest(request.id, senderUser, user);
-               toast.success("Arkadaslik istegi kabul edildi!");
+               toast.success(t('friends.toasts.requestAccepted'));
                loadData(); // Listeleri yenile
           } catch (error) {
                console.error(error);
-               toast.error("Istek kabul edilirken hata olustu.");
+               toast.error(t('friends.toasts.acceptFailed'));
           }
      };
 
      // İsteği Reddet
      const handleRejectRequest = async (requestId: string) => {
-          if (!confirm("Bu istegi reddetmek istedigine emin misin?")) return;
+          if (!confirm(t('friends.confirmations.rejectRequest'))) return;
           try {
                await rejectFriendRequest(requestId);
-               toast.info("Istek reddedildi.");
+               toast.info(t('friends.toasts.requestRejected'));
                setRequests(prev => prev.filter(r => r.id !== requestId));
           } catch (error) {
                console.error(error);
-               toast.error("Islem basarisiz.");
+               toast.error(t('friends.toasts.requestRejectFailed'));
           }
      };
 
      // Arkadaş Silme
      const handleRemoveFriend = async (friendId: string, friendName: string) => {
           if (!user) return;
-          if (!confirm(`${friendName} adli arkadasi silmek istedigine emin misin?`)) return;
+          if (!confirm(t('friends.confirmations.removeFriend', { name: friendName }))) return;
 
           try {
                await removeFriend(user.id, friendId);
-               toast.success("Arkadas silindi.");
+               toast.success(t('friends.toasts.removeSuccess'));
                loadData();
           } catch (error) {
-               toast.error("Silme islemi basarisiz.");
+               toast.error(t('friends.toasts.removeFailed'));
           }
      };
 
@@ -210,7 +212,7 @@ export default function FriendsPage() {
                          <ArrowLeft size={24} />
                     </Button>
                     <h1 className="text-2xl font-bold bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent">
-                         Sosyal Merkez
+                         {t('friends.title')}
                     </h1>
                </div>
 
@@ -219,13 +221,13 @@ export default function FriendsPage() {
                          <TabsList className="grid w-full grid-cols-3 bg-slate-900 p-1 rounded-xl mb-6">
                               <TabsTrigger value="list" className="data-[state=active]:bg-slate-800 data-[state=active]:text-white text-slate-400 py-3 rounded-lg transition-all">
                                    <Users className="w-4 h-4 mr-2" />
-                                   <span className="hidden sm:inline">Arkadaslar</span>
+                                   <span className="hidden sm:inline">{t('friends.tabs.friends')}</span>
                                    <span className="sm:hidden">({friends.length})</span>
                                    <span className="hidden sm:inline ml-1">({friends.length})</span>
                               </TabsTrigger>
                               <TabsTrigger value="requests" className="data-[state=active]:bg-slate-800 data-[state=active]:text-white text-slate-400 py-3 rounded-lg transition-all relative">
                                    <Inbox className="w-4 h-4 mr-2" />
-                                   <span className="hidden sm:inline">Istekler</span>
+                                   <span className="hidden sm:inline">{t('friends.tabs.requests')}</span>
                                    {requests.length > 0 && (
                                         <Badge className="absolute -top-1 -right-1 bg-red-500 hover:bg-red-600 h-5 w-5 p-0 flex items-center justify-center rounded-full text-[10px]">
                                              {requests.length}
@@ -234,8 +236,8 @@ export default function FriendsPage() {
                               </TabsTrigger>
                               <TabsTrigger value="add" className="data-[state=active]:bg-slate-800 data-[state=active]:text-white text-slate-400 py-3 rounded-lg transition-all">
                                    <UserPlus className="w-4 h-4 mr-2" />
-                                   <span className="hidden sm:inline">Ekle</span>
-                                   <span className="sm:hidden">Ara</span>
+                                   <span className="hidden sm:inline">{t('friends.tabs.add')}</span>
+                                   <span className="sm:hidden">{t('friends.tabs.searchMobile')}</span>
                               </TabsTrigger>
                          </TabsList>
 
@@ -244,8 +246,8 @@ export default function FriendsPage() {
                               {friends.length === 0 ? (
                                    <div className="text-center py-12 bg-slate-900/50 rounded-2xl border border-slate-800 border-dashed">
                                         <Users className="w-12 h-12 mx-auto text-slate-600 mb-4" />
-                                        <h3 className="text-lg font-medium text-slate-300">Henuz arkadasin yok</h3>
-                                        <p className="text-slate-500 mt-1">Diger menajerleri ekleyerek rekabete basla!</p>
+                                        <h3 className="text-lg font-medium text-slate-300">{t('friends.empty.friendsTitle')}</h3>
+                                        <p className="text-slate-500 mt-1">{t('friends.empty.friendsDescription')}</p>
                                    </div>
                               ) : (
                                    <div className="grid gap-4 sm:grid-cols-2">
@@ -269,7 +271,7 @@ export default function FriendsPage() {
                                                                       variant="secondary"
                                                                       className="h-8 w-8 bg-blue-500/10 text-blue-400 hover:bg-blue-500/20"
                                                                       onClick={() => handleOpenChat(friend)}
-                                                                      title="Mesaj Gonder"
+                                                                      title={t('friends.actions.chat')}
                                                                  >
                                                                       <MessageCircle size={14} />
                                                                  </Button>
@@ -278,7 +280,7 @@ export default function FriendsPage() {
                                                                       variant="secondary"
                                                                       className="h-8 w-8 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20"
                                                                       onClick={() => handleFriendlyMatch(friend)}
-                                                                      title="Dostluk Maci"
+                                                                      title={t('friends.actions.friendly')}
                                                                  >
                                                                       <Swords size={14} />
                                                                  </Button>
@@ -288,7 +290,7 @@ export default function FriendsPage() {
                                                                  variant="ghost"
                                                                  className="h-6 w-full text-slate-600 hover:text-red-400 hover:bg-red-950/30"
                                                                  onClick={() => handleRemoveFriend(friend.id, friend.teamName)}
-                                                                 title="Arkadasi Sil"
+                                                                 title={t('friends.actions.remove')}
                                                             >
                                                                  <Trash2 size={12} />
                                                             </Button>
@@ -305,8 +307,8 @@ export default function FriendsPage() {
                               {requests.length === 0 ? (
                                    <div className="text-center py-12 bg-slate-900/50 rounded-2xl border border-slate-800 border-dashed">
                                         <Inbox className="w-12 h-12 mx-auto text-slate-600 mb-4" />
-                                        <h3 className="text-lg font-medium text-slate-300">Bekleyen istek yok</h3>
-                                        <p className="text-slate-500 mt-1">Yeni arkadaşlık istekleri burada görünecek.</p>
+                                        <h3 className="text-lg font-medium text-slate-300">{t('friends.empty.requestsTitle')}</h3>
+                                        <p className="text-slate-500 mt-1">{t('friends.empty.requestsDescription')}</p>
                                    </div>
                               ) : (
                                    <div className="space-y-3">
@@ -319,8 +321,8 @@ export default function FriendsPage() {
                                                        </Avatar>
                                                        <div>
                                                             <p className="font-bold text-slate-200">{request.senderName}</p>
-                                                            <p className="text-xs text-slate-500">Menajer: {request.senderManager}</p>
-                                                            <p className="text-[10px] text-slate-600 mt-1">{new Date(request.createdAt).toLocaleDateString()}</p>
+                                                            <p className="text-xs text-slate-500">{request.senderManager}</p>
+                                                            <p className="text-[10px] text-slate-600 mt-1">{formatDate(new Date(request.createdAt), { day: '2-digit', month: '2-digit', year: 'numeric' })}</p>
                                                        </div>
                                                   </div>
                                                   <div className="flex gap-2">
@@ -329,7 +331,7 @@ export default function FriendsPage() {
                                                             onClick={() => handleAcceptRequest(request)}
                                                             className="bg-emerald-600 hover:bg-emerald-500 text-white"
                                                        >
-                                                            <Check size={16} className="mr-1" /> Kabul
+                                                            <Check size={16} className="mr-1" /> {t('friends.actions.accept')}
                                                        </Button>
                                                        <Button
                                                             size="sm"
@@ -352,7 +354,7 @@ export default function FriendsPage() {
                                    <div className="relative flex-1">
                                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 w-4 h-4" />
                                         <Input
-                                             placeholder="Takim Adi veya Menajer Adi..."
+                                             placeholder={t('friends.placeholders.search')}
                                              className="pl-10 bg-slate-900 border-slate-800 text-white placeholder:text-slate-600 focus-visible:ring-purple-500"
                                              value={searchQuery}
                                              onChange={(e) => setSearchQuery(e.target.value)}
@@ -360,13 +362,13 @@ export default function FriendsPage() {
                                         />
                                    </div>
                                    <Button onClick={handleSearch} disabled={loading} className="bg-purple-600 hover:bg-purple-500 text-white">
-                                        {loading ? 'Araniyor...' : 'Ara'}
+                                        {loading ? t('common.loading') : t('common.search')}
                                    </Button>
                               </div>
 
                               <div className="space-y-4">
                                    {searchResults.length > 0 && (
-                                        <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-wider">Sonuclar</h3>
+                                        <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-wider">{t('common.search')}</h3>
                                    )}
 
                                    <div className="grid gap-3">
@@ -386,19 +388,19 @@ export default function FriendsPage() {
                                                   {/* Duruma göre buton */}
                                                   {result.friendStatus === 'friend' ? (
                                                        <Button size="sm" disabled variant="outline" className="border-slate-700 text-slate-500">
-                                                            <Check size={14} className="mr-2" /> Arkadaşsınız
+                                                            <Check size={14} className="mr-2" /> {t('friends.actions.alreadyFriends')}
                                                        </Button>
                                                   ) : result.friendStatus === 'request_sent' ? (
                                                        <Button size="sm" disabled variant="outline" className="border-slate-700 text-slate-500">
-                                                            <Clock size={14} className="mr-2" /> İstek Gönderildi
+                                                            <Clock size={14} className="mr-2" /> {t('friends.actions.requestSent')}
                                                        </Button>
                                                   ) : result.friendStatus === 'request_received' ? (
                                                        <Button size="sm" disabled variant="outline" className="border-slate-700 text-slate-500">
-                                                            <Inbox size={14} className="mr-2" /> İstek Geldi
+                                                            <Inbox size={14} className="mr-2" /> {t('friends.actions.requestReceived')}
                                                        </Button>
                                                   ) : result.friendStatus === 'none' ? (
                                                        result.id === user?.id ? (
-                                                            <span className="text-xs text-slate-600 italic">Siz</span>
+                                                            <span className="text-xs text-slate-600 italic">{t('friends.actions.you')}</span>
                                                        ) : (
                                                             <Button
                                                                  size="sm"
@@ -407,7 +409,7 @@ export default function FriendsPage() {
                                                                  onClick={() => handleSendRequest(result)}
                                                             >
                                                                  <UserPlus size={16} className="mr-2" />
-                                                                 İstek Gönder
+                                                                 {t('friends.actions.sendRequest')}
                                                             </Button>
                                                        )
                                                   ) : null}

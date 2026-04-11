@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+﻿import React, { useEffect, useRef, useState } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -7,6 +7,7 @@ import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useTranslation } from '@/contexts/LanguageContext';
 import {
   Settings,
   Moon,
@@ -64,25 +65,26 @@ const WHATSAPP_SUPPORT_HREF =
 export default function SettingsPage() {
   const [isCleaningLeagues, setIsCleaningLeagues] = useState(false);
   const handleCleanLeagues = async () => {
-    if (!confirm('Liglerdeki fazlalık botlar silinecek. Emin misiniz?')) return;
+    if (!confirm('Liglerdeki fazlalÄ±k botlar silinecek. Emin misiniz?')) return;
 
     setIsCleaningLeagues(true);
     try {
       const result = await repairLeagueCapacities();
-      toast.success(`İşlem tamamlandı. ${result.removedBots} bot silindi.`);
+      toast.success(`Ä°ÅŸlem tamamlandÄ±. ${result.removedBots} bot silindi.`);
       if (result.removedBots > 0) {
-        toast.info(`Güncellenen ligler: ${result.updatedLeagues.join(', ')}`);
+        toast.info(`GÃ¼ncellenen ligler: ${result.updatedLeagues.join(', ')}`);
       } else {
-        toast.info('Tüm ligler kapasite sınırları içinde. Silinecek bot bulunamadı.');
+        toast.info('TÃ¼m ligler kapasite sÄ±nÄ±rlarÄ± iÃ§inde. Silinecek bot bulunamadÄ±.');
       }
     } catch (error: unknown) {
       console.error(error);
-      toast.error(`Hata: ${error instanceof Error ? error.message : 'Temizlik sırasında hata oluştu.'}`);
+      toast.error(`Hata: ${error instanceof Error ? error.message : 'Temizlik sÄ±rasÄ±nda hata oluÅŸtu.'}`);
     } finally {
       setIsCleaningLeagues(false);
     }
   };
   const { theme } = useTheme();
+  const { availableLanguages, formatDate, formatNumber, language, setLanguage, t } = useTranslation();
   const { user, refreshTeamInfo } = useAuth();
   const { balance } = useDiamonds();
   const [logoPreview, setLogoPreview] = useState<string | null>(user?.teamLogo ?? null);
@@ -110,7 +112,6 @@ export default function SettingsPage() {
     processDailyReward,
     vipStatus,
     vipActive,
-    vipPlans,
     deactivateVip,
     claimMonthlyStarCard,
     canClaimMonthlyStarCard,
@@ -119,14 +120,14 @@ export default function SettingsPage() {
 
   const formatOptionalDate = (value: string | null, options?: { dateOnly?: boolean }) => {
     if (!value) {
-      return 'Henuz alinmadi';
+      return t('settings.date.notClaimedYet');
     }
     const source = options?.dateOnly ? `${value}T00:00:00Z` : value;
     const parsed = new Date(source);
     if (Number.isNaN(parsed.getTime())) {
-      return 'Bilinmiyor';
+      return t('settings.date.unknown');
     }
-    return parsed.toLocaleDateString('tr-TR', {
+    return formatDate(parsed, {
       day: '2-digit',
       month: '2-digit',
       year: 'numeric',
@@ -136,12 +137,14 @@ export default function SettingsPage() {
   const lastDailyRewardLabel = formatOptionalDate(lastDailyRewardDate, { dateOnly: true });
   const lastMonthlyStarCardLabel = formatOptionalDate(vipStatus.lastMonthlyStarCardDate);
   const vipExpiryLabel = formatOptionalDate(vipStatus.expiresAt);
-  const vipPlanLabel = vipStatus.plan ? vipPlans[vipStatus.plan].label : 'Secilmedi';
+  const vipPlanLabel = vipStatus.plan ? t(`common.vipPlans.${vipStatus.plan}`) : t('settings.vip.planNotSelected');
   const todayKey = new Date().toISOString().split('T')[0];
   const hasClaimedToday = lastDailyRewardDate === todayKey;
   const vipDurationPercent = Math.round((vipStatus.durationReductionPercent ?? 0) * 100);
   const isVipActive = vipActive;
-  const monthlyButtonLabel = canClaimMonthlyStarCard ? 'Aylik karti al' : 'Aylik kart alindi';
+  const monthlyButtonLabel = canClaimMonthlyStarCard
+    ? t('settings.vip.claimMonthly')
+    : t('settings.vip.alreadyClaimedMonthly');
   const starCardCredits = vipStatus.starCardCredits ?? 0;
   const isLoggedIn = Boolean(user);
   const canInteract = isLoggedIn && isHydrated;
@@ -156,6 +159,12 @@ export default function SettingsPage() {
     Capacitor.isNativePlatform()
     && Capacitor.getPlatform() === 'android'
     && (import.meta.env.DEV || import.meta.env.VITE_ENABLE_TEST_BUTTONS === '1');
+  const themeLabel = theme === 'dark' ? t('common.themeDark') : t('common.themeLight');
+  const aboutLastUpdateLabel = formatDate(new Date('2025-08-18T00:00:00Z'), {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  });
 
   useEffect(() => {
     setLogoPreview(user?.teamLogo ?? null);
@@ -190,36 +199,36 @@ export default function SettingsPage() {
 
   const handleClubRename = async () => {
     if (!user) {
-      toast.error('Oturum bulunamadi.');
+      toast.error(t('settings.toasts.sessionMissing'));
       return;
     }
     const trimmed = clubNameInput.trim();
     if (trimmed.length < MIN_RENAME_LENGTH) {
-      toast.error(`Kulup adi en az ${MIN_RENAME_LENGTH} karakter olmalidir.`);
+      toast.error(t('settings.toasts.clubTooShort', { min: MIN_RENAME_LENGTH }));
       return;
     }
     if (trimmed.length > MAX_RENAME_LENGTH) {
-      toast.error(`Kulup adi en fazla ${MAX_RENAME_LENGTH} karakter olabilir.`);
+      toast.error(t('settings.toasts.clubTooLong', { max: MAX_RENAME_LENGTH }));
       return;
     }
     if (trimmed === (user.teamName ?? '').trim()) {
-      toast.error('Yeni isim mevcut isim ile ayni.');
+      toast.error(t('settings.toasts.clubSame'));
       return;
     }
     if (balance < CLUB_RENAME_COST) {
-      toast.error('Yetersiz elmas bakiyesi.');
+      toast.error(t('settings.toasts.insufficientDiamonds'));
       return;
     }
 
     setIsRenamingClub(true);
     try {
       await renameClubWithDiamonds(trimmed);
-      toast.success('Kulup adi guncellendi.');
+      toast.success(t('settings.toasts.clubUpdated'));
       setClubNameInput('');
       setIsClubRenameOpen(false);
       await refreshTeamInfo();
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Kulup adi guncellenemedi.';
+      const message = error instanceof Error ? error.message : t('settings.toasts.clubUpdateFailed');
       toast.error(message);
     } finally {
       setIsRenamingClub(false);
@@ -228,36 +237,36 @@ export default function SettingsPage() {
 
   const handleStadiumRename = async () => {
     if (!user) {
-      toast.error('Oturum bulunamadi.');
+      toast.error(t('settings.toasts.sessionMissing'));
       return;
     }
     const trimmed = stadiumNameInput.trim();
     if (trimmed.length < MIN_RENAME_LENGTH) {
-      toast.error(`Stadyum adi en az ${MIN_RENAME_LENGTH} karakter olmalidir.`);
+      toast.error(t('settings.toasts.stadiumTooShort', { min: MIN_RENAME_LENGTH }));
       return;
     }
     if (trimmed.length > MAX_RENAME_LENGTH) {
-      toast.error(`Stadyum adi en fazla ${MAX_RENAME_LENGTH} karakter olabilir.`);
+      toast.error(t('settings.toasts.stadiumTooLong', { max: MAX_RENAME_LENGTH }));
       return;
     }
     if (trimmed === (stadiumName ?? '').trim()) {
-      toast.error('Yeni stadyum adi ayni gorunuyor.');
+      toast.error(t('settings.toasts.stadiumSame'));
       return;
     }
     if (balance < STADIUM_RENAME_COST) {
-      toast.error('Yetersiz elmas bakiyesi.');
+      toast.error(t('settings.toasts.insufficientDiamonds'));
       return;
     }
 
     setIsRenamingStadium(true);
     try {
       await renameStadiumWithDiamonds(trimmed);
-      toast.success('Stadyum adi guncellendi.');
+      toast.success(t('settings.toasts.stadiumUpdated'));
       setStadiumName(trimmed);
       setStadiumNameInput('');
       setIsStadiumRenameOpen(false);
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Stadyum adi guncellenemedi.';
+      const message = error instanceof Error ? error.message : t('settings.toasts.stadiumUpdateFailed');
       toast.error(message);
     } finally {
       setIsRenamingStadium(false);
@@ -272,30 +281,30 @@ export default function SettingsPage() {
         if (typeof result === 'string') {
           resolve(result);
         } else {
-          reject(new Error('Logo dönüştürülemedi.'));
+          reject(new Error(t('settings.toasts.logoConvertFailed')));
         }
       };
-      reader.onerror = () => reject(new Error('Logo okunurken bir hata oluştu.'));
+      reader.onerror = () => reject(new Error(t('settings.toasts.logoReadFailed')));
       reader.readAsDataURL(file);
     });
 
   const handleLogoUpload = async (file: File) => {
     if (!user) {
-      toast.error('Logo yüklemek için giriş yapmalısın.');
+      toast.error(t('settings.toasts.logoLoginRequired'));
       return;
     }
 
     const fileType = file.type?.toLowerCase();
     if (!fileType || !ACCEPTED_LOGO_TYPES.includes(fileType)) {
-      toast.error('Desteklenmeyen dosya formatı.', {
-        description: 'Lütfen PNG, JPG veya SVG formatında bir görsel yükleyin.',
+      toast.error(t('settings.toasts.logoUnsupportedTitle'), {
+        description: t('settings.toasts.logoUnsupportedDescription'),
       });
       return;
     }
 
     if (file.size > MAX_LOGO_SIZE) {
-      toast.error('Logo dosyası çok büyük.', {
-        description: '512 KB\'dan küçük bir görsel seçmelisin.',
+      toast.error(t('settings.toasts.logoTooLargeTitle'), {
+        description: t('settings.toasts.logoTooLargeDescription'),
       });
       return;
     }
@@ -305,11 +314,11 @@ export default function SettingsPage() {
       const dataUrl = await readFileAsDataUrl(file);
       await updateTeamLogo(user.id, dataUrl);
       setLogoPreview(dataUrl);
-      toast.success('Takım logon başarıyla güncellendi.');
+      toast.success(t('settings.toasts.logoUpdated'));
       await refreshTeamInfo();
     } catch (error) {
       console.error('[Settings] Logo update failed', error);
-      toast.error('Logo kaydedilemedi.', {
+      toast.error(t('settings.toasts.logoSaveFailed'), {
         description: error instanceof Error ? error.message : undefined,
       });
     } finally {
@@ -334,11 +343,11 @@ export default function SettingsPage() {
     try {
       await updateTeamLogo(user.id, null);
       setLogoPreview(null);
-      toast.success('Takım logon kaldırıldı.');
+      toast.success(t('settings.toasts.logoRemoved'));
       await refreshTeamInfo();
     } catch (error) {
       console.error('[Settings] Logo remove failed', error);
-      toast.error('Logo kaldırılırken bir hata oluştu.', {
+      toast.error(t('settings.toasts.logoRemoveFailed'), {
         description: error instanceof Error ? error.message : undefined,
       });
     } finally {
@@ -348,7 +357,7 @@ export default function SettingsPage() {
 
   const handleSaveContactInfo = async () => {
     if (!user) {
-      toast.error('Iletisim bilgilerini kaydetmek icin oturum acmalisin.');
+      toast.error(t('settings.toasts.contactLoginRequired'));
       return;
     }
 
@@ -362,11 +371,11 @@ export default function SettingsPage() {
         phone: normalizedPhoneInput || null,
         crypto: normalizedCryptoInput || null,
       });
-      toast.success('Iletisim bilgileri guncellendi.');
+      toast.success(t('settings.toasts.contactUpdated'));
       await refreshTeamInfo();
     } catch (error) {
       console.error('[Settings] Failed to update contact info', error);
-      toast.error('Iletisim bilgileri kaydedilemedi.');
+      toast.error(t('settings.toasts.contactSaveFailed'));
     } finally {
       setIsSavingContact(false);
     }
@@ -379,7 +388,7 @@ export default function SettingsPage() {
 
   const handlePushToggle = async (checked: boolean) => {
     if (!user) {
-      toast.error('Bildirimleri guncellemek icin oturum acmalisin.');
+      toast.error(t('settings.toasts.pushLoginRequired'));
       return;
     }
 
@@ -390,12 +399,12 @@ export default function SettingsPage() {
       await refreshTeamInfo();
       toast.success(
         checked
-          ? 'Telefon bildirimleri etkinlestirildi.'
-          : 'Telefon bildirimleri kapatildi.',
+          ? t('settings.toasts.pushEnabled')
+          : t('settings.toasts.pushDisabled'),
       );
     } catch (error) {
       console.error('[Settings] Failed to update push preference', error);
-      toast.error('Bildirim tercihi guncellenemedi.');
+      toast.error(t('settings.toasts.pushSaveFailed'));
     } finally {
       setIsSavingPushPreference(false);
     }
@@ -408,16 +417,16 @@ export default function SettingsPage() {
   };
 
   const handleClearCache = () => {
-    toast.success('Önbellek temizlendi');
+    toast.success(t('settings.toasts.cacheCleared'));
   };
 
   const handleExportData = () => {
-    toast.success('Veriler dışa aktarıldı');
+    toast.success(t('settings.toasts.dataExported'));
   };
 
   const handleOpenWhatsAppSupport = () => {
     if (typeof window === 'undefined') {
-      toast.error('WhatsApp baglantisi su anda acilamadi.');
+      toast.error(t('settings.toasts.whatsappUnavailable'));
       return;
     }
 
@@ -426,7 +435,7 @@ export default function SettingsPage() {
 
   const handleOpenAdPrivacyOptions = async () => {
     if (!isRewardedAdsSupported()) {
-      toast.info('Reklam gizlilik tercihleri yalnizca Android uygulamasinda acilabilir.');
+      toast.info(t('settings.toasts.adPrivacyUnsupported'));
       return;
     }
 
@@ -434,13 +443,13 @@ export default function SettingsPage() {
     try {
       const shown = await showRewardedAdsPrivacyOptions();
       if (shown) {
-        toast.success('Reklam gizlilik tercihi formu acildi.');
+        toast.success(t('settings.toasts.adPrivacyOpened'));
       } else {
-        toast.info('Su anda guncellenecek reklam gizlilik tercihi bulunmuyor.');
+        toast.info(t('settings.toasts.adPrivacyNone'));
       }
     } catch (error) {
       console.error('[Settings] Failed to open rewarded ads privacy options', error);
-      toast.error('Reklam gizlilik tercihi acilamadi.');
+      toast.error(t('settings.toasts.adPrivacyFailed'));
     } finally {
       setIsOpeningAdPrivacyOptions(false);
     }
@@ -448,7 +457,7 @@ export default function SettingsPage() {
 
   const handleRefreshRewardedAdsDebugInfo = async () => {
     if (!isRewardedAdsSupported()) {
-      toast.info('Reklam debug bilgisi yalnizca Android uygulamasinda okunabilir.');
+      toast.info(t('settings.toasts.debugUnsupported'));
       return;
     }
 
@@ -456,7 +465,7 @@ export default function SettingsPage() {
     try {
       const info = await getRewardedAdsDebugInfo();
       setRewardedAdsDebugInfo(info);
-      toast.success('Reklam debug bilgisi yenilendi.');
+      toast.success(t('settings.toasts.debugRefreshed'));
     } catch (error) {
       console.error('[Settings] Failed to load rewarded ads debug info', error);
       toast.error(getRewardedAdFailureMessage(error));
@@ -467,7 +476,7 @@ export default function SettingsPage() {
 
   const handleOpenAdInspector = async () => {
     if (!isRewardedAdsSupported()) {
-      toast.info('Ad Inspector yalnizca Android uygulamasinda acilabilir.');
+      toast.info(t('settings.toasts.inspectorUnsupported'));
       return;
     }
 
@@ -478,7 +487,7 @@ export default function SettingsPage() {
         setRewardedAdsDebugInfo(result.debug);
       }
       if (result.opened) {
-        toast.success('Ad Inspector kapatildi. Gerekirse debug bilgisini yenile.');
+        toast.success(t('settings.toasts.inspectorClosed'));
       } else {
         toast.error(getRewardedAdFailureMessage(result.error));
       }
@@ -495,7 +504,10 @@ export default function SettingsPage() {
       return '-';
     }
 
-    return new Date(value).toLocaleString('tr-TR');
+    return formatDate(value, {
+      dateStyle: 'medium',
+      timeStyle: 'short',
+    });
   };
 
   const cardBaseClass = 'border-white/10 bg-slate-900/60 text-slate-100 backdrop-blur-lg';
@@ -516,15 +528,13 @@ export default function SettingsPage() {
               <div className="flex items-center gap-3">
                 <BackButton />
                 <div>
-                  <h1 className="text-3xl font-bold">Ayarlar</h1>
-                  <p className="mt-1 text-sm text-slate-300">
-                    Kulübünü kişiselleştir, bildirim tercihlerini düzenle ve verilerini yönet.
-                  </p>
+                  <h1 className="text-3xl font-bold">{t('settings.header.title')}</h1>
+                  <p className="mt-1 text-sm text-slate-300">{t('settings.header.description')}</p>
                 </div>
               </div>
               <div className="flex items-center gap-2 rounded-xl border border-emerald-300/30 bg-emerald-500/10 px-4 py-2 text-sm text-emerald-100 shadow-lg">
                 <Moon className="h-4 w-4" />
-                <span>Tema: {theme === 'dark' ? 'Koyu' : 'Açık'}</span>
+                <span>{t('settings.header.themeLabel', { theme: themeLabel })}</span>
               </div>
             </div>
           </div>
@@ -534,14 +544,11 @@ export default function SettingsPage() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-xl">
                   <Image className="h-5 w-5 text-emerald-300" />
-                  Takım Kimliği
+                  {t('settings.teamIdentity.title')}
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                <p className="text-sm text-slate-300">
-                  Logonu yükleyerek kulübünü diğer menajerlerden ayır. PNG, JPG veya SVG formatında en fazla 512 KB boyutunda bir
-                  görsel seçebilirsin.
-                </p>
+                <p className="text-sm text-slate-300">{t('settings.teamIdentity.description')}</p>
                 <input
                   ref={fileInputRef}
                   type="file"
@@ -552,9 +559,9 @@ export default function SettingsPage() {
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
                   <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-2xl border border-emerald-300/30 bg-slate-950/70 shadow-inner">
                     {logoPreview ? (
-                      <img src={logoPreview} alt="Takım logosu" className="h-full w-full object-cover" />
+                      <img src={logoPreview} alt={t('settings.teamIdentity.logoAlt')} className="h-full w-full object-cover" />
                     ) : (
-                      <span className="text-3xl">⚽</span>
+                      <span className="text-3xl">âš½</span>
                     )}
                   </div>
                   <div className="space-y-3">
@@ -567,10 +574,10 @@ export default function SettingsPage() {
                         {isSavingLogo ? (
                           <>
                             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            Kaydediliyor
+                            {t('common.saving')}
                           </>
                         ) : (
-                          'Logo Yükle'
+                          t('settings.teamIdentity.uploadLogo')
                         )}
                       </Button>
                       <Button
@@ -579,11 +586,11 @@ export default function SettingsPage() {
                         disabled={!user || isSavingLogo || !logoPreview}
                         className="text-slate-300 hover:text-emerald-100"
                       >
-                        Logoyu Kaldır
+                        {t('settings.teamIdentity.removeLogo')}
                       </Button>
                     </div>
                     <p className="text-xs text-slate-400">
-                      {user?.teamName ?? 'Takımın'} logosu yenilendiğinde üst menüde ve diğer sayfalarda otomatik olarak güncellenir.
+                      {t('settings.teamIdentity.updatedHint', { teamName: user?.teamName ?? t('settings.teamIdentity.fallbackTeamName') })}
                     </p>
                   </div>
                 </div>
@@ -594,13 +601,13 @@ export default function SettingsPage() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Settings className="h-5 w-5 text-emerald-300" />
-                  Kulup ve Stadyum Adi
+                  {t('settings.club.title')}
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-5">
                 <div className="space-y-3">
-                  <p className="text-sm text-slate-300">Kulup adi: <span className="font-semibold text-emerald-200">{user?.teamName ?? 'Takimim'}</span></p>
-                  <p className="text-xs text-slate-400">Degistirme maliyeti: {CLUB_RENAME_COST} elmas</p>
+                  <p className="text-sm text-slate-300">{t('settings.club.clubName')}: <span className="font-semibold text-emerald-200">{user?.teamName ?? t('common.teamFallback')}</span></p>
+                  <p className="text-xs text-slate-400">{t('settings.club.renameCost', { cost: CLUB_RENAME_COST })}</p>
                   <Button
                     variant="secondary"
                     className="bg-emerald-500/20 text-emerald-100 hover:bg-emerald-500/30"
@@ -609,13 +616,13 @@ export default function SettingsPage() {
                       setIsClubRenameOpen(true);
                     }}
                   >
-                    Kulup adini degistir
+                    {t('settings.club.renameClub')}
                   </Button>
                 </div>
 
                 <div className="space-y-2">
-                  <p className="text-sm text-slate-300">Stadyum adi: <span className="font-semibold text-emerald-200">{stadiumName ?? 'Stadyumunuz'}</span></p>
-                  <p className="text-xs text-slate-400">Degistirme maliyeti: {STADIUM_RENAME_COST} elmas</p>
+                  <p className="text-sm text-slate-300">{t('settings.club.stadiumName')}: <span className="font-semibold text-emerald-200">{stadiumName ?? t('settings.club.fallbackStadium')}</span></p>
+                  <p className="text-xs text-slate-400">{t('settings.club.renameCost', { cost: STADIUM_RENAME_COST })}</p>
                   <Button
                     variant="outline"
                     className="border-emerald-400/40 text-emerald-100 hover:bg-emerald-500/20"
@@ -624,11 +631,11 @@ export default function SettingsPage() {
                       setIsStadiumRenameOpen(true);
                     }}
                   >
-                    Stadyum adini degistir
+                    {t('settings.club.renameStadium')}
                   </Button>
                 </div>
 
-                <p className="text-xs text-slate-400">Mevcut bakiye: <span className="font-semibold text-emerald-200">{balance}</span> elmas</p>
+                <p className="text-xs text-slate-400">{t('settings.club.currentBalance', { balance: formatNumber(balance) })}</p>
               </CardContent>
             </Card>
 
@@ -636,17 +643,14 @@ export default function SettingsPage() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Phone className="h-5 w-5 text-emerald-300" />
-                  Iletisim Bilgileri
+                  {t('settings.contact.title')}
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                <p className="text-sm text-slate-300">
-                  Diger menajerlerin sana ulasmasi icin iletisim kanallarini kaydet. Bu bilgiler yalnizca paylasim
-                  izninle goruntulenir.
-                </p>
+                <p className="text-sm text-slate-300">{t('settings.contact.description')}</p>
                 <div className="space-y-2">
                   <Label htmlFor="contact-phone" className="text-xs uppercase tracking-wide text-emerald-200/70">
-                    Telefon numarasi
+                    {t('settings.contact.phoneLabel')}
                   </Label>
                   <Input
                     id="contact-phone"
@@ -658,25 +662,25 @@ export default function SettingsPage() {
                     className="border-white/10 bg-slate-950/70 text-slate-100 placeholder:text-slate-500 focus-visible:ring-emerald-500/40"
                   />
                   <p className="text-xs text-slate-400">
-                    Numarani uluslararasi formatta yazabilirsin. Kaydettiginde yalnizca kulubun resmi iletisim kanalindan paylasilir.
+                    {t('settings.contact.phoneHelp')}
                   </p>
                 </div>
 
                 <div className="space-y-2">
                   <Label htmlFor="contact-crypto" className="flex items-center gap-2 text-xs uppercase tracking-wide text-emerald-200/70">
                     <Wallet className="h-4 w-4" />
-                    Kripto hesabi
+                    {t('settings.contact.cryptoLabel')}
                   </Label>
                   <Input
                     id="contact-crypto"
                     value={contactCrypto}
                     onChange={event => setContactCrypto(event.target.value)}
-                    placeholder="USDT (TRC20) cuzdan adresi"
+                    placeholder={t('settings.contact.cryptoPlaceholder')}
                     disabled={!user || isSavingContact}
                     className="border-white/10 bg-slate-950/70 text-slate-100 placeholder:text-slate-500 focus-visible:ring-emerald-500/40"
                   />
                   <p className="text-xs text-slate-400">
-                    Kripto odemeleri icin tercih ettigin cuzdan adresini veya borsa hesap bilgisini ekleyebilirsin.
+                    {t('settings.contact.cryptoHelp')}
                   </p>
                 </div>
 
@@ -688,7 +692,7 @@ export default function SettingsPage() {
                     onClick={handleResetContactInfo}
                     disabled={!hasContactChanges || isSavingContact}
                   >
-                    Alanlari sifirla
+                    {t('settings.contact.reset')}
                   </Button>
                   <Button
                     type="button"
@@ -699,10 +703,10 @@ export default function SettingsPage() {
                     {isSavingContact ? (
                       <>
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Kaydediliyor
+                        {t('common.saving')}
                       </>
                     ) : (
-                      'Bilgileri kaydet'
+                      t('settings.contact.save')
                     )}
                   </Button>
                 </div>
@@ -713,17 +717,14 @@ export default function SettingsPage() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Moon className="h-5 w-5 text-emerald-300" />
-                  Görünüm
+                  {t('settings.appearance.title')}
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
                 <p className="text-sm text-slate-300">
-                  Oyun deneyimini tutarlı kılmak için koyu tema varsayılan hale getirildi ve tüm kullanıcılar için etkin.
+                  {t('settings.appearance.description')}
                 </p>
-                <p className="text-xs text-slate-400">
-                  Sistem temandan bağımsız olarak arayüz koyu modda açılır. Gelecekteki güncellemelerde farklı tema seçenekleri
-                  eklenebilir.
-                </p>
+                <p className="text-xs text-slate-400">{t('settings.appearance.note')}</p>
               </CardContent>
             </Card>
 
@@ -731,19 +732,19 @@ export default function SettingsPage() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-xl">
                   <Gift className="h-5 w-5 text-emerald-300" />
-                  Gunluk Oduller ve VIP
+                  {t('settings.vip.title')}
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-6">
                 <div className="rounded-xl border border-emerald-300/20 bg-emerald-500/5 p-4">
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div>
-                      <p className="font-semibold text-slate-100">Gunluk giris odulu</p>
+                      <p className="font-semibold text-slate-100">{t('settings.vip.dailyTitle')}</p>
                       <p className="text-sm text-slate-300">
-                        Her gun sadece bir kez kondisyon, motivasyon veya saglik kitlerinden biri otomatik olarak eklenir.
+                        {t('settings.vip.dailyDescription')}
                       </p>
                       <p className="mt-2 text-xs text-slate-400">
-                        Son odul tarihi:{' '}
+                        {t('settings.vip.lastRewardDate')}{' '}
                         <span className="font-medium text-emerald-200">{lastDailyRewardLabel}</span>
                       </p>
                     </div>
@@ -753,7 +754,7 @@ export default function SettingsPage() {
                       variant="outline"
                       className="mt-2 w-full border-emerald-400/40 text-emerald-100 hover:bg-emerald-500/20 sm:mt-0 sm:w-auto"
                     >
-                      {hasClaimedToday ? 'Bugun alindi' : 'Odulu kontrol et'}
+                      {hasClaimedToday ? t('settings.vip.claimedToday') : t('settings.vip.checkReward')}
                     </Button>
                   </div>
                 </div>
@@ -764,32 +765,32 @@ export default function SettingsPage() {
                       <div className="flex items-center gap-2">
                         <Crown className={`h-5 w-5 ${isVipActive ? 'text-amber-300' : 'text-slate-500'}`} />
                         <p className="font-semibold text-slate-100">
-                          VIP durumu:{' '}
+                          {t('settings.vip.statusLabel')}{' '}
                           <span className={isVipActive ? 'text-amber-300' : 'text-slate-300'}>
-                            {isVipActive ? 'Aktif' : 'Pasif'}
+                            {isVipActive ? t('settings.vip.active') : t('settings.vip.inactive')}
                           </span>
                         </p>
                       </div>
                       <div className="text-sm text-slate-300">
-                        <p>- Gunluk +1 kondisyon, motivasyon ve saglik kiti</p>
-                        <p>- Sureler %{vipDurationPercent} kisalir</p>
-                        <p>- Ayda 1 yildiz oyuncu karti</p>
+                        <p>{t('settings.vip.perkDaily')}</p>
+                        <p>{t('settings.vip.perkDuration', { percent: vipDurationPercent })}</p>
+                        <p>{t('settings.vip.perkStarCard')}</p>
                       </div>
                       <div className="text-xs text-slate-400">
                         <p>
-                          Secili paket:{' '}
+                          {t('settings.vip.selectedPlan')}{' '}
                           <span className="font-medium text-emerald-200">{vipPlanLabel}</span>
                         </p>
                         <p>
-                          VIP bitis:{' '}
+                          {t('settings.vip.expiry')}{' '}
                           <span className="font-medium text-emerald-200">{vipExpiryLabel}</span>
                         </p>
                         <p>
-                          Son yildiz karti:{' '}
+                          {t('settings.vip.lastStarCard')}{' '}
                           <span className="font-medium text-emerald-200">{lastMonthlyStarCardLabel}</span>
                         </p>
                         <p>
-                          Kart kredisi:{' '}
+                          {t('settings.vip.starCardCredits')}{' '}
                           <span className="font-medium text-emerald-200">{starCardCredits}</span>
                         </p>
                       </div>
@@ -809,7 +810,7 @@ export default function SettingsPage() {
                           disabled={!canInteract}
                           className="border-emerald-400/40 text-emerald-100 hover:bg-emerald-500/20"
                         >
-                          VIP paketlerini goruntule
+                          {t('settings.vip.viewPlans')}
                         </Button>
                         <Button
                           variant="ghost"
@@ -817,7 +818,7 @@ export default function SettingsPage() {
                           disabled={!canInteract}
                           className="text-slate-300 hover:text-emerald-100"
                         >
-                          VIP devre disi
+                          {t('settings.vip.disable')}
                         </Button>
                       </div>
                     ) : (
@@ -827,7 +828,7 @@ export default function SettingsPage() {
                           disabled={!canInteract}
                           className="bg-emerald-500/20 text-emerald-100 hover:bg-emerald-500/30"
                         >
-                          VIP paketlerini goruntule
+                          {t('settings.vip.viewPlans')}
                         </Button>
                       </div>
                     )}
@@ -840,14 +841,14 @@ export default function SettingsPage() {
           <div className="grid gap-6 lg:grid-cols-2">
             <Card className={cardBaseClass}>
               <CardHeader>
-                <CardTitle>Bildirimler</CardTitle>
+                <CardTitle>{t('settings.notifications.title')}</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="flex items-center justify-between gap-4">
                   <div>
-                    <Label className="font-medium">Telefon Bildirimleri</Label>
+                    <Label className="font-medium">{t('settings.notifications.phoneTitle')}</Label>
                     <p className="text-sm text-slate-400">
-                      Altyapi, akademi, antrenman ve resmi lig maci hatirlatmalarini telefon bildirimi olarak al.
+                      {t('settings.notifications.phoneDescription')}
                     </p>
                   </div>
                   <Switch
@@ -856,13 +857,10 @@ export default function SettingsPage() {
                     onCheckedChange={handlePushToggle}
                   />
                 </div>
-                <p className="text-xs text-slate-400">
-                  Android canli olarak desteklenir. iOS icin kod yolu hazirlanir fakat canli push icin
-                  `GoogleService-Info.plist` ve APNs/Firebase kurulumu gerekir.
-                </p>
+                <p className="text-xs text-slate-400">{t('settings.notifications.platformNote')}</p>
                 {!Capacitor.isNativePlatform() ? (
                   <p className="text-xs text-amber-300">
-                    Web tarayicisinda native cihaz kaydi yapilmaz. Bu ayar mobil uygulama icindir.
+                    {t('settings.notifications.webNote')}
                   </p>
                 ) : null}
               </CardContent>
@@ -871,36 +869,36 @@ export default function SettingsPage() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Volume2 className="h-5 w-5 text-emerald-300" />
-                  Ses ve Performans
+                  {t('settings.performance.title')}
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <Label className="font-medium">Ses Efektleri</Label>
-                    <p className="text-sm text-slate-400">Maç sırasında ses efektlerini oynat</p>
+                    <Label className="font-medium">{t('settings.performance.soundEffects')}</Label>
+                    <p className="text-sm text-slate-400">{t('settings.performance.soundEffectsDescription')}</p>
                   </div>
                   <Switch defaultChecked />
                 </div>
 
                 <div className="flex items-center justify-between">
                   <div>
-                    <Label className="font-medium">Animasyonlar</Label>
-                    <p className="text-sm text-slate-400">Geçiş animasyonlarını azalt</p>
+                    <Label className="font-medium">{t('settings.performance.animations')}</Label>
+                    <p className="text-sm text-slate-400">{t('settings.performance.animationsDescription')}</p>
                   </div>
                   <Switch />
                 </div>
 
                 <div className="space-y-2">
-                  <Label>Grafik Kalitesi</Label>
+                  <Label>{t('settings.performance.graphicsQuality')}</Label>
                   <Select defaultValue="high">
                     <SelectTrigger className="border-white/10 bg-slate-950/70 text-slate-100 focus:ring-emerald-500/40">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent className="border-white/10 bg-slate-950 text-slate-100">
-                      <SelectItem value="low">Düşük</SelectItem>
-                      <SelectItem value="medium">Orta</SelectItem>
-                      <SelectItem value="high">Yüksek</SelectItem>
+                      <SelectItem value="low">{t('settings.performance.low')}</SelectItem>
+                      <SelectItem value="medium">{t('settings.performance.medium')}</SelectItem>
+                      <SelectItem value="high">{t('settings.performance.high')}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -911,35 +909,37 @@ export default function SettingsPage() {
           <div className="grid gap-6 lg:grid-cols-2">
             <Card className={cardBaseClass}>
               <CardHeader>
-                <CardTitle>Dil ve Bölge</CardTitle>
+                <CardTitle>{t('settings.locale.title')}</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
-                  <Label>Dil</Label>
-                  <Select defaultValue="tr">
+                  <Label>{t('settings.language.label')}</Label>
+                  <Select value={language} onValueChange={(value) => setLanguage(value as typeof language)}>
                     <SelectTrigger className="border-white/10 bg-slate-950/70 text-slate-100 focus:ring-emerald-500/40">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent className="border-white/10 bg-slate-950 text-slate-100">
-                      <SelectItem value="tr">Türkçe</SelectItem>
-                      <SelectItem value="en">English</SelectItem>
-                      <SelectItem value="de">Deutsch</SelectItem>
-                      <SelectItem value="es">Español</SelectItem>
+                      {availableLanguages.map((option) => (
+                        <SelectItem key={option.code} value={option.code}>
+                          {option.nativeLabel}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
+                  <p className="text-xs text-slate-400">{t('settings.language.help')}</p>
                 </div>
 
                 <div className="space-y-2">
-                  <Label>Para Birimi</Label>
+                  <Label>{t('settings.locale.currency')}</Label>
                   <Select defaultValue="try">
                     <SelectTrigger className="border-white/10 bg-slate-950/70 text-slate-100 focus:ring-emerald-500/40">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent className="border-white/10 bg-slate-950 text-slate-100">
-                      <SelectItem value="try">Türk Lirası (₺)</SelectItem>
-                      <SelectItem value="eur">Euro (€)</SelectItem>
+                      <SelectItem value="try">TÃ¼rk LirasÄ± (â‚º)</SelectItem>
+                      <SelectItem value="eur">Euro (â‚¬)</SelectItem>
                       <SelectItem value="usd">US Dollar ($)</SelectItem>
-                      <SelectItem value="gbp">British Pound (£)</SelectItem>
+                      <SelectItem value="gbp">British Pound (Â£)</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -950,7 +950,7 @@ export default function SettingsPage() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Settings className="h-5 w-5 text-emerald-300" />
-                  Veri Yönetimi
+                  {t('settings.data.title')}
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -961,7 +961,7 @@ export default function SettingsPage() {
                     onClick={handleExportData}
                   >
                     <Download className="mr-2 h-4 w-4" />
-                    Verileri Dışa Aktar
+                    {t('settings.data.export')}
                   </Button>
 
                   <Button
@@ -970,7 +970,7 @@ export default function SettingsPage() {
                     onClick={handleClearCache}
                   >
                     <Trash2 className="mr-2 h-4 w-4" />
-                    Önbelleği Temizle
+                    {t('settings.data.clearCache')}
                   </Button>
 
                   <Button
@@ -984,7 +984,7 @@ export default function SettingsPage() {
                     ) : (
                       <ShieldCheck className="mr-2 h-4 w-4" />
                     )}
-                    Reklam gizlilik tercihleri
+                    {t('settings.data.adPrivacy')}
                   </Button>
 
                   {showRewardedAdsDebugTools ? (
@@ -1004,7 +1004,7 @@ export default function SettingsPage() {
                           ) : (
                             <Settings className="mr-2 h-4 w-4" />
                           )}
-                          Reklam debug bilgisini yenile
+                          {t('settings.data.refreshDebug')}
                         </Button>
                         <Button
                           variant="outline"
@@ -1017,7 +1017,7 @@ export default function SettingsPage() {
                           ) : (
                             <ShieldCheck className="mr-2 h-4 w-4" />
                           )}
-                          Ad Inspector ac
+                          {t('settings.data.openInspector')}
                         </Button>
                       </div>
 
@@ -1048,8 +1048,8 @@ export default function SettingsPage() {
                           <div className="rounded-lg border border-white/10 bg-slate-950/50 p-2">
                             <p className="text-slate-400">Ad Cache</p>
                             <p className="font-medium">
-                              {rewardedAdsDebugInfo.adLoaded ? 'Hazir' : 'Bos'}
-                              {rewardedAdsDebugInfo.adAgeMs != null ? ` / ${Math.round(rewardedAdsDebugInfo.adAgeMs / 1000)} sn` : ''}
+                              {rewardedAdsDebugInfo.adLoaded ? t('settings.data.ready') : t('settings.data.empty')}
+                              {rewardedAdsDebugInfo.adAgeMs != null ? ` / ${Math.round(rewardedAdsDebugInfo.adAgeMs / 1000)} ${t('settings.data.secondsShort')}` : ''}
                             </p>
                           </div>
                           <div className="rounded-lg border border-white/10 bg-slate-950/50 p-2 sm:col-span-2">
@@ -1058,13 +1058,13 @@ export default function SettingsPage() {
                           </div>
                           {(rewardedAdsDebugInfo.lastLoadError || rewardedAdsDebugInfo.lastShowError) ? (
                             <div className="rounded-lg border border-amber-400/20 bg-amber-500/5 p-2 text-amber-100 sm:col-span-2">
-                              <p className="text-[11px] uppercase tracking-[0.18em] text-amber-300">Son Hata</p>
+                              <p className="text-[11px] uppercase tracking-[0.18em] text-amber-300">{t('settings.data.lastError')}</p>
                               <p className="mt-1">
                                 {rewardedAdsDebugInfo.lastShowError?.message || rewardedAdsDebugInfo.lastLoadError?.message || '-'}
                               </p>
                               <p className="mt-1 text-[11px] text-amber-200/80">
                                 Stage: {rewardedAdsDebugInfo.lastShowError?.stage || rewardedAdsDebugInfo.lastLoadError?.stage || '-'}
-                                {' • '}
+                                {' â€¢ '}
                                 Code: {rewardedAdsDebugInfo.lastShowError?.code ?? rewardedAdsDebugInfo.lastLoadError?.code ?? '-'}
                               </p>
                             </div>
@@ -1076,20 +1076,20 @@ export default function SettingsPage() {
 
                   {isAdmin ? (
                     <div className="border-t border-white/10 pt-4">
-                      <p className="mb-2 text-xs text-slate-400">Yonetici Islemleri</p>
+                      <p className="mb-2 text-xs text-slate-400">{t('settings.data.adminActions')}</p>
                       <Button
                         variant="outline"
                         className="w-full justify-start border-cyan-500/20 bg-cyan-500/10 text-cyan-100 hover:bg-cyan-500/20"
                         onClick={() => navigate('/admin/live-league')}
                       >
                         <Settings className="mr-2 h-4 w-4" />
-                        Canli Lig Operasyon Paneli
+                        {t('settings.data.liveLeagueOps')}
                       </Button>
                     </div>
                   ) : null}
 
                   {showLeagueBotCleanup && <div className="pt-4 border-t border-white/10">
-                    <p className="mb-2 text-xs text-slate-400">Yönetici İşlemleri</p>
+                    <p className="mb-2 text-xs text-slate-400">YÃ¶netici Ä°ÅŸlemleri</p>
                     <Button
                       variant="destructive"
                       className="w-full justify-start border-rose-500/20 bg-rose-500/10 text-rose-200 hover:bg-rose-500/20"
@@ -1101,7 +1101,7 @@ export default function SettingsPage() {
                       ) : (
                         <Trash2 className="mr-2 h-4 w-4" />
                       )}
-                      Lig Botlarını Temizle (Kapasite Düzelt)
+                      Lig BotlarÄ±nÄ± Temizle (Kapasite DÃ¼zelt)
                     </Button>
                   </div>}
                 </div>
@@ -1109,15 +1109,15 @@ export default function SettingsPage() {
                 <div className="border-t border-white/10 pt-4">
                   <div className="space-y-2 text-sm text-slate-300">
                     <div className="flex justify-between">
-                      <span>Oyun Verisi:</span>
+                      <span>{t('settings.data.gameData')}</span>
                       <span>2.4 MB</span>
                     </div>
                     <div className="flex justify-between">
-                      <span>Önbellek:</span>
+                      <span>{t('settings.data.cache')}</span>
                       <span>15.8 MB</span>
                     </div>
                     <div className="flex justify-between">
-                      <span>Toplam:</span>
+                      <span>{t('settings.data.total')}</span>
                       <span>18.2 MB</span>
                     </div>
                   </div>
@@ -1128,20 +1128,20 @@ export default function SettingsPage() {
 
           <Card className={cardBaseClass}>
             <CardHeader>
-              <CardTitle>Hakkında</CardTitle>
+              <CardTitle>{t('settings.about.title')}</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-3 text-sm text-slate-300">
                 <div className="flex justify-between">
-                  <span className="text-slate-400">Versiyon:</span>
+                  <span className="text-slate-400">{t('settings.about.version')}</span>
                   <span>1.0.0</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-slate-400">Son Güncelleme:</span>
-                  <span>18 Ağustos 2025</span>
+                  <span className="text-slate-400">{t('settings.about.lastUpdate')}</span>
+                  <span>{aboutLastUpdateLabel}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-slate-400">Geliştirici:</span>
+                  <span className="text-slate-400">{t('settings.about.developer')}</span>
                   <span>Turhan KAYAER</span>
                 </div>
               </div>
@@ -1149,10 +1149,10 @@ export default function SettingsPage() {
               <div className="mt-4 border-t border-white/10 pt-4">
                 <div className="space-y-2">
                   <Button variant="ghost" className="w-full justify-start text-sm text-slate-200 hover:text-emerald-100">
-                    Gizlilik Politikası
+                    {t('settings.about.privacyPolicy')}
                   </Button>
                   <Button variant="ghost" className="w-full justify-start text-sm text-slate-200 hover:text-emerald-100">
-                    Kullanım Şartları
+                    {t('settings.about.terms')}
                   </Button>
                   <Button
                     type="button"
@@ -1161,10 +1161,10 @@ export default function SettingsPage() {
                     onClick={handleOpenWhatsAppSupport}
                   >
                     <MessageCircle className="mr-2 h-4 w-4" />
-                    WhatsApp Destek Hatti
+                    {t('settings.about.whatsappSupport')}
                   </Button>
                   <p className="text-xs text-slate-400">
-                    Oyun icinde sorun yasayan kullanicilar bu hatta dogrudan mesaj atabilir:
+                    {t('settings.about.whatsappHelp')}
                     <span className="ml-1 font-medium text-emerald-200">{WHATSAPP_SUPPORT_PHONE}</span>
                   </p>
                 </div>
@@ -1185,28 +1185,28 @@ export default function SettingsPage() {
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Kulup adini guncelle</DialogTitle>
+            <DialogTitle>{t('settings.dialogs.clubRenameTitle')}</DialogTitle>
             <DialogDescription>
-              Yeni kulup adini gir ve {CLUB_RENAME_COST} elmas ile onayla.
+              {t('settings.dialogs.clubRenameDescription', { cost: CLUB_RENAME_COST })}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-2">
-            <Label htmlFor="club-name">Kulup adi</Label>
+            <Label htmlFor="club-name">{t('settings.dialogs.clubNameLabel')}</Label>
             <Input
               id="club-name"
               value={clubNameInput}
               onChange={event => setClubNameInput(event.target.value)}
-              placeholder={user?.teamName ?? 'Takimin'}
+              placeholder={user?.teamName ?? t('settings.teamIdentity.fallbackTeamName')}
               maxLength={MAX_RENAME_LENGTH}
             />
           </div>
           <DialogFooter className="gap-2 sm:gap-0">
             <Button variant="ghost" onClick={() => setIsClubRenameOpen(false)}>
-              Vazgec
+              {t('common.cancel')}
             </Button>
             <Button onClick={handleClubRename} disabled={isRenamingClub}>
               {isRenamingClub ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-              Onayla ({CLUB_RENAME_COST})
+              {t('common.confirm')} ({CLUB_RENAME_COST})
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1223,28 +1223,28 @@ export default function SettingsPage() {
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Stadyum adini guncelle</DialogTitle>
+            <DialogTitle>{t('settings.dialogs.stadiumRenameTitle')}</DialogTitle>
             <DialogDescription>
-              Yeni stadyum adini gir ve {STADIUM_RENAME_COST} elmas ile onayla.
+              {t('settings.dialogs.stadiumRenameDescription', { cost: STADIUM_RENAME_COST })}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-2">
-            <Label htmlFor="stadium-name">Stadyum adi</Label>
+            <Label htmlFor="stadium-name">{t('settings.dialogs.stadiumNameLabel')}</Label>
             <Input
               id="stadium-name"
               value={stadiumNameInput}
               onChange={event => setStadiumNameInput(event.target.value)}
-              placeholder={stadiumName ?? 'Stadyum'}
+              placeholder={stadiumName ?? t('settings.club.fallbackStadium')}
               maxLength={MAX_RENAME_LENGTH}
             />
           </div>
           <DialogFooter className="gap-2 sm:gap-0">
             <Button variant="ghost" onClick={() => setIsStadiumRenameOpen(false)}>
-              Vazgec
+              {t('common.cancel')}
             </Button>
             <Button onClick={handleStadiumRename} disabled={isRenamingStadium}>
               {isRenamingStadium ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-              Onayla ({STADIUM_RENAME_COST})
+              {t('common.confirm')} ({STADIUM_RENAME_COST})
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1252,6 +1252,13 @@ export default function SettingsPage() {
     </>
   );
 }
+
+
+
+
+
+
+
 
 
 

@@ -13,9 +13,10 @@ import {
   HeartPulse,
 } from 'lucide-react';
 
-import { Player } from '@/types';
+import { useTranslation } from '@/contexts/LanguageContext';
 import { formatSalary } from '@/lib/contractNegotiation';
-import { getPositionShortLabel } from '@/features/team-planning/teamPlanningUtils';
+import { getPositionShortLabel } from '@/lib/positionLabels';
+import type { Player } from '@/types';
 
 interface PlayerDetailOverlayProps {
   isOpen: boolean;
@@ -60,8 +61,9 @@ export function PlayerDetailOverlay({
   onSellPlayer,
   onExtendContract,
   onFirePlayer,
-  onReleasePlayer,
 }: PlayerDetailOverlayProps) {
+  const { t } = useTranslation();
+
   if (!isOpen || !player) return null;
 
   return (
@@ -101,10 +103,12 @@ export function PlayerDetailOverlay({
                     {getPositionShortLabel(player.position)}
                   </span>
                   <span className="rounded bg-[#1e2338] px-2.5 py-0.5 text-[11px] font-bold tracking-wide text-[#718096]">
-                    {player.age} Yas
+                    {t('teamPlanning.overlay.age', { age: player.age })}
                   </span>
                   <span className="text-[11px] font-medium text-slate-500">
-                    - #{formatSalary(player.contract?.salary || 0)}/yil
+                    {t('teamPlanning.overlay.salaryPerYear', {
+                      salary: formatSalary(player.contract?.salary || 0),
+                    })}
                   </span>
                 </div>
               </div>
@@ -112,22 +116,24 @@ export function PlayerDetailOverlay({
 
             <div className="flex-1 rounded-2xl border border-[#262732] bg-[#151521] p-5">
               <div className="mb-4 flex items-center justify-between border-b border-[#262732] pb-2">
-                <h3 className="text-xs font-bold text-slate-300">Oyuncu Detaylari</h3>
+                <h3 className="text-xs font-bold text-slate-300">
+                  {t('teamPlanning.overlay.playerDetails')}
+                </h3>
                 <div className="rounded-full bg-[#262732] px-2 py-0.5 text-[10px] text-slate-500">
                   {player.name}
                 </div>
               </div>
 
               <div className="space-y-1">
-                <StatRow label="Saglik" value={player.health * 100} />
-                <StatRow label="Kondisyon" value={player.condition * 100} />
-                <StatRow label="Motivasyon" value={player.motivation * 100} />
-                <StatRow label="Sut" value={player.attributes.shooting * 100} />
-                <StatRow label="Ivme" value={player.attributes.acceleration * 100} />
-                <StatRow label="Top Surme" value={player.attributes.dribbleSpeed * 100} />
-                <StatRow label="Ziplama" value={player.attributes.jump * 100} />
-                <StatRow label="Savunma" value={player.attributes.tackling * 100} />
-                <StatRow label="Top Saklama" value={player.attributes.ballKeeping * 100} />
+                <StatRow label={t('teamPlanning.overlay.stats.health')} value={player.health * 100} />
+                <StatRow label={t('teamPlanning.overlay.stats.condition')} value={player.condition * 100} />
+                <StatRow label={t('teamPlanning.overlay.stats.motivation')} value={player.motivation * 100} />
+                <StatRow label={t('teamPlanning.overlay.stats.shooting')} value={player.attributes.shooting * 100} />
+                <StatRow label={t('teamPlanning.overlay.stats.acceleration')} value={player.attributes.acceleration * 100} />
+                <StatRow label={t('teamPlanning.overlay.stats.dribbling')} value={player.attributes.dribbleSpeed * 100} />
+                <StatRow label={t('teamPlanning.overlay.stats.jumping')} value={player.attributes.jump * 100} />
+                <StatRow label={t('teamPlanning.overlay.stats.defense')} value={player.attributes.tackling * 100} />
+                <StatRow label={t('teamPlanning.overlay.stats.ballKeeping')} value={player.attributes.ballKeeping * 100} />
               </div>
 
               <div className="mt-3 flex justify-center border-t border-[#262732] pt-2">
@@ -144,7 +150,7 @@ export function PlayerDetailOverlay({
               >
                 <span className="flex items-center gap-3">
                   <ArrowUpRight className="h-4 w-4" strokeWidth={2.5} />
-                  Takim planina don
+                  {t('teamPlanning.overlay.backToPlan')}
                 </span>
               </button>
 
@@ -155,7 +161,7 @@ export function PlayerDetailOverlay({
                 >
                   <Shirt className="h-4 w-4 text-[#3b82f6] transition-transform group-hover:scale-110" />
                   <span className="text-sm font-medium">
-                    {moveToStartingLabel || "Ilk 11'e Al"}
+                    {moveToStartingLabel || t('teamPlanning.overlay.moveToStarting')}
                   </span>
                 </button>
               )}
@@ -166,7 +172,7 @@ export function PlayerDetailOverlay({
                   className="group flex w-full items-center gap-4 px-2 py-2 text-slate-400 transition-colors hover:text-white"
                 >
                   <Activity className="h-4 w-4 text-[#8b5cf6] transition-transform group-hover:scale-110" />
-                  <span className="text-sm font-medium">Yedek Kulubesine Al</span>
+                  <span className="text-sm font-medium">{t('teamPlanning.overlay.moveToBench')}</span>
                 </button>
               )}
 
@@ -176,7 +182,7 @@ export function PlayerDetailOverlay({
                   className="group flex w-full items-center gap-4 px-2 py-2 text-slate-400 transition-colors hover:text-white"
                 >
                   <Shield className="h-4 w-4 text-slate-500 transition-transform group-hover:scale-110" />
-                  <span className="text-sm font-medium">Reserve Al</span>
+                  <span className="text-sm font-medium">{t('teamPlanning.overlay.moveToReserve')}</span>
                 </button>
               )}
 
@@ -187,7 +193,7 @@ export function PlayerDetailOverlay({
                 className="group flex w-full items-center gap-4 px-2 py-2 text-slate-400 transition-colors hover:text-white"
               >
                 <Briefcase className="h-4 w-4 text-slate-400 transition-transform group-hover:scale-110" />
-                <span className="text-sm font-medium">Ismi Ozellestir</span>
+                <span className="text-sm font-medium">{t('teamPlanning.overlay.customizeName')}</span>
               </button>
 
               <button
@@ -195,7 +201,7 @@ export function PlayerDetailOverlay({
                 className="group flex w-full items-center gap-4 px-2 py-2 text-slate-400 transition-colors hover:text-white"
               >
                 <HeartPulse className="h-4 w-4 text-emerald-400 transition-transform group-hover:scale-110" />
-                <span className="text-sm font-medium">Kitleri Kullan</span>
+                <span className="text-sm font-medium">{t('teamPlanning.overlay.useKits')}</span>
               </button>
 
               <button
@@ -203,7 +209,7 @@ export function PlayerDetailOverlay({
                 className="group flex w-full items-center gap-4 px-2 py-2 text-slate-400 transition-colors hover:text-white"
               >
                 <DollarSign className="h-4 w-4 text-amber-400 transition-transform group-hover:scale-110" />
-                <span className="text-sm font-medium">Maas Pazarligi</span>
+                <span className="text-sm font-medium">{t('teamPlanning.overlay.negotiateSalary')}</span>
               </button>
 
               <button
@@ -211,7 +217,7 @@ export function PlayerDetailOverlay({
                 className="group flex w-full items-center gap-4 px-2 py-2 text-slate-400 transition-colors hover:text-white"
               >
                 <Trophy className="h-4 w-4 text-yellow-500 transition-transform group-hover:scale-110" />
-                <span className="text-sm font-medium">Oyuncuyu Sat</span>
+                <span className="text-sm font-medium">{t('teamPlanning.overlay.sellPlayer')}</span>
               </button>
 
               <button
@@ -219,7 +225,7 @@ export function PlayerDetailOverlay({
                 className="group flex w-full items-center gap-4 px-2 py-2 text-slate-400 transition-colors hover:text-white"
               >
                 <Zap className="h-4 w-4 text-white transition-transform group-hover:scale-110" />
-                <span className="text-sm font-medium">Sozlesmeyi Uzat</span>
+                <span className="text-sm font-medium">{t('teamPlanning.overlay.extendContract')}</span>
               </button>
 
               <div className="my-2 h-px bg-[#262732]" />
@@ -229,7 +235,7 @@ export function PlayerDetailOverlay({
                 className="group flex w-full items-center gap-4 px-2 py-2 text-red-500/80 transition-colors hover:text-red-400"
               >
                 <UserX className="h-4 w-4 transition-transform group-hover:scale-110" />
-                <span className="text-sm font-medium">Oyuncuyu Kov</span>
+                <span className="text-sm font-medium">{t('teamPlanning.overlay.firePlayer')}</span>
               </button>
             </div>
           </div>

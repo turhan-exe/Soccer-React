@@ -1,6 +1,8 @@
-import { useNavigate } from 'react-router-dom';
 import { ChevronLeft } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+
 import { Button } from '@/components/ui/button';
+import { useTranslation } from '@/contexts/LanguageContext';
 import { formatClubCurrency } from '@/lib/clubFinance';
 
 interface TransferHeaderProps {
@@ -10,6 +12,7 @@ interface TransferHeaderProps {
 
 export function TransferHeader({ teamName, budget }: TransferHeaderProps) {
   const navigate = useNavigate();
+  const { t } = useTranslation();
 
   return (
     <div className="relative mb-6 overflow-hidden rounded-[24px] bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 p-6 md:p-8">
@@ -27,10 +30,9 @@ export function TransferHeader({ teamName, budget }: TransferHeaderProps) {
             <ChevronLeft className="h-6 w-6" />
           </Button>
           <div className="space-y-2">
-            <h1 className="text-3xl font-bold text-white md:text-4xl">Transfer Merkezi</h1>
+            <h1 className="text-3xl font-bold text-white md:text-4xl">{t('transfer.title')}</h1>
             <p className="max-w-xl text-sm text-blue-100/80 md:text-base">
-              Oyuncularını pazara çıkar, eksik bölgeler için yeni yıldızlar keşfet. Mevkilere,
-              ortalama güce ve fiyata göre filtreleyerek hedeflediğin transferi kolayca bul.
+              {t('transfer.subtitle')}
             </p>
           </div>
         </div>
@@ -42,7 +44,7 @@ export function TransferHeader({ teamName, budget }: TransferHeaderProps) {
           <div>
             <div className="text-lg font-bold text-white">{teamName}</div>
             <div className="flex items-center gap-2 text-sm text-slate-300">
-              <span>Kulüp Bakiyesi</span>
+              <span>{t('common.clubBalance')}</span>
               <span className="font-mono text-emerald-400">{formatClubCurrency(budget)}</span>
             </div>
           </div>

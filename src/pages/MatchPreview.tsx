@@ -7,11 +7,13 @@ import { MapPin, Calendar, Users, TrendingUp, Play } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { BackButton } from '@/components/ui/back-button';
 import { useAuth } from '@/contexts/AuthContext';
+import { useTranslation } from '@/contexts/LanguageContext';
 import { getTeam } from '@/services/team';
 import { getMyLeagueId, getFixturesForTeamSlotAware, getLeagueTeams } from '@/services/leagues';
 import type { ClubTeam, Fixture, Match, Player } from '@/types';
 import { formatRatingLabel, normalizeRatingTo100, normalizeRatingTo100OrNull } from '@/lib/player';
 import { getPositionShortLabel } from '@/lib/positionLabels';
+import { translate } from '@/i18n/runtime';
 import { useClubFinance } from '@/hooks/useClubFinance';
 import { formatClubCurrency } from '@/lib/clubFinance';
 import { Shield } from 'lucide-react';
@@ -68,7 +70,7 @@ const createKeyPlayersFromLineup = (players: Player[]): KeyPlayer[] =>
     .map(player => ({
       name: player.name,
       position: player.position,
-      highlight: `Genel: ${formatRatingLabel(player.overall)}`,
+      highlight: translate('matchPreview.rating', { value: formatRatingLabel(player.overall) }),
       stats: { rating: Number((normalizeRatingTo100(player.overall) / 10).toFixed(1)) },
     }));
 
@@ -138,11 +140,12 @@ export default function MatchPreview() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { cashBalance } = useClubFinance();
+  const { t, formatDate } = useTranslation();
   const fallbackMatch = upcomingMatches[0];
   const [matchInfo, setMatchInfo] = useState<Match>(fallbackMatch);
   const [teamOverall, setTeamOverall] = useState<number | null>(null);
   const [teamForm, setTeamForm] = useState<Array<'W' | 'D' | 'L'>>([]);
-  const [teamName, setTeamName] = useState<string>('Takımım');
+  const [teamName, setTeamName] = useState<string>(() => t('matchPreview.defaultTeamName'));
   const [teamLogo, setTeamLogo] = useState<string | null>(null);
   const [teamStadiumName, setTeamStadiumName] = useState<string | null>(null);
   const [startingEleven, setStartingEleven] = useState<Player[]>([]);
@@ -160,7 +163,7 @@ export default function MatchPreview() {
     let cancelled = false;
     if (!user) {
       setMatchInfo(fallbackMatch);
-      setTeamName('Takımım');
+      setTeamName(t('matchPreview.defaultTeamName'));
       setTeamLogo(null);
       setTeamStadiumName(null);
       setStartingEleven([]);
@@ -199,7 +202,7 @@ export default function MatchPreview() {
           setTeamOverall(null);
         }
       } else {
-        setTeamName('Takımım');
+        setTeamName(t('matchPreview.defaultTeamName'));
         setTeamLogo(null);
         setTeamStadiumName(null);
         setStartingEleven([]);
@@ -351,7 +354,7 @@ export default function MatchPreview() {
       );
 
       const matchDate = nextFixture.fixture.date;
-      const timeString = matchDate.toLocaleTimeString('tr-TR', {
+      const timeString = formatDate(matchDate, {
         hour: '2-digit',
         minute: '2-digit',
       });
@@ -366,7 +369,7 @@ export default function MatchPreview() {
       const formValue =
         derivedForm.length ? derivedForm : baseMatch?.opponentStats?.form ?? [];
 
-      const opponentLogoEmoji = opponent?.logo && opponent.logo.trim() ? opponent.logo : baseMatch?.opponentLogo ?? 'âš½';
+      const opponentLogoEmoji = opponent?.logo && opponent.logo.trim() ? opponent.logo : baseMatch?.opponentLogo ?? '⚽';
       const opponentStadiumName = opponent?.stadium?.name?.trim();
       const fallbackVenueName = baseMatch?.venueName;
       const resolvedVenueName = nextFixture.home
@@ -382,7 +385,7 @@ export default function MatchPreview() {
         time: timeString,
         venue: nextFixture.home ? 'home' : 'away',
         status: 'scheduled',
-        competition: baseMatch?.competition ?? 'Lig Maçı',
+        competition: baseMatch?.competition ?? t('matchPreview.defaultCompetition'),
         venueName: resolvedVenueName ?? undefined,
         opponentStats:
           overallValue != null || formValue.length || keyPlayerValue.length
@@ -398,7 +401,7 @@ export default function MatchPreview() {
     return () => {
       cancelled = true;
     };
-  }, [nextFixture, fallbackMatch, teamStadiumName]);
+  }, [nextFixture, fallbackMatch, formatDate, t, teamStadiumName]);
 
   useEffect(() => {
     if (!keyPlayers.length) {
@@ -480,7 +483,7 @@ export default function MatchPreview() {
     : opponentStartingEleven.slice(0, 4);
 
   const formatPercentage = (value?: number | null) =>
-    typeof value === 'number' ? `${Math.round(value * 100)}%` : 'â€”';
+    typeof value === 'number' ? `${Math.round(value * 100)}%` : '-';
 
   const formatPlayerOverall = (value: number) => formatRatingLabel(value);
 
@@ -492,20 +495,20 @@ export default function MatchPreview() {
           <div className="flex items-center gap-4">
             <BackButton />
             <div>
-              <h1 className="text-2xl font-bold text-white">Maç Önizleme</h1>
-              <p className="text-sm text-slate-400">Yaklaşan müsabaka detayları ve rakip analizi</p>
+              <h1 className="text-2xl font-bold text-white">{t('matchPreview.title')}</h1>
+              <p className="text-sm text-slate-400">{t('matchPreview.subtitle')}</p>
             </div>
           </div>
 
           {/* Team Info Card (Top Right) */}
           <div className="flex items-center gap-4 bg-[#14151f] px-4 py-3 rounded-xl border border-white/5">
             <div className="w-10 h-10 rounded-full bg-[#2a2c3a] flex items-center justify-center border border-white/10">
-              {renderLogo(teamLogoSrc, <Shield className="w-5 h-5 text-slate-400" />, 'Takım Logo', 'w-10 h-10')}
+              {renderLogo(teamLogoSrc, <Shield className="w-5 h-5 text-slate-400" />, t('matchPreview.teamLogoAlt'), 'w-10 h-10')}
             </div>
             <div>
               <div className="text-sm font-bold text-white">{teamName}</div>
               <div className="flex items-center gap-2 text-xs text-slate-400">
-                <span>Kulüp Bakiyesi</span>
+                <span>{t('matchPreview.clubBalance')}</span>
                 <div className="h-3 w-[1px] bg-white/10"></div>
                 <span className="text-emerald-400 font-mono">{formatClubCurrency(cashBalance)}</span>
               </div>
@@ -527,15 +530,15 @@ export default function MatchPreview() {
             {/* Competition Badge */}
             <div className="mb-6">
               <span className="px-4 py-1.5 rounded-full bg-[#2a2c3a] border border-white/10 text-xs font-bold text-slate-300 uppercase tracking-wider shadow-sm">
-                {matchInfo.competition || 'Lig Maçı'}
+                {matchInfo.competition || t('matchPreview.defaultCompetition')}
               </span>
             </div>
 
             {/* Date & Venue */}
             <div className="flex items-center gap-3 text-sm text-slate-400 mb-8 font-medium">
-              <span>{matchDate.toLocaleDateString('tr-TR')}</span>
+              <span>{formatDate(matchDate)}</span>
               <span className="w-1 h-1 rounded-full bg-slate-600"></span>
-              <span>{matchInfo.venue === 'home' ? 'Ev Sahibi' : 'Deplasman'}</span>
+              <span>{matchInfo.venue === 'home' ? t('matchPreview.homeLabel') : t('matchPreview.awayLabel')}</span>
             </div>
 
             {/* Teams Layout */}
@@ -543,7 +546,7 @@ export default function MatchPreview() {
               {/* Home Team */}
               <div className="flex flex-col items-center gap-4 w-40">
                 <div className="w-24 h-24 md:w-32 md:h-32 p-4 rounded-full bg-white/5 border border-white/5 shadow-[0_0_30px_rgba(0,0,0,0.3)] backdrop-blur-sm flex items-center justify-center">
-                  {renderLogo(teamLogoSrc, 'H', 'Takım', 'w-full h-full object-contain', { ringClass: 'ring-0' })}
+                  {renderLogo(teamLogoSrc, 'H', t('common.teamFallback'), 'w-full h-full object-contain', { ringClass: 'ring-0' })}
                 </div>
                 <div className="text-center">
                   <div className="text-xl font-bold text-white leading-tight mb-1">{teamName}</div>
@@ -562,7 +565,7 @@ export default function MatchPreview() {
               {/* Away Team */}
               <div className="flex flex-col items-center gap-4 w-40">
                 <div className="w-24 h-24 md:w-32 md:h-32 p-4 rounded-full bg-white/5 border border-white/5 shadow-[0_0_30px_rgba(0,0,0,0.3)] backdrop-blur-sm flex items-center justify-center">
-                  {renderLogo(opponentLogoSrc, 'A', 'Rakip', 'w-full h-full object-contain', { ringClass: 'ring-0', fallbackClass: 'bg-white/5 text-slate-400' })}
+                  {renderLogo(opponentLogoSrc, 'A', t('common.rivalFallback'), 'w-full h-full object-contain', { ringClass: 'ring-0', fallbackClass: 'bg-white/5 text-slate-400' })}
                 </div>
                 <div className="text-center">
                   <div className="text-xl font-bold text-white leading-tight mb-1">{matchInfo.opponent}</div>
@@ -576,7 +579,7 @@ export default function MatchPreview() {
             {/* Stadium */}
             <div className="flex items-center gap-2 text-slate-400 bg-white/5 px-5 py-2 rounded-full border border-white/5">
               <MapPin className="w-4 h-4" />
-              <span className="text-sm font-medium">{matchInfo.venueName ?? 'Stadyum: Belirlenecek'}</span>
+              <span className="text-sm font-medium">{matchInfo.venueName ?? t('matchPreview.stadiumUnknown')}</span>
             </div>
           </div>
         </div>
@@ -588,13 +591,13 @@ export default function MatchPreview() {
             <CardHeader className="border-b border-white/5 pb-4">
               <CardTitle className="flex items-center gap-2 text-lg text-white">
                 <TrendingUp className="h-5 w-5 text-amber-500" />
-                Rakip Analizi
+                {t('matchPreview.opponentAnalysis')}
               </CardTitle>
             </CardHeader>
             <CardContent className="pt-6">
               <div className="space-y-6">
                 <div>
-                  <h4 className="text-sm font-semibold text-slate-400 mb-3 uppercase tracking-wider">Son Form</h4>
+                  <h4 className="text-sm font-semibold text-slate-400 mb-3 uppercase tracking-wider">{t('matchPreview.recentForm')}</h4>
                   {opponentFormBadges.length > 0 ? (
                     <div className="flex gap-2">
                       {opponentFormBadges.map((result, index) => (
@@ -612,12 +615,12 @@ export default function MatchPreview() {
                       ))}
                     </div>
                   ) : (
-                    <p className="text-sm text-slate-500">Veri yok</p>
+                    <p className="text-sm text-slate-500">{t('matchPreview.noForm')}</p>
                   )}
                 </div>
 
                 <div>
-                  <h4 className="text-sm font-semibold text-slate-400 mb-3 uppercase tracking-wider">Kritik Oyuncular</h4>
+                  <h4 className="text-sm font-semibold text-slate-400 mb-3 uppercase tracking-wider">{t('matchPreview.keyPlayers')}</h4>
                   {keyPlayers.length ? (
                     <div className="space-y-2">
                       {visibleKeyPlayers.map(player => (
@@ -637,7 +640,7 @@ export default function MatchPreview() {
                       ))}
                     </div>
                   ) : (
-                    <p className="text-sm text-slate-500">Veri yok</p>
+                    <p className="text-sm text-slate-500">{t('common.noData')}</p>
                   )}
                 </div>
               </div>
@@ -649,7 +652,7 @@ export default function MatchPreview() {
             <CardHeader className="border-b border-white/5 pb-4">
               <CardTitle className="flex items-center gap-2 text-lg text-white">
                 <Users className="h-5 w-5 text-blue-500" />
-                Rakip İlk 11 Tahmini
+                {t('matchPreview.predictedLineup')}
               </CardTitle>
             </CardHeader>
             <CardContent className="pt-6">
@@ -663,21 +666,21 @@ export default function MatchPreview() {
                         </div>
                         <div className="flex-1">
                           <div className="text-sm font-semibold text-white">{player.name}</div>
-                          <div className="text-xs text-slate-500">Reyting: {formatPlayerOverall(player.overall)}</div>
+                          <div className="text-xs text-slate-500">{t('matchPreview.rating', { value: formatPlayerOverall(player.overall) })}</div>
                         </div>
                       </div>
                     ))}
                   </div>
                   {opponentStartingEleven.length > 4 && (
                     <Button variant="ghost" className="w-full text-slate-400 hover:text-white hover:bg-white/5 text-xs h-8" onClick={() => setShowAllOpponentPlayers(!showAllOpponentPlayers)}>
-                      {showAllOpponentPlayers ? 'Daha Az Göster' : 'Tüm Kadroyu Göster'}
+                      {showAllOpponentPlayers ? t('common.showLess') : t('matchPreview.showFullSquad')}
                     </Button>
                   )}
                 </div>
               ) : (
                 <div className="flex flex-col items-center justify-center py-10 text-center">
                   <Users className="w-10 h-10 text-slate-700 mb-3" />
-                  <p className="text-slate-500 text-sm">Muhtemel 11 henüz belli değil.</p>
+                  <p className="text-slate-500 text-sm">{t('matchPreview.lineupUnknown')}</p>
                 </div>
               )}
             </CardContent>

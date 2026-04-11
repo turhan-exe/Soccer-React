@@ -1,5 +1,11 @@
 import { clampPerformanceGauge } from "@/components/ui/performance-gauge";
+import { translate } from "@/i18n/runtime";
 import { calculatePowerIndex } from "@/lib/player";
+import {
+  canonicalizePosition,
+  getPositionLabel as getSharedPositionLabel,
+  getPositionShortLabel as getSharedPositionShortLabel,
+} from "@/lib/positionLabels";
 import {
   normalizePlayerVitals,
   normalizeTeamPlayers as normalizePlayerVitalsList,
@@ -32,6 +38,16 @@ export const MIN_SALARY_OFFER = 0;
 export const LINEUP_VITAL_THRESHOLD = 0.6;
 
 export const HOURS_IN_MS = 60 * 60 * 1000;
+
+const METRIC_LABEL_KEYS: Record<MetricKey, string> = {
+  power: "teamPlanning.metrics.power",
+  health: "teamPlanning.metrics.health",
+  motivation: "teamPlanning.metrics.motivation",
+  condition: "teamPlanning.metrics.condition",
+};
+
+export const getMetricLabel = (key: MetricKey): string =>
+  translate(METRIC_LABEL_KEYS[key]);
 
 export const metricOptions: Array<{ key: MetricKey; label: string }> = [
   { key: "power", label: "GÜÇ" },
@@ -416,13 +432,11 @@ const POSITION_SHORT_CODES_TR: Record<Player["position"], string> = {
 };
 
 export const getPositionLabel = (value?: string | null): string => {
-  const canonical = canonicalPosition(value);
-  return POSITION_LABELS_TR[canonical] ?? canonical;
+  return getSharedPositionLabel(canonicalPosition(value));
 };
 
 export const getPositionShortLabel = (value?: string | null): string => {
-  const canonical = canonicalPosition(value);
-  return POSITION_SHORT_CODES_TR[canonical] ?? canonical;
+  return getSharedPositionShortLabel(canonicalPosition(value));
 };
 
 type BuildDisplayPlayerOptions = {
@@ -630,7 +644,11 @@ export function promotePlayerToStartingRoster(
 ): PromoteToStartingResult {
   const playerIndex = roster.findIndex((player) => player.id === playerId);
   if (playerIndex === -1) {
-    return { players: roster, error: "Oyuncu bulunamad.", updated: false };
+    return {
+      players: roster,
+      error: translate("teamPlanning.errors.playerNotFound"),
+      updated: false,
+    };
   }
 
   const player = roster[playerIndex];
@@ -698,7 +716,7 @@ export function promotePlayerToStartingRoster(
     if (existingSamePlayer) {
       return {
         players: roster,
-        error: "Bu oyuncu zaten ilk 11'de!",
+        error: translate("teamPlanning.errors.playerAlreadyStarting"),
         updated: false,
       };
     }
@@ -805,10 +823,10 @@ export function getPlayerHealth(player: Player): number {
   return clampPerformanceGauge(player.health, 1);
 }
 
-const LINEUP_VITAL_LABELS: Record<LineupVitalKey, string> = {
-  health: "Saglik",
-  condition: "Kondisyon",
-  motivation: "Motivasyon",
+const LINEUP_VITAL_LABEL_KEYS: Record<LineupVitalKey, string> = {
+  health: "teamPlanning.metrics.health",
+  condition: "teamPlanning.metrics.condition",
+  motivation: "teamPlanning.metrics.motivation",
 };
 
 export function getLineupReadinessIssues(
@@ -830,7 +848,7 @@ export function getLineupReadinessIssues(
         .filter(([, value]) => value < threshold)
         .map(([key, value]) => ({
           key,
-          label: LINEUP_VITAL_LABELS[key],
+          label: translate(LINEUP_VITAL_LABEL_KEYS[key]),
           value,
           threshold,
         }));

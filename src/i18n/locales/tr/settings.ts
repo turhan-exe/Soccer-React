@@ -1,0 +1,198 @@
+import type { TranslationDictionary } from '@/i18n/types';
+
+export const trSettings: TranslationDictionary = {
+  settings: {
+    date: {
+      notClaimedYet: 'Henuz alinmadi',
+      unknown: 'Bilinmiyor',
+    },
+    header: {
+      title: 'Ayarlar',
+      description:
+        'Kulubunu kisilestir, bildirim tercihlerini duzenle ve verilerini yonet.',
+      themeLabel: 'Tema: {theme}',
+    },
+    language: {
+      label: 'Dil',
+      help: 'Arayuz dili aninda uygulanir ve cihazda saklanir.',
+    },
+    teamIdentity: {
+      title: 'Takim Kimligi',
+      description:
+        'Logonu yukleyerek kulubunu diger menajerlerden ayir. PNG, JPG veya SVG formatinda en fazla 512 KB boyutunda bir gorsel secebilirsin.',
+      uploadLogo: 'Logo Yukle',
+      removeLogo: 'Logoyu Kaldir',
+      updatedHint:
+        '{teamName} logosu yenilendiginde ust menude ve diger sayfalarda otomatik olarak guncellenir.',
+      fallbackTeamName: 'Takimin',
+      logoAlt: 'Takim logosu',
+    },
+    club: {
+      title: 'Kulup ve Stadyum Adi',
+      clubName: 'Kulup adi',
+      stadiumName: 'Stadyum adi',
+      renameCost: 'Degistirme maliyeti: {cost} elmas',
+      renameClub: 'Kulup adini degistir',
+      renameStadium: 'Stadyum adini degistir',
+      currentBalance: 'Mevcut bakiye: {balance} elmas',
+      fallbackStadium: 'Stadyumunuz',
+    },
+    contact: {
+      title: 'Iletisim Bilgileri',
+      description:
+        'Diger menajerlerin sana ulasmasi icin iletisim kanallarini kaydet. Bu bilgiler yalnizca paylasim izninle goruntulenir.',
+      phoneLabel: 'Telefon numarasi',
+      phonePlaceholder: '+90 555 000 00 00',
+      phoneHelp:
+        'Numarani uluslararasi formatta yazabilirsin. Kaydettiginde yalnizca kulubun resmi iletisim kanalindan paylasilir.',
+      cryptoLabel: 'Kripto hesabi',
+      cryptoPlaceholder: 'USDT (TRC20) wallet adresi',
+      cryptoHelp:
+        'Kripto odemeleri icin tercih ettigin wallet adresini veya borsa hesap bilgisini ekleyebilirsin.',
+      reset: 'Alanlari sifirla',
+      save: 'Bilgileri kaydet',
+    },
+    appearance: {
+      title: 'Gorunum',
+      description:
+        'Oyun deneyimini tutarli kilmak icin koyu tema varsayilan hale getirildi ve tum kullanicilar icin etkin.',
+      note:
+        'Sistem temandan bagimsiz olarak arayuz koyu modda acilir. Gelecekteki guncellemelerde farkli tema secenekleri eklenebilir.',
+    },
+    vip: {
+      title: 'Gunluk Oduller ve VIP',
+      dailyTitle: 'Gunluk giris odulu',
+      dailyDescription:
+        'Her gun sadece bir kez kondisyon, motivasyon veya saglik kitlerinden biri otomatik olarak eklenir.',
+      lastRewardDate: 'Son odul tarihi:',
+      claimedToday: 'Bugun alindi',
+      checkReward: 'Odulu kontrol et',
+      statusLabel: 'VIP durumu:',
+      active: 'Aktif',
+      inactive: 'Pasif',
+      perkDaily: '- Gunluk +1 kondisyon, motivasyon ve saglik kiti',
+      perkDuration: '- Sureler %{percent} kisalir',
+      perkStarCard: '- Ayda 1 yildiz oyuncu karti',
+      selectedPlan: 'Secili paket:',
+      expiry: 'VIP bitis:',
+      lastStarCard: 'Son yildiz karti:',
+      starCardCredits: 'Kart kredisi:',
+      claimMonthly: 'Aylik karti al',
+      alreadyClaimedMonthly: 'Aylik kart alindi',
+      planNotSelected: 'Secilmedi',
+      viewPlans: 'VIP paketlerini goruntule',
+      disable: 'VIP devre disi',
+    },
+    notifications: {
+      title: 'Bildirimler',
+      phoneTitle: 'Telefon Bildirimleri',
+      phoneDescription:
+        'Altyapi, akademi, antrenman ve resmi lig maci hatirlatmalarini telefon bildirimi olarak al.',
+      platformNote:
+        'Android canli olarak desteklenir. iOS icin kod yolu hazirlanir fakat canli push icin `GoogleService-Info.plist` ve APNs/Firebase kurulumu gerekir.',
+      webNote:
+        'Web tarayicisinda native cihaz kaydi yapilmaz. Bu ayar mobil uygulama icindir.',
+    },
+    performance: {
+      title: 'Ses ve Performans',
+      soundEffects: 'Ses Efektleri',
+      soundEffectsDescription: 'Mac sirasinda ses efektlerini oynat',
+      animations: 'Animasyonlar',
+      animationsDescription: 'Gecis animasyonlarini azalt',
+      graphicsQuality: 'Grafik Kalitesi',
+      low: 'Dusuk',
+      medium: 'Orta',
+      high: 'Yuksek',
+    },
+    locale: {
+      title: 'Dil ve Bolge',
+      currency: 'Para Birimi',
+    },
+    data: {
+      title: 'Veri Yonetimi',
+      export: 'Verileri Disa Aktar',
+      clearCache: 'Onbellegi Temizle',
+      adPrivacy: 'Reklam gizlilik tercihleri',
+      debugTitle: 'Rewarded Ads Debug',
+      refreshDebug: 'Reklam debug bilgisini yenile',
+      openInspector: 'Ad Inspector ac',
+      lastError: 'Son Hata',
+      ready: 'Hazir',
+      empty: 'Bos',
+      secondsShort: 'sn',
+      adminActions: 'Yonetici Islemleri',
+      liveLeagueOps: 'Canli Lig Operasyon Paneli',
+      gameData: 'Oyun Verisi:',
+      cache: 'Onbellek:',
+      total: 'Toplam:',
+    },
+    about: {
+      title: 'Hakkinda',
+      version: 'Versiyon:',
+      lastUpdate: 'Son Guncelleme:',
+      developer: 'Gelistirici:',
+      privacyPolicy: 'Gizlilik Politikasi',
+      terms: 'Kullanim Sartlari',
+      whatsappSupport: 'WhatsApp Destek Hatti',
+      whatsappHelp:
+        'Oyun icinde sorun yasayan kullanicilar bu hatta dogrudan mesaj atabilir:',
+    },
+    dialogs: {
+      clubRenameTitle: 'Kulup adini guncelle',
+      clubRenameDescription: 'Yeni kulup adini gir ve {cost} elmas ile onayla.',
+      clubNameLabel: 'Kulup adi',
+      stadiumRenameTitle: 'Stadyum adini guncelle',
+      stadiumRenameDescription:
+        'Yeni stadyum adini gir ve {cost} elmas ile onayla.',
+      stadiumNameLabel: 'Stadyum adi',
+    },
+    toasts: {
+      sessionMissing: 'Oturum bulunamadi.',
+      clubTooShort: 'Kulup adi en az {min} karakter olmalidir.',
+      clubTooLong: 'Kulup adi en fazla {max} karakter olabilir.',
+      clubSame: 'Yeni isim mevcut isim ile ayni.',
+      stadiumTooShort: 'Stadyum adi en az {min} karakter olmalidir.',
+      stadiumTooLong: 'Stadyum adi en fazla {max} karakter olabilir.',
+      stadiumSame: 'Yeni stadyum adi ayni gorunuyor.',
+      insufficientDiamonds: 'Yetersiz elmas bakiyesi.',
+      clubUpdated: 'Kulup adi guncellendi.',
+      clubUpdateFailed: 'Kulup adi guncellenemedi.',
+      stadiumUpdated: 'Stadyum adi guncellendi.',
+      stadiumUpdateFailed: 'Stadyum adi guncellenemedi.',
+      logoConvertFailed: 'Logo donusturulemedi.',
+      logoReadFailed: 'Logo okunurken bir hata olustu.',
+      logoLoginRequired: 'Logo yuklemek icin giris yapmalisin.',
+      logoUnsupportedTitle: 'Desteklenmeyen dosya formati.',
+      logoUnsupportedDescription:
+        'Lutfen PNG, JPG veya SVG formatinda bir gorsel yukleyin.',
+      logoTooLargeTitle: 'Logo dosyasi cok buyuk.',
+      logoTooLargeDescription: "512 KB'dan kucuk bir gorsel secmelisin.",
+      logoUpdated: 'Takim logon basariyla guncellendi.',
+      logoSaveFailed: 'Logo kaydedilemedi.',
+      logoRemoved: 'Takim logon kaldirildi.',
+      logoRemoveFailed: 'Logo kaldirilirken bir hata olustu.',
+      contactLoginRequired: 'Iletisim bilgilerini kaydetmek icin oturum acmalisin.',
+      contactUpdated: 'Iletisim bilgileri guncellendi.',
+      contactSaveFailed: 'Iletisim bilgileri kaydedilemedi.',
+      pushLoginRequired: 'Bildirimleri guncellemek icin oturum acmalisin.',
+      pushEnabled: 'Telefon bildirimleri etkinlestirildi.',
+      pushDisabled: 'Telefon bildirimleri kapatildi.',
+      pushSaveFailed: 'Bildirim tercihi guncellenemedi.',
+      cacheCleared: 'Onbellek temizlendi',
+      dataExported: 'Veriler disa aktarildi',
+      whatsappUnavailable: 'WhatsApp baglantisi su anda acilamadi.',
+      adPrivacyUnsupported:
+        'Reklam gizlilik tercihleri yalnizca Android uygulamasinda acilabilir.',
+      adPrivacyOpened: 'Reklam gizlilik tercihi formu acildi.',
+      adPrivacyNone:
+        'Su anda guncellenecek reklam gizlilik tercihi bulunmuyor.',
+      adPrivacyFailed: 'Reklam gizlilik tercihi acilamadi.',
+      debugUnsupported:
+        'Reklam debug bilgisi yalnizca Android uygulamasinda okunabilir.',
+      debugRefreshed: 'Reklam debug bilgisi yenilendi.',
+      inspectorUnsupported:
+        'Ad Inspector yalnizca Android uygulamasinda acilabilir.',
+      inspectorClosed: 'Ad Inspector kapatildi. Gerekirse debug bilgisini yenile.',
+    },
+  },
+};

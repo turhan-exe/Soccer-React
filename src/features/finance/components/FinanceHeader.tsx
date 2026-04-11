@@ -1,13 +1,16 @@
 import { BackButton } from '@/components/ui/back-button';
-import { formatClubCurrency } from '@/lib/clubFinance';
+import { useTranslation } from '@/contexts/LanguageContext';
+import { formatCurrencyValue } from '@/i18n/runtime';
 
 interface FinanceHeaderProps {
   balance: number;
 }
 
-export const formatCurrency = (value: number) => formatClubCurrency(value);
+export const formatCurrency = (value: number) => formatCurrencyValue(value);
 
 export function FinanceHeader({ balance }: FinanceHeaderProps) {
+  const { t } = useTranslation();
+
   return (
     <header className="sticky top-0 z-30 border-b border-white/10 bg-slate-900/80 backdrop-blur-md">
       <div className="flex items-center justify-between gap-3 px-4 py-3">
@@ -15,14 +18,18 @@ export function FinanceHeader({ balance }: FinanceHeaderProps) {
           <BackButton className="h-10 w-10 shrink-0 rounded-full border border-white/10 bg-white/5 text-white hover:bg-white/10 hover:text-white" />
           <div className="min-w-0">
             <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-emerald-400">
-              Finans Merkezi
+              {t('finance.header.eyebrow')}
             </p>
-            <h1 className="truncate text-xl font-bold tracking-wide text-white">Genel Bakis</h1>
+            <h1 className="truncate text-xl font-bold tracking-wide text-white">
+              {t('finance.header.title')}
+            </h1>
           </div>
         </div>
 
         <div className="flex shrink-0 flex-col items-end">
-          <span className="text-[10px] uppercase tracking-wider text-slate-400">Mevcut Bakiye</span>
+          <span className="text-[10px] uppercase tracking-wider text-slate-400">
+            {t('finance.header.currentBalance')}
+          </span>
           <span className="font-mono text-lg font-bold tracking-tighter text-emerald-400">
             {formatCurrency(balance)}
           </span>

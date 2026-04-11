@@ -10,6 +10,7 @@ import {
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { useTranslation } from '@/contexts/LanguageContext';
 import {
   Dialog,
   DialogContent,
@@ -18,10 +19,10 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { formatRatingLabel } from '@/lib/player';
+import { getPositionLabel } from '@/lib/positionLabels';
 import { toGaugePercentage } from '@/lib/playerVitals';
 
 import {
-  getPositionLabel,
   type LineupReadinessIssue,
   type LineupVitalKey,
 } from '../teamPlanningUtils';
@@ -60,6 +61,8 @@ export function LineupReadinessDialog({
   onUseKits,
   onBenchPlayer,
 }: LineupReadinessDialogProps) {
+  const { t } = useTranslation();
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="w-[min(96vw,860px)] max-w-3xl overflow-hidden border border-amber-400/20 bg-[#091222]/95 p-0 text-slate-100 shadow-[0_24px_80px_rgba(15,23,42,0.7)] backdrop-blur-xl">
@@ -71,23 +74,22 @@ export function LineupReadinessDialog({
               </div>
               <div className="space-y-1">
                 <DialogTitle className="text-2xl font-semibold text-white">
-                  Ilk 11 hazir degil
+                  {t('teamPlanning.readiness.title')}
                 </DialogTitle>
                 <DialogDescription className="max-w-2xl text-sm leading-6 text-slate-300">
-                  Kaydetmeden once ilk 11 icindeki tum oyuncularin Saglik, Kondisyon ve
-                  Motivasyon degerleri en az %{thresholdPercent} olmali. Asagidaki oyuncular
-                  icin ya kit kullanin ya da oyuncuyu ilk 11'den cikarip yerine hazir bir
-                  oyuncu ekleyin.
+                  {t('teamPlanning.readiness.description', {
+                    threshold: thresholdPercent,
+                  })}
                 </DialogDescription>
               </div>
             </div>
 
             <div className="flex flex-wrap items-center gap-3">
               <Badge className="border-transparent bg-amber-400/15 px-3 py-1 text-amber-200">
-                {issues.length} problemli oyuncu
+                {t('teamPlanning.readiness.problemPlayers', { count: issues.length })}
               </Badge>
               <Badge className="border-transparent bg-white/10 px-3 py-1 text-slate-200">
-                Esik: %{thresholdPercent}
+                {t('teamPlanning.readiness.threshold', { threshold: thresholdPercent })}
               </Badge>
             </div>
           </DialogHeader>
@@ -107,7 +109,9 @@ export function LineupReadinessDialog({
                       {getPositionLabel(issue.player.position)}
                     </Badge>
                     <Badge className="border-white/10 bg-white/5 text-slate-300">
-                      Guc {formatRatingLabel(issue.player.overall)}
+                      {t('teamPlanning.readiness.power', {
+                        value: formatRatingLabel(issue.player.overall),
+                      })}
                     </Badge>
                   </div>
 
@@ -117,7 +121,7 @@ export function LineupReadinessDialog({
                         key={vital.key}
                         className="inline-flex items-center gap-2 rounded-full border border-rose-400/20 bg-rose-400/10 px-3 py-1 text-xs font-semibold text-rose-200"
                       >
-                        {vital.label} %{Math.round(vital.value * 100)}
+                        {t(`teamPlanning.metrics.${vital.key}`)} %{Math.round(vital.value * 100)}
                       </span>
                     ))}
                   </div>
@@ -139,13 +143,7 @@ export function LineupReadinessDialog({
                           <div className="flex items-center justify-between gap-2">
                             <div className="flex items-center gap-2 text-sm font-medium text-slate-200">
                               <Icon className={`h-4 w-4 ${failing ? 'text-rose-300' : 'text-emerald-300'}`} />
-                              <span>
-                                {key === 'health'
-                                  ? 'Saglik'
-                                  : key === 'condition'
-                                    ? 'Kondisyon'
-                                    : 'Motivasyon'}
-                              </span>
+                              <span>{t(`teamPlanning.metrics.${key}`)}</span>
                             </div>
                             <span className={`text-sm font-semibold ${failing ? 'text-rose-200' : 'text-white'}`}>
                               %{percentage}
@@ -171,7 +169,7 @@ export function LineupReadinessDialog({
                     onClick={() => onUseKits(issue.player.id)}
                   >
                     <Wrench className="mr-2 h-4 w-4" />
-                    Kitleri Kullan
+                    {t('teamPlanning.readiness.useKits')}
                   </Button>
                   <Button
                     variant="secondary"
@@ -179,7 +177,7 @@ export function LineupReadinessDialog({
                     onClick={() => onBenchPlayer(issue.player.id)}
                   >
                     <UserMinus className="mr-2 h-4 w-4" />
-                    Ilk 11'den Cikar
+                    {t('teamPlanning.readiness.removeFromStarting')}
                   </Button>
                 </div>
               </div>

@@ -1,33 +1,39 @@
 import { useMemo } from 'react';
-import { Player } from '@/types';
+
 import { Badge } from '@/components/ui/badge';
-import { PerformanceGauge, clampPerformanceGauge } from '@/components/ui/performance-gauge';
+import {
+  PerformanceGauge,
+  clampPerformanceGauge,
+} from '@/components/ui/performance-gauge';
 import { StatBar } from '@/components/ui/stat-bar';
+import { useTranslation } from '@/contexts/LanguageContext';
 import { calculatePowerIndex, formatRatingLabel, normalizeRatingTo100 } from '@/lib/player';
 import { getPositionLabel, getPositionShortLabel } from '@/lib/positionLabels';
+import { getTrainingAttributeLabel } from '@/lib/trainingLabels';
 import { cn } from '@/lib/utils';
+import { Player } from '@/types';
 
 interface PlayerStatusCardProps {
   player: Player;
   className?: string;
 }
 
-const ATTRIBUTE_LABELS: { key: keyof Player['attributes']; label: string }[] = [
-  { key: 'strength', label: 'Güç' },
-  { key: 'acceleration', label: 'Hızlanma' },
-  { key: 'topSpeed', label: 'Maks Hız' },
-  { key: 'dribbleSpeed', label: 'Dribling Hızı' },
-  { key: 'jump', label: 'Sıçrama' },
-  { key: 'tackling', label: 'Mücadele' },
-  { key: 'ballKeeping', label: 'Top Saklama' },
-  { key: 'passing', label: 'Pas' },
-  { key: 'longBall', label: 'Uzun Top' },
-  { key: 'agility', label: 'Çeviklik' },
-  { key: 'shooting', label: 'Şut' },
-  { key: 'shootPower', label: 'Şut Gücü' },
-  { key: 'positioning', label: 'Pozisyon Alma' },
-  { key: 'reaction', label: 'Refleks' },
-  { key: 'ballControl', label: 'Top Kontrolü' },
+const ATTRIBUTE_KEYS: Array<keyof Player['attributes']> = [
+  'strength',
+  'acceleration',
+  'topSpeed',
+  'dribbleSpeed',
+  'jump',
+  'tackling',
+  'ballKeeping',
+  'passing',
+  'longBall',
+  'agility',
+  'shooting',
+  'shootPower',
+  'positioning',
+  'reaction',
+  'ballControl',
 ];
 
 const playerInitials = (name: string): string =>
@@ -35,10 +41,11 @@ const playerInitials = (name: string): string =>
     .split(' ')
     .filter(Boolean)
     .slice(0, 2)
-    .map(part => part[0]?.toUpperCase() ?? '')
+    .map((part) => part[0]?.toUpperCase() ?? '')
     .join('');
 
 export function PlayerStatusCard({ player, className }: PlayerStatusCardProps) {
+  const { language, t } = useTranslation();
   const health = clampPerformanceGauge(player.health, 1);
   const condition = clampPerformanceGauge(player.condition);
   const motivation = clampPerformanceGauge(player.motivation);
@@ -50,7 +57,7 @@ export function PlayerStatusCard({ player, className }: PlayerStatusCardProps) {
         condition,
         motivation,
       }),
-    [player, condition, motivation]
+    [player, condition, motivation],
   );
 
   return (
@@ -62,26 +69,34 @@ export function PlayerStatusCard({ player, className }: PlayerStatusCardProps) {
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 space-y-1">
-          <p className="text-xs uppercase tracking-wide text-muted-foreground">Oyuncu Statüleri</p>
+          <p className="text-xs uppercase tracking-wide text-muted-foreground">
+            {t('common.playerStatusCard.title')}
+          </p>
           <h3 className="truncate text-base font-semibold">{player.name}</h3>
           <p className="text-xs text-muted-foreground">
-            {getPositionLabel(player.position)} • Güç {normalizeRatingTo100(power)} • Genel {formatRatingLabel(player.overall)}
+            {t('common.playerStatusCard.summary', {
+              position: getPositionLabel(player.position, language),
+              power: normalizeRatingTo100(power),
+              overall: formatRatingLabel(player.overall),
+            })}
           </p>
           <div className="flex flex-wrap gap-1 pt-1">
             <Badge variant="secondary" className="text-[11px]">
-              {player.age} yaş
+              {t('common.ageShort', { age: player.age })}
             </Badge>
             <Badge variant="outline" className="text-[11px]">
-              Potansiyel {formatRatingLabel(player.potential)}
+              {t('common.playerStatusCard.potential', {
+                value: formatRatingLabel(player.potential),
+              })}
             </Badge>
             {player.injuryStatus === 'injured' && (
               <Badge variant="destructive" className="text-[11px]">
-                Sakat
+                {t('common.injury.injured')}
               </Badge>
             )}
-            {player.roles?.map(role => (
+            {player.roles?.map((role) => (
               <Badge key={role} variant="outline" className="text-[11px]">
-                {getPositionShortLabel(role)}
+                {getPositionShortLabel(role, language)}
               </Badge>
             ))}
           </div>
@@ -92,15 +107,26 @@ export function PlayerStatusCard({ player, className }: PlayerStatusCardProps) {
       </div>
 
       <div className="mt-4 space-y-3">
-        <PerformanceGauge label="Güç" value={power} />
-        <PerformanceGauge label="Sağlık" value={health} />
-        <PerformanceGauge label="Kondisyon" value={condition} />
-        <PerformanceGauge label="Motivasyon" value={motivation} />
+        <PerformanceGauge label={t('common.playerStatusCard.metrics.power')} value={power} />
+        <PerformanceGauge label={t('common.playerStatusCard.metrics.health')} value={health} />
+        <PerformanceGauge
+          label={t('common.playerStatusCard.metrics.condition')}
+          value={condition}
+        />
+        <PerformanceGauge
+          label={t('common.playerStatusCard.metrics.motivation')}
+          value={motivation}
+        />
       </div>
 
       <div className="mt-4 grid grid-cols-2 gap-2">
-        {ATTRIBUTE_LABELS.map(({ key, label }) => (
-          <StatBar key={key} label={label} value={player.attributes[key]} condensed />
+        {ATTRIBUTE_KEYS.map((key) => (
+          <StatBar
+            key={key}
+            label={getTrainingAttributeLabel(key)}
+            value={player.attributes[key]}
+            condensed
+          />
         ))}
       </div>
     </div>

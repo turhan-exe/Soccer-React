@@ -1,0 +1,76 @@
+import type { TranslationDictionary } from '@/i18n/types';
+
+export const enMainMenu: TranslationDictionary = {
+  mainMenu: {
+    header: {
+      avatarAlt: 'Avatar',
+      rankLabel: 'LEAGUE RANK',
+      clubBalance: 'Balance',
+      clubBalanceTooltip: 'Club balance',
+      vipActiveTitle: 'VIP Active',
+      vipInactiveTitle: 'Go VIP',
+    },
+    notifications: {
+      title: 'Notifications',
+      newCount: '{count} New',
+      empty: 'No new notifications',
+      trainingReady: 'The training ground is available.',
+      trainingResults: 'Training results are ready.',
+      youthCandidates: 'New academy talents are waiting.',
+      youthGenerate: 'You can request a new academy report.',
+      nostalgiaReady: 'Your free Nostalgia Pack is ready!',
+    },
+    toasts: {
+      loginRequiredForKitReward: 'Sign in to claim a kit reward.',
+      rewardGranted: 'Reward granted: +1 {kitLabel}.',
+      rewardRequiresCompletion: 'Finish the ad to claim the reward.',
+      rewardPendingVerification:
+        'The ad reward is being verified. It will appear in your inventory shortly.',
+      leagueWatchUnavailable:
+        'This league match is no longer available to watch live.',
+      matchConnectionFailed: 'The match connection could not be started.',
+    },
+    matchTile: {
+      friendly: 'FRIENDLY',
+      league: 'LEAGUE',
+      live: 'LIVE',
+      ready: 'READY',
+      request: 'REQUEST',
+      pending: 'PENDING',
+      friendlyMatch: 'Friendly Match',
+      friendlyRequest: 'Friendly Request',
+      friendlyWaiting: 'Friendly Pending',
+      leagueMatch: 'League Match',
+      watch: 'WATCH',
+      open: 'OPEN',
+      go: 'GO',
+    },
+    matchCard: {
+      defaultCompetition: 'LEAGUE MATCH',
+      fixture: 'FIXTURE',
+      requestSuffix: 'REQUEST',
+      matchSuffix: 'MATCH',
+      timeLoading: 'MATCH TIME LOADING',
+      teamNamePlaceholder: 'TEAM NAME',
+    },
+    menus: {
+      academy: 'ACADEMY',
+      transfer: 'TRANSFER',
+      nostalgia: 'NOSTALGIA',
+      leagues: 'LEAGUES',
+      matchPreview: 'MATCH PREVIEW',
+      fixtures: 'FIXTURES',
+      teamManagement: 'TEAM MANAGEMENT',
+      friends: 'FRIENDS',
+      championsLeague: 'CHAMPIONS LEAGUE',
+      training: 'TRAINING',
+      finance: 'FINANCE',
+      settings: 'SETTINGS',
+    },
+    rewardMenu: {
+      loadingAd: 'Loading Ad...',
+      watchAd: 'Watch Ad',
+      useKit: 'Use',
+    },
+  },
+};

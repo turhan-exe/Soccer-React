@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
-import { ACADEMY_COOLDOWN_MS } from '@/services/academy';
+import { useTranslation } from '@/contexts/LanguageContext';
+import { ACADEMY_COOLDOWN_MS, ACADEMY_RESET_DIAMOND_COST } from '@/services/academy';
 
 interface Props {
   nextPullAt: Date | null;
@@ -11,6 +12,7 @@ interface Props {
 }
 
 const CooldownPanel: React.FC<Props> = ({ nextPullAt, onReset, canReset }) => {
+  const { t } = useTranslation();
   const [remaining, setRemaining] = useState(0);
 
   useEffect(() => {
@@ -44,14 +46,12 @@ const CooldownPanel: React.FC<Props> = ({ nextPullAt, onReset, canReset }) => {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Oyuncu Üretimi</CardTitle>
+        <CardTitle>{t('academy.generation.title')}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-2">
         <Progress value={progress} className="h-2" />
         <div className="flex items-center justify-between text-sm">
-          <span>
-            Sonraki üretim: {hours}:{minutes}:{seconds}
-          </span>
+          <span>{t('academy.generation.next', { time: `${hours}:${minutes}:${seconds}` })}</span>
           <Button
             onClick={onReset}
             disabled={!canReset || canPull}
@@ -59,7 +59,7 @@ const CooldownPanel: React.FC<Props> = ({ nextPullAt, onReset, canReset }) => {
             variant="secondary"
             data-testid="academy-reset"
           >
-            Hızlandır (💎5)
+            {t('academy.generation.speedUp', { cost: ACADEMY_RESET_DIAMOND_COST })}
           </Button>
         </div>
       </CardContent>
@@ -68,4 +68,3 @@ const CooldownPanel: React.FC<Props> = ({ nextPullAt, onReset, canReset }) => {
 };
 
 export default CooldownPanel;
-

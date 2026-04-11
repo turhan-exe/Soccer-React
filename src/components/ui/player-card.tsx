@@ -1,23 +1,29 @@
 import { useEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
-import { Player } from '@/types';
-import { Card } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { StatBar } from '@/components/ui/stat-bar';
-import { PerformanceGauge, clampPerformanceGauge } from '@/components/ui/performance-gauge';
-import { Button } from '@/components/ui/button';
 import { MoreVertical, TrendingUp } from 'lucide-react';
+
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuTrigger,
   DropdownMenuSeparator,
+  DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import {
+  PerformanceGauge,
+  clampPerformanceGauge,
+} from '@/components/ui/performance-gauge';
+import { StatBar } from '@/components/ui/stat-bar';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { calculatePowerIndex, formatRatingLabel } from '@/lib/player';
-import { getPositionShortLabel } from '@/features/team-planning/teamPlanningUtils';
-import { cn } from '@/lib/utils';
+import { useTranslation } from '@/contexts/LanguageContext';
 import { formatContractCountdown } from '@/lib/contracts';
+import { calculatePowerIndex, formatRatingLabel } from '@/lib/player';
+import { getPositionShortLabel } from '@/lib/positionLabels';
+import { getTrainingAttributeLabel } from '@/lib/trainingLabels';
+import { cn } from '@/lib/utils';
+import { Player } from '@/types';
 
 interface PlayerCardProps {
   player: Player;
@@ -59,6 +65,24 @@ const POSITION_COLOR: Record<string, string> = {
   ST: 'bg-red-500',
 };
 
+const ATTRIBUTE_KEYS: Array<keyof Player['attributes']> = [
+  'strength',
+  'acceleration',
+  'topSpeed',
+  'dribbleSpeed',
+  'jump',
+  'tackling',
+  'ballKeeping',
+  'passing',
+  'longBall',
+  'agility',
+  'shooting',
+  'shootPower',
+  'positioning',
+  'reaction',
+  'ballControl',
+];
+
 export const PlayerCard: React.FC<PlayerCardProps> = ({
   player,
   onMoveToStarting,
@@ -84,6 +108,7 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({
   leagueId = null,
   ratingAnnotation,
 }) => {
+  const { language, t } = useTranslation();
   const [collapsed, setCollapsed] = useState(defaultCollapsed);
   const cardRef = useRef<HTMLDivElement | null>(null);
 
@@ -102,8 +127,6 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({
       return;
     }
 
-    // Prevent toggling when the click originates from interactive elements that
-    // should handle their own behaviour (e.g. dropdown triggers).
     const target = event.target as HTMLElement | null;
     if (target?.closest('[data-player-card-ignore-click]')) {
       return;
@@ -161,8 +184,8 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({
         : 'outline';
   const contractLabel =
     contractStatus === 'released'
-      ? 'Serbest'
-      : formatContractCountdown(contractExpiresAt, leagueId);
+      ? t('common.contract.released')
+      : formatContractCountdown(contractExpiresAt, leagueId, language);
   const power = useMemo(
     () =>
       calculatePowerIndex({
@@ -170,34 +193,48 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({
         condition,
         motivation,
       }),
-    [player, condition, motivation]
+    [player, condition, motivation],
   );
 
   const renderedStats = (
     <>
-      <div className={cn('mb-3 grid grid-cols-2 gap-2 md:grid-cols-4', (compact || condensedStats) && 'gap-1')}>
-        <PerformanceGauge label="Güç" value={power} className={compact ? 'space-y-0.5' : ''} />
-        <PerformanceGauge label="Sağlık" value={health} className={compact ? 'space-y-0.5' : ''} />
-        <PerformanceGauge label="Kondisyon" value={condition} className={compact ? 'space-y-0.5' : ''} />
-        <PerformanceGauge label="Motivasyon" value={motivation} className={compact ? 'space-y-0.5' : ''} />
+      <div
+        className={cn(
+          'mb-3 grid grid-cols-2 gap-2 md:grid-cols-4',
+          (compact || condensedStats) && 'gap-1',
+        )}
+      >
+        <PerformanceGauge
+          label={t('common.playerStatusCard.metrics.power')}
+          value={power}
+          className={compact ? 'space-y-0.5' : ''}
+        />
+        <PerformanceGauge
+          label={t('common.playerStatusCard.metrics.health')}
+          value={health}
+          className={compact ? 'space-y-0.5' : ''}
+        />
+        <PerformanceGauge
+          label={t('common.playerStatusCard.metrics.condition')}
+          value={condition}
+          className={compact ? 'space-y-0.5' : ''}
+        />
+        <PerformanceGauge
+          label={t('common.playerStatusCard.metrics.motivation')}
+          value={motivation}
+          className={compact ? 'space-y-0.5' : ''}
+        />
       </div>
 
       <div className={cn('grid grid-cols-2 gap-1', (compact || condensedStats) && 'gap-0.5')}>
-        <StatBar label="Güç" value={player.attributes.strength} condensed={compact || condensedStats} />
-        <StatBar label="Hızlanma" value={player.attributes.acceleration} condensed={compact || condensedStats} />
-        <StatBar label="Maks Hız" value={player.attributes.topSpeed} condensed={compact || condensedStats} />
-        <StatBar label="Dribling Hızı" value={player.attributes.dribbleSpeed} condensed={compact || condensedStats} />
-        <StatBar label="Sıçrama" value={player.attributes.jump} condensed={compact || condensedStats} />
-        <StatBar label="Mücadele" value={player.attributes.tackling} condensed={compact || condensedStats} />
-        <StatBar label="Top Saklama" value={player.attributes.ballKeeping} condensed={compact || condensedStats} />
-        <StatBar label="Pas" value={player.attributes.passing} condensed={compact || condensedStats} />
-        <StatBar label="Uzun Top" value={player.attributes.longBall} condensed={compact || condensedStats} />
-        <StatBar label="Çeviklik" value={player.attributes.agility} condensed={compact || condensedStats} />
-        <StatBar label="Şut" value={player.attributes.shooting} condensed={compact || condensedStats} />
-        <StatBar label="Şut Gücü" value={player.attributes.shootPower} condensed={compact || condensedStats} />
-        <StatBar label="Pozisyon Alma" value={player.attributes.positioning} condensed={compact || condensedStats} />
-        <StatBar label="Refleks" value={player.attributes.reaction} condensed={compact || condensedStats} />
-        <StatBar label="Top Kontrolü" value={player.attributes.ballControl} condensed={compact || condensedStats} />
+        {ATTRIBUTE_KEYS.map((key) => (
+          <StatBar
+            key={key}
+            label={getTrainingAttributeLabel(key)}
+            value={player.attributes[key]}
+            condensed={compact || condensedStats}
+          />
+        ))}
       </div>
     </>
   );
@@ -208,7 +245,7 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({
       className={cn(
         'p-4 transition-shadow hover:shadow-md',
         compact && 'p-2',
-        collapsed && 'cursor-pointer'
+        collapsed && 'cursor-pointer',
       )}
       draggable={draggable}
       onDragStart={onDragStart}
@@ -220,32 +257,37 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({
         <div className="relative">
           <div
             className={cn(
-              'flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-gray-100 to-gray-200 px-2 text-center text-[10px] font-semibold leading-tight overflow-hidden dark:from-gray-700 dark:to-gray-800',
-              compact && 'h-8 w-8 px-1 text-[8px]'
+              'flex h-12 w-12 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-gray-100 to-gray-200 px-2 text-center text-[10px] font-semibold leading-tight dark:from-gray-700 dark:to-gray-800',
+              compact && 'h-8 w-8 px-1 text-[8px]',
             )}
           >
-            <span className="block w-full truncate whitespace-nowrap">
-              {player.name}
-            </span>
+            <span className="block w-full truncate whitespace-nowrap">{player.name}</span>
           </div>
           <div
             className={cn(
               'absolute -bottom-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold text-white',
               positionBadge,
-              compact && 'h-4 w-4 text-[10px]'
+              compact && 'h-4 w-4 text-[10px]',
             )}
           >
-            {getPositionShortLabel(player.position)}
+            {getPositionShortLabel(player.position, language)}
           </div>
         </div>
 
         <div className="min-w-0 flex-1">
           <div className={cn('mb-2 flex items-center justify-between', compact && 'mb-1')}>
             <div>
-              <h3 className={cn('truncate font-semibold text-sm', compact && 'text-xs')}>{player.name}</h3>
-              <div className={cn('mt-1 flex items-center gap-2 text-xs', compact && 'mt-0 gap-1 text-[10px]')}>
+              <h3 className={cn('truncate font-semibold text-sm', compact && 'text-xs')}>
+                {player.name}
+              </h3>
+              <div
+                className={cn(
+                  'mt-1 flex items-center gap-2 text-xs',
+                  compact && 'mt-0 gap-1 text-[10px]',
+                )}
+              >
                 <Badge variant="secondary" className={cn('text-xs', compact && 'text-[10px]')}>
-                  {player.age} yaş
+                  {t('common.ageShort', { age: player.age })}
                 </Badge>
                 {player.contract && (
                   <Badge
@@ -257,18 +299,25 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({
                 )}
                 {player.injuryStatus === 'injured' && (
                   <Badge variant="destructive" className={cn('text-xs', compact && 'text-[10px]')}>
-                    Sakat
+                    {t('common.injury.injured')}
                   </Badge>
                 )}
-                <div className={cn('flex items-center gap-1 text-muted-foreground', compact && 'gap-0.5')}>
+                <div
+                  className={cn(
+                    'flex items-center gap-1 text-muted-foreground',
+                    compact && 'gap-0.5',
+                  )}
+                >
                   <TrendingUp className={cn('h-3 w-3', compact && 'h-2.5 w-2.5')} />
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <span className="font-semibold">
-                        {formatRatingLabel(player.overall)}
-                      </span>
+                      <span className="font-semibold">{formatRatingLabel(player.overall)}</span>
                     </TooltipTrigger>
-                    <TooltipContent>Maks. Potansiyel: {formatRatingLabel(player.potential)}</TooltipContent>
+                    <TooltipContent>
+                      {t('common.playerCard.maxPotential', {
+                        value: formatRatingLabel(player.potential),
+                      })}
+                    </TooltipContent>
                   </Tooltip>
                 </div>
                 {ratingAnnotation ? (
@@ -276,16 +325,20 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({
                 ) : null}
                 <div className="flex flex-wrap gap-1">
                   {(player.roles ?? []).map((role) => (
-                    <Badge key={role} variant="outline" className={cn('text-xs', compact && 'text-[10px]')}>
-                      {getPositionShortLabel(role)}
+                    <Badge
+                      key={role}
+                      variant="outline"
+                      className={cn('text-xs', compact && 'text-[10px]')}
+                    >
+                      {getPositionShortLabel(role, language)}
                     </Badge>
                   ))}
                 </div>
               </div>
             </div>
 
-            {showActions && (
-              onShowDetails ? (
+            {showActions &&
+              (onShowDetails ? (
                 <Button
                   variant="ghost"
                   size="sm"
@@ -312,49 +365,67 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
                     <DropdownMenuItem onClick={() => setCollapsed((prev) => !prev)}>
-                      {collapsed ? 'Kartı Genişlet' : 'Kartı Küçült'}
+                      {collapsed ? t('common.playerCard.expand') : t('common.playerCard.collapse')}
                     </DropdownMenuItem>
                     {player.squadRole !== 'starting' && onMoveToStarting && (
                       <DropdownMenuItem onClick={onMoveToStarting}>
-                        {moveToStartingLabel || "İlk 11'e Al"}
+                        {moveToStartingLabel || t('common.playerCard.moveToStarting')}
                       </DropdownMenuItem>
                     )}
                     {player.squadRole !== 'bench' && onMoveToBench && (
-                      <DropdownMenuItem onClick={onMoveToBench}>Yedek Kulübesine Al</DropdownMenuItem>
+                      <DropdownMenuItem onClick={onMoveToBench}>
+                        {t('common.playerCard.moveToBench')}
+                      </DropdownMenuItem>
                     )}
                     {player.squadRole !== 'reserve' && onMoveToReserve && (
-                      <DropdownMenuItem onClick={onMoveToReserve}>Rezerve Al</DropdownMenuItem>
+                      <DropdownMenuItem onClick={onMoveToReserve}>
+                        {t('common.playerCard.moveToReserve')}
+                      </DropdownMenuItem>
                     )}
-                    {(onRenamePlayer || onNegotiateSalary || onListForTransfer || onExtendContract || onReleasePlayer || onFirePlayer) && (
-                      <DropdownMenuSeparator />
-                    )}
+                    {(onRenamePlayer ||
+                      onNegotiateSalary ||
+                      onListForTransfer ||
+                      onExtendContract ||
+                      onReleasePlayer ||
+                      onFirePlayer) && <DropdownMenuSeparator />}
                     {onRenamePlayer && (
-                      <DropdownMenuItem onClick={onRenamePlayer}>İsim Özelleştir</DropdownMenuItem>
+                      <DropdownMenuItem onClick={onRenamePlayer}>
+                        {t('common.playerCard.customizeName')}
+                      </DropdownMenuItem>
                     )}
                     {onNegotiateSalary && (
-                      <DropdownMenuItem onClick={onNegotiateSalary}>Maaş Pazarlığı</DropdownMenuItem>
+                      <DropdownMenuItem onClick={onNegotiateSalary}>
+                        {t('common.playerCard.negotiateSalary')}
+                      </DropdownMenuItem>
                     )}
                     {onListForTransfer && (
-                      <DropdownMenuItem onClick={onListForTransfer}>Oyuncuyu Sat</DropdownMenuItem>
+                      <DropdownMenuItem onClick={onListForTransfer}>
+                        {t('common.playerCard.sellPlayer')}
+                      </DropdownMenuItem>
                     )}
                     {onExtendContract && (
-                      <DropdownMenuItem onClick={onExtendContract}>Sözleşmeyi Uzat</DropdownMenuItem>
+                      <DropdownMenuItem onClick={onExtendContract}>
+                        {t('common.playerCard.extendContract')}
+                      </DropdownMenuItem>
                     )}
                     {onReleasePlayer && (
-                      <DropdownMenuItem onClick={onReleasePlayer}>Serbest Bırak</DropdownMenuItem>
+                      <DropdownMenuItem onClick={onReleasePlayer}>
+                        {t('common.playerCard.releasePlayer')}
+                      </DropdownMenuItem>
                     )}
                     {onFirePlayer && (
                       <DropdownMenuItem className="text-destructive" onClick={onFirePlayer}>
-                        Oyuncuyu Kov
+                        {t('common.playerCard.firePlayer')}
                       </DropdownMenuItem>
                     )}
                     {player.squadRole === 'youth' && onPromoteToTeam && (
-                      <DropdownMenuItem onClick={onPromoteToTeam}>Takıma Al</DropdownMenuItem>
+                      <DropdownMenuItem onClick={onPromoteToTeam}>
+                        {t('common.playerCard.moveToTeam')}
+                      </DropdownMenuItem>
                     )}
                   </DropdownMenuContent>
                 </DropdownMenu>
-              )
-            )}
+              ))}
           </div>
 
           {!collapsed && renderedStats}

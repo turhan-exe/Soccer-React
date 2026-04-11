@@ -1,3 +1,5 @@
+import { translate } from '@/i18n/runtime';
+import type { AppLanguage } from '@/i18n/types';
 import type { Position } from '@/types';
 
 const KNOWN_POSITIONS: readonly Position[] = [
@@ -13,34 +15,6 @@ const KNOWN_POSITIONS: readonly Position[] = [
   'RW',
   'ST',
 ] as const;
-
-export const POSITION_LABELS_TR: Record<Position, string> = {
-  GK: 'Kaleci',
-  CB: 'Stoper',
-  LB: 'Sol Bek',
-  RB: 'Sağ Bek',
-  CM: 'Merkez Orta Saha',
-  LM: 'Sol Orta Saha',
-  RM: 'Sağ Orta Saha',
-  CAM: 'Ofansif Orta Saha',
-  LW: 'Sol Kanat',
-  RW: 'Sağ Kanat',
-  ST: 'Santrafor',
-};
-
-export const POSITION_SHORT_LABELS_TR: Record<Position, string> = {
-  GK: 'KL',
-  CB: 'STP',
-  LB: 'SLB',
-  RB: 'SĞB',
-  CM: 'MO',
-  LM: 'SLO',
-  RM: 'SĞO',
-  CAM: 'OOS',
-  LW: 'SLK',
-  RW: 'SĞK',
-  ST: 'SF',
-};
 
 const POSITION_ALIAS_MAP: Record<string, Position> = {
   GK: 'GK',
@@ -165,42 +139,43 @@ export const canonicalizePosition = (value?: Position | string | null): Position
   return POSITION_ALIAS_MAP[normalized] ?? null;
 };
 
-export const getPositionLabel = (position?: Position | string | null): string => {
-  if (!position) {
-    return 'Belirsiz Mevki';
+export const getPositionLabel = (
+  position?: Position | string | null,
+  language?: AppLanguage,
+): string => {
+  if (!position || !String(position).trim()) {
+    return translate('common.positions.unknown', undefined, language);
   }
 
-  const raw = String(position).trim();
-  if (!raw) {
-    return 'Belirsiz Mevki';
-  }
-
-  const canonical = canonicalizePosition(raw);
-  return canonical ? POSITION_LABELS_TR[canonical] : raw;
+  const canonical = canonicalizePosition(position);
+  return canonical
+    ? translate(`common.positions.${canonical}`, undefined, language)
+    : String(position).trim();
 };
 
-export const getPositionShortLabel = (position?: Position | string | null): string => {
-  if (!position) {
-    return 'Bel.';
+export const getPositionShortLabel = (
+  position?: Position | string | null,
+  language?: AppLanguage,
+): string => {
+  if (!position || !String(position).trim()) {
+    return translate('common.positionShort.unknown', undefined, language);
   }
 
-  const raw = String(position).trim();
-  if (!raw) {
-    return 'Bel.';
-  }
-
-  const canonical = canonicalizePosition(raw);
-  return canonical ? POSITION_SHORT_LABELS_TR[canonical] : raw;
+  const canonical = canonicalizePosition(position);
+  return canonical
+    ? translate(`common.positionShort.${canonical}`, undefined, language)
+    : String(position).trim();
 };
 
 export const getPositionLabels = (
   positions?: Array<Position | string> | null,
+  language?: AppLanguage,
 ): string[] => {
   if (!positions?.length) {
     return [];
   }
 
-  return positions.map(getPositionLabel);
+  return positions.map((position) => getPositionLabel(position, language));
 };
 
 export const getPositionSearchTokens = (
@@ -219,11 +194,11 @@ export const getPositionSearchTokens = (
   const tokens = [
     raw,
     canonical ?? '',
-    canonical ? POSITION_LABELS_TR[canonical] : '',
-    canonical ? POSITION_SHORT_LABELS_TR[canonical] : '',
+    canonical ? getPositionLabel(canonical, 'tr') : '',
+    canonical ? getPositionLabel(canonical, 'en') : '',
+    canonical ? getPositionShortLabel(canonical, 'tr') : '',
+    canonical ? getPositionShortLabel(canonical, 'en') : '',
   ];
 
-  return Array.from(
-    new Set(tokens.map(normalizeSearchToken).filter(Boolean)),
-  );
+  return Array.from(new Set(tokens.map(normalizeSearchToken).filter(Boolean)));
 };

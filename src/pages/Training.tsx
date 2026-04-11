@@ -1,4 +1,5 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+﻿import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Capacitor } from '@capacitor/core';
 import { Timestamp } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -11,7 +12,6 @@ import {
   SheetTrigger,
 } from '@/components/ui/sheet';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { BackButton } from '@/components/ui/back-button';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { PlayerStatusCard } from '@/components/ui/player-status-card';
@@ -29,6 +29,7 @@ import { Player, Training } from '@/types';
 import { useAuth } from '@/contexts/AuthContext';
 import { useDiamonds } from '@/contexts/DiamondContext';
 import { useInventory } from '@/contexts/InventoryContext';
+import { useTranslation } from '@/contexts/LanguageContext';
 import { getTeam } from '@/services/team';
 import {
   ActiveTrainingSession,
@@ -82,6 +83,8 @@ type TrainingAccent = {
   card: string;
   chip: string;
   glow: string;
+  compactGlow: string;
+  selectionOverlay: string;
   progress: string;
 };
 
@@ -89,7 +92,8 @@ type DisplayMetricKey = 'overall' | 'health' | 'motivation' | 'condition';
 
 type DisplayMetricOption = {
   key: DisplayMetricKey;
-  label: string;
+  labelKey: string;
+  label?: string;
   activeClass: string;
   idleClass: string;
   badgeClass: string;
@@ -99,7 +103,7 @@ type DisplayMetricOption = {
 const DISPLAY_METRIC_OPTIONS: DisplayMetricOption[] = [
   {
     key: 'overall',
-    label: 'Güç',
+    labelKey: 'training.metrics.overall',
     activeClass: 'border-cyan-300/45 bg-cyan-500/14 text-cyan-100 shadow-[0_12px_28px_rgba(34,211,238,0.18)]',
     idleClass: 'border-white/10 bg-slate-950/80 text-slate-400 hover:border-cyan-300/25 hover:text-slate-200',
     badgeClass: '',
@@ -107,7 +111,7 @@ const DISPLAY_METRIC_OPTIONS: DisplayMetricOption[] = [
   },
   {
     key: 'health',
-    label: 'Sağlık',
+    labelKey: 'training.metrics.health',
     activeClass: 'border-rose-300/45 bg-rose-500/14 text-rose-100 shadow-[0_12px_28px_rgba(251,113,133,0.18)]',
     idleClass: 'border-white/10 bg-slate-950/80 text-slate-400 hover:border-rose-300/25 hover:text-slate-200',
     badgeClass: 'border border-rose-300/25 bg-rose-400 text-slate-950 shadow-[0_10px_25px_rgba(251,113,133,0.25)]',
@@ -115,7 +119,7 @@ const DISPLAY_METRIC_OPTIONS: DisplayMetricOption[] = [
   },
   {
     key: 'motivation',
-    label: 'Motivasyon',
+    labelKey: 'training.metrics.motivation',
     activeClass: 'border-emerald-300/45 bg-emerald-500/14 text-emerald-100 shadow-[0_12px_28px_rgba(74,222,128,0.18)]',
     idleClass: 'border-white/10 bg-slate-950/80 text-slate-400 hover:border-emerald-300/25 hover:text-slate-200',
     badgeClass: 'border border-emerald-300/25 bg-emerald-400 text-slate-950 shadow-[0_10px_25px_rgba(74,222,128,0.25)]',
@@ -123,31 +127,13 @@ const DISPLAY_METRIC_OPTIONS: DisplayMetricOption[] = [
   },
   {
     key: 'condition',
-    label: 'Enerji',
+    labelKey: 'training.metrics.condition',
     activeClass: 'border-amber-300/45 bg-amber-500/14 text-amber-100 shadow-[0_12px_28px_rgba(251,191,36,0.18)]',
     idleClass: 'border-white/10 bg-slate-950/80 text-slate-400 hover:border-amber-300/25 hover:text-slate-200',
     badgeClass: 'border border-amber-300/25 bg-amber-400 text-slate-950 shadow-[0_10px_25px_rgba(251,191,36,0.25)]',
     barClass: 'bg-gradient-to-r from-amber-400 to-orange-400',
   },
 ];
-
-const TRAINING_DESCRIPTION_OVERRIDES: Record<keyof Player['attributes'], string> = {
-  strength: 'Fiziksel gücü artırır',
-  acceleration: 'Hızlanmayı geliştirir',
-  topSpeed: 'Maksimum hızı artırır',
-  dribbleSpeed: 'Top sürme hızını geliştirir',
-  jump: 'Sıçrama yeteneğini geliştirir',
-  tackling: 'Savunma müdahalelerini geliştirir',
-  ballKeeping: 'Top saklama becerisini geliştirir',
-  passing: 'Pas doğruluğunu artırır',
-  longBall: 'Uzun top becerisini geliştirir',
-  agility: 'Çevikliği artırır',
-  shooting: 'Şut isabetini geliştirir',
-  shootPower: 'Şut gücünü artırır',
-  positioning: 'Pozisyon alma becerisini geliştirir',
-  reaction: 'Refleksleri geliştirir',
-  ballControl: 'Top kontrolünü geliştirir',
-};
 
 const sortTrainingHistoryByLatest = (
   records: TrainingHistoryRecord[],
@@ -285,7 +271,9 @@ const getTrainingAccent = (attribute: keyof Player['attributes']): TrainingAccen
       badge: 'border-emerald-400/40 bg-emerald-500/12 text-emerald-100',
       card: 'border-emerald-400/18 bg-emerald-500/6',
       chip: 'border-emerald-400/25 bg-emerald-500/12 text-emerald-100',
-      glow: 'border-emerald-400/45 shadow-[0_0_0_1px_rgba(74,222,128,0.18),0_18px_40px_rgba(16,185,129,0.18)]',
+      glow: 'border-emerald-400/45 ring-1 ring-inset ring-emerald-300/35 shadow-[0_18px_40px_rgba(16,185,129,0.18)]',
+      compactGlow: 'shadow-none',
+      selectionOverlay: 'bg-emerald-400/[0.03] ring-1 ring-inset ring-emerald-300/55 shadow-[inset_0_0_18px_rgba(16,185,129,0.12)]',
       progress: 'from-emerald-400 via-cyan-400 to-sky-500',
     };
   }
@@ -295,7 +283,9 @@ const getTrainingAccent = (attribute: keyof Player['attributes']): TrainingAccen
       badge: 'border-rose-400/40 bg-rose-500/12 text-rose-100',
       card: 'border-rose-400/18 bg-rose-500/6',
       chip: 'border-rose-400/25 bg-rose-500/12 text-rose-100',
-      glow: 'border-rose-400/45 shadow-[0_0_0_1px_rgba(251,113,133,0.18),0_18px_40px_rgba(225,29,72,0.18)]',
+      glow: 'border-rose-400/45 ring-1 ring-inset ring-rose-300/35 shadow-[0_18px_40px_rgba(225,29,72,0.18)]',
+      compactGlow: 'shadow-none',
+      selectionOverlay: 'bg-rose-400/[0.03] ring-1 ring-inset ring-rose-300/55 shadow-[inset_0_0_18px_rgba(225,29,72,0.12)]',
       progress: 'from-rose-400 via-orange-400 to-amber-300',
     };
   }
@@ -305,7 +295,9 @@ const getTrainingAccent = (attribute: keyof Player['attributes']): TrainingAccen
       badge: 'border-amber-400/40 bg-amber-500/12 text-amber-100',
       card: 'border-amber-400/18 bg-amber-500/6',
       chip: 'border-amber-400/25 bg-amber-500/12 text-amber-100',
-      glow: 'border-amber-400/45 shadow-[0_0_0_1px_rgba(251,191,36,0.18),0_18px_40px_rgba(245,158,11,0.18)]',
+      glow: 'border-amber-400/45 ring-1 ring-inset ring-amber-300/35 shadow-[0_18px_40px_rgba(245,158,11,0.18)]',
+      compactGlow: 'shadow-none',
+      selectionOverlay: 'bg-amber-400/[0.03] ring-1 ring-inset ring-amber-300/55 shadow-[inset_0_0_18px_rgba(245,158,11,0.12)]',
       progress: 'from-amber-400 via-orange-400 to-yellow-300',
     };
   }
@@ -315,7 +307,9 @@ const getTrainingAccent = (attribute: keyof Player['attributes']): TrainingAccen
       badge: 'border-violet-400/40 bg-violet-500/12 text-violet-100',
       card: 'border-violet-400/18 bg-violet-500/6',
       chip: 'border-violet-400/25 bg-violet-500/12 text-violet-100',
-      glow: 'border-violet-400/45 shadow-[0_0_0_1px_rgba(167,139,250,0.18),0_18px_40px_rgba(124,58,237,0.18)]',
+      glow: 'border-violet-400/45 ring-1 ring-inset ring-violet-300/35 shadow-[0_18px_40px_rgba(124,58,237,0.18)]',
+      compactGlow: 'shadow-none',
+      selectionOverlay: 'bg-violet-400/[0.03] ring-1 ring-inset ring-violet-300/55 shadow-[inset_0_0_18px_rgba(124,58,237,0.12)]',
       progress: 'from-violet-400 via-fuchsia-400 to-sky-400',
     };
   }
@@ -324,7 +318,9 @@ const getTrainingAccent = (attribute: keyof Player['attributes']): TrainingAccen
     badge: 'border-cyan-400/35 bg-cyan-500/12 text-cyan-100',
     card: 'border-cyan-400/18 bg-cyan-500/6',
     chip: 'border-cyan-400/20 bg-cyan-500/12 text-cyan-100',
-    glow: 'border-cyan-400/45 shadow-[0_0_0_1px_rgba(34,211,238,0.16),0_18px_40px_rgba(34,211,238,0.18)]',
+    glow: 'border-cyan-400/45 ring-1 ring-inset ring-cyan-300/35 shadow-[0_18px_40px_rgba(34,211,238,0.18)]',
+    compactGlow: 'shadow-none',
+    selectionOverlay: 'bg-cyan-400/[0.03] ring-1 ring-inset ring-cyan-300/55 shadow-[inset_0_0_18px_rgba(34,211,238,0.12)]',
     progress: 'from-cyan-400 via-sky-400 to-emerald-400',
   };
 };
@@ -401,6 +397,7 @@ export default function TrainingPage() {
   const { user } = useAuth();
   const { balance, spend } = useDiamonds();
   const { vipDurationMultiplier } = useInventory();
+  const { t, formatDate } = useTranslation();
 
   const [players, setPlayers] = useState<Player[]>([]);
   const [selectedPlayers, setSelectedPlayers] = useState<Player[]>([]);
@@ -419,6 +416,10 @@ export default function TrainingPage() {
   const [expandedPlayerId, setExpandedPlayerId] = useState<string | null>(null);
   const [playerDetail, setPlayerDetail] = useState<Player | null>(null);
   const [isCompactLandscape, setIsCompactLandscape] = useState(false);
+  const [mobileLibraryView, setMobileLibraryView] = useState<'players' | 'trainings'>('players');
+  const [touchDragPayload, setTouchDragPayload] = useState<{ type: 'player' | 'training'; id: string } | null>(null);
+  const [touchDragPoint, setTouchDragPoint] = useState<{ x: number; y: number } | null>(null);
+  const [touchDropTarget, setTouchDropTarget] = useState<'player' | 'training' | null>(null);
   const [squadAssignments, setSquadAssignments] = useState({
     starters: [] as string[],
     bench: [] as string[],
@@ -431,17 +432,24 @@ export default function TrainingPage() {
   const activeSessionRef = useRef<ActiveBulkSession | null>(null);
   const timeLeftRef = useRef(0);
   const hasRestoredLastSelectionRef = useRef(false);
+  const touchDragStartRef = useRef<{ x: number; y: number } | null>(null);
+  const touchDragMovedRef = useRef(false);
+  const activePointerIdRef = useRef<number | null>(null);
+  const suppressNextPlayerTapRef = useRef(false);
+  const selectedPlayersDropzoneRef = useRef<HTMLDivElement | null>(null);
+  const selectedTrainingsDropzoneRef = useRef<HTMLDivElement | null>(null);
 
   const trainingCatalog = useMemo(
     () =>
       trainings.map(training => ({
         ...training,
-        name: `${getTrainingAttributeLabel(training.type)} Antrenmanı`,
-        description: TRAINING_DESCRIPTION_OVERRIDES[training.type] ?? training.description,
+        name: t('training.labels.trainingName', {
+          attribute: getTrainingAttributeLabel(training.type),
+        }),
+        description: t(`training.descriptions.${training.type}`),
       })),
-    [],
+    [t],
   );
-
   const restoreLastTrainingSelection = useCallback(
     (availablePlayers: Player[], selection?: PersistedTrainingSelection | null) => {
       if (!user) {
@@ -589,16 +597,16 @@ export default function TrainingPage() {
             await markTrainingRecordsViewed(user.id, unseenIds);
             const unseenSet = new Set(unseenIds);
             finalRecords = records.map(record =>
-              unseenSet.has(record.id ?? '') ? { ...record, viewed: true } : record,
+              record.id && unseenSet.has(record.id) ? { ...record, viewed: true } : record,
             );
           } catch (error) {
-            console.warn('Antrenman kayıtları görüldü olarak işaretlenemedi', error);
+            console.warn('Antrenman kayÄ±tlarÄ± gÃ¶rÃ¼ldÃ¼ olarak iÅŸaretlenemedi', error);
           }
         }
 
         setHistory(normalizeTrainingHistory(finalRecords));
       } catch (error) {
-        console.warn('Antrenman geçmişi yüklenemedi', error);
+        console.warn('Antrenman geÃ§miÅŸi yÃ¼klenemedi', error);
       }
     };
 
@@ -637,7 +645,7 @@ export default function TrainingPage() {
           setPendingActiveSession(session);
         }
       } catch (error) {
-        console.warn('Aktif antrenman yüklenemedi', error);
+        console.warn('Aktif antrenman yÃ¼klenemedi', error);
       }
     };
 
@@ -688,7 +696,7 @@ export default function TrainingPage() {
         setActiveSessionSafe(null);
         setPendingActiveSession(null);
         restoreLastTrainingSelection(nextPlayers);
-        toast.success('Antrenman tamamlandı');
+        toast.success(t('training.toasts.completeSuccess'));
         return;
       }
     } catch (error) {
@@ -704,9 +712,9 @@ export default function TrainingPage() {
       setActiveSessionSafe(null);
       setPendingActiveSession(null);
       restoreLastTrainingSelection(result.players);
-      toast.success(`Antrenman tamamlandı (${result.records.length} işlem)`);
+      toast.success(t('training.toasts.completeWithCount', { count: result.records.length }));
     } catch (error) {
-      console.warn('Antrenman tamamlanamadı', error);
+      console.warn('Antrenman tamamlanamadÄ±', error);
       const [team, records] = await Promise.all([
         getTeam(user.id),
         getTrainingHistory(user.id),
@@ -719,7 +727,7 @@ export default function TrainingPage() {
       setActiveSessionSafe(null);
       setPendingActiveSession(null);
       restoreLastTrainingSelection(nextPlayers);
-      toast.error('Antrenman sonucu kaydedilemedi');
+      toast.error(t('training.toasts.resultSaveFailed')); 
     }
   }, [restoreLastTrainingSelection, setActiveSessionSafe, user]);
 
@@ -832,6 +840,16 @@ export default function TrainingPage() {
     return `${mins}:${secs}`;
   };
 
+  const formatMinutesShort = useCallback(
+    (value: number) => t('common.minutesShort', { value }),
+    [t],
+  );
+
+  const formatMinutesLong = useCallback(
+    (value: number) => t('common.minutesLong', { value }),
+    [t],
+  );
+
   const handleDragStart = (
     event: React.DragEvent<HTMLDivElement>,
     type: 'player' | 'training',
@@ -847,6 +865,182 @@ export default function TrainingPage() {
     event.dataTransfer.setData('application/json', payload);
     event.dataTransfer.setData('text/plain', payload);
   };
+
+  const commitSelectionDrop = useCallback(
+    (type: 'player' | 'training', id: string) => {
+      if (isTraining) {
+        return false;
+      }
+
+      if (type === 'player') {
+        const player = players.find(item => item.id === id);
+        if (!player) {
+          return false;
+        }
+
+        setSelectedPlayers(prev =>
+          prev.some(item => item.id === player.id) ? prev : [...prev, player],
+        );
+        setExpandedPlayerId(null);
+        setPlayerDetail(null);
+        return true;
+      }
+
+      const training = trainingCatalog.find(item => item.id === id);
+      if (!training) {
+        return false;
+      }
+
+      setSelectedTrainings(prev =>
+        prev.some(item => item.id === training.id) ? prev : [...prev, training],
+      );
+      return true;
+    },
+    [isTraining, players, trainingCatalog],
+  );
+
+  const clearTouchDragState = useCallback(() => {
+    touchDragStartRef.current = null;
+    touchDragMovedRef.current = false;
+    activePointerIdRef.current = null;
+    setTouchDragPayload(null);
+    setTouchDragPoint(null);
+    setTouchDropTarget(null);
+  }, []);
+
+  const resolveTouchDropTarget = useCallback(
+    (clientX: number, clientY: number): 'player' | 'training' | null => {
+      const isInsideRect = (element: HTMLElement | null) => {
+        if (!element) {
+          return false;
+        }
+        const rect = element.getBoundingClientRect();
+        return (
+          clientX >= rect.left &&
+          clientX <= rect.right &&
+          clientY >= rect.top &&
+          clientY <= rect.bottom
+        );
+      };
+
+      if (isInsideRect(selectedPlayersDropzoneRef.current)) {
+        return 'player';
+      }
+      if (isInsideRect(selectedTrainingsDropzoneRef.current)) {
+        return 'training';
+      }
+
+      if (typeof document === 'undefined') {
+        return null;
+      }
+
+      const target = document.elementFromPoint(clientX, clientY);
+      if (!(target instanceof HTMLElement)) {
+        return null;
+      }
+
+      const dropzone = target.closest<HTMLElement>('[data-training-dropzone]');
+      const value = dropzone?.dataset.trainingDropzone;
+      return value === 'player' || value === 'training' ? value : null;
+    },
+    [],
+  );
+
+  const handlePointerDragStart = useCallback(
+    (
+      event: React.PointerEvent<HTMLDivElement>,
+      type: 'player' | 'training',
+      id: string,
+    ) => {
+      if (isTraining) {
+        return;
+      }
+
+      const nativeHtmlDragAllowed =
+        typeof window !== 'undefined' &&
+        !Capacitor.isNativePlatform() &&
+        !window.matchMedia('(pointer: coarse)').matches;
+
+      if (nativeHtmlDragAllowed && event.pointerType === 'mouse') {
+        return;
+      }
+
+      activePointerIdRef.current = event.pointerId;
+      touchDragStartRef.current = { x: event.clientX, y: event.clientY };
+      touchDragMovedRef.current = false;
+      setTouchDragPayload({ type, id });
+      setTouchDragPoint({ x: event.clientX, y: event.clientY });
+      setTouchDropTarget(null);
+    },
+    [isTraining],
+  );
+
+  useEffect(() => {
+    if (!touchDragPayload || activePointerIdRef.current === null) {
+      return undefined;
+    }
+
+    const handlePointerMove = (event: PointerEvent) => {
+      if (activePointerIdRef.current !== event.pointerId) {
+        return;
+      }
+
+      const start = touchDragStartRef.current;
+      if (!start) {
+        return;
+      }
+
+      const deltaX = event.clientX - start.x;
+      const deltaY = event.clientY - start.y;
+      const distance = Math.hypot(deltaX, deltaY);
+
+      if (!touchDragMovedRef.current && distance < 10) {
+        return;
+      }
+
+      touchDragMovedRef.current = true;
+      event.preventDefault();
+      setTouchDragPoint({ x: event.clientX, y: event.clientY });
+      setTouchDropTarget(resolveTouchDropTarget(event.clientX, event.clientY));
+    };
+
+    const handlePointerEnd = (event: PointerEvent) => {
+      if (activePointerIdRef.current !== event.pointerId) {
+        return;
+      }
+
+      const dropTarget = resolveTouchDropTarget(event.clientX, event.clientY);
+      if (
+        touchDragMovedRef.current &&
+        dropTarget &&
+        dropTarget === touchDragPayload.type
+      ) {
+        void commitSelectionDrop(touchDragPayload.type, touchDragPayload.id);
+        if (touchDragPayload.type === 'player') {
+          suppressNextPlayerTapRef.current = true;
+        }
+      }
+
+      clearTouchDragState();
+    };
+
+    const handlePointerCancel = (event: PointerEvent) => {
+      if (activePointerIdRef.current !== event.pointerId) {
+        return;
+      }
+      clearTouchDragState();
+    };
+
+    window.addEventListener('pointermove', handlePointerMove, { passive: false });
+    window.addEventListener('pointerup', handlePointerEnd);
+    window.addEventListener('pointercancel', handlePointerCancel);
+
+    return () => {
+      window.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('pointerup', handlePointerEnd);
+      window.removeEventListener('pointercancel', handlePointerCancel);
+    };
+  }, [clearTouchDragState, commitSelectionDrop, resolveTouchDropTarget, touchDragPayload]);
 
   const handleDragEnd = () => {
     setDraggingType(null);
@@ -886,24 +1080,9 @@ export default function TrainingPage() {
         return;
       }
 
-      if (type === 'player') {
-        const player = players.find(item => item.id === parsed.id);
-        if (player) {
-          setSelectedPlayers(prev =>
-            prev.some(item => item.id === player.id) ? prev : [...prev, player],
-          );
-        }
-        return;
-      }
-
-      const training = trainingCatalog.find(item => item.id === parsed.id);
-      if (training) {
-        setSelectedTrainings(prev =>
-          prev.some(item => item.id === training.id) ? prev : [...prev, training],
-        );
-      }
+      void commitSelectionDrop(type, parsed.id);
     } catch (error) {
-      console.warn('Drag & drop verisi ayrıştırılamadı', error);
+      console.warn('Drag & drop verisi ayrÄ±ÅŸtÄ±rÄ±lamadÄ±', error);
     }
   };
 
@@ -921,37 +1100,37 @@ export default function TrainingPage() {
 
   const handleStartTraining = async () => {
     if (!user) {
-      toast.error('Lütfen giriş yapın');
+      toast.error(t('training.toasts.loginRequired'));
       return;
     }
 
     if (selectedPlayers.length === 0 || selectedTrainings.length === 0) {
-      toast.error('En az bir oyuncu ve antrenman seçin');
+      toast.error(t('training.toasts.selectionRequired'));
       return;
     }
 
     if (isTraining) {
-      toast.info('Devam eden bir antrenman var');
+      toast.info(t('training.toasts.activeExists'));
       return;
     }
 
     if (diamondCost > 0) {
       if (balance < diamondCost) {
-        toast.error('Yetersiz elmas bakiyesi');
+        toast.error(t('training.toasts.insufficientDiamonds'));
         return;
       }
 
       try {
         await spend(diamondCost);
       } catch (error) {
-        toast.error('Elmas işlemi tamamlanamadı');
+        toast.error(t('training.toasts.diamondFinishFailed'));
         return;
       }
     }
 
     const durationSeconds = sessionDurationMinutes * 60;
     if (durationSeconds <= 0) {
-      toast.error('Geçerli bir süre hesaplanamadı');
+      toast.error(t('training.toasts.invalidDuration'));
       return;
     }
 
@@ -967,8 +1146,8 @@ export default function TrainingPage() {
         durationSeconds,
       });
     } catch (error) {
-      console.warn('Aktif antrenman kaydedilemedi', error);
-      toast.error('Antrenman başlatılamadı');
+      console.warn('[TrainingPage] active training could not be saved', error);
+      toast.error(t('training.toasts.startFailed'));
       return;
     }
 
@@ -984,7 +1163,7 @@ export default function TrainingPage() {
     });
     setIsTraining(true);
     startCountdown(durationSeconds);
-    toast.success('Antrenman başlatıldı');
+    toast.success(t('training.toasts.startSuccess'));
   };
 
   const handleFinishWithDiamonds = async () => {
@@ -993,12 +1172,12 @@ export default function TrainingPage() {
     }
 
     if (timeLeft <= 0) {
-      toast.info('Antrenman zaten tamamlanmış');
+      toast.info(t('training.toasts.alreadyCompleted'));
       return;
     }
 
     if (balance < finishDiamondCost) {
-      toast.error('Yetersiz elmas bakiyesi');
+      toast.error(t('training.toasts.insufficientDiamonds'));
       return;
     }
 
@@ -1023,10 +1202,10 @@ export default function TrainingPage() {
       setActiveSessionSafe(null);
       setPendingActiveSession(null);
       restoreLastTrainingSelection(result.players);
-      toast.success(`Antrenman tamamlandı (${result.records.length} işlem)`);
+      toast.success(t('training.toasts.completeWithCount', { count: result.records.length }));
     } catch (error) {
-      console.warn('Antrenman elmasla tamamlanamadı', error);
-      toast.error('Elmasla bitirme başarısız');
+      console.warn('[TrainingPage] diamond finish failed', error);
+      toast.error(t('training.toasts.finishWithDiamondsFailed'));
       if (remainingBeforeFinish > 0) {
         startCountdown(remainingBeforeFinish);
       }
@@ -1041,7 +1220,7 @@ export default function TrainingPage() {
     }
 
     if (timeLeft <= 0) {
-      toast.info('Antrenman zaten tamamlanmış');
+      toast.info(t('training.toasts.alreadyCompleted'));
       return;
     }
 
@@ -1106,13 +1285,13 @@ export default function TrainingPage() {
       }
 
       if (result.outcome === 'dismissed') {
-        toast.info('Reklam tamamlanmadı, antrenman devam ediyor.');
+        toast.info(t('training.toasts.adDismissed'));
         resumeCountdownIfNeeded();
         return;
       }
 
       if (result.outcome === 'pending_verification') {
-        toast.info('Reklam doğrulanıyor. Biraz sonra yeniden deneyin.');
+        toast.info(t('training.toasts.adPending'));
         resumeCountdownIfNeeded();
         return;
       }
@@ -1120,7 +1299,7 @@ export default function TrainingPage() {
       toast.error(getRewardedAdFailureMessage(result.ad));
       resumeCountdownIfNeeded();
     } catch (error) {
-      console.warn('Antrenman reklamla bitirilemedi', error);
+      console.warn('[TrainingPage] ad finish failed', error);
       toast.error(getRewardedAdFailureMessage(error));
       resumeCountdownIfNeeded();
     } finally {
@@ -1181,7 +1360,7 @@ export default function TrainingPage() {
 
       const groupPlayers = squadRoleSelections[group];
       if (groupPlayers.length === 0) {
-        toast.info('Bu grupta oyuncu bulunmuyor');
+        toast.info(t('training.empty.emptyGroup'));
         return;
       }
 
@@ -1189,7 +1368,7 @@ export default function TrainingPage() {
       setExpandedPlayerId(null);
       setPlayerDetail(null);
     },
-    [isTraining, squadRoleSelections],
+    [isTraining, squadRoleSelections, t],
   );
 
   const selectedPlayerIds = useMemo(
@@ -1201,8 +1380,13 @@ export default function TrainingPage() {
     [selectedTrainings],
   );
   const activeDisplayMetric = useMemo(
-    () => getDisplayMetricOption(displayMetric),
-    [displayMetric],
+    () => ({
+      ...(getDisplayMetricOption(displayMetric) ?? DISPLAY_METRIC_OPTIONS[0]),
+      label: t(
+        (getDisplayMetricOption(displayMetric) ?? DISPLAY_METRIC_OPTIONS[0]).labelKey,
+      ),
+    }),
+    [displayMetric, t],
   );
   const leadTraining = activeSession?.trainings[0] ?? selectedTrainings[0] ?? null;
   const leadAccent = leadTraining
@@ -1218,6 +1402,17 @@ export default function TrainingPage() {
       : canStart
         ? 18
         : 6;
+  const useTightLandscapeColumns =
+    typeof window !== 'undefined' &&
+    window.innerWidth > window.innerHeight &&
+    (Capacitor.isNativePlatform() ||
+      window.matchMedia('(pointer: coarse)').matches ||
+      window.innerHeight <= 1100);
+  const supportsNativeHtmlDrag =
+    typeof window !== 'undefined' &&
+    !Capacitor.isNativePlatform() &&
+    !window.matchMedia('(pointer: coarse)').matches;
+  const isTouchSelectionMode = !supportsNativeHtmlDrag;
   const panelClass =
     'overflow-hidden rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(10,15,31,0.96),rgba(3,7,18,0.94))] text-slate-100 shadow-[0_22px_60px_rgba(0,0,0,0.45)] backdrop-blur-2xl';
   const sectionTitleClass =
@@ -1229,9 +1424,12 @@ export default function TrainingPage() {
     if (typeof window === 'undefined') return;
 
     const updateCompactLandscape = () => {
-      const isLandscape = window.matchMedia('(orientation: landscape)').matches;
-      const isCompact =
-        isLandscape && (window.innerHeight <= 760 || window.innerWidth <= 1280);
+      const isLandscape = window.innerWidth > window.innerHeight;
+      const hasCoarsePointer = window.matchMedia('(pointer: coarse)').matches;
+      const isNativeMobile = Capacitor.isNativePlatform() && ['android', 'ios'].includes(Capacitor.getPlatform());
+      const isMobileLike = isNativeMobile || hasCoarsePointer || /Android|iPhone|iPad|Mobile/i.test(window.navigator.userAgent);
+      const hasShortViewport = window.innerHeight <= 720;
+      const isCompact = isLandscape && (isMobileLike || hasShortViewport);
       setIsCompactLandscape(isCompact);
     };
 
@@ -1253,7 +1451,9 @@ export default function TrainingPage() {
     return (
       <Card
         key={player.id}
-        draggable={!isTraining}
+        draggable={!isTraining && supportsNativeHtmlDrag}
+        data-training-source="player"
+        onPointerDown={event => handlePointerDragStart(event, 'player', player.id)}
         onDragStart={event => {
           setExpandedPlayerId(null);
           setPlayerDetail(null);
@@ -1261,7 +1461,15 @@ export default function TrainingPage() {
         }}
         onDragEnd={handleDragEnd}
         onClick={() => {
+          if (suppressNextPlayerTapRef.current) {
+            suppressNextPlayerTapRef.current = false;
+            return;
+          }
           if (isTraining) return;
+          if (isTouchSelectionMode) {
+            void commitSelectionDrop('player', player.id);
+            return;
+          }
           setExpandedPlayerId(prev => {
             const next = prev === player.id ? null : player.id;
             setPlayerDetail(next ? player : null);
@@ -1280,6 +1488,7 @@ export default function TrainingPage() {
         className={cn(
           'overflow-hidden rounded-[24px] border bg-[linear-gradient(135deg,rgba(8,15,33,0.96),rgba(5,12,24,0.96))] transition duration-200',
           isTraining ? 'pointer-events-none opacity-50' : 'cursor-pointer hover:border-cyan-300/30 hover:shadow-[0_18px_40px_rgba(8,145,178,0.16)]',
+          isTouchSelectionMode && 'touch-none',
           isExpanded && 'border-cyan-300/45 shadow-[0_0_0_1px_rgba(34,211,238,0.16),0_18px_40px_rgba(8,145,178,0.18)]',
           isSelected && 'border-emerald-400/35 shadow-[0_18px_40px_rgba(16,185,129,0.16)]',
         )}
@@ -1297,7 +1506,7 @@ export default function TrainingPage() {
                     <span className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-2 py-0.5 font-semibold text-cyan-100">
                       {player.position}
                     </span>
-                    <span>Genel {formatRatingLabel(player.overall)}</span>
+                    <span>{t('training.labels.overall')} {formatRatingLabel(player.overall)}</span>
                   </div>
                 </div>
                 <div className={cn('flex items-center justify-center rounded-[16px] font-black leading-none sm:rounded-[18px]', metricBadgeClass, isCompactLandscape ? 'min-w-[38px] px-1.5 py-1 text-xs' : 'min-w-[50px] px-2.5 py-1.5 text-base sm:min-w-[58px] sm:px-3 sm:py-2 sm:text-lg')}>
@@ -1324,9 +1533,19 @@ export default function TrainingPage() {
     return (
       <Card
         key={training.id}
-        draggable={!isTraining}
+        draggable={!isTraining && supportsNativeHtmlDrag}
+        data-training-source="training"
+        onPointerDown={event => handlePointerDragStart(event, 'training', training.id)}
         onDragStart={event => handleDragStart(event, 'training', training.id)}
         onDragEnd={handleDragEnd}
+        onClick={() => {
+          if (isTraining) {
+            return;
+          }
+          if (isTouchSelectionMode) {
+            void commitSelectionDrop('training', training.id);
+          }
+        }}
         onDoubleClick={() => {
           if (!isTraining) {
             setSelectedTrainings(prev =>
@@ -1335,29 +1554,49 @@ export default function TrainingPage() {
           }
         }}
         className={cn(
-          'overflow-hidden rounded-[24px] border bg-[linear-gradient(135deg,rgba(8,15,33,0.96),rgba(5,12,24,0.96))] transition duration-200',
+          'relative min-w-0 max-w-full overflow-hidden rounded-[24px] border bg-[linear-gradient(135deg,rgba(8,15,33,0.96),rgba(5,12,24,0.96))] transition duration-200',
+          isCompactLandscape ? 'my-0.5 w-full box-border' : 'mx-1.5 my-1',
           accent.card,
           isTraining ? 'pointer-events-none opacity-50' : 'cursor-pointer hover:brightness-110',
-          isSelected && accent.glow,
+          isTouchSelectionMode && 'touch-none',
+          isSelected && (isCompactLandscape ? accent.compactGlow : accent.glow),
         )}
       >
+        {isSelected ? (
+          <div
+            className={cn(
+              'pointer-events-none absolute inset-0 rounded-[24px]',
+              accent.selectionOverlay,
+            )}
+          />
+        ) : null}
         <CardContent className={cn('p-3 sm:p-4', isCompactLandscape && 'p-2')}>
           <div className={cn('flex gap-3 sm:gap-4', isCompactLandscape && 'gap-2')}>
             <div className={cn('flex shrink-0 items-center justify-center rounded-[18px] border text-xs font-black uppercase tracking-[0.16em] sm:rounded-[20px] sm:text-sm sm:tracking-[0.18em]', accent.badge, isCompactLandscape ? 'h-10 w-10 text-[10px]' : 'h-12 w-12 sm:h-14 sm:w-14')}>
               {getTrainingMonogram(training.type)}
             </div>
             <div className="min-w-0 flex-1">
-              <div className="flex items-start justify-between gap-3">
+              <div className={cn('flex items-start justify-between gap-3', isCompactLandscape && 'gap-2')}>
                 <div className="min-w-0">
                   <p className={cn('truncate font-semibold text-white sm:text-base', isCompactLandscape ? 'text-[11px] leading-tight' : 'text-sm')}>{training.name}</p>
                   <p className={cn('mt-1 text-slate-400 sm:text-sm', isCompactLandscape ? 'truncate text-[9px]' : 'text-xs')}>{training.description}</p>
+                  {isCompactLandscape ? (
+                    <div className="mt-1 flex items-center gap-1.5">
+                      <span className={cn('inline-flex max-w-full shrink-0 rounded-full border font-semibold uppercase tracking-[0.12em]', accent.chip, 'px-1.5 py-0.5 text-[8px]')}>
+                        {getTrainingAttributeLabel(training.type)}
+                      </span>
+                      <p className="truncate text-[10px] font-semibold text-slate-300">
+                        {formatMinutesShort(training.duration)}
+                      </p>
+                    </div>
+                  ) : null}
                 </div>
-                <div className={cn('text-right', isCompactLandscape ? 'min-w-[58px]' : 'min-w-[80px] sm:min-w-[92px]')}>
+                <div className={cn('text-right', isCompactLandscape ? 'hidden' : 'w-[112px] shrink-0 sm:w-[128px]')}>
                   <p className="text-[11px] uppercase tracking-[0.22em] text-slate-500">Odak</p>
-                  <span className={cn('mt-1 inline-flex max-w-full rounded-full border font-semibold uppercase tracking-[0.16em]', accent.chip, isCompactLandscape ? 'px-2 py-0.5 text-[9px]' : 'px-2.5 py-1 text-[10px]')}>
+                  <span className={cn('mt-1 inline-flex w-full items-center justify-center overflow-hidden text-ellipsis whitespace-nowrap rounded-full border font-semibold uppercase tracking-[0.16em]', accent.chip, isCompactLandscape ? 'px-2 py-0.5 text-[9px]' : 'px-2.5 py-1 text-[10px]')}>
                     {getTrainingAttributeLabel(training.type)}
                   </span>
-                  <p className={cn('mt-1.5 font-semibold text-slate-300', isCompactLandscape ? 'text-[11px]' : 'text-sm')}>{training.duration} dk</p>
+                  <p className={cn('mt-1.5 font-semibold text-slate-300', isCompactLandscape ? 'text-[11px]' : 'text-sm')}>{formatMinutesShort(training.duration)}</p>
                 </div>
               </div>
             </div>
@@ -1372,24 +1611,28 @@ export default function TrainingPage() {
       <CardHeader className={cn('space-y-4 p-5 pb-4', isCompactLandscape && 'space-y-2 p-2 pb-1.5')}>
         <CardTitle className={sectionTitleClass}>
           <Users className="h-5 w-5 text-cyan-300" />
-          Oyuncular
+          {t('training.players')}
         </CardTitle>
         <div className="relative">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
           <Input
             value={playerSearch}
             onChange={event => setPlayerSearch(event.target.value)}
-            placeholder="Oyuncu ara..."
+            placeholder={t('training.placeholders.playerSearch')}
             className={cn(searchInputClass, isCompactLandscape && 'h-7 rounded-[15px] pl-8 text-[10px]')}
           />
         </div>
       </CardHeader>
       <CardContent className={cn('min-h-0 flex-1 overflow-hidden p-3 pt-0 sm:p-4 sm:pt-0', isCompactLandscape && 'p-2 pt-0')}>
-        <ScrollArea className={cn('h-full', isCompactLandscape ? 'pr-1' : 'pr-2')}>
-          <div className={cn(isCompactLandscape ? 'space-y-1.5' : 'space-y-3')}>
+        <ScrollArea className={cn('h-full', isCompactLandscape ? 'pr-2' : 'pr-2')}>
+          <div
+            className={cn(
+              isCompactLandscape ? 'space-y-2 px-2.5 py-2' : 'space-y-3 pb-2',
+            )}
+          >
             {filteredPlayers.length === 0 ? (
               <div className="flex min-h-[200px] items-center justify-center rounded-[22px] border border-dashed border-white/10 bg-slate-950/60 px-4 text-center text-sm text-slate-400">
-                Eşleşen oyuncu bulunamadı.
+                {t('training.empty.players')}
               </div>
             ) : filteredPlayers.map(renderPlayerCard)}
           </div>
@@ -1403,63 +1646,100 @@ export default function TrainingPage() {
       <CardHeader className={cn('space-y-4 p-5 pb-4', isCompactLandscape && 'space-y-2 p-2 pb-1.5')}>
         <CardTitle className={sectionTitleClass}>
           <Dumbbell className="h-5 w-5 text-emerald-300" />
-          Antrenmanlar
+          {t('training.trainings')}
         </CardTitle>
         <div className="relative">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
           <Input
             value={trainingSearch}
             onChange={event => setTrainingSearch(event.target.value)}
-            placeholder="Antrenman ara..."
+            placeholder={t('training.placeholders.trainingSearch')}
             className={cn(searchInputClass, isCompactLandscape && 'h-7 rounded-[15px] pl-8 text-[10px]')}
           />
         </div>
       </CardHeader>
       <CardContent className={cn('min-h-0 flex-1 overflow-hidden p-3 pt-0 sm:p-4 sm:pt-0', isCompactLandscape && 'p-2 pt-0')}>
-        <ScrollArea className={cn('h-full', isCompactLandscape ? 'pr-1' : 'pr-2')}>
-          <div className={cn(isCompactLandscape ? 'space-y-1.5' : 'space-y-3')}>
-            {filteredTrainings.length === 0 ? (
-              <div className="flex min-h-[200px] items-center justify-center rounded-[22px] border border-dashed border-white/10 bg-slate-950/60 px-4 text-center text-sm text-slate-400">
-                Uygun antrenman bulunamadı.
-              </div>
-            ) : filteredTrainings.map(renderTrainingCard)}
+        {isCompactLandscape ? (
+          <div className="h-full overflow-x-hidden overflow-y-auto pr-1">
+            <div className="space-y-2 pl-2.5 pr-4 py-2.5">
+              {filteredTrainings.length === 0 ? (
+                <div className="flex min-h-[160px] items-center justify-center rounded-[22px] border border-dashed border-white/10 bg-slate-950/60 px-4 text-center text-sm text-slate-400">
+                  {t('training.empty.trainings')}
+                </div>
+              ) : filteredTrainings.map(renderTrainingCard)}
+            </div>
           </div>
-        </ScrollArea>
+        ) : (
+          <ScrollArea className="h-full pr-4">
+            <div className="space-y-3 px-1.5 py-1.5 pb-2">
+              {filteredTrainings.length === 0 ? (
+                <div className="flex min-h-[200px] items-center justify-center rounded-[22px] border border-dashed border-white/10 bg-slate-950/60 px-4 text-center text-sm text-slate-400">
+                  {t('training.empty.trainings')}
+                </div>
+              ) : filteredTrainings.map(renderTrainingCard)}
+            </div>
+          </ScrollArea>
+        )}
       </CardContent>
     </Card>
   );
 
   const renderSelectedPlayersPanel = (
     options?: {
+      compact?: boolean;
       contentClassName?: string;
       scrollAreaClassName?: string;
+      cardClassName?: string;
     },
-  ) => (
+  ) => {
+    const compact = options?.compact ?? false;
+
+    return (
     <Card
+      ref={selectedPlayersDropzoneRef}
+      data-training-dropzone="player"
       onDragOver={event => handleDragOver(event, 'player')}
       onDrop={event => handleDrop(event, 'player')}
       className={cn(
         panelClass,
         'rounded-[28px] border border-dashed border-white/10 bg-[#040b1d]/70',
-        draggingType === 'player' &&
+        (draggingType === 'player' ||
+          (touchDragPayload?.type === 'player' && touchDropTarget === 'player')) &&
           'border-cyan-300/45 shadow-[0_0_0_1px_rgba(34,211,238,0.16),0_18px_40px_rgba(34,211,238,0.18)]',
         isTraining && 'opacity-70',
+        options?.cardClassName,
       )}
     >
-      <CardHeader className="space-y-3 p-4 pb-3 sm:space-y-4 sm:p-5 sm:pb-4">
+      <CardHeader
+        className={cn(
+          'space-y-3 p-4 pb-3 sm:space-y-4 sm:p-5 sm:pb-4',
+          compact && 'space-y-2 p-3 pb-2 sm:space-y-2.5 sm:p-3.5 sm:pb-2.5',
+        )}
+      >
         <CardTitle className={sectionTitleClass}>
           <Users className="h-5 w-5 text-cyan-300" />
-          Seçilen Oyuncular ({selectedPlayers.length})
+          {t('training.selectedPlayers', { count: selectedPlayers.length })}
         </CardTitle>
       </CardHeader>
-      <CardContent className={cn('min-h-[220px] p-4 pt-0', options?.contentClassName)}>
+      <CardContent
+        className={cn(
+          'min-h-[220px] p-4 pt-0',
+          compact && 'min-h-[104px] p-3 pt-0 sm:min-h-[120px] sm:p-3.5 sm:pt-0',
+          options?.contentClassName,
+        )}
+      >
         {selectedPlayers.length === 0 ? (
-          <div className="flex min-h-[150px] items-center justify-center rounded-[22px] border border-dashed border-white/10 bg-slate-950/60 px-4 text-center text-sm text-slate-400">
-            Oyuncuları sürükleyip bırakın veya çift tıklayın.
+          <div
+            className={cn(
+              'flex min-h-[150px] items-center justify-center rounded-[22px] border border-dashed border-white/10 bg-slate-950/60 px-4 text-center text-sm text-slate-400',
+              compact && 'min-h-[60px] px-3 text-[11px] leading-snug sm:min-h-[72px]',
+            )}
+          >
+            {t('training.empty.selectedPlayers')}
           </div>
         ) : options?.scrollAreaClassName ? (
           <ScrollArea className={options.scrollAreaClassName}>
-            <div className="space-y-3 pr-2">
+            <div className={cn('space-y-3 pr-2', compact && 'space-y-2 pr-1')}>
               {selectedPlayers.map(player => {
                 const metricValue = getDisplayMetricValue(player, displayMetric);
                 const metricBadgeClass =
@@ -1470,21 +1750,31 @@ export default function TrainingPage() {
                 return (
                   <div
                     key={player.id}
-                    className="flex items-center gap-3 rounded-[22px] border border-cyan-400/20 bg-cyan-500/10 p-3 shadow-[0_18px_36px_rgba(8,145,178,0.14)]"
+                    className={cn(
+                      'flex items-center gap-3 rounded-[22px] border border-cyan-400/20 bg-cyan-500/10 p-3 shadow-[0_18px_36px_rgba(8,145,178,0.14)]',
+                      compact && 'gap-2 p-2',
+                    )}
                   >
-                    <div className="flex h-14 w-14 items-center justify-center rounded-[18px] border border-cyan-400/25 bg-cyan-400/10 text-sm font-black uppercase tracking-[0.18em] text-cyan-100">
+                    <div
+                      className={cn(
+                        'flex h-14 w-14 items-center justify-center rounded-[18px] border border-cyan-400/25 bg-cyan-400/10 text-sm font-black uppercase tracking-[0.18em] text-cyan-100',
+                        compact && 'h-9 w-9 text-[10px]',
+                      )}
+                    >
                       {getPlayerInitials(player.name)}
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="truncate font-semibold text-white">{player.name}</p>
-                      <p className="text-sm text-slate-400">
-                        {player.position} • Genel {formatRatingLabel(player.overall)}
+                      <p className={cn('truncate font-semibold text-white', compact && 'text-[11px] leading-tight')}>
+                        {player.name}
                       </p>
-                      <div className="mt-2 flex items-center justify-between text-[11px] uppercase tracking-[0.18em] text-slate-500">
+                      <p className={cn('text-sm text-slate-400', compact && 'truncate text-[10px]')}>
+                        {player.position} - {t('training.labels.overall')} {formatRatingLabel(player.overall)}
+                      </p>
+                      <div className={cn('mt-2 flex items-center justify-between text-[11px] uppercase tracking-[0.18em] text-slate-500', compact && 'mt-1 text-[9px]')}>
                         <span>{activeDisplayMetric.label}</span>
                         <span className="text-slate-300">{metricValue}</span>
                       </div>
-                      <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-slate-950/80">
+                      <div className={cn('mt-1.5 h-1.5 overflow-hidden rounded-full bg-slate-950/80', compact && 'mt-1')}>
                         <div
                           className={cn('h-full rounded-full', activeDisplayMetric.barClass)}
                           style={{ width: `${metricValue}%` }}
@@ -1494,6 +1784,7 @@ export default function TrainingPage() {
                     <div
                       className={cn(
                         'flex h-11 min-w-[50px] items-center justify-center rounded-[16px] px-3 text-lg font-black',
+                        compact && 'h-8 min-w-[36px] px-2 text-[11px]',
                         metricBadgeClass,
                       )}
                     >
@@ -1502,7 +1793,7 @@ export default function TrainingPage() {
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-9 w-9 rounded-full text-slate-400 hover:bg-white/10 hover:text-white"
+                      className={cn('h-9 w-9 rounded-full text-slate-400 hover:bg-white/10 hover:text-white', compact && 'h-7 w-7')}
                       onClick={() => removeSelectedPlayer(player.id)}
                     >
                       <X className="h-4 w-4" />
@@ -1513,7 +1804,7 @@ export default function TrainingPage() {
             </div>
           </ScrollArea>
         ) : (
-          <div className="space-y-3">
+          <div className={cn('space-y-3', compact && 'space-y-2')}>
             {selectedPlayers.map(player => {
               const metricValue = getDisplayMetricValue(player, displayMetric);
               const metricBadgeClass =
@@ -1524,21 +1815,31 @@ export default function TrainingPage() {
               return (
                 <div
                   key={player.id}
-                  className="flex items-center gap-3 rounded-[22px] border border-cyan-400/20 bg-cyan-500/10 p-3 shadow-[0_18px_36px_rgba(8,145,178,0.14)]"
+                  className={cn(
+                    'flex items-center gap-3 rounded-[22px] border border-cyan-400/20 bg-cyan-500/10 p-3 shadow-[0_18px_36px_rgba(8,145,178,0.14)]',
+                    compact && 'gap-2 p-2',
+                  )}
                 >
-                  <div className="flex h-14 w-14 items-center justify-center rounded-[18px] border border-cyan-400/25 bg-cyan-400/10 text-sm font-black uppercase tracking-[0.18em] text-cyan-100">
+                  <div
+                    className={cn(
+                      'flex h-14 w-14 items-center justify-center rounded-[18px] border border-cyan-400/25 bg-cyan-400/10 text-sm font-black uppercase tracking-[0.18em] text-cyan-100',
+                      compact && 'h-9 w-9 text-[10px]',
+                    )}
+                  >
                     {getPlayerInitials(player.name)}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="truncate font-semibold text-white">{player.name}</p>
-                    <p className="text-sm text-slate-400">
-                      {player.position} • Genel {formatRatingLabel(player.overall)}
+                    <p className={cn('truncate font-semibold text-white', compact && 'text-[11px] leading-tight')}>
+                      {player.name}
                     </p>
-                    <div className="mt-2 flex items-center justify-between text-[11px] uppercase tracking-[0.18em] text-slate-500">
+                    <p className={cn('text-sm text-slate-400', compact && 'truncate text-[10px]')}>
+                      {player.position} - {t('training.labels.overall')} {formatRatingLabel(player.overall)}
+                    </p>
+                    <div className={cn('mt-2 flex items-center justify-between text-[11px] uppercase tracking-[0.18em] text-slate-500', compact && 'mt-1 text-[9px]')}>
                       <span>{activeDisplayMetric.label}</span>
                       <span className="text-slate-300">{metricValue}</span>
                     </div>
-                    <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-slate-950/80">
+                    <div className={cn('mt-1.5 h-1.5 overflow-hidden rounded-full bg-slate-950/80', compact && 'mt-1')}>
                       <div
                         className={cn('h-full rounded-full', activeDisplayMetric.barClass)}
                         style={{ width: `${metricValue}%` }}
@@ -1548,6 +1849,7 @@ export default function TrainingPage() {
                   <div
                     className={cn(
                       'flex h-11 min-w-[50px] items-center justify-center rounded-[16px] px-3 text-lg font-black',
+                      compact && 'h-8 min-w-[36px] px-2 text-[11px]',
                       metricBadgeClass,
                     )}
                   >
@@ -1556,7 +1858,7 @@ export default function TrainingPage() {
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-9 w-9 rounded-full text-slate-400 hover:bg-white/10 hover:text-white"
+                    className={cn('h-9 w-9 rounded-full text-slate-400 hover:bg-white/10 hover:text-white', compact && 'h-7 w-7')}
                     onClick={() => removeSelectedPlayer(player.id)}
                   >
                     <X className="h-4 w-4" />
@@ -1568,39 +1870,65 @@ export default function TrainingPage() {
         )}
       </CardContent>
     </Card>
-  );
+    );
+  };
 
   const renderSelectedTrainingsPanel = (
     options?: {
+      compact?: boolean;
       contentClassName?: string;
       scrollAreaClassName?: string;
+      cardClassName?: string;
     },
-  ) => (
+  ) => {
+    const compact = options?.compact ?? false;
+
+    return (
     <Card
+      ref={selectedTrainingsDropzoneRef}
+      data-training-dropzone="training"
       onDragOver={event => handleDragOver(event, 'training')}
       onDrop={event => handleDrop(event, 'training')}
       className={cn(
         panelClass,
         'rounded-[28px] border border-dashed border-white/10 bg-[#040b1d]/70',
-        draggingType === 'training' &&
+        (draggingType === 'training' ||
+          (touchDragPayload?.type === 'training' && touchDropTarget === 'training')) &&
           'border-emerald-300/45 shadow-[0_0_0_1px_rgba(74,222,128,0.16),0_18px_40px_rgba(16,185,129,0.18)]',
         isTraining && 'opacity-70',
+        options?.cardClassName,
       )}
     >
-      <CardHeader className="space-y-3 p-4 pb-3 sm:space-y-4 sm:p-5 sm:pb-4">
+      <CardHeader
+        className={cn(
+          'space-y-3 p-4 pb-3 sm:space-y-4 sm:p-5 sm:pb-4',
+          compact && 'space-y-2 p-3 pb-2 sm:space-y-2.5 sm:p-3.5 sm:pb-2.5',
+        )}
+      >
         <CardTitle className={sectionTitleClass}>
           <Dumbbell className="h-5 w-5 text-emerald-300" />
-          Seçilen Antrenmanlar ({selectedTrainings.length})
+          {t('training.selectedTrainings', { count: selectedTrainings.length })}
         </CardTitle>
       </CardHeader>
-      <CardContent className={cn('min-h-[220px] p-4 pt-0', options?.contentClassName)}>
+      <CardContent
+        className={cn(
+          'min-h-[220px] p-4 pt-0',
+          compact && 'min-h-[104px] p-3 pt-0 sm:min-h-[120px] sm:p-3.5 sm:pt-0',
+          options?.contentClassName,
+        )}
+      >
         {selectedTrainings.length === 0 ? (
-          <div className="flex min-h-[150px] items-center justify-center rounded-[22px] border border-dashed border-white/10 bg-slate-950/60 px-4 text-center text-sm text-slate-400">
-            Antrenman kartlarını bu alana bırakın.
+          <div
+            className={cn(
+              'flex min-h-[150px] items-center justify-center rounded-[22px] border border-dashed border-white/10 bg-slate-950/60 px-4 text-center text-sm text-slate-400',
+              compact && 'min-h-[60px] px-3 text-[11px] leading-snug sm:min-h-[72px]',
+            )}
+          >
+            {t('training.empty.selectedTrainings')}
           </div>
         ) : options?.scrollAreaClassName ? (
           <ScrollArea className={options.scrollAreaClassName}>
-            <div className="space-y-3 pr-2">
+            <div className={cn('space-y-3 pr-2', compact && 'space-y-2 pr-1')}>
               {selectedTrainings.map(training => {
                 const accent = getTrainingAccent(training.type);
                 return (
@@ -1608,6 +1936,7 @@ export default function TrainingPage() {
                     key={training.id}
                     className={cn(
                       'flex items-center gap-3 rounded-[22px] border p-3 shadow-[0_18px_36px_rgba(0,0,0,0.14)]',
+                      compact && 'gap-2 p-2',
                       accent.card,
                       accent.glow,
                     )}
@@ -1615,21 +1944,24 @@ export default function TrainingPage() {
                     <div
                       className={cn(
                         'flex h-14 w-14 items-center justify-center rounded-[18px] border text-sm font-black uppercase tracking-[0.18em]',
+                        compact && 'h-9 w-9 text-[10px]',
                         accent.badge,
                       )}
                     >
                       {getTrainingMonogram(training.type)}
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="truncate font-semibold text-white">{training.name}</p>
-                      <p className="text-sm text-slate-400">
-                        {getTrainingAttributeLabel(training.type)} • {training.duration} dk
+                      <p className={cn('truncate font-semibold text-white', compact && 'text-[11px] leading-tight')}>
+                        {training.name}
+                      </p>
+                      <p className={cn('text-sm text-slate-400', compact && 'truncate text-[10px]')}>
+                        {getTrainingAttributeLabel(training.type)} - {t('common.minutesShort', { value: training.duration })}
                       </p>
                     </div>
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-9 w-9 rounded-full text-slate-400 hover:bg-white/10 hover:text-white"
+                      className={cn('h-9 w-9 rounded-full text-slate-400 hover:bg-white/10 hover:text-white', compact && 'h-7 w-7')}
                       onClick={() => removeSelectedTraining(training.id)}
                     >
                       <X className="h-4 w-4" />
@@ -1640,7 +1972,7 @@ export default function TrainingPage() {
             </div>
           </ScrollArea>
         ) : (
-          <div className="space-y-3">
+          <div className={cn('space-y-3', compact && 'space-y-2')}>
             {selectedTrainings.map(training => {
               const accent = getTrainingAccent(training.type);
               return (
@@ -1648,6 +1980,7 @@ export default function TrainingPage() {
                   key={training.id}
                   className={cn(
                     'flex items-center gap-3 rounded-[22px] border p-3 shadow-[0_18px_36px_rgba(0,0,0,0.14)]',
+                    compact && 'gap-2 p-2',
                     accent.card,
                     accent.glow,
                   )}
@@ -1655,21 +1988,24 @@ export default function TrainingPage() {
                   <div
                     className={cn(
                       'flex h-14 w-14 items-center justify-center rounded-[18px] border text-sm font-black uppercase tracking-[0.18em]',
+                      compact && 'h-9 w-9 text-[10px]',
                       accent.badge,
                     )}
                   >
                     {getTrainingMonogram(training.type)}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="truncate font-semibold text-white">{training.name}</p>
-                    <p className="text-sm text-slate-400">
-                      {getTrainingAttributeLabel(training.type)} • {training.duration} dk
+                    <p className={cn('truncate font-semibold text-white', compact && 'text-[11px] leading-tight')}>
+                      {training.name}
+                    </p>
+                    <p className={cn('text-sm text-slate-400', compact && 'truncate text-[10px]')}>
+                      {getTrainingAttributeLabel(training.type)} - {t('common.minutesShort', { value: training.duration })}
                     </p>
                   </div>
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-9 w-9 rounded-full text-slate-400 hover:bg-white/10 hover:text-white"
+                    className={cn('h-9 w-9 rounded-full text-slate-400 hover:bg-white/10 hover:text-white', compact && 'h-7 w-7')}
                     onClick={() => removeSelectedTraining(training.id)}
                   >
                     <X className="h-4 w-4" />
@@ -1681,170 +2017,428 @@ export default function TrainingPage() {
         )}
       </CardContent>
     </Card>
-  );
+    );
+  };
 
-  const renderTrainingControlPanel = () => (
-    <Card className={panelClass}>
-      <CardHeader className="space-y-4 p-5 pb-4">
+  const renderTrainingControlPanel = (options?: { compact?: boolean; className?: string }) => {
+    const compact = options?.compact ?? false;
+
+    return (
+    <Card className={cn(panelClass, 'min-h-0 flex flex-col', options?.className)}>
+      <CardHeader className={cn('space-y-4 p-5 pb-4', compact && 'space-y-2.5 p-3.5 pb-2.5')}>
         <CardTitle className={sectionTitleClass}>
           <ClipboardList className="h-5 w-5 text-sky-300" />
-          Antrenman Kontrolü
+          {t('training.control')}
         </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-4 p-5 pt-0">
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div className="rounded-[22px] border border-white/8 bg-white/[0.04] p-4">
-            <p className="text-[11px] uppercase tracking-[0.22em] text-slate-500">Oyuncu Sayısı</p>
-            <p className="mt-2 text-3xl font-black text-white">{selectedPlayers.length}</p>
+      <CardContent className={cn('space-y-4 p-5 pt-0', compact && 'flex min-h-0 flex-1 flex-col space-y-2 p-3 pt-0')}>
+        {compact ? (
+          <div className="grid grid-cols-4 gap-1.5">
+            <div className="rounded-[14px] border border-white/8 bg-white/[0.04] px-2 py-1.5">
+              <p className="text-[8px] uppercase tracking-[0.16em] text-slate-500">{t('training.labels.playerCount')}</p>
+              <p className="mt-0.5 text-sm font-black text-white">{selectedPlayers.length}</p>
+            </div>
+            <div className="rounded-[14px] border border-white/8 bg-white/[0.04] px-2 py-1.5">
+              <p className="text-[8px] uppercase tracking-[0.16em] text-slate-500">{t('training.labels.trainingCount')}</p>
+              <p className="mt-0.5 text-sm font-black text-white">{selectedTrainings.length}</p>
+            </div>
+            <div className="rounded-[14px] border border-white/8 bg-white/[0.04] px-2 py-1.5">
+              <p className="text-[8px] uppercase tracking-[0.16em] text-slate-500">{t('training.labels.totalCombination')}</p>
+              <p className="mt-0.5 text-sm font-black text-white">{totalAssignments}</p>
+            </div>
+            <div className="rounded-[14px] border border-white/8 bg-white/[0.04] px-2 py-1.5">
+              <p className="text-[8px] uppercase tracking-[0.16em] text-slate-500">{t('training.labels.expectedDuration')}</p>
+              <p className="mt-0.5 text-sm font-black text-white">{formatMinutesShort(sessionDurationMinutes)}</p>
+            </div>
           </div>
-          <div className="rounded-[22px] border border-white/8 bg-white/[0.04] p-4">
-            <p className="text-[11px] uppercase tracking-[0.22em] text-slate-500">Antrenman Sayısı</p>
-            <p className="mt-2 text-3xl font-black text-white">{selectedTrainings.length}</p>
+        ) : (
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="rounded-[22px] border border-white/8 bg-white/[0.04] p-4">
+              <p className="text-[11px] uppercase tracking-[0.22em] text-slate-500">{t('training.labels.playerCount')}</p>
+              <p className="mt-2 text-3xl font-black text-white">{selectedPlayers.length}</p>
+            </div>
+            <div className="rounded-[22px] border border-white/8 bg-white/[0.04] p-4">
+              <p className="text-[11px] uppercase tracking-[0.22em] text-slate-500">{t('training.labels.trainingCount')}</p>
+              <p className="mt-2 text-3xl font-black text-white">{selectedTrainings.length}</p>
+            </div>
+            <div className="rounded-[22px] border border-white/8 bg-white/[0.04] p-4">
+              <p className="text-[11px] uppercase tracking-[0.22em] text-slate-500">{t('training.labels.totalCombination')}</p>
+              <p className="mt-2 text-3xl font-black text-white">{totalAssignments}</p>
+            </div>
+            <div className="rounded-[22px] border border-white/8 bg-white/[0.04] p-4">
+              <p className="text-[11px] uppercase tracking-[0.22em] text-slate-500">{t('training.labels.expectedDuration')}</p>
+              <p className="mt-2 text-3xl font-black text-white">{formatMinutesShort(sessionDurationMinutes)}</p>
+            </div>
           </div>
-          <div className="rounded-[22px] border border-white/8 bg-white/[0.04] p-4">
-            <p className="text-[11px] uppercase tracking-[0.22em] text-slate-500">Toplam Kombinasyon</p>
-            <p className="mt-2 text-3xl font-black text-white">{totalAssignments}</p>
-          </div>
-          <div className="rounded-[22px] border border-white/8 bg-white/[0.04] p-4">
-            <p className="text-[11px] uppercase tracking-[0.22em] text-slate-500">Beklenen Süre</p>
-            <p className="mt-2 text-3xl font-black text-white">{sessionDurationMinutes} dk</p>
-          </div>
-        </div>
+        )}
 
         <div
           className={cn(
             'rounded-[26px] border p-5 shadow-[0_0_0_1px_rgba(16,185,129,0.08),0_18px_48px_rgba(16,185,129,0.14)]',
+            compact && 'p-2',
             leadAccent.card,
             leadAccent.glow,
           )}
         >
           <div className="flex items-start justify-between gap-4">
             <div>
-              <p className="text-[11px] uppercase tracking-[0.24em] text-cyan-300">
-                {isTraining ? 'Antrenman Başladı!' : 'Antrenman Kontrolü'}
+              <p className={cn('text-[11px] uppercase tracking-[0.24em] text-cyan-300', compact && 'text-[8px]')}>
+                {isTraining ? t('training.labels.started') : t('training.control')}
               </p>
-              <h3 className="mt-2 text-2xl font-black text-white">
+              <h3 className={cn('mt-2 text-2xl font-black text-white', compact && 'mt-1 text-[12px] leading-tight')}>
                 {isTraining
                   ? `${formatTime(Math.max(timeLeft, 0))} / ${formatTime(activeDurationSeconds)}`
                   : canStart
-                    ? 'Kadroyu hazırladın, başlatabilirsin.'
-                    : 'Oyuncu ve antrenman seçerek oturumu hazırla.'}
+                    ? t('training.labels.sessionReady')
+                    : t('training.labels.sessionIdle')}
               </h3>
             </div>
-            <div className="rounded-[18px] border border-white/10 bg-slate-950/70 px-4 py-3 text-right">
-              <p className="text-[11px] uppercase tracking-[0.22em] text-slate-500">Süre</p>
-              <p className="mt-1 text-2xl font-black text-white">
-                {isTraining ? formatTime(timeLeft) : `${sessionDurationMinutes} dk`}
+            <div className={cn('rounded-[18px] border border-white/10 bg-slate-950/70 px-4 py-3 text-right', compact && 'px-2 py-1')}>
+              <p className={cn('text-[11px] uppercase tracking-[0.22em] text-slate-500', compact && 'text-[8px]')}>{t('training.labels.duration')}</p>
+              <p className={cn('mt-1 text-2xl font-black text-white', compact && 'mt-0.5 text-[11px]')}>
+                {isTraining ? formatTime(timeLeft) : `${formatMinutesShort(sessionDurationMinutes)}`}
               </p>
             </div>
           </div>
-          <div className="mt-5 h-4 overflow-hidden rounded-full bg-slate-950/80">
+          <div className={cn('mt-5 h-4 overflow-hidden rounded-full bg-slate-950/80', compact && 'mt-1.5 h-1.5')}>
             <div
               className={cn('h-full rounded-full bg-gradient-to-r', leadAccent.progress)}
               style={{ width: `${progressPercent}%` }}
             />
           </div>
-          <div className="mt-5 space-y-3 text-sm">
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-2 text-slate-400">
-                <Clock className="h-4 w-4" />
-                <span>Süre</span>
-              </div>
-              <span className="font-semibold text-white">
-                {isTraining ? formatTime(timeLeft) : `${sessionDurationMinutes} dakika`}
+          {compact ? (
+            <div className="mt-2 flex flex-wrap gap-1.5 text-[9px]">
+              <span className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-slate-950/70 px-2 py-1 text-slate-300">
+                <Clock className="h-3 w-3" />
+                {isTraining ? formatTime(timeLeft) : formatMinutesShort(sessionDurationMinutes)}
               </span>
+              <span className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-slate-950/70 px-2 py-1 text-slate-300">
+                <Diamond className="h-3 w-3" />
+                {diamondCost}
+              </span>
+              {isTraining && (
+                <span className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-slate-950/70 px-2 py-1 text-slate-300">
+                  <Diamond className="h-3 w-3" />
+                  {finishDiamondCost}
+                </span>
+              )}
+              {diamondCost === 0 && (
+                <span className="inline-flex items-center rounded-full border border-emerald-400/20 bg-emerald-400/10 px-2 py-1 text-emerald-200">
+                  {t('training.labels.freeCombo')}
+                </span>
+              )}
             </div>
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-2 text-slate-400">
-                <Diamond className="h-4 w-4" />
-                <span>Elmas Maliyeti</span>
+          ) : (
+            <div className={cn('mt-5 space-y-3 text-sm')}>
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2 text-slate-400">
+                  <Clock className="h-4 w-4" />
+                  <span>{t('training.labels.duration')}</span>
+                </div>
+                <span className="font-semibold text-white">
+                  {isTraining ? formatTime(timeLeft) : formatMinutesLong(sessionDurationMinutes)}
+                </span>
               </div>
-              <span className="font-semibold text-white">{diamondCost}</span>
-            </div>
-            {isTraining && (
               <div className="flex items-center justify-between gap-3">
                 <div className="flex items-center gap-2 text-slate-400">
                   <Diamond className="h-4 w-4" />
-                  <span>Erken Bitirme Ücreti</span>
+                  <span>{t('training.labels.diamondCost')}</span>
                 </div>
-                <span className="font-semibold text-white">{finishDiamondCost}</span>
+                <span className="font-semibold text-white">{diamondCost}</span>
               </div>
-            )}
-            {diamondCost === 0 && (
-              <p className="pt-2 text-xs text-slate-400">
-                Bir oyuncu + bir antrenman kombinasyonu ücretsizdir.
-              </p>
-            )}
-          </div>
+              {isTraining && (
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2 text-slate-400">
+                    <Diamond className="h-4 w-4" />
+                    <span>{t('training.labels.earlyFinishCost')}</span>
+                  </div>
+                  <span className="font-semibold text-white">{finishDiamondCost}</span>
+                </div>
+              )}
+              {diamondCost === 0 && (
+                <p className="pt-2 text-xs text-slate-400">
+                  {t('training.labels.freeCombo')}
+                </p>
+              )}
+            </div>
+          )}
         </div>
 
         {!isTraining ? (
           <Button
             onClick={handleStartTraining}
             disabled={!canStart}
-            className="h-14 w-full rounded-[22px] border border-cyan-300/20 bg-gradient-to-r from-cyan-400 via-sky-400 to-emerald-400 text-base font-black uppercase tracking-[0.14em] text-slate-950 shadow-[0_18px_42px_rgba(34,211,238,0.28)] disabled:cursor-not-allowed disabled:border-white/10 disabled:bg-slate-900 disabled:text-slate-500"
+            className={cn(
+              'h-14 w-full rounded-[22px] border border-cyan-300/20 bg-gradient-to-r from-cyan-400 via-sky-400 to-emerald-400 text-base font-black uppercase tracking-[0.14em] text-slate-950 shadow-[0_18px_42px_rgba(34,211,238,0.28)] disabled:cursor-not-allowed disabled:border-white/10 disabled:bg-slate-900 disabled:text-slate-500',
+              compact && 'mt-auto h-9 text-[10px]',
+            )}
           >
-            Antrenmanı Başlat
+            {t('training.actions.start')}
           </Button>
         ) : (
-          <div className="space-y-3">
+          <div className={cn('space-y-3', compact && 'mt-auto space-y-2')}>
             {timeLeft > 0 && (
               <>
                 <Button
                   onClick={handleFinishWithDiamonds}
                   variant="outline"
-                  className="h-12 w-full rounded-[18px] border border-amber-400/25 bg-amber-500/10 text-amber-100 hover:bg-amber-500/16"
+                  className={cn('h-12 w-full rounded-[18px] border border-amber-400/25 bg-amber-500/10 text-amber-100 hover:bg-amber-500/16', compact && 'h-9 text-[11px]')}
                   disabled={isFinishingWithDiamonds}
                 >
                   <Diamond className="mr-2 h-4 w-4" />
-                  Elmasla Bitir ({finishDiamondCost})
+                  {t('training.actions.finishWithDiamonds', { cost: finishDiamondCost })}
                 </Button>
                 <Button
                   onClick={handleWatchAd}
                   variant="secondary"
-                  className="h-14 w-full rounded-[22px] border border-fuchsia-300/30 bg-gradient-to-r from-fuchsia-500 via-violet-500 to-purple-500 text-base font-black text-white shadow-[0_18px_45px_rgba(168,85,247,0.32)] hover:brightness-110 disabled:opacity-60"
+                  className={cn('h-14 w-full rounded-[22px] border border-fuchsia-300/30 bg-gradient-to-r from-fuchsia-500 via-violet-500 to-purple-500 text-base font-black text-white shadow-[0_18px_45px_rgba(168,85,247,0.32)] hover:brightness-110 disabled:opacity-60', compact && 'h-10 text-[11px]')}
                   disabled={isWatchingAd}
                 >
                   <Clapperboard className="mr-2 h-5 w-5" />
-                  {isWatchingAd ? 'Video Yükleniyor...' : 'Hemen Bitir (Reklam İzle)'}
+                  {isWatchingAd ? t('training.actions.loadingAd') : t('training.actions.finishWithAd')}
                 </Button>
               </>
             )}
-            <p className="text-center text-xs text-slate-400">
-              Antrenman devam ederken seçimler kilitlenir.
+            <p className={cn('text-center text-xs text-slate-400', compact && 'text-[10px]')}>
+              {t('training.labels.lockedHint')}
             </p>
           </div>
         )}
       </CardContent>
     </Card>
-  );
+    );
+  };
 
   const renderSelectionAndControlColumn = (
     options?: {
       className?: string;
       selectionGridClassName?: string;
+      compactSelected?: boolean;
+      compactControl?: boolean;
       selectedPanelContentClassName?: string;
       selectedPanelScrollAreaClassName?: string;
+      controlPanelClassName?: string;
     },
   ) => (
     <div className={cn('min-h-0 flex flex-col gap-3', options?.className)}>
       <div className={cn('grid gap-3 md:grid-cols-2', options?.selectionGridClassName)}>
         {renderSelectedPlayersPanel({
+          compact: options?.compactSelected,
           contentClassName: options?.selectedPanelContentClassName,
           scrollAreaClassName: options?.selectedPanelScrollAreaClassName,
         })}
         {renderSelectedTrainingsPanel({
+          compact: options?.compactSelected,
           contentClassName: options?.selectedPanelContentClassName,
           scrollAreaClassName: options?.selectedPanelScrollAreaClassName,
         })}
       </div>
-      {renderTrainingControlPanel()}
+      {renderTrainingControlPanel({ compact: options?.compactControl, className: options?.controlPanelClassName })}
     </div>
   );
+
+  const renderCompactSelectionCard = (
+    kind: 'players' | 'trainings',
+  ) => {
+    const isPlayerCard = kind === 'players';
+    const dropType: 'player' | 'training' = isPlayerCard ? 'player' : 'training';
+    const items = isPlayerCard ? selectedPlayers : selectedTrainings;
+    const title = isPlayerCard ? 'Secili Oyuncu' : 'Secili Antrenman';
+    const accentClass = isPlayerCard
+      ? 'border-cyan-400/14 bg-cyan-500/[0.06]'
+      : 'border-emerald-400/14 bg-emerald-500/[0.06]';
+    const emptyText = isPlayerCard
+      ? t('training.empty.selectedPlayers')
+      : t('training.empty.selectedTrainings');
+
+    return (
+      <Card
+        ref={isPlayerCard ? selectedPlayersDropzoneRef : selectedTrainingsDropzoneRef}
+        data-training-dropzone={dropType}
+        onDragOver={event => handleDragOver(event, dropType)}
+        onDrop={event => handleDrop(event, dropType)}
+        className={cn(
+          panelClass,
+          'h-[132px] rounded-[20px] border border-dashed border-white/10 bg-[#040b1d]/70',
+          (draggingType === dropType ||
+            (touchDragPayload?.type === dropType && touchDropTarget === dropType)) &&
+            (isPlayerCard
+              ? 'border-cyan-300/45 shadow-[0_0_0_1px_rgba(34,211,238,0.16),0_18px_40px_rgba(34,211,238,0.18)]'
+              : 'border-emerald-300/45 shadow-[0_0_0_1px_rgba(74,222,128,0.16),0_18px_40px_rgba(16,185,129,0.18)]'),
+        )}
+      >
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 p-2 pb-1">
+          <CardTitle className="text-[9px] font-semibold uppercase tracking-[0.08em] text-slate-100">
+            {title}
+          </CardTitle>
+          <span className="rounded-full border border-white/10 bg-slate-950/80 px-2 py-0.5 text-[9px] font-semibold text-slate-200">
+            {items.length}
+          </span>
+        </CardHeader>
+        <CardContent className="flex h-[94px] flex-col gap-1 p-2 pt-0">
+          {items.length === 0 ? (
+            <div className="flex h-full items-center justify-center rounded-[14px] border border-dashed border-white/10 bg-slate-950/60 px-2 text-center text-[9px] leading-snug text-slate-400">
+              {emptyText}
+            </div>
+          ) : (
+            <ScrollArea className="h-full pr-1">
+              <div className="space-y-1.5">
+                {items.map(item => (
+                  <div
+                    key={item.id}
+                    className={cn('rounded-[12px] border px-2 py-1.5 text-[9px] shadow-[0_12px_24px_rgba(0,0,0,0.18)]', accentClass)}
+                  >
+                    <p className="truncate font-semibold text-white">{item.name}</p>
+                    <p className="mt-0.5 truncate text-[9px] text-slate-400">
+                      {isPlayerCard
+                        ? `${(item as Player).position} · ${t('training.labels.overall')} ${formatRatingLabel((item as Player).overall)}`
+                        : `${t('common.minutesShort', { value: (item as Training).duration })} · ${getTrainingAttributeLabel((item as Training).type)}`}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </ScrollArea>
+          )}
+        </CardContent>
+      </Card>
+    );
+  };
+
+  const renderCompactTrainingControlPanel = () => (
+    <Card className={cn(panelClass, 'h-[94px] rounded-[20px]')}>
+      <CardHeader className="space-y-1 p-2 pb-1">
+        <CardTitle className="flex items-center gap-1.5 text-[9px] font-semibold uppercase tracking-[0.08em] text-slate-100">
+          <ClipboardList className="h-4 w-4 text-sky-300" />
+          {t('training.control')}
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="flex h-[58px] flex-col gap-1 p-2 pt-0">
+        <div className="flex items-center justify-between rounded-[12px] border border-white/10 bg-slate-950/70 px-2 py-1 text-[8px] text-slate-300">
+          <span className="uppercase tracking-[0.08em] text-slate-400">
+            {isTraining ? t('training.labels.started') : canStart ? t('training.labels.sessionReady') : t('training.labels.sessionIdle')}
+          </span>
+          <span className="font-semibold text-white">
+            {isTraining ? formatTime(timeLeft) : formatMinutesShort(sessionDurationMinutes)}
+          </span>
+        </div>
+        {!isTraining ? (
+          <Button
+            onClick={handleStartTraining}
+            disabled={!canStart}
+            className="h-8 w-full rounded-[14px] border border-cyan-300/20 bg-gradient-to-r from-cyan-400 via-sky-400 to-emerald-400 text-[9px] font-black uppercase tracking-[0.08em] text-slate-950 disabled:cursor-not-allowed disabled:border-white/10 disabled:bg-slate-900 disabled:text-slate-500"
+          >
+            {t('training.actions.start')}
+          </Button>
+        ) : (
+          <div className="grid grid-cols-2 gap-2">
+            <Button
+              onClick={handleFinishWithDiamonds}
+              variant="outline"
+              className="h-8 rounded-[12px] border border-amber-400/25 bg-amber-500/10 px-2 text-[8px] text-amber-100 hover:bg-amber-500/16"
+              disabled={isFinishingWithDiamonds}
+            >
+              <Diamond className="mr-1.5 h-3.5 w-3.5" />
+              {finishDiamondCost}
+            </Button>
+            <Button
+              onClick={handleWatchAd}
+              variant="secondary"
+              className="h-8 rounded-[12px] border border-fuchsia-300/30 bg-gradient-to-r from-fuchsia-500 via-violet-500 to-purple-500 px-2 text-[8px] font-black text-white shadow-[0_16px_30px_rgba(168,85,247,0.24)] hover:brightness-110 disabled:opacity-60"
+              disabled={isWatchingAd}
+            >
+              <Clapperboard className="mr-1.5 h-3.5 w-3.5" />
+              {isWatchingAd ? t('training.actions.loadingAd') : t('training.actions.finishWithAd')}
+            </Button>
+          </div>
+        )}
+        <div className="hidden flex-wrap items-center gap-1 text-[9px] text-slate-400">
+          <span className="rounded-full border border-white/10 bg-slate-950/70 px-2 py-1">
+            {selectedPlayers.length} Oyuncu
+          </span>
+          <span className="rounded-full border border-white/10 bg-slate-950/70 px-2 py-1">
+            {selectedTrainings.length} Antrenman
+          </span>
+          <span className="rounded-full border border-white/10 bg-slate-950/70 px-2 py-1">
+            {totalAssignments} Komb.
+          </span>
+        </div>
+      </CardContent>
+    </Card>
+  );
+
+  const renderLibraryViewSwitcher = (compact = false) => (
+    <div
+      className={cn(
+        'grid w-full grid-cols-2 rounded-[20px] border border-white/10 bg-[#030b1b]/80 p-1',
+        compact ? 'gap-1' : 'gap-1.5 rounded-[22px] p-1.5',
+      )}
+    >
+      <button
+        type="button"
+        onClick={() => setMobileLibraryView('players')}
+        className={cn(
+          'rounded-[16px] font-semibold transition',
+          compact ? 'py-2 text-xs' : 'py-3 text-sm',
+          mobileLibraryView === 'players'
+            ? 'bg-cyan-500/12 text-cyan-100 shadow-[inset_0_0_0_1px_rgba(34,211,238,0.18)]'
+            : 'text-slate-400 hover:text-slate-200',
+        )}
+      >
+        {t('training.players')}
+      </button>
+      <button
+        type="button"
+        onClick={() => setMobileLibraryView('trainings')}
+        className={cn(
+          'rounded-[16px] font-semibold transition',
+          compact ? 'py-2 text-xs' : 'py-3 text-sm',
+          mobileLibraryView === 'trainings'
+            ? 'bg-emerald-500/12 text-emerald-100 shadow-[inset_0_0_0_1px_rgba(74,222,128,0.18)]'
+            : 'text-slate-400 hover:text-slate-200',
+        )}
+      >
+        {t('training.trainings')}
+      </button>
+    </div>
+  );
+
+  const renderMobileLibraryPanel = (options?: {
+    compact?: boolean;
+    playersHeightClass?: string;
+    trainingsHeightClass?: string;
+  }) => {
+    const compact = options?.compact ?? false;
+
+    return (
+      <div className={cn('flex min-h-0 flex-col', compact ? 'gap-2' : 'gap-3')}>
+        {renderLibraryViewSwitcher(compact)}
+        {mobileLibraryView === 'players'
+          ? renderPlayersPanel(options?.playersHeightClass)
+          : renderTrainingsPanel(options?.trainingsHeightClass)}
+      </div>
+    );
+  };
 
   return (
     <div className="relative flex h-[100dvh] min-h-0 flex-col overflow-hidden bg-[#020617] text-slate-100">
       <div aria-hidden="true" className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.16),transparent_28%),radial-gradient(circle_at_top_right,rgba(168,85,247,0.14),transparent_26%),radial-gradient(circle_at_bottom,rgba(16,185,129,0.14),transparent_30%),linear-gradient(180deg,rgba(2,6,23,0.96),rgba(2,6,23,1))]" />
+      {touchDragPayload && touchDragPoint && touchDragMovedRef.current ? (
+        <div
+          className="pointer-events-none fixed z-[120] -translate-x-1/2 -translate-y-1/2"
+          style={{ left: touchDragPoint.x, top: touchDragPoint.y }}
+        >
+          <div
+            className={cn(
+              'rounded-full border px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.14em] shadow-[0_18px_36px_rgba(0,0,0,0.34)] backdrop-blur-xl',
+              touchDragPayload.type === 'player'
+                ? 'border-cyan-300/35 bg-cyan-400/20 text-cyan-50'
+                : 'border-emerald-300/35 bg-emerald-400/20 text-emerald-50',
+            )}
+          >
+            {touchDragPayload.type === 'player' ? t('training.players') : t('training.trainings')}
+          </div>
+        </div>
+      ) : null}
       <div
         className={cn(
           'relative z-20 shrink-0 border-b border-cyan-400/10 bg-[#030712]/90 shadow-[0_24px_60px_rgba(0,0,0,0.52)] backdrop-blur-2xl',
@@ -1865,33 +2459,33 @@ export default function TrainingPage() {
               )}
             />
             <div>
-              <p className="text-[10px] uppercase tracking-[0.28em] text-cyan-300">Training Hub</p>
-              <h1 className={cn('font-black uppercase tracking-[0.08em] text-white', isCompactLandscape ? 'text-[15px] leading-none' : 'text-xl sm:text-2xl')}>Antrenman Merkezi</h1>
+              <p className="text-[10px] uppercase tracking-[0.28em] text-cyan-300">{t('training.hubLabel')}</p>
+              <h1 className={cn('font-black uppercase tracking-[0.08em] text-white', isCompactLandscape ? 'text-[15px] leading-none' : 'text-xl sm:text-2xl')}>{t('training.title')}</h1>
             </div>
           </div>
           <div className="flex items-center gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            <Button variant="secondary" size="sm" className={cn('shrink-0 rounded-2xl border border-white/10 bg-slate-950/80 font-semibold uppercase text-slate-100 transition hover:border-cyan-300/35 hover:bg-slate-900/90 disabled:opacity-40', isCompactLandscape ? 'h-7 px-2 text-[9px] tracking-[0.1em]' : 'h-10 px-3 text-[11px] tracking-[0.16em] sm:h-11 sm:px-4 sm:text-xs sm:tracking-[0.22em]')} disabled={isTraining || squadRoleSelections.starters.length === 0} onClick={() => handleSquadSelection('starters')}>İlk 11</Button>
-            <Button variant="secondary" size="sm" className={cn('shrink-0 rounded-2xl border border-white/10 bg-slate-950/80 font-semibold uppercase text-slate-100 transition hover:border-cyan-300/35 hover:bg-slate-900/90 disabled:opacity-40', isCompactLandscape ? 'h-7 px-2 text-[9px] tracking-[0.1em]' : 'h-10 px-3 text-[11px] tracking-[0.16em] sm:h-11 sm:px-4 sm:text-xs sm:tracking-[0.22em]')} disabled={isTraining || squadRoleSelections.bench.length === 0} onClick={() => handleSquadSelection('bench')}>Yedekler</Button>
-            <Button variant="secondary" size="sm" className={cn('shrink-0 rounded-2xl border border-white/10 bg-slate-950/80 font-semibold uppercase text-slate-100 transition hover:border-cyan-300/35 hover:bg-slate-900/90 disabled:opacity-40', isCompactLandscape ? 'h-7 px-2 text-[9px] tracking-[0.1em]' : 'h-10 px-3 text-[11px] tracking-[0.16em] sm:h-11 sm:px-4 sm:text-xs sm:tracking-[0.22em]')} disabled={isTraining || squadRoleSelections.reserves.length === 0} onClick={() => handleSquadSelection('reserves')}>Kadro Dışı</Button>
+            <Button variant="secondary" size="sm" className={cn('shrink-0 rounded-2xl border border-white/10 bg-slate-950/80 font-semibold uppercase text-slate-100 transition hover:border-cyan-300/35 hover:bg-slate-900/90 disabled:opacity-40', isCompactLandscape ? 'h-7 px-2 text-[9px] tracking-[0.1em]' : 'h-10 px-3 text-[11px] tracking-[0.16em] sm:h-11 sm:px-4 sm:text-xs sm:tracking-[0.22em]')} disabled={isTraining || squadRoleSelections.starters.length === 0} onClick={() => handleSquadSelection('starters')}>{t('training.squadFilters.starters')}</Button>
+            <Button variant="secondary" size="sm" className={cn('shrink-0 rounded-2xl border border-white/10 bg-slate-950/80 font-semibold uppercase text-slate-100 transition hover:border-cyan-300/35 hover:bg-slate-900/90 disabled:opacity-40', isCompactLandscape ? 'h-7 px-2 text-[9px] tracking-[0.1em]' : 'h-10 px-3 text-[11px] tracking-[0.16em] sm:h-11 sm:px-4 sm:text-xs sm:tracking-[0.22em]')} disabled={isTraining || squadRoleSelections.bench.length === 0} onClick={() => handleSquadSelection('bench')}>{t('training.squadFilters.bench')}</Button>
+            <Button variant="secondary" size="sm" className={cn('shrink-0 rounded-2xl border border-white/10 bg-slate-950/80 font-semibold uppercase text-slate-100 transition hover:border-cyan-300/35 hover:bg-slate-900/90 disabled:opacity-40', isCompactLandscape ? 'h-7 px-2 text-[9px] tracking-[0.1em]' : 'h-10 px-3 text-[11px] tracking-[0.16em] sm:h-11 sm:px-4 sm:text-xs sm:tracking-[0.22em]')} disabled={isTraining || squadRoleSelections.reserves.length === 0} onClick={() => handleSquadSelection('reserves')}>{t('training.squadFilters.reserves')}</Button>
             <Sheet>
               <SheetTrigger asChild>
                 <Button variant="outline" size="sm" className={cn('shrink-0 rounded-2xl border border-white/10 bg-slate-950/80 font-semibold text-slate-100 hover:border-cyan-300/35 hover:bg-slate-900/90', isCompactLandscape ? 'h-7 px-2 text-[9px]' : 'h-10 px-3 text-xs sm:h-11 sm:px-4 sm:text-sm')}>
                   <History className="mr-2 h-4 w-4" />
-                  Geçmiş
+                  {t('training.squadFilters.history')}
                 </Button>
               </SheetTrigger>
               <SheetContent className="flex h-full flex-col gap-4 border-l border-cyan-400/10 bg-[#020617]/98 px-5 py-5 text-slate-100 sm:max-w-lg">
                 <SheetHeader className="space-y-2 text-left">
-                  <p className="text-[11px] uppercase tracking-[0.22em] text-cyan-300">Sonuçlar</p>
-                  <SheetTitle className="text-left text-xl font-semibold text-white">Antrenman Geçmişi</SheetTitle>
+                  <p className="text-[11px] uppercase tracking-[0.22em] text-cyan-300">{t('training.labels.results')}</p>
+                  <SheetTitle className="text-left text-xl font-semibold text-white">{t('training.labels.historyTitle')}</SheetTitle>
                 </SheetHeader>
                 <div className="rounded-[22px] border border-white/10 bg-white/[0.03] p-4 text-sm text-slate-400">
-                  En yeni 5 kayıt gösteriliyor. Sistem yalnızca son 10 kaydı saklar.
+                  {t('training.labels.historyDescription')}
                 </div>
                 <div className="min-h-0 flex-1">
                   <ScrollArea className="h-full pr-2">
                     {visibleHistory.length === 0 ? (
-                      <div className="flex min-h-[320px] items-center justify-center rounded-[22px] border border-dashed border-white/10 bg-slate-950/60 px-4 text-center text-sm text-slate-400">Henüz antrenman kaydı bulunmuyor.</div>
+                      <div className="flex min-h-[320px] items-center justify-center rounded-[22px] border border-dashed border-white/10 bg-slate-950/60 px-4 text-center text-sm text-slate-400">{t('training.empty.noHistory')}</div>
                     ) : (
                       <div className="space-y-3">
                         {visibleHistory.map(record => {
@@ -1901,19 +2495,26 @@ export default function TrainingPage() {
                             <div key={record.id} className={cn('rounded-[22px] border p-4 text-sm shadow-[0_18px_40px_rgba(0,0,0,0.18)]', getTrainingHistoryCardClass(record.result))}>
                               <div className="mb-3 flex items-center justify-between gap-3">
                                 <div>
-                                  <p className="font-semibold text-white">{player?.name ?? 'Bilinmeyen Oyuncu'}</p>
-                                  <p className="text-xs text-slate-400">{training?.name ?? 'Bilinmeyen Antrenman'}</p>
+                                  <p className="font-semibold text-white">{player?.name ?? t('training.empty.unknownPlayer')}</p>
+                                  <p className="text-xs text-slate-400">{training?.name ?? t('training.empty.unknownTraining')}</p>
                                 </div>
-                                <span className="text-xs text-slate-400">{record.completedAt?.toDate().toLocaleDateString('tr-TR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
+                                <span className="text-xs text-slate-400">{record.completedAt ? formatDate(record.completedAt.toDate(), { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : ''}</span>
                               </div>
                               <div className="flex items-center justify-between gap-3">
                                 <div className="min-w-0">
                                   {record.gain > 0 ? (
                                     <span className="text-xs font-medium text-emerald-300">
-                                      {training?.type ? `${getTrainingAttributeLabel(training.type)}: +${(record.gain * 100).toFixed(1)}` : `Gelişim: +${(record.gain * 100).toFixed(1)}`}
+                                      {training?.type
+                                        ? t('training.labels.gain', {
+                                            label: getTrainingAttributeLabel(training.type),
+                                            value: (record.gain * 100).toFixed(1),
+                                          })
+                                        : t('training.labels.development', {
+                                            value: (record.gain * 100).toFixed(1),
+                                          })}
                                     </span>
                                   ) : (
-                                    <span className="text-xs text-slate-500">Bu çalışmada gelişim oluşmadı.</span>
+                                    <span className="text-xs text-slate-500">{t('training.empty.noGrowth')}</span>
                                   )}
                                 </div>
                                 <span className={cn('rounded-full px-3 py-1 text-xs font-semibold', getTrainingHistoryBadgeClass(record.result))}>{getTrainingResultLabel(record.result)}</span>
@@ -1951,7 +2552,7 @@ export default function TrainingPage() {
                     displayMetric === option.key ? option.activeClass : option.idleClass,
                   )}
                 >
-                  {option.label}
+                  {t(option.labelKey)}
                 </button>
               ))}
             </div>
@@ -1960,159 +2561,69 @@ export default function TrainingPage() {
             className={cn(
               'grid min-h-0 w-full flex-1 pb-2',
               isCompactLandscape
-                ? 'grid-cols-[minmax(0,1fr)_minmax(0,1.08fr)_minmax(0,1fr)] gap-1.5 overflow-hidden pb-0'
-                : 'min-w-[900px] grid-cols-[220px_minmax(360px,1fr)_220px] md:min-w-[980px] md:grid-cols-[230px_minmax(420px,1fr)_230px] lg:min-w-0 lg:gap-3 lg:overflow-visible lg:grid-cols-[320px_minmax(0,1.35fr)_340px] xl:grid-cols-[340px_minmax(0,1.45fr)_360px]',
+                ? 'grid-cols-[minmax(0,0.98fr)_minmax(0,1.08fr)_minmax(0,1.1fr)] gap-2 overflow-hidden pb-0'
+                : 'grid-cols-1 gap-3 lg:grid-cols-[320px_minmax(0,1.35fr)_340px] lg:overflow-visible xl:grid-cols-[340px_minmax(0,1.45fr)_360px]',
             )}
           >
-            <div className="order-1 min-h-0 min-w-0">
-              {renderPlayersPanel(
-                isCompactLandscape
-                  ? 'h-full w-full'
-                  : 'h-[calc(100dvh-220px)] min-h-[320px] md:h-[calc(100dvh-235px)] md:min-h-[380px] lg:h-full w-full',
-              )}
-            </div>
-
-            <div className={cn('order-2 min-h-0 min-w-0 flex flex-col', isCompactLandscape ? 'gap-1.5' : 'gap-3')}>
-              <div className={cn('grid min-h-0 grid-cols-2', isCompactLandscape ? 'shrink-0 gap-1' : 'gap-2.5 lg:gap-3')}>
-                <Card onDragOver={event => handleDragOver(event, 'player')} onDrop={event => handleDrop(event, 'player')} className={cn(panelClass, 'min-w-0 rounded-[28px] border border-dashed border-white/10 bg-[#040b1d]/70', draggingType === 'player' && 'border-cyan-300/45 shadow-[0_0_0_1px_rgba(34,211,238,0.16),0_18px_40px_rgba(34,211,238,0.18)]', isTraining && 'opacity-70')}>
-                  <CardHeader className={cn('space-y-3 p-4 pb-3 sm:space-y-4 sm:p-5 sm:pb-4', isCompactLandscape && 'space-y-1.5 p-2.5 pb-1.5')}>
-                    <CardTitle className={sectionTitleClass}><Users className="h-5 w-5 text-cyan-300" />Seçilen Oyuncular ({selectedPlayers.length})</CardTitle>
-                  </CardHeader>
-                  <CardContent className={cn('p-3.5 pt-0 sm:min-h-[220px] sm:p-4 sm:pt-0', isCompactLandscape ? 'min-h-[72px] p-2.5 pt-0' : 'min-h-[170px]')}>
-                    {selectedPlayers.length === 0 ? (
-                      <div className={cn('flex items-center justify-center rounded-[22px] border border-dashed border-white/10 bg-slate-950/60 px-4 text-center text-sm text-slate-400 sm:min-h-[150px]', isCompactLandscape ? 'min-h-[44px] text-[10px] leading-snug' : 'min-h-[110px]')}>Oyuncuları sürükleyip bırakın veya çift tıklayın.</div>
-                    ) : (
-                      <div className={cn(isCompactLandscape ? 'max-h-[48px] space-y-1 overflow-y-auto pr-1' : 'space-y-3')}>
-                        {selectedPlayers.map(player => {
-                          const metricValue = getDisplayMetricValue(player, displayMetric);
-                          const metricBadgeClass =
-                            displayMetric === 'overall'
-                              ? getOverallBadgeClass(player.overall)
-                              : activeDisplayMetric.badgeClass;
-
-                          return (
-                            <div key={player.id} className={cn('flex items-center gap-3 rounded-[22px] border border-cyan-400/20 bg-cyan-500/10 shadow-[0_18px_36px_rgba(8,145,178,0.14)]', isCompactLandscape ? 'gap-1.5 p-1.5' : 'p-3')}>
-                              <div className={cn('flex items-center justify-center rounded-[18px] border border-cyan-400/25 bg-cyan-400/10 text-sm font-black uppercase tracking-[0.18em] text-cyan-100', isCompactLandscape ? 'h-8 w-8 text-[10px]' : 'h-14 w-14')}>{getPlayerInitials(player.name)}</div>
-                              <div className="min-w-0 flex-1">
-                                <p className={cn('truncate font-semibold text-white', isCompactLandscape ? 'text-[11px] leading-tight' : '')}>{player.name}</p>
-                                <p className={cn('truncate text-slate-400', isCompactLandscape ? 'text-[9px]' : 'text-sm')}>{player.position} • Genel {formatRatingLabel(player.overall)}</p>
-                                <div className={cn('flex items-center justify-between uppercase tracking-[0.18em] text-slate-500', isCompactLandscape ? 'mt-0.5 text-[8px]' : 'mt-2 text-[11px]')}>
-                                  <span>{activeDisplayMetric.label}</span>
-                                  <span className="text-slate-300">{metricValue}</span>
-                                </div>
-                                <div className={cn('overflow-hidden rounded-full bg-slate-950/80', isCompactLandscape ? 'mt-1 h-1.5' : 'mt-1.5 h-1.5')}>
-                                  <div className={cn('h-full rounded-full', activeDisplayMetric.barClass)} style={{ width: `${metricValue}%` }} />
-                                </div>
-                              </div>
-                              <div className={cn('flex items-center justify-center rounded-[16px] font-black', metricBadgeClass, isCompactLandscape ? 'h-7 min-w-[34px] px-1.5 text-[10px]' : 'h-11 min-w-[50px] px-3 text-lg')}>{displayMetric === 'overall' ? formatRatingLabel(player.overall) : metricValue}</div>
-                              <Button variant="ghost" size="icon" className={cn('rounded-full text-slate-400 hover:bg-white/10 hover:text-white', isCompactLandscape ? 'h-5 w-5' : 'h-9 w-9')} onClick={() => removeSelectedPlayer(player.id)}><X className="h-3.5 w-3.5" /></Button>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-
-                <Card onDragOver={event => handleDragOver(event, 'training')} onDrop={event => handleDrop(event, 'training')} className={cn(panelClass, 'min-w-0 rounded-[28px] border border-dashed border-white/10 bg-[#040b1d]/70', draggingType === 'training' && 'border-emerald-300/45 shadow-[0_0_0_1px_rgba(74,222,128,0.16),0_18px_40px_rgba(16,185,129,0.18)]', isTraining && 'opacity-70')}>
-                  <CardHeader className={cn('space-y-3 p-4 pb-3 sm:space-y-4 sm:p-5 sm:pb-4', isCompactLandscape && 'space-y-1.5 p-2.5 pb-1.5')}>
-                    <CardTitle className={sectionTitleClass}><Dumbbell className="h-5 w-5 text-emerald-300" />Seçilen Antrenmanlar ({selectedTrainings.length})</CardTitle>
-                  </CardHeader>
-                  <CardContent className={cn('p-3.5 pt-0 sm:min-h-[220px] sm:p-4 sm:pt-0', isCompactLandscape ? 'min-h-[72px] p-2.5 pt-0' : 'min-h-[170px]')}>
-                    {selectedTrainings.length === 0 ? (
-                      <div className={cn('flex items-center justify-center rounded-[22px] border border-dashed border-white/10 bg-slate-950/60 px-4 text-center text-sm text-slate-400 sm:min-h-[150px]', isCompactLandscape ? 'min-h-[44px] text-[10px] leading-snug' : 'min-h-[110px]')}>Antrenman kartlarını bu alana bırakın.</div>
-                    ) : (
-                      <div className={cn(isCompactLandscape ? 'max-h-[48px] space-y-1 overflow-y-auto pr-1' : 'space-y-3')}>
-                        {selectedTrainings.map(training => {
-                          const accent = getTrainingAccent(training.type);
-                          return (
-                            <div key={training.id} className={cn('flex items-center gap-3 rounded-[22px] border shadow-[0_18px_36px_rgba(0,0,0,0.14)]', accent.card, accent.glow, isCompactLandscape ? 'gap-1.5 p-1.5' : 'p-3')}>
-                              <div className={cn('flex items-center justify-center rounded-[18px] border text-sm font-black uppercase tracking-[0.18em]', accent.badge, isCompactLandscape ? 'h-8 w-8 text-[10px]' : 'h-14 w-14')}>{getTrainingMonogram(training.type)}</div>
-                              <div className="min-w-0 flex-1">
-                                <p className={cn('truncate font-semibold text-white', isCompactLandscape ? 'text-[11px] leading-tight' : '')}>{training.name}</p>
-                                <p className={cn('truncate text-slate-400', isCompactLandscape ? 'text-[9px]' : 'text-sm')}>{getTrainingAttributeLabel(training.type)} • {training.duration} dk</p>
-                              </div>
-                              <Button variant="ghost" size="icon" className={cn('rounded-full text-slate-400 hover:bg-white/10 hover:text-white', isCompactLandscape ? 'h-5 w-5' : 'h-9 w-9')} onClick={() => removeSelectedTraining(training.id)}><X className="h-3.5 w-3.5" /></Button>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              </div>
-
-              <Card className={cn(panelClass, 'min-h-0 flex flex-col')}>
-                  <CardHeader className={cn('space-y-3 p-4 pb-3 sm:space-y-4 sm:p-5 sm:pb-4', isCompactLandscape && 'space-y-1.5 p-2.5 pb-1.5')}>
-                  <CardTitle className={sectionTitleClass}><ClipboardList className="h-5 w-5 text-sky-300" />Antrenman Kontrolü</CardTitle>
-                </CardHeader>
-                  <CardContent className={cn('space-y-3.5 p-4 pt-0 sm:space-y-4 sm:p-5 sm:pt-0', isCompactLandscape && 'flex min-h-0 flex-1 flex-col space-y-1.5 p-2.5 pt-0')}>
-                    <div className={cn('grid sm:grid-cols-2', isCompactLandscape ? 'gap-1' : 'gap-3')}>
-                      <div className={cn('rounded-[22px] border border-white/8 bg-white/[0.04]', isCompactLandscape ? 'p-2' : 'p-3.5 sm:p-4')}><p className={cn('uppercase tracking-[0.22em] text-slate-500', isCompactLandscape ? 'text-[9px]' : 'text-[11px]')}>Oyuncu Sayısı</p><p className={cn('font-black text-white', isCompactLandscape ? 'mt-1 text-base' : 'mt-1.5 text-2xl sm:text-3xl')}>{selectedPlayers.length}</p></div>
-                      <div className={cn('rounded-[22px] border border-white/8 bg-white/[0.04]', isCompactLandscape ? 'p-2' : 'p-3.5 sm:p-4')}><p className={cn('uppercase tracking-[0.22em] text-slate-500', isCompactLandscape ? 'text-[9px]' : 'text-[11px]')}>Antrenman Sayısı</p><p className={cn('font-black text-white', isCompactLandscape ? 'mt-1 text-base' : 'mt-1.5 text-2xl sm:text-3xl')}>{selectedTrainings.length}</p></div>
-                      <div className={cn('rounded-[22px] border border-white/8 bg-white/[0.04]', isCompactLandscape ? 'p-2' : 'p-3.5 sm:p-4')}><p className={cn('uppercase tracking-[0.22em] text-slate-500', isCompactLandscape ? 'text-[9px]' : 'text-[11px]')}>Toplam Kombinasyon</p><p className={cn('font-black text-white', isCompactLandscape ? 'mt-1 text-base' : 'mt-1.5 text-2xl sm:text-3xl')}>{totalAssignments}</p></div>
-                      <div className={cn('rounded-[22px] border border-white/8 bg-white/[0.04]', isCompactLandscape ? 'p-2' : 'p-3.5 sm:p-4')}><p className={cn('uppercase tracking-[0.22em] text-slate-500', isCompactLandscape ? 'text-[9px]' : 'text-[11px]')}>Beklenen Süre</p><p className={cn('font-black text-white', isCompactLandscape ? 'mt-1 text-base' : 'mt-1.5 text-2xl sm:text-3xl')}>{sessionDurationMinutes} dk</p></div>
+            {isCompactLandscape ? (
+              <>
+                <div className="order-1 min-h-0 min-w-0">
+                  {renderPlayersPanel('h-full w-full')}
+                </div>
+                <div className="order-2 min-h-0 min-w-0">
+                  <div className="flex h-full min-h-0 flex-col gap-2">
+                    <div className="grid grid-cols-2 gap-2">
+                      {renderCompactSelectionCard('players')}
+                      {renderCompactSelectionCard('trainings')}
                     </div>
-
-                    <div className={cn('rounded-[26px] border shadow-[0_0_0_1px_rgba(16,185,129,0.08),0_18px_48px_rgba(16,185,129,0.14)]', leadAccent.card, leadAccent.glow, isCompactLandscape ? 'flex min-h-0 flex-1 flex-col p-2.5' : 'p-5')}>
-                    <div className="flex items-start justify-between gap-4">
-                      <div>
-                        <p className="text-[11px] uppercase tracking-[0.24em] text-cyan-300">{isTraining ? 'Antrenman Başladı!' : 'Antrenman Kontrolü'}</p>
-                          <h3 className={cn('mt-1.5 font-black text-white', isCompactLandscape ? 'text-sm leading-tight' : 'text-xl sm:text-2xl')}>
-                          {isTraining ? `${formatTime(Math.max(timeLeft, 0))} / ${formatTime(activeDurationSeconds)}` : canStart ? 'Kadroyu hazırladın, başlatabilirsin.' : 'Oyuncu ve antrenman seçerek oturumu hazırla.'}
-                        </h3>
-                      </div>
-                        <div className={cn('rounded-[18px] border border-white/10 bg-slate-950/70 text-right', isCompactLandscape ? 'px-2 py-1.5' : 'px-4 py-3')}>
-                        <p className="text-[11px] uppercase tracking-[0.22em] text-slate-500">Süre</p>
-                          <p className={cn('mt-1 font-black text-white', isCompactLandscape ? 'text-base' : 'text-xl sm:text-2xl')}>{isTraining ? formatTime(timeLeft) : `${sessionDurationMinutes} dk`}</p>
-                      </div>
-                    </div>
-                      <div className={cn('overflow-hidden rounded-full bg-slate-950/80', isCompactLandscape ? 'mt-2 h-2' : 'mt-5 h-4')}>
-                      <div className={cn('h-full rounded-full bg-gradient-to-r', leadAccent.progress)} style={{ width: `${progressPercent}%` }} />
-                    </div>
-                      <div className={cn('text-sm', isCompactLandscape ? 'mt-2 space-y-1.5 text-[10px]' : 'mt-5 space-y-3')}>
-                      <div className="flex items-center justify-between gap-3"><div className="flex items-center gap-2 text-slate-400"><Clock className="h-4 w-4" /><span>Süre</span></div><span className="font-semibold text-white">{isTraining ? formatTime(timeLeft) : `${sessionDurationMinutes} dakika`}</span></div>
-                      <div className="flex items-center justify-between gap-3"><div className="flex items-center gap-2 text-slate-400"><Diamond className="h-4 w-4" /><span>Elmas Maliyeti</span></div><span className="font-semibold text-white">{diamondCost}</span></div>
-                      {isTraining && <div className="flex items-center justify-between gap-3"><div className="flex items-center gap-2 text-slate-400"><Diamond className="h-4 w-4" /><span>Erken Bitirme Ücreti</span></div><span className="font-semibold text-white">{finishDiamondCost}</span></div>}
-                      {diamondCost === 0 && <p className={cn('text-slate-400', isCompactLandscape ? 'pt-0.5 text-[9px]' : 'pt-2 text-xs')}>Bir oyuncu + bir antrenman kombinasyonu ücretsizdir.</p>}
-                    </div>
+                    {renderCompactTrainingControlPanel()}
                   </div>
+                </div>
+                <div className="order-3 min-h-0 min-w-0">
+                  {renderTrainingsPanel('h-full w-full')}
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="order-1 min-h-0 min-w-0 lg:hidden">
+                  {renderSelectionAndControlColumn({
+                    className: 'gap-2.5',
+                    selectionGridClassName: 'grid-cols-2 gap-2',
+                    compactSelected: true,
+                    compactControl: true,
+                    selectedPanelContentClassName: 'min-h-[96px] p-3 pt-0',
+                    selectedPanelScrollAreaClassName: 'max-h-[104px]',
+                  })}
+                </div>
 
-                  {!isTraining ? (
-                    <Button onClick={handleStartTraining} disabled={!canStart} className={cn('w-full rounded-[22px] border border-cyan-300/20 bg-gradient-to-r from-cyan-400 via-sky-400 to-emerald-400 font-black uppercase tracking-[0.14em] text-slate-950 shadow-[0_18px_42px_rgba(34,211,238,0.28)] disabled:cursor-not-allowed disabled:border-white/10 disabled:bg-slate-900 disabled:text-slate-500', isCompactLandscape ? 'mt-auto h-8 text-[10px]' : 'h-12 text-sm sm:h-14 sm:text-base')}>Antrenmanı Başlat</Button>
-                  ) : (
-                    <div className={cn('space-y-3', isCompactLandscape && 'mt-auto space-y-1.5')}>
-                      {timeLeft > 0 && (
-                        <>
-                          <Button onClick={handleFinishWithDiamonds} variant="outline" className={cn('w-full rounded-[18px] border border-amber-400/25 bg-amber-500/10 text-amber-100 hover:bg-amber-500/16', isCompactLandscape ? 'h-[30px] text-[10px]' : 'h-11 sm:h-12')} disabled={isFinishingWithDiamonds}><Diamond className="mr-2 h-4 w-4" />Elmasla Bitir ({finishDiamondCost})</Button>
-                          <Button onClick={handleWatchAd} variant="secondary" className={cn('w-full rounded-[22px] border border-fuchsia-300/30 bg-gradient-to-r from-fuchsia-500 via-violet-500 to-purple-500 font-black text-white shadow-[0_18px_45px_rgba(168,85,247,0.32)] hover:brightness-110 disabled:opacity-60', isCompactLandscape ? 'h-8 text-[10px]' : 'h-12 text-sm sm:h-14 sm:text-base')} disabled={isWatchingAd}><Clapperboard className="mr-2 h-5 w-5" />{isWatchingAd ? 'Video Yükleniyor...' : 'Hemen Bitir (Reklam İzle)'}</Button>
-                        </>
-                      )}
-                      <p className={cn('text-center text-slate-400', isCompactLandscape ? 'text-[9px]' : 'text-xs')}>Antrenman devam ederken seçimler kilitlenir.</p>
+                <div className="order-2 min-h-0 lg:hidden">
+                  {renderMobileLibraryPanel({
+                    playersHeightClass: 'h-[52dvh] min-h-[320px] max-h-[460px]',
+                    trainingsHeightClass: 'h-[52dvh] min-h-[320px] max-h-[460px]',
+                  })}
+                </div>
+
+                <div className="order-1 hidden min-h-0 min-w-0 lg:block">
+                  {renderPlayersPanel('h-full w-full')}
+                </div>
+                <div className="order-2 hidden min-h-0 min-w-0 lg:block">
+                  {useTightLandscapeColumns ? (
+                    <div className="flex h-full min-h-0 flex-col gap-2">
+                      <div className="grid grid-cols-2 gap-2">
+                        {renderCompactSelectionCard('players')}
+                        {renderCompactSelectionCard('trainings')}
+                      </div>
+                      {renderCompactTrainingControlPanel()}
                     </div>
+                  ) : (
+                    renderSelectionAndControlColumn()
                   )}
-                </CardContent>
-              </Card>
-            </div>
-
-            <div className="order-3 min-h-0 min-w-0">
-              {renderTrainingsPanel(
-                isCompactLandscape
-                  ? 'h-full w-full'
-                  : 'h-[calc(100dvh-220px)] min-h-[320px] md:h-[calc(100dvh-235px)] md:min-h-[380px] lg:h-full w-full',
-              )}
-            </div>
-
-            <div className="hidden order-2 min-h-0 lg:hidden">
-              <Tabs defaultValue="players" className="space-y-3">
-                <TabsList className="grid h-auto w-full grid-cols-2 rounded-[22px] border border-white/10 bg-[#030b1b]/80 p-1">
-                  <TabsTrigger value="players" className="rounded-[18px] py-3 text-sm font-semibold text-slate-400 data-[state=active]:bg-cyan-500/12 data-[state=active]:text-cyan-100 data-[state=active]:shadow-none">Oyuncular</TabsTrigger>
-                  <TabsTrigger value="trainings" className="rounded-[18px] py-3 text-sm font-semibold text-slate-400 data-[state=active]:bg-emerald-500/12 data-[state=active]:text-emerald-100 data-[state=active]:shadow-none">Antrenmanlar</TabsTrigger>
-                </TabsList>
-                <TabsContent value="players" className="mt-0">{renderPlayersPanel('min-h-[440px]')}</TabsContent>
-                <TabsContent value="trainings" className="mt-0">{renderTrainingsPanel('min-h-[440px]')}</TabsContent>
-              </Tabs>
-            </div>
+                </div>
+                <div className="order-3 hidden min-h-0 min-w-0 lg:block">
+                  {renderTrainingsPanel('h-full w-full')}
+                </div>
+              </>
+            )}
           </div>
         </div>
       </div>
@@ -2125,3 +2636,14 @@ export default function TrainingPage() {
     </div>
   );
 }
+
+
+
+
+
+
+
+
+
+
+

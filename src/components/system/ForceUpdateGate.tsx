@@ -2,6 +2,7 @@ import { App as CapacitorApp } from '@capacitor/app';
 import { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AlertTriangle, Download, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useTranslation } from '@/contexts/LanguageContext';
 import {
   createPersistedAutoStartKey,
   createPersistedGateState,
@@ -123,6 +124,7 @@ const getInitialGateState = (): GateState => {
 };
 
 const ForceUpdateGate = ({ children }: ForceUpdateGateProps) => {
+  const { t } = useTranslation();
   const [gateState, setGateState] = useState<GateState>(getInitialGateState);
   const [isStartingUpdate, setIsStartingUpdate] = useState(false);
   const lastAutoStartKeyRef = useRef<string | null>(getPersistedAutoStartKey());
@@ -367,31 +369,31 @@ const ForceUpdateGate = ({ children }: ForceUpdateGateProps) => {
 
             <div className="mt-8 grid gap-4 rounded-2xl border border-white/10 bg-slate-950/70 p-5 sm:grid-cols-2">
               <div>
-                <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Mevcut surum</p>
+                <p className="text-xs uppercase tracking-[0.2em] text-slate-500">{t('forceUpdateGate.currentVersion')}</p>
                 <p className="mt-2 text-lg font-semibold text-white">
-                  {gateState.installedVersionName || 'Bilinmiyor'}
+                  {gateState.installedVersionName || t('forceUpdateGate.unknownVersion')}
                 </p>
                 <p className="text-sm text-slate-400">
-                  Version code: {gateState.installedVersionCode ?? 'Bilinmiyor'}
+                  {t('forceUpdateGate.versionCode')}: {gateState.installedVersionCode ?? t('forceUpdateGate.unknownVersion')}
                 </p>
               </div>
               <div>
-                <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Gerekli surum</p>
+                <p className="text-xs uppercase tracking-[0.2em] text-slate-500">{t('forceUpdateGate.requiredVersion')}</p>
                 <p className="mt-2 text-lg font-semibold text-emerald-200">
                   {gateState.policy.latestVersionName}
                 </p>
                 <p className="text-sm text-slate-400">
-                  Min desteklenen code: {gateState.policy.minSupportedVersionCode}
+                  {t('forceUpdateGate.minSupportedCode')}: {gateState.policy.minSupportedVersionCode}
                 </p>
               </div>
             </div>
 
             <div className="mt-8 rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-slate-300">
               {gateState.playUpdateState.inProgress
-                ? 'Google Play guncellemesi devam ediyor. Uygulamaya geri dondugunde kontrol tekrar yapilir.'
+                ? t('forceUpdateGate.updateInProgress')
                 : gateState.playUpdateState.immediateAllowed
-                  ? 'Google Play zorunlu guncelleme akisi destekleniyor. Butona bastiginda resmi guncelleme ekrani acilir.'
-                  : 'Google Play zorunlu guncelleme akisi kullanilamadi. Magaza sayfasi acilarak guncelleme istenir.'}
+                  ? t('forceUpdateGate.immediateSupported')
+                  : t('forceUpdateGate.storeFallback')}
             </div>
 
             <div className="mt-8">
@@ -405,7 +407,7 @@ const ForceUpdateGate = ({ children }: ForceUpdateGateProps) => {
                 ) : (
                   <Download className="mr-2 h-4 w-4" />
                 )}
-                Google Play'de guncelle
+                {t('forceUpdateGate.updateButton')}
               </Button>
             </div>
           </div>
@@ -428,9 +430,9 @@ const ForceUpdateGate = ({ children }: ForceUpdateGateProps) => {
         <div className="flex flex-col items-center gap-4 rounded-3xl border border-white/10 bg-slate-900/75 px-8 py-10 text-center shadow-2xl backdrop-blur-xl">
           <Loader2 className="h-8 w-8 animate-spin text-emerald-300" />
           <div>
-            <p className="text-lg font-semibold">Surum kontrol ediliyor</p>
+            <p className="text-lg font-semibold">{t('forceUpdateGate.checkingTitle')}</p>
             <p className="mt-2 text-sm text-slate-400">
-              Uygulama guncelleme gereksinimleri dogrulaniyor.
+              {t('forceUpdateGate.checkingMessage')}
             </p>
           </div>
         </div>

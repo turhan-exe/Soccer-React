@@ -1,8 +1,10 @@
 import React from 'react';
+
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Slider } from '@/components/ui/slider';
+import { useTranslation } from '@/contexts/LanguageContext';
 import { clampNumber, formatSalary, type SalaryNegotiationProfile } from '@/lib/contractNegotiation';
 import type { Player } from '@/types';
 
@@ -43,38 +45,45 @@ export function SalaryNegotiationDialog({
   onAcceptCounter,
   onRejectCounter,
 }: SalaryNegotiationDialogProps) {
+  const { t } = useTranslation();
+
   return (
     <Dialog open={Boolean(player)} onOpenChange={open => !open && onClose()}>
       <DialogContent className="sm:max-w-lg w-[min(92vw,520px)] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Maaş Pazarlığı</DialogTitle>
+          <DialogTitle>{t('teamPlanning.salaryDialog.title')}</DialogTitle>
           <DialogDescription>
-            {player ? `${player.name} ile yeni maaş teklifi üzerinde çalışılıyor.` : 'Bir oyuncu seçin.'}
+            {player
+              ? t('teamPlanning.salaryDialog.subtitleWithName', { name: player.name })
+              : t('teamPlanning.salaryDialog.subtitleFallback')}
           </DialogDescription>
         </DialogHeader>
         {profile && player ? (
           <div className="space-y-3">
-            <div className="rounded-md border border-muted bg-muted/40 p-3 text-sm space-y-1">
-              <p>Güncel maaş: {formatSalary(profile.baseSalary)}</p>
-              <p>Oyuncunun beklentisi: {formatSalary(profile.demand)}</p>
-              <p>Kalan hak: {Math.max(maxAttempts - attempt, 0)}</p>
+            <div className="space-y-1 rounded-md border border-muted bg-muted/40 p-3 text-sm">
+              <p>{t('teamPlanning.salaryDialog.currentSalary', { value: formatSalary(profile.baseSalary) })}</p>
+              <p>{t('teamPlanning.salaryDialog.expectedSalary', { value: formatSalary(profile.demand) })}</p>
+              <p>{t('teamPlanning.salaryDialog.attemptsLeft', { value: Math.max(maxAttempts - attempt, 0) })}</p>
               <p>
-                Aralık: {formatSalary(minOffer)} – {formatSalary(profile.ceiling)}
+                {t('teamPlanning.salaryDialog.range', {
+                  min: formatSalary(minOffer),
+                  max: formatSalary(profile.ceiling),
+                })}
               </p>
             </div>
             {counterOffer !== null ? (
               <div className="rounded-md border border-amber-300/40 bg-amber-50 p-3 text-sm text-amber-900">
-                <p>Oyuncunun karşı teklifi: {formatSalary(counterOffer)}</p>
+                <p>{t('teamPlanning.salaryDialog.counterOffer', { value: formatSalary(counterOffer) })}</p>
                 <p className="text-xs">
                   {isFinalCounter
-                    ? 'Bu son teklif. Kabul edebilir veya reddedebilirsin.'
-                    : 'Teklifini güncelleyerek pazarlığa devam edebilirsin.'}
+                    ? t('teamPlanning.salaryDialog.finalCounter')
+                    : t('teamPlanning.salaryDialog.continueCounter')}
                 </p>
               </div>
             ) : null}
             <div className="space-y-2">
               <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                <span>Teklifiniz</span>
+                <span>{t('teamPlanning.salaryDialog.yourOffer')}</span>
                 <span>{formatSalary(offer)}</span>
               </div>
               <Slider
@@ -107,29 +116,31 @@ export function SalaryNegotiationDialog({
               />
             </div>
             <p className="text-xs text-muted-foreground">
-              Tahmini kabul şansı: %{Math.round(confidence * 100)}
+              {t('teamPlanning.salaryDialog.acceptanceChance', {
+                value: Math.round(confidence * 100),
+              })}
             </p>
             <p className="text-xs text-muted-foreground">{profile.narrative}</p>
           </div>
         ) : (
-          <p className="text-sm text-muted-foreground">Oyuncu bilgisi yükleniyor.</p>
+          <p className="text-sm text-muted-foreground">{t('teamPlanning.salaryDialog.loading')}</p>
         )}
         {isFinalCounter ? (
           <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:justify-end">
             <Button variant="secondary" disabled={isSubmitting} onClick={onRejectCounter}>
-              Reddet
+              {t('teamPlanning.salaryDialog.reject')}
             </Button>
             <Button disabled={isSubmitting || !profile} onClick={onAcceptCounter}>
-              Karşı Teklifi Kabul Et
+              {t('teamPlanning.salaryDialog.acceptCounter')}
             </Button>
           </div>
         ) : (
           <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:justify-end">
             <Button variant="secondary" onClick={onClose}>
-              Vazgeç
+              {t('teamPlanning.salaryDialog.cancel')}
             </Button>
             <Button disabled={isSubmitting || !profile || !Number.isFinite(offer) || isLocked} onClick={onSubmit}>
-              Teklifi Gönder
+              {t('teamPlanning.salaryDialog.submit')}
             </Button>
           </div>
         )}
