@@ -3,6 +3,7 @@ param(
     [int]$HangTimeoutSec = 900,
     [int]$TotalTimeoutSec = 2400,
     [switch]$UseBeeBuilder,
+    [switch]$ExcludeMatchViewerFromMobileAssets,
     [switch]$SkipWebPrepare,
     [switch]$SkipUnityExport
 )
@@ -18,6 +19,7 @@ $unityExportScript = Join-Path $repoRoot 'scripts\run-unity-android-export.cmd'
 $manifestScript = Join-Path $repoRoot 'scripts\write-android-build-manifest.ps1'
 $verifyScript = Join-Path $repoRoot 'scripts\android-verify-apk-manifest.ps1'
 $apkPath = Join-Path $repoRoot 'android\app\build\outputs\apk\debug\app-debug.apk'
+$mobileExcludedMatchViewerDir = Join-Path $repoRoot 'android\app\src\main\assets\public\Unity\match-viewer'
 $timestamp = Get-Date -Format 'yyyyMMdd-HHmmss'
 $diagRoot = Join-Path $repoRoot ".tmp\android-il2cpp-diag\$timestamp"
 $logFile = Join-Path $diagRoot 'gradle-assemble.log'
@@ -103,6 +105,17 @@ if (-not $SkipUnityExport) {
 
 & $syncScript -FullReplace -SafeMode -RequireManifest
 
+if ($ExcludeMatchViewerFromMobileAssets -and (Test-Path -LiteralPath $mobileExcludedMatchViewerDir)) {
+    $resolvedRepoRoot = [System.IO.Path]::GetFullPath($repoRoot)
+    $resolvedMatchViewerDir = [System.IO.Path]::GetFullPath($mobileExcludedMatchViewerDir)
+    if (-not $resolvedMatchViewerDir.StartsWith($resolvedRepoRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
+        throw "Refusing to remove asset directory outside repo root: $resolvedMatchViewerDir"
+    }
+
+    Write-Host "[assemble-safe] removing Android-only WebGL payload: $resolvedMatchViewerDir"
+    Remove-Item -LiteralPath $resolvedMatchViewerDir -Recurse -Force
+}
+
 if (-not (Test-Path -LiteralPath $manifestPath)) {
     throw "Current manifest missing after safe sync: $manifestPath"
 }
@@ -117,6 +130,9 @@ $gradleArgs = @(
 )
 if (-not $UseBeeBuilder) {
     $gradleArgs += '-PunityDisableBeeBuilder=true'
+}
+if ($ExcludeMatchViewerFromMobileAssets) {
+    $gradleArgs += '-PexcludeMatchViewerFromMobileAssets=true'
 }
 
 $gradleCommand = 'call gradlew.bat ' + (($gradleArgs | ForEach-Object {

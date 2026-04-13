@@ -1612,8 +1612,51 @@ function sanitizeMatch(row) {
     createReadyAt: row.create_ready_at ?? row.createReadyAt ?? null,
     criticalRelinkPendingCount:
       row.critical_relink_pending_count ?? row.criticalRelinkPendingCount ?? 0,
+    presentationRelinkPendingCount:
+      row.presentation_relink_pending_count ??
+      row.presentationRelinkPendingCount ??
+      0,
+    presentationAnimatorPendingCount:
+      row.presentation_animator_pending_count ??
+      row.presentationAnimatorPendingCount ??
+      0,
+    presentationMaterialPendingCount:
+      row.presentation_material_pending_count ??
+      row.presentationMaterialPendingCount ??
+      0,
+    presentationVisibilityPendingCount:
+      row.presentation_visibility_pending_count ??
+      row.presentationVisibilityPendingCount ??
+      0,
+    nameUiPendingCount:
+      row.name_ui_pending_count ?? row.nameUiPendingCount ?? 0,
+    nameUiSuppressed:
+      row.name_ui_suppressed ?? row.nameUiSuppressed ?? false,
+    nameUiGateReason:
+      row.name_ui_gate_reason ?? row.nameUiGateReason ?? null,
+    materialVisualState:
+      row.material_visual_state ?? row.materialVisualState ?? null,
     presentationQueueDepth:
       row.presentation_queue_depth ?? row.presentationQueueDepth ?? 0,
+    presentationQueuePaused:
+      row.presentation_queue_paused ?? row.presentationQueuePaused ?? false,
+    presentationQueuePauseReason:
+      row.presentation_queue_pause_reason ??
+      row.presentationQueuePauseReason ??
+      null,
+    activeAuxCameraCount:
+      row.active_aux_camera_count ?? row.activeAuxCameraCount ?? 0,
+    whitelistedAuxCameraCount:
+      row.whitelisted_aux_camera_count ??
+      row.whitelistedAuxCameraCount ??
+      0,
+    lastHeavyPhase: row.last_heavy_phase ?? row.lastHeavyPhase ?? null,
+    lastHeavyPhaseDurationMs:
+      row.last_heavy_phase_duration_ms ?? row.lastHeavyPhaseDurationMs ?? 0,
+    perfSnapshotPath: row.perf_snapshot_path ?? row.perfSnapshotPath ?? null,
+    perfSnapshotReason:
+      row.perf_snapshot_reason ?? row.perfSnapshotReason ?? null,
+    ballFocusState: row.ball_focus_state ?? row.ballFocusState ?? null,
     avgFpsWindow: row.avg_fps_window ?? row.avgFpsWindow ?? 0,
     crowdPhase: row.crowd_phase ?? row.crowdPhase ?? null,
     audioPhase: row.audio_phase ?? row.audioPhase ?? null,
@@ -1694,7 +1737,29 @@ function sanitizeInternalMatch(row) {
     stadiumDataReadyAt: match.stadiumDataReadyAt || null,
     createReadyAt: match.createReadyAt || null,
     criticalRelinkPendingCount: match.criticalRelinkPendingCount || 0,
+    presentationRelinkPendingCount: match.presentationRelinkPendingCount || 0,
+    presentationAnimatorPendingCount:
+      match.presentationAnimatorPendingCount || 0,
+    presentationMaterialPendingCount:
+      match.presentationMaterialPendingCount || 0,
+    presentationVisibilityPendingCount:
+      match.presentationVisibilityPendingCount || 0,
+    nameUiPendingCount: match.nameUiPendingCount || 0,
+    nameUiSuppressed: Boolean(match.nameUiSuppressed),
+    nameUiGateReason: match.nameUiGateReason || null,
+    materialVisualState: match.materialVisualState || null,
     presentationQueueDepth: match.presentationQueueDepth || 0,
+    presentationQueuePaused: Boolean(match.presentationQueuePaused),
+    presentationQueuePauseReason: match.presentationQueuePauseReason || null,
+    activeAuxCameraCount: match.activeAuxCameraCount || 0,
+    whitelistedAuxCameraCount: match.whitelistedAuxCameraCount || 0,
+    lastHeavyPhase: match.lastHeavyPhase || null,
+    lastHeavyPhaseDurationMs: Number.isFinite(match.lastHeavyPhaseDurationMs)
+      ? Number(match.lastHeavyPhaseDurationMs)
+      : 0,
+    perfSnapshotPath: match.perfSnapshotPath || null,
+    perfSnapshotReason: match.perfSnapshotReason || null,
+    ballFocusState: match.ballFocusState || null,
     avgFpsWindow: Number.isFinite(match.avgFpsWindow)
       ? Number(match.avgFpsWindow)
       : 0,
@@ -3878,9 +3943,61 @@ fastify.get("/v1/matches/:matchId/status", async (request, reply) => {
     criticalRelinkPendingCount: Number.isFinite(effectiveMatch.criticalRelinkPendingCount)
       ? Number(effectiveMatch.criticalRelinkPendingCount)
       : 0,
+    presentationRelinkPendingCount: Number.isFinite(
+      effectiveMatch.presentationRelinkPendingCount,
+    )
+      ? Number(effectiveMatch.presentationRelinkPendingCount)
+      : 0,
+    presentationAnimatorPendingCount: Number.isFinite(
+      effectiveMatch.presentationAnimatorPendingCount,
+    )
+      ? Number(effectiveMatch.presentationAnimatorPendingCount)
+      : 0,
+    presentationMaterialPendingCount: Number.isFinite(
+      effectiveMatch.presentationMaterialPendingCount,
+    )
+      ? Number(effectiveMatch.presentationMaterialPendingCount)
+      : 0,
+    presentationVisibilityPendingCount: Number.isFinite(
+      effectiveMatch.presentationVisibilityPendingCount,
+    )
+      ? Number(effectiveMatch.presentationVisibilityPendingCount)
+      : 0,
+    nameUiPendingCount: Number.isFinite(effectiveMatch.nameUiPendingCount)
+      ? Number(effectiveMatch.nameUiPendingCount)
+      : 0,
+    nameUiSuppressed:
+      typeof effectiveMatch.nameUiSuppressed === "boolean"
+        ? effectiveMatch.nameUiSuppressed
+        : false,
+    nameUiGateReason: effectiveMatch.nameUiGateReason || null,
+    materialVisualState: effectiveMatch.materialVisualState || null,
     presentationQueueDepth: Number.isFinite(effectiveMatch.presentationQueueDepth)
       ? Number(effectiveMatch.presentationQueueDepth)
       : 0,
+    presentationQueuePaused:
+      typeof effectiveMatch.presentationQueuePaused === "boolean"
+        ? effectiveMatch.presentationQueuePaused
+        : false,
+    presentationQueuePauseReason:
+      effectiveMatch.presentationQueuePauseReason || null,
+    activeAuxCameraCount: Number.isFinite(effectiveMatch.activeAuxCameraCount)
+      ? Number(effectiveMatch.activeAuxCameraCount)
+      : 0,
+    whitelistedAuxCameraCount: Number.isFinite(
+      effectiveMatch.whitelistedAuxCameraCount,
+    )
+      ? Number(effectiveMatch.whitelistedAuxCameraCount)
+      : 0,
+    lastHeavyPhase: effectiveMatch.lastHeavyPhase || null,
+    lastHeavyPhaseDurationMs: Number.isFinite(
+      effectiveMatch.lastHeavyPhaseDurationMs,
+    )
+      ? Number(effectiveMatch.lastHeavyPhaseDurationMs)
+      : 0,
+    perfSnapshotPath: effectiveMatch.perfSnapshotPath || null,
+    perfSnapshotReason: effectiveMatch.perfSnapshotReason || null,
+    ballFocusState: effectiveMatch.ballFocusState || null,
     avgFpsWindow: Number.isFinite(effectiveMatch.avgFpsWindow)
       ? Number(effectiveMatch.avgFpsWindow)
       : 0,
@@ -4233,9 +4350,67 @@ fastify.post("/v1/internal/matches/:matchId/lifecycle", async (request, reply) =
   const criticalRelinkPendingCount = Number.isFinite(body.criticalRelinkPendingCount)
     ? Math.max(0, Number(body.criticalRelinkPendingCount))
     : null;
+  const presentationRelinkPendingCount = Number.isFinite(
+    body.presentationRelinkPendingCount,
+  )
+    ? Math.max(0, Number(body.presentationRelinkPendingCount))
+    : null;
+  const presentationAnimatorPendingCount = Number.isFinite(
+    body.presentationAnimatorPendingCount,
+  )
+    ? Math.max(0, Number(body.presentationAnimatorPendingCount))
+    : null;
+  const presentationMaterialPendingCount = Number.isFinite(
+    body.presentationMaterialPendingCount,
+  )
+    ? Math.max(0, Number(body.presentationMaterialPendingCount))
+    : null;
+  const presentationVisibilityPendingCount = Number.isFinite(
+    body.presentationVisibilityPendingCount,
+  )
+    ? Math.max(0, Number(body.presentationVisibilityPendingCount))
+    : null;
+  const nameUiPendingCount = Number.isFinite(body.nameUiPendingCount)
+    ? Math.max(0, Number(body.nameUiPendingCount))
+    : null;
+  const nameUiSuppressed =
+    typeof body.nameUiSuppressed === "boolean" ? body.nameUiSuppressed : null;
+  const nameUiGateReason =
+    typeof body.nameUiGateReason === "string" ? body.nameUiGateReason.trim() : "";
+  const materialVisualState =
+    typeof body.materialVisualState === "string"
+      ? body.materialVisualState.trim()
+      : "";
   const presentationQueueDepth = Number.isFinite(body.presentationQueueDepth)
     ? Math.max(0, Number(body.presentationQueueDepth))
     : null;
+  const presentationQueuePaused =
+    typeof body.presentationQueuePaused === "boolean"
+      ? body.presentationQueuePaused
+      : null;
+  const presentationQueuePauseReason =
+    typeof body.presentationQueuePauseReason === "string"
+      ? body.presentationQueuePauseReason.trim()
+      : "";
+  const activeAuxCameraCount = Number.isFinite(body.activeAuxCameraCount)
+    ? Math.max(0, Number(body.activeAuxCameraCount))
+    : null;
+  const whitelistedAuxCameraCount = Number.isFinite(body.whitelistedAuxCameraCount)
+    ? Math.max(0, Number(body.whitelistedAuxCameraCount))
+    : null;
+  const lastHeavyPhase =
+    typeof body.lastHeavyPhase === "string" ? body.lastHeavyPhase.trim() : "";
+  const lastHeavyPhaseDurationMs = Number.isFinite(body.lastHeavyPhaseDurationMs)
+    ? Number(body.lastHeavyPhaseDurationMs)
+    : 0;
+  const perfSnapshotPath =
+    typeof body.perfSnapshotPath === "string" ? body.perfSnapshotPath.trim() : "";
+  const perfSnapshotReason =
+    typeof body.perfSnapshotReason === "string"
+      ? body.perfSnapshotReason.trim()
+      : "";
+  const ballFocusState =
+    typeof body.ballFocusState === "string" ? body.ballFocusState.trim() : "";
   const avgFpsWindow = Number.isFinite(body.avgFpsWindow)
     ? Number(body.avgFpsWindow)
     : 0;
@@ -4402,8 +4577,82 @@ fastify.post("/v1/internal/matches/:matchId/lifecycle", async (request, reply) =
     match.criticalRelinkPendingCount = Number(criticalRelinkPendingCount);
   }
 
+  if (presentationRelinkPendingCount != null) {
+    match.presentationRelinkPendingCount = Number(presentationRelinkPendingCount);
+  }
+
+  if (presentationAnimatorPendingCount != null) {
+    match.presentationAnimatorPendingCount = Number(
+      presentationAnimatorPendingCount,
+    );
+  }
+
+  if (presentationMaterialPendingCount != null) {
+    match.presentationMaterialPendingCount = Number(
+      presentationMaterialPendingCount,
+    );
+  }
+
+  if (presentationVisibilityPendingCount != null) {
+    match.presentationVisibilityPendingCount = Number(
+      presentationVisibilityPendingCount,
+    );
+  }
+
+  if (nameUiPendingCount != null) {
+    match.nameUiPendingCount = Number(nameUiPendingCount);
+  }
+
+  if (nameUiSuppressed != null) {
+    match.nameUiSuppressed = nameUiSuppressed;
+  }
+
+  if (nameUiGateReason) {
+    match.nameUiGateReason = nameUiGateReason;
+  }
+
+  if (materialVisualState) {
+    match.materialVisualState = materialVisualState;
+  }
+
   if (presentationQueueDepth != null) {
     match.presentationQueueDepth = Number(presentationQueueDepth);
+  }
+
+  if (presentationQueuePaused != null) {
+    match.presentationQueuePaused = presentationQueuePaused;
+  }
+
+  if (presentationQueuePauseReason) {
+    match.presentationQueuePauseReason = presentationQueuePauseReason;
+  }
+
+  if (activeAuxCameraCount != null) {
+    match.activeAuxCameraCount = Number(activeAuxCameraCount);
+  }
+
+  if (whitelistedAuxCameraCount != null) {
+    match.whitelistedAuxCameraCount = Number(whitelistedAuxCameraCount);
+  }
+
+  if (lastHeavyPhase) {
+    match.lastHeavyPhase = lastHeavyPhase;
+  }
+
+  if (lastHeavyPhaseDurationMs > 0) {
+    match.lastHeavyPhaseDurationMs = Number(lastHeavyPhaseDurationMs);
+  }
+
+  if (perfSnapshotPath) {
+    match.perfSnapshotPath = perfSnapshotPath;
+  }
+
+  if (perfSnapshotReason) {
+    match.perfSnapshotReason = perfSnapshotReason;
+  }
+
+  if (ballFocusState) {
+    match.ballFocusState = ballFocusState;
   }
 
   if (avgFpsWindow > 0) {
