@@ -22,7 +22,9 @@ export const trMainMenu: TranslationDictionary = {
     },
     toasts: {
       loginRequiredForKitReward: 'Kit odulu icin giris yapmalisin.',
+      loginRequiredForClubBalanceReward: 'Kredi odulu icin giris yapmalisin.',
       rewardGranted: 'Reklam odulu verildi: +1 {kitLabel}.',
+      clubBalanceRewardGranted: 'Reklam odulu verildi: +{amount} kredi.',
       rewardRequiresCompletion: 'Odul almak icin reklami tamamlamalisin.',
       rewardPendingVerification:
         'Reklam odulu dogrulaniyor. Birazdan envanterine yansiyacak.',
@@ -70,6 +72,13 @@ export const trMainMenu: TranslationDictionary = {
       loadingAd: 'Reklam Yukleniyor...',
       watchAd: 'Reklam Izle',
       useKit: 'Kullan',
+    },
+    clubBalanceMenu: {
+      title: 'Takim Bakiyesi',
+      description: 'Bir reklami tamamla, hesabina +{amount} kredi ekleyelim.',
+      watchAd: 'Reklam Izle (+{amount})',
+      openFinance: 'Finansi Ac',
+      unavailable: 'Odullu reklam sadece Android uygulamasinda kullanilabilir.',
     },
   },
 };

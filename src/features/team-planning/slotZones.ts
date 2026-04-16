@@ -13,19 +13,19 @@ import type { SkillTag } from "./skillTags";
 export type ZoneId =
   | "santrafor"
   | "gizli forvet"
-  | "sol aÃ§Ä±k"
-  | "saÄŸ aÃ§Ä±k"
+  | "sol açık"
+  | "sağ açık"
   | "sol kanat"
-  | "saÄŸ kanat"
+  | "sağ kanat"
   | "ofansif orta saha"
   | "merkez orta saha"
   | "defansif orta saha sol"
-  | "defansif orta saha saÄŸ"
-  | "Ã¶n libero"
+  | "defansif orta saha sağ"
+  | "ön libero"
   | "sol bek"
-  | "saÄŸ bek"
+  | "sağ bek"
   | "stoper sol"
-  | "stoper saÄŸ"
+  | "stoper sağ"
   | "kaleci";
 
 export type ZoneDefinition = {
@@ -46,16 +46,16 @@ export type ZoneOverlayBounds = {
 export const ORDERED_ZONE_IDS: ZoneId[] = [
   "sol bek",
   "sol kanat",
-  "sol aÃ§Ä±k",
+  "sol açık",
   "kaleci",
   "stoper sol",
-  "stoper saÄŸ",
-  "saÄŸ bek",
-  "saÄŸ kanat",
-  "saÄŸ aÃ§Ä±k",
-  "Ã¶n libero",
+  "stoper sağ",
+  "sağ bek",
+  "sağ kanat",
+  "sağ açık",
+  "ön libero",
   "defansif orta saha sol",
-  "defansif orta saha saÄŸ",
+  "defansif orta saha sağ",
   "merkez orta saha",
   "ofansif orta saha",
   "gizli forvet",
@@ -77,16 +77,16 @@ export const ZONES: Record<ZoneId, ZoneDefinition> = {
     capabilityTags: ["finishing", "offBall", "linkPlay"],
     fallbackPositions: ["ST"],
   },
-  "sol aÃ§Ä±k": {
-    id: "sol aÃ§Ä±k",
-    label: "Sol AÃ§Ä±k",
+  "sol açık": {
+    id: "sol açık",
+    label: "Sol Açık",
     slotPosition: "LW",
     capabilityTags: ["pace", "dribbling", "crossing"],
     fallbackPositions: ["LM"],
   },
-  "saÄŸ aÃ§Ä±k": {
-    id: "saÄŸ aÃ§Ä±k",
-    label: "SaÄŸ AÃ§Ä±k",
+  "sağ açık": {
+    id: "sağ açık",
+    label: "Sağ Açık",
     slotPosition: "RW",
     capabilityTags: ["pace", "dribbling", "crossing"],
     fallbackPositions: ["RM"],
@@ -98,9 +98,9 @@ export const ZONES: Record<ZoneId, ZoneDefinition> = {
     capabilityTags: ["workRate", "support", "crossing"],
     fallbackPositions: ["LW", "LB"],
   },
-  "saÄŸ kanat": {
-    id: "saÄŸ kanat",
-    label: "SaÄŸ Kanat",
+  "sağ kanat": {
+    id: "sağ kanat",
+    label: "Sağ Kanat",
     slotPosition: "RM",
     capabilityTags: ["workRate", "support", "crossing"],
     fallbackPositions: ["RW", "RB"],
@@ -124,15 +124,15 @@ export const ZONES: Record<ZoneId, ZoneDefinition> = {
     slotPosition: "CM",
     capabilityTags: ["ballWinning", "pressResist", "shortPassing"],
   },
-  "defansif orta saha saÄŸ": {
-    id: "defansif orta saha saÄŸ",
+  "defansif orta saha sağ": {
+    id: "defansif orta saha sağ",
     label: "Defansif Orta Saha",
     slotPosition: "CM",
     capabilityTags: ["ballWinning", "pressResist", "shortPassing"],
   },
-  "Ã¶n libero": {
-    id: "Ã¶n libero",
-    label: "Ã–n Libero",
+  "ön libero": {
+    id: "ön libero",
+    label: "Ön Libero",
     slotPosition: "CM",
     capabilityTags: ["shielding", "distribution", "sweeper"],
   },
@@ -142,9 +142,9 @@ export const ZONES: Record<ZoneId, ZoneDefinition> = {
     slotPosition: "LB",
     capabilityTags: ["tackling", "crossing", "workRate"],
   },
-  "saÄŸ bek": {
-    id: "saÄŸ bek",
-    label: "SaÄŸ Bek",
+  "sağ bek": {
+    id: "sağ bek",
+    label: "Sağ Bek",
     slotPosition: "RB",
     capabilityTags: ["tackling", "crossing", "workRate"],
   },
@@ -154,8 +154,8 @@ export const ZONES: Record<ZoneId, ZoneDefinition> = {
     slotPosition: "CB",
     capabilityTags: ["tackling", "aerial", "positioning"],
   },
-  "stoper saÄŸ": {
-    id: "stoper saÄŸ",
+  "stoper sağ": {
+    id: "stoper sağ",
     label: "Stoper",
     slotPosition: "CB",
     capabilityTags: ["tackling", "aerial", "positioning"],
@@ -171,63 +171,88 @@ export const ZONES: Record<ZoneId, ZoneDefinition> = {
 const ZONE_TRANSLATION_KEYS: Record<ZoneId, string> = {
   kaleci: "goalkeeper",
   "stoper sol": "leftCenterBack",
-  "stoper saÄŸ": "rightCenterBack",
+  "stoper sağ": "rightCenterBack",
   "sol bek": "leftBack",
-  "saÄŸ bek": "rightBack",
-  "Ã¶n libero": "sweeperMidfield",
+  "sağ bek": "rightBack",
+  "ön libero": "sweeperMidfield",
   "defansif orta saha sol": "leftHoldingMidfield",
-  "defansif orta saha saÄŸ": "rightHoldingMidfield",
+  "defansif orta saha sağ": "rightHoldingMidfield",
   "merkez orta saha": "centralMidfield",
   "ofansif orta saha": "attackingMidfield",
   "gizli forvet": "shadowStriker",
   "sol kanat": "leftMidfield",
-  "saÄŸ kanat": "rightMidfield",
-  "sol aÃ§Ä±k": "leftWinger",
-  "saÄŸ aÃ§Ä±k": "rightWinger",
+  "sağ kanat": "rightMidfield",
+  "sol açık": "leftWinger",
+  "sağ açık": "rightWinger",
   santrafor: "striker",
 };
 
 const ZONE_OVERLAY_BOUNDS: Record<ZoneId, ZoneOverlayBounds> = {
   "sol bek": { left: 0, top: 0, width: 35, height: 20 },
   "sol kanat": { left: 35, top: 0, width: 25, height: 20 },
-  "sol aÃ§Ä±k": { left: 60, top: 0, width: 40, height: 20 },
+  "sol açık": { left: 60, top: 0, width: 40, height: 20 },
   kaleci: { left: 0, top: 20, width: 14, height: 60 },
   "stoper sol": { left: 14, top: 20, width: 14, height: 30 },
-  "stoper saÄŸ": { left: 14, top: 50, width: 14, height: 30 },
-  "Ã¶n libero": { left: 28, top: 20, width: 10, height: 60 },
+  "stoper sağ": { left: 14, top: 50, width: 14, height: 30 },
+  "ön libero": { left: 28, top: 20, width: 10, height: 60 },
   "defansif orta saha sol": { left: 38, top: 20, width: 7, height: 30 },
-  "defansif orta saha saÄŸ": { left: 38, top: 50, width: 7, height: 30 },
+  "defansif orta saha sağ": { left: 38, top: 50, width: 7, height: 30 },
   "merkez orta saha": { left: 45, top: 20, width: 13, height: 60 },
   "ofansif orta saha": { left: 58, top: 20, width: 12, height: 60 },
   "gizli forvet": { left: 70, top: 20, width: 5, height: 60 },
   santrafor: { left: 75, top: 20, width: 25, height: 60 },
-  "saÄŸ bek": { left: 0, top: 80, width: 35, height: 20 },
-  "saÄŸ kanat": { left: 35, top: 80, width: 25, height: 20 },
-  "saÄŸ aÃ§Ä±k": { left: 60, top: 80, width: 40, height: 20 },
+  "sağ bek": { left: 0, top: 80, width: 35, height: 20 },
+  "sağ kanat": { left: 35, top: 80, width: 25, height: 20 },
+  "sağ açık": { left: 60, top: 80, width: 40, height: 20 },
+};
+
+const LEGACY_ZONE_ID_MAP: Record<string, ZoneId> = {
+  "sol aÃ§Ä±k": "sol açık",
+  "sol aÃƒÂ§Ã„Â±k": "sol açık",
+  "saÄŸ aÃ§Ä±k": "sağ açık",
+  "saÃ„Å¸ aÃƒÂ§Ã„Â±k": "sağ açık",
+  "saÄŸ kanat": "sağ kanat",
+  "saÃ„Å¸ kanat": "sağ kanat",
+  "defansif orta saha saÄŸ": "defansif orta saha sağ",
+  "defansif orta saha saÃ„Å¸": "defansif orta saha sağ",
+  "Ã¶n libero": "ön libero",
+  "ÃƒÂ¶n libero": "ön libero",
+  "saÄŸ bek": "sağ bek",
+  "saÃ„Å¸ bek": "sağ bek",
+  "stoper saÄŸ": "stoper sağ",
+  "stoper saÃ„Å¸": "stoper sağ",
+};
+
+const normalizeZoneIdValue = (zoneId: string): ZoneId | null => {
+  if (zoneId in ZONES) {
+    return zoneId as ZoneId;
+  }
+
+  return LEGACY_ZONE_ID_MAP[zoneId] ?? null;
 };
 
 export const getZoneLabel = (
-  zoneId: ZoneId,
+  zoneId: ZoneId | string,
   language?: AppLanguage,
 ): string =>
   translate(
-    `teamPlanning.zones.labels.${ZONE_TRANSLATION_KEYS[zoneId]}`,
+    `teamPlanning.zones.labels.${ZONE_TRANSLATION_KEYS[normalizeZoneIdValue(zoneId) ?? "merkez orta saha"]}`,
     undefined,
     language,
   );
 
 export const getZoneShortCode = (
-  zoneId: ZoneId,
+  zoneId: ZoneId | string,
   language?: AppLanguage,
 ): string =>
   translate(
-    `teamPlanning.zones.short.${ZONE_TRANSLATION_KEYS[zoneId]}`,
+    `teamPlanning.zones.short.${ZONE_TRANSLATION_KEYS[normalizeZoneIdValue(zoneId) ?? "merkez orta saha"]}`,
     undefined,
     language,
   );
 
-export const getZoneOverlayBounds = (zoneId: ZoneId): ZoneOverlayBounds =>
-  ZONE_OVERLAY_BOUNDS[zoneId];
+export const getZoneOverlayBounds = (zoneId: ZoneId | string): ZoneOverlayBounds =>
+  ZONE_OVERLAY_BOUNDS[normalizeZoneIdValue(zoneId) ?? "merkez orta saha"];
 
 const resolveZoneIdFromVisualCoordinates = (
   visualX: number,
@@ -235,29 +260,29 @@ const resolveZoneIdFromVisualCoordinates = (
 ): ZoneId => {
   if (visualY <= 20) {
     if (visualX < 35) return "sol bek";
-    if (visualX > 60) return "sol aÃ§Ä±k";
+    if (visualX > 60) return "sol açık";
     return "sol kanat";
   }
 
   if (visualY >= 80) {
-    if (visualX < 35) return "saÄŸ bek";
-    if (visualX > 60) return "saÄŸ aÃ§Ä±k";
-    return "saÄŸ kanat";
+    if (visualX < 35) return "sağ bek";
+    if (visualX > 60) return "sağ açık";
+    return "sağ kanat";
   }
 
   if (visualX < 14) {
     return "kaleci";
   }
   if (visualX < 28) {
-    return visualY <= 50 ? "stoper sol" : "stoper saÄŸ";
+    return visualY <= 50 ? "stoper sol" : "stoper sağ";
   }
   if (visualX < 38) {
-    return "Ã¶n libero";
+    return "ön libero";
   }
   if (visualX < 45) {
     return visualY <= 50
       ? "defansif orta saha sol"
-      : "defansif orta saha saÄŸ";
+      : "defansif orta saha sağ";
   }
   if (visualX < 58) {
     return "merkez orta saha";
@@ -284,27 +309,27 @@ export const resolveSlotZoneId = (
     case "LB":
       return "sol bek";
     case "RB":
-      return "saÄŸ bek";
+      return "sağ bek";
     case "CB":
-      return slot.x <= 50 ? "stoper sol" : "stoper saÄŸ";
+      return slot.x <= 50 ? "stoper sol" : "stoper sağ";
     case "LM":
       return "sol kanat";
     case "RM":
-      return "saÄŸ kanat";
+      return "sağ kanat";
     case "LW":
-      return "sol aÃ§Ä±k";
+      return "sol açık";
     case "RW":
-      return "saÄŸ aÃ§Ä±k";
+      return "sağ açık";
     case "CAM":
       return "ofansif orta saha";
     case "CM":
       if (slot.y >= 60) {
-        return "Ã¶n libero";
+        return "ön libero";
       }
       if (slot.y >= 52) {
         return slot.x <= 50
           ? "defansif orta saha sol"
-          : "defansif orta saha saÄŸ";
+          : "defansif orta saha sağ";
       }
       return "merkez orta saha";
     case "ST":
@@ -331,16 +356,23 @@ export const resolveFormationSlotZoneId = (
   }
 
   if (slot.zoneId) {
-    return slot.zoneId as ZoneId;
+    const normalizedZoneId = normalizeZoneIdValue(slot.zoneId);
+    if (normalizedZoneId) {
+      return normalizedZoneId;
+    }
   }
 
   return resolveSlotZoneId(slot);
 };
 
-export const getZoneDefinition = (zoneId: ZoneId): ZoneDefinition => ({
-  ...ZONES[zoneId],
-  label: getZoneLabel(zoneId),
-});
+export const getZoneDefinition = (zoneId: ZoneId | string): ZoneDefinition => {
+  const resolvedZoneId = normalizeZoneIdValue(zoneId) ?? "merkez orta saha";
+
+  return {
+    ...ZONES[resolvedZoneId],
+    label: getZoneLabel(resolvedZoneId),
+  };
+};
 
 type RecommendationOptions = {
   excludeIds?: string[];

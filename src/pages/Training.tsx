@@ -17,6 +17,17 @@ import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { PlayerStatusCard } from '@/components/ui/player-status-card';
 import { trainings } from '@/lib/data';
 import { getTrainingAttributeLabel } from '@/lib/trainingLabels';
+import {
+  isSuppressedSelectionTap,
+  toggleSelectionItem,
+  type TrainingSelectionTapGuard,
+} from '@/lib/trainingSelection';
+import {
+  TOUCH_DRAG_LONG_PRESS_MS,
+  getTouchDragDistance,
+  shouldCancelPendingTouchDrag,
+  shouldStartActiveTouchDrag,
+} from '@/lib/trainingTouchDrag';
 import { calculateSessionDurationMinutes } from '@/lib/trainingDuration';
 import {
   getTrainingResultLabel,
@@ -48,12 +59,14 @@ import {
   runRewardedAdFlow,
 } from '@/services/rewardedAds';
 import {
+  Check,
   Clapperboard,
   ClipboardList,
   Clock,
   Diamond,
   Dumbbell,
   History,
+  Info,
   Search,
   Users,
   X,
@@ -417,7 +430,8 @@ export default function TrainingPage() {
   const [playerDetail, setPlayerDetail] = useState<Player | null>(null);
   const [isCompactLandscape, setIsCompactLandscape] = useState(false);
   const [mobileLibraryView, setMobileLibraryView] = useState<'players' | 'trainings'>('players');
-  const [touchDragPayload, setTouchDragPayload] = useState<{ type: 'player' | 'training'; id: string } | null>(null);
+  const [touchDragPending, setTouchDragPending] = useState<TrainingSelectionTapGuard | null>(null);
+  const [touchDragPayload, setTouchDragPayload] = useState<TrainingSelectionTapGuard | null>(null);
   const [touchDragPoint, setTouchDragPoint] = useState<{ x: number; y: number } | null>(null);
   const [touchDropTarget, setTouchDropTarget] = useState<'player' | 'training' | null>(null);
   const [squadAssignments, setSquadAssignments] = useState({
@@ -434,8 +448,11 @@ export default function TrainingPage() {
   const hasRestoredLastSelectionRef = useRef(false);
   const touchDragStartRef = useRef<{ x: number; y: number } | null>(null);
   const touchDragMovedRef = useRef(false);
+  const touchDragHoldTimeoutRef = useRef<number | null>(null);
   const activePointerIdRef = useRef<number | null>(null);
-  const suppressNextPlayerTapRef = useRef(false);
+  const touchDragPendingRef = useRef<TrainingSelectionTapGuard | null>(null);
+  const touchDragPayloadRef = useRef<TrainingSelectionTapGuard | null>(null);
+  const suppressNextSelectionTapRef = useRef<TrainingSelectionTapGuard | null>(null);
   const selectedPlayersDropzoneRef = useRef<HTMLDivElement | null>(null);
   const selectedTrainingsDropzoneRef = useRef<HTMLDivElement | null>(null);
 
@@ -600,13 +617,13 @@ export default function TrainingPage() {
               record.id && unseenSet.has(record.id) ? { ...record, viewed: true } : record,
             );
           } catch (error) {
-            console.warn('Antrenman kayÄ±tlarÄ± gÃ¶rÃ¼ldÃ¼ olarak iÅŸaretlenemedi', error);
+            console.warn('Antrenman kayıtları görüldü olarak işaretlenemedi', error);
           }
         }
 
         setHistory(normalizeTrainingHistory(finalRecords));
       } catch (error) {
-        console.warn('Antrenman geÃ§miÅŸi yÃ¼klenemedi', error);
+        console.warn('Antrenman geçmişi yüklenemedi', error);
       }
     };
 
@@ -645,7 +662,7 @@ export default function TrainingPage() {
           setPendingActiveSession(session);
         }
       } catch (error) {
-        console.warn('Aktif antrenman yÃ¼klenemedi', error);
+        console.warn('Aktif antrenman yüklenemedi', error);
       }
     };
 
@@ -654,6 +671,10 @@ export default function TrainingPage() {
 
   useEffect(() => {
     return () => {
+      if (touchDragHoldTimeoutRef.current !== null) {
+        window.clearTimeout(touchDragHoldTimeoutRef.current);
+        touchDragHoldTimeoutRef.current = null;
+      }
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
       }
@@ -714,7 +735,7 @@ export default function TrainingPage() {
       restoreLastTrainingSelection(result.players);
       toast.success(t('training.toasts.completeWithCount', { count: result.records.length }));
     } catch (error) {
-      console.warn('Antrenman tamamlanamadÄ±', error);
+      console.warn('Antrenman tamamlanamadı', error);
       const [team, records] = await Promise.all([
         getTeam(user.id),
         getTrainingHistory(user.id),
@@ -729,7 +750,7 @@ export default function TrainingPage() {
       restoreLastTrainingSelection(nextPlayers);
       toast.error(t('training.toasts.resultSaveFailed')); 
     }
-  }, [restoreLastTrainingSelection, setActiveSessionSafe, user]);
+  }, [restoreLastTrainingSelection, setActiveSessionSafe, t, user]);
 
   useEffect(() => {
     completeSessionRef.current = completeSession;
@@ -899,14 +920,25 @@ export default function TrainingPage() {
     [isTraining, players, trainingCatalog],
   );
 
+  const clearTouchDragHoldTimeout = useCallback(() => {
+    if (touchDragHoldTimeoutRef.current !== null) {
+      window.clearTimeout(touchDragHoldTimeoutRef.current);
+      touchDragHoldTimeoutRef.current = null;
+    }
+  }, []);
+
   const clearTouchDragState = useCallback(() => {
+    clearTouchDragHoldTimeout();
     touchDragStartRef.current = null;
     touchDragMovedRef.current = false;
     activePointerIdRef.current = null;
+    touchDragPendingRef.current = null;
+    touchDragPayloadRef.current = null;
+    setTouchDragPending(null);
     setTouchDragPayload(null);
     setTouchDragPoint(null);
     setTouchDropTarget(null);
-  }, []);
+  }, [clearTouchDragHoldTimeout]);
 
   const resolveTouchDropTarget = useCallback(
     (clientX: number, clientY: number): 'player' | 'training' | null => {
@@ -965,18 +997,39 @@ export default function TrainingPage() {
         return;
       }
 
-      activePointerIdRef.current = event.pointerId;
-      touchDragStartRef.current = { x: event.clientX, y: event.clientY };
+      const pointerId = event.pointerId;
+      const startPoint = { x: event.clientX, y: event.clientY };
+
+      clearTouchDragHoldTimeout();
+      activePointerIdRef.current = pointerId;
+      touchDragStartRef.current = startPoint;
       touchDragMovedRef.current = false;
-      setTouchDragPayload({ type, id });
-      setTouchDragPoint({ x: event.clientX, y: event.clientY });
+      touchDragPendingRef.current = { type, id };
+      touchDragPayloadRef.current = null;
+      setTouchDragPending({ type, id });
+      setTouchDragPayload(null);
+      setTouchDragPoint(null);
       setTouchDropTarget(null);
+
+      touchDragHoldTimeoutRef.current = window.setTimeout(() => {
+        if (activePointerIdRef.current !== pointerId || !touchDragStartRef.current) {
+          return;
+        }
+
+        touchDragPendingRef.current = null;
+        touchDragPayloadRef.current = { type, id };
+        setTouchDragPending(null);
+        setTouchDragPayload({ type, id });
+        setTouchDragPoint(startPoint);
+        setTouchDropTarget(null);
+        touchDragHoldTimeoutRef.current = null;
+      }, TOUCH_DRAG_LONG_PRESS_MS);
     },
-    [isTraining],
+    [clearTouchDragHoldTimeout, isTraining],
   );
 
   useEffect(() => {
-    if (!touchDragPayload || activePointerIdRef.current === null) {
+    if ((!touchDragPending && !touchDragPayload) || activePointerIdRef.current === null) {
       return undefined;
     }
 
@@ -990,16 +1043,32 @@ export default function TrainingPage() {
         return;
       }
 
-      const deltaX = event.clientX - start.x;
-      const deltaY = event.clientY - start.y;
-      const distance = Math.hypot(deltaX, deltaY);
+      const distance = getTouchDragDistance(start, {
+        x: event.clientX,
+        y: event.clientY,
+      });
 
-      if (!touchDragMovedRef.current && distance < 10) {
+      const pendingPayload = touchDragPendingRef.current;
+      const activePayload = touchDragPayloadRef.current;
+
+      if (pendingPayload && !activePayload) {
+        if (shouldCancelPendingTouchDrag(distance)) {
+          clearTouchDragState();
+        }
+        return;
+      }
+
+      event.preventDefault();
+
+      if (!activePayload) {
+        return;
+      }
+
+      if (!touchDragMovedRef.current && !shouldStartActiveTouchDrag(distance)) {
         return;
       }
 
       touchDragMovedRef.current = true;
-      event.preventDefault();
       setTouchDragPoint({ x: event.clientX, y: event.clientY });
       setTouchDropTarget(resolveTouchDropTarget(event.clientX, event.clientY));
     };
@@ -1009,16 +1078,26 @@ export default function TrainingPage() {
         return;
       }
 
-      const dropTarget = resolveTouchDropTarget(event.clientX, event.clientY);
+      const didMove = touchDragMovedRef.current;
+      const activePayload = touchDragPayloadRef.current;
+      const dropTarget = activePayload
+        ? resolveTouchDropTarget(event.clientX, event.clientY)
+        : null;
+
+      if (didMove && activePayload) {
+        suppressNextSelectionTapRef.current = {
+          type: activePayload.type,
+          id: activePayload.id,
+        };
+      }
+
       if (
-        touchDragMovedRef.current &&
+        didMove &&
+        activePayload &&
         dropTarget &&
-        dropTarget === touchDragPayload.type
+        dropTarget === activePayload.type
       ) {
-        void commitSelectionDrop(touchDragPayload.type, touchDragPayload.id);
-        if (touchDragPayload.type === 'player') {
-          suppressNextPlayerTapRef.current = true;
-        }
+        void commitSelectionDrop(activePayload.type, activePayload.id);
       }
 
       clearTouchDragState();
@@ -1040,7 +1119,13 @@ export default function TrainingPage() {
       window.removeEventListener('pointerup', handlePointerEnd);
       window.removeEventListener('pointercancel', handlePointerCancel);
     };
-  }, [clearTouchDragState, commitSelectionDrop, resolveTouchDropTarget, touchDragPayload]);
+  }, [
+    clearTouchDragState,
+    commitSelectionDrop,
+    resolveTouchDropTarget,
+    touchDragPending,
+    touchDragPayload,
+  ]);
 
   const handleDragEnd = () => {
     setDraggingType(null);
@@ -1082,7 +1167,7 @@ export default function TrainingPage() {
 
       void commitSelectionDrop(type, parsed.id);
     } catch (error) {
-      console.warn('Drag & drop verisi ayrÄ±ÅŸtÄ±rÄ±lamadÄ±', error);
+      console.warn('Drag & drop verisi ayrıştırılamadı', error);
     }
   };
 
@@ -1097,6 +1182,32 @@ export default function TrainingPage() {
       setSelectedTrainings(prev => prev.filter(training => training.id !== id));
     }
   };
+
+  const toggleSelectedPlayer = useCallback((player: Player) => {
+    if (isTraining) {
+      return;
+    }
+
+    setSelectedPlayers(prev => toggleSelectionItem(prev, player));
+  }, [isTraining]);
+
+  const toggleSelectedTraining = useCallback((training: Training) => {
+    if (isTraining) {
+      return;
+    }
+
+    setSelectedTrainings(prev => toggleSelectionItem(prev, training));
+  }, [isTraining]);
+
+  const openPlayerDetails = useCallback((player: Player) => {
+    setExpandedPlayerId(player.id);
+    setPlayerDetail(player);
+  }, []);
+
+  const closePlayerDetails = useCallback(() => {
+    setExpandedPlayerId(null);
+    setPlayerDetail(null);
+  }, []);
 
   const handleStartTraining = async () => {
     if (!user) {
@@ -1441,6 +1552,10 @@ export default function TrainingPage() {
   const renderPlayerCard = (player: Player) => {
     const isExpanded = expandedPlayerId === player.id;
     const isSelected = selectedPlayerIds.has(player.id);
+    const isTouchDragArmed =
+      touchDragPayload?.type === 'player' &&
+      touchDragPayload.id === player.id &&
+      !touchDragMovedRef.current;
     const metricValue = getDisplayMetricValue(player, displayMetric);
     const metricLabel = activeDisplayMetric.label;
     const metricBadgeClass =
@@ -1455,69 +1570,85 @@ export default function TrainingPage() {
         data-training-source="player"
         onPointerDown={event => handlePointerDragStart(event, 'player', player.id)}
         onDragStart={event => {
-          setExpandedPlayerId(null);
-          setPlayerDetail(null);
+          closePlayerDetails();
           handleDragStart(event, 'player', player.id);
         }}
         onDragEnd={handleDragEnd}
         onClick={() => {
-          if (suppressNextPlayerTapRef.current) {
-            suppressNextPlayerTapRef.current = false;
+          const suppressedTap = suppressNextSelectionTapRef.current;
+          if (suppressedTap) {
+            suppressNextSelectionTapRef.current = null;
+            if (isSuppressedSelectionTap(suppressedTap, 'player', player.id)) {
+              return;
+            }
+          }
+          if (isTraining) {
             return;
           }
-          if (isTraining) return;
-          if (isTouchSelectionMode) {
-            void commitSelectionDrop('player', player.id);
-            return;
-          }
-          setExpandedPlayerId(prev => {
-            const next = prev === player.id ? null : player.id;
-            setPlayerDetail(next ? player : null);
-            return next;
-          });
-        }}
-        onDoubleClick={() => {
-          if (!isTraining) {
-            setSelectedPlayers(prev =>
-              prev.some(item => item.id === player.id) ? prev : [...prev, player],
-            );
-          }
-          setExpandedPlayerId(null);
-          setPlayerDetail(null);
+
+          toggleSelectedPlayer(player);
         }}
         className={cn(
-          'overflow-hidden rounded-[24px] border bg-[linear-gradient(135deg,rgba(8,15,33,0.96),rgba(5,12,24,0.96))] transition duration-200',
+          'relative overflow-hidden rounded-[24px] border bg-[linear-gradient(135deg,rgba(8,15,33,0.96),rgba(5,12,24,0.96))] transition duration-200',
+          isCompactLandscape && 'rounded-[18px]',
           isTraining ? 'pointer-events-none opacity-50' : 'cursor-pointer hover:border-cyan-300/30 hover:shadow-[0_18px_40px_rgba(8,145,178,0.16)]',
-          isTouchSelectionMode && 'touch-none',
+          isTouchSelectionMode && 'touch-pan-y',
+          isTouchDragArmed && 'border-amber-300/40 shadow-[0_0_0_1px_rgba(251,191,36,0.2),0_18px_40px_rgba(251,191,36,0.12)]',
           isExpanded && 'border-cyan-300/45 shadow-[0_0_0_1px_rgba(34,211,238,0.16),0_18px_40px_rgba(8,145,178,0.18)]',
-          isSelected && 'border-emerald-400/35 shadow-[0_18px_40px_rgba(16,185,129,0.16)]',
+          isSelected && 'border-emerald-400/45 shadow-[0_0_0_1px_rgba(16,185,129,0.18),0_18px_40px_rgba(16,185,129,0.2)]',
         )}
       >
-        <CardContent className={cn('p-3 sm:p-4', isCompactLandscape && 'p-2')}>
-          <div className={cn('flex gap-3 sm:gap-4', isCompactLandscape && 'gap-2')}>
-            <div className={cn('flex shrink-0 items-center justify-center rounded-[18px] border border-white/10 bg-[radial-gradient(circle_at_top,rgba(34,211,238,0.18),transparent_55%),rgba(255,255,255,0.04)] font-black uppercase text-slate-100 sm:rounded-[20px] sm:text-lg sm:tracking-[0.2em]', isCompactLandscape ? 'h-10 w-10 text-sm tracking-[0.12em]' : 'h-12 w-12 text-base tracking-[0.16em] sm:h-16 sm:w-16')}>
+        {isSelected ? (
+          <div className={cn('pointer-events-none absolute left-3 top-3 z-10 flex h-7 w-7 items-center justify-center rounded-full border border-emerald-300/35 bg-emerald-500/18 text-emerald-100 shadow-[0_12px_24px_rgba(16,185,129,0.24)]', isCompactLandscape && 'left-1.5 top-1.5 h-4.5 w-4.5')}>
+            <Check className={cn('h-4 w-4', isCompactLandscape && 'h-2.5 w-2.5')} />
+          </div>
+        ) : null}
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className={cn('absolute right-3 top-3 z-10 h-8 w-8 rounded-full border border-white/10 bg-slate-950/80 text-slate-300 hover:bg-slate-900 hover:text-white', isCompactLandscape && 'right-1.5 top-1.5 h-4.5 w-4.5')}
+          onPointerDown={event => event.stopPropagation()}
+          onClick={event => {
+            event.stopPropagation();
+            if (isTraining) {
+              return;
+            }
+
+            openPlayerDetails(player);
+          }}
+          aria-label={t('training.actions.playerDetails')}
+          title={t('training.actions.playerDetails')}
+        >
+          <Info className={cn('h-4 w-4', isCompactLandscape && 'h-2.5 w-2.5')} />
+        </Button>
+        <CardContent className={cn('p-3 sm:p-4', isCompactLandscape && 'p-0.5')}>
+          <div className={cn('flex gap-3 sm:gap-4', isCompactLandscape && 'gap-0.5')}>
+            <div className={cn('flex shrink-0 items-center justify-center rounded-[18px] border border-white/10 bg-[radial-gradient(circle_at_top,rgba(34,211,238,0.18),transparent_55%),rgba(255,255,255,0.04)] font-black uppercase text-slate-100 sm:rounded-[20px] sm:text-lg sm:tracking-[0.2em]', isCompactLandscape ? 'h-6 w-6 text-[9px] tracking-[0.06em] sm:h-6 sm:w-6 sm:text-[9px] sm:tracking-[0.06em]' : 'h-12 w-12 text-base tracking-[0.16em] sm:h-16 sm:w-16')}>
               {getPlayerInitials(player.name)}
             </div>
             <div className="min-w-0 flex-1">
-              <div className="flex items-start justify-between gap-3">
+              <div className={cn('flex items-start justify-between gap-3', isCompactLandscape && 'gap-1.5')}>
                 <div className="min-w-0">
-                  <p className={cn('truncate font-semibold text-white sm:text-base', isCompactLandscape ? 'text-[11px] leading-tight' : 'text-sm')}>{player.name}</p>
-                  <div className={cn('mt-1 flex items-center gap-2 text-slate-400', isCompactLandscape ? 'overflow-hidden whitespace-nowrap text-[9px]' : 'flex-wrap text-xs')}>
-                    <span className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-2 py-0.5 font-semibold text-cyan-100">
+                  <p className={cn('truncate font-semibold text-white sm:text-base', isCompactLandscape ? 'text-[8px] leading-tight sm:text-[8px]' : 'text-sm')}>{player.name}</p>
+                  <div className={cn('mt-0.5 flex items-center gap-2 text-slate-400', isCompactLandscape ? 'overflow-hidden whitespace-nowrap gap-1 text-[5px] sm:text-[5px]' : 'flex-wrap text-xs')}>
+                    <span className={cn('rounded-full border border-cyan-400/20 bg-cyan-500/10 font-semibold text-cyan-100', isCompactLandscape ? 'px-0.5 py-0 text-[5px] sm:text-[5px]' : 'px-2 py-0.5')}>
                       {player.position}
                     </span>
                     <span>{t('training.labels.overall')} {formatRatingLabel(player.overall)}</span>
                   </div>
                 </div>
-                <div className={cn('flex items-center justify-center rounded-[16px] font-black leading-none sm:rounded-[18px]', metricBadgeClass, isCompactLandscape ? 'min-w-[38px] px-1.5 py-1 text-xs' : 'min-w-[50px] px-2.5 py-1.5 text-base sm:min-w-[58px] sm:px-3 sm:py-2 sm:text-lg')}>
+                <div className={cn('flex items-center justify-center rounded-[16px] font-black leading-none sm:rounded-[18px]', metricBadgeClass, isCompactLandscape ? 'min-w-[22px] px-0.5 py-0.5 text-[7px] sm:min-w-[22px] sm:px-0.5 sm:py-0.5 sm:text-[7px]' : 'min-w-[50px] px-2.5 py-1.5 text-base sm:min-w-[58px] sm:px-3 sm:py-2 sm:text-lg')}>
                   {displayMetric === 'overall' ? formatRatingLabel(player.overall) : metricValue}
                 </div>
               </div>
-              <div className={cn('flex items-center justify-between uppercase tracking-[0.22em] text-slate-500', isCompactLandscape ? 'mt-1.5 text-[9px]' : 'mt-3 text-[11px]')}>
-                <span>{metricLabel}</span>
-                <span className="text-slate-300">{metricValue}</span>
-              </div>
-              <div className={cn('overflow-hidden rounded-full bg-slate-950/90', isCompactLandscape ? 'mt-1.5 h-1.5' : 'mt-2 h-2')}>
+              {isCompactLandscape ? null : (
+                <div className="mt-3 flex items-center justify-between uppercase tracking-[0.22em] text-[11px] text-slate-500">
+                  <span>{metricLabel}</span>
+                  <span className="text-slate-300">{metricValue}</span>
+                </div>
+              )}
+              <div className={cn('overflow-hidden rounded-full bg-slate-950/90', isCompactLandscape ? 'mt-0.5 h-1' : 'mt-2 h-2')}>
                 <div className={cn('h-full rounded-full', activeDisplayMetric.barClass)} style={{ width: `${metricValue}%` }} />
               </div>
             </div>
@@ -1530,6 +1661,10 @@ export default function TrainingPage() {
   const renderTrainingCard = (training: Training) => {
     const accent = getTrainingAccent(training.type);
     const isSelected = selectedTrainingIds.has(training.id);
+    const isTouchDragArmed =
+      touchDragPayload?.type === 'training' &&
+      touchDragPayload.id === training.id &&
+      !touchDragMovedRef.current;
     return (
       <Card
         key={training.id}
@@ -1539,26 +1674,26 @@ export default function TrainingPage() {
         onDragStart={event => handleDragStart(event, 'training', training.id)}
         onDragEnd={handleDragEnd}
         onClick={() => {
+          const suppressedTap = suppressNextSelectionTapRef.current;
+          if (suppressedTap) {
+            suppressNextSelectionTapRef.current = null;
+            if (isSuppressedSelectionTap(suppressedTap, 'training', training.id)) {
+              return;
+            }
+          }
           if (isTraining) {
             return;
           }
-          if (isTouchSelectionMode) {
-            void commitSelectionDrop('training', training.id);
-          }
-        }}
-        onDoubleClick={() => {
-          if (!isTraining) {
-            setSelectedTrainings(prev =>
-              prev.some(item => item.id === training.id) ? prev : [...prev, training],
-            );
-          }
+
+          toggleSelectedTraining(training);
         }}
         className={cn(
           'relative min-w-0 max-w-full overflow-hidden rounded-[24px] border bg-[linear-gradient(135deg,rgba(8,15,33,0.96),rgba(5,12,24,0.96))] transition duration-200',
-          isCompactLandscape ? 'my-0.5 w-full box-border' : 'mx-1.5 my-1',
+          isCompactLandscape ? 'my-0.5 w-full box-border rounded-[18px]' : 'mx-1.5 my-1',
           accent.card,
           isTraining ? 'pointer-events-none opacity-50' : 'cursor-pointer hover:brightness-110',
-          isTouchSelectionMode && 'touch-none',
+          isTouchSelectionMode && 'touch-pan-y',
+          isTouchDragArmed && 'border-amber-300/40 shadow-[0_0_0_1px_rgba(251,191,36,0.2),0_18px_40px_rgba(251,191,36,0.12)]',
           isSelected && (isCompactLandscape ? accent.compactGlow : accent.glow),
         )}
       >
@@ -1570,22 +1705,27 @@ export default function TrainingPage() {
             )}
           />
         ) : null}
-        <CardContent className={cn('p-3 sm:p-4', isCompactLandscape && 'p-2')}>
-          <div className={cn('flex gap-3 sm:gap-4', isCompactLandscape && 'gap-2')}>
-            <div className={cn('flex shrink-0 items-center justify-center rounded-[18px] border text-xs font-black uppercase tracking-[0.16em] sm:rounded-[20px] sm:text-sm sm:tracking-[0.18em]', accent.badge, isCompactLandscape ? 'h-10 w-10 text-[10px]' : 'h-12 w-12 sm:h-14 sm:w-14')}>
+        {isSelected ? (
+          <div className={cn('pointer-events-none absolute right-3 top-3 z-10 flex h-7 w-7 items-center justify-center rounded-full border border-emerald-300/35 bg-emerald-500/18 text-emerald-100 shadow-[0_12px_24px_rgba(16,185,129,0.24)]', isCompactLandscape && 'right-1.5 top-1.5 h-5 w-5')}>
+            <Check className={cn('h-4 w-4', isCompactLandscape && 'h-3 w-3')} />
+          </div>
+        ) : null}
+        <CardContent className={cn('p-3 sm:p-4', isCompactLandscape && 'p-1')}>
+          <div className={cn('flex gap-3 sm:gap-4', isCompactLandscape && 'gap-1')}>
+            <div className={cn('flex shrink-0 items-center justify-center rounded-[18px] border text-xs font-black uppercase tracking-[0.16em] sm:rounded-[20px] sm:text-sm sm:tracking-[0.18em]', accent.badge, isCompactLandscape ? 'h-8 w-8 text-[8px] sm:h-8 sm:w-8 sm:text-[8px]' : 'h-12 w-12 sm:h-14 sm:w-14')}>
               {getTrainingMonogram(training.type)}
             </div>
             <div className="min-w-0 flex-1">
-              <div className={cn('flex items-start justify-between gap-3', isCompactLandscape && 'gap-2')}>
+              <div className={cn('flex items-start justify-between gap-3', isCompactLandscape && 'gap-1.5')}>
                 <div className="min-w-0">
-                  <p className={cn('truncate font-semibold text-white sm:text-base', isCompactLandscape ? 'text-[11px] leading-tight' : 'text-sm')}>{training.name}</p>
-                  <p className={cn('mt-1 text-slate-400 sm:text-sm', isCompactLandscape ? 'truncate text-[9px]' : 'text-xs')}>{training.description}</p>
+                  <p className={cn('truncate font-semibold text-white sm:text-base', isCompactLandscape ? 'text-[9px] leading-tight sm:text-[9px]' : 'text-sm')}>{training.name}</p>
+                  <p className={cn('mt-0.5 text-slate-400 sm:text-sm', isCompactLandscape ? 'truncate text-[7px] leading-tight sm:text-[7px]' : 'text-xs')}>{training.description}</p>
                   {isCompactLandscape ? (
-                    <div className="mt-1 flex items-center gap-1.5">
-                      <span className={cn('inline-flex max-w-full shrink-0 rounded-full border font-semibold uppercase tracking-[0.12em]', accent.chip, 'px-1.5 py-0.5 text-[8px]')}>
+                    <div className="mt-0.5 flex items-center gap-1">
+                      <span className={cn('inline-flex max-w-full shrink-0 rounded-full border font-semibold uppercase tracking-[0.08em]', accent.chip, 'px-1 py-0 text-[6px]')}>
                         {getTrainingAttributeLabel(training.type)}
                       </span>
-                      <p className="truncate text-[10px] font-semibold text-slate-300">
+                      <p className="truncate text-[7px] font-semibold text-slate-300">
                         {formatMinutesShort(training.duration)}
                       </p>
                     </div>
@@ -1608,26 +1748,26 @@ export default function TrainingPage() {
 
   const renderPlayersPanel = (panelHeightClass?: string) => (
     <Card className={cn(panelClass, 'flex min-h-0 flex-col', panelHeightClass)}>
-      <CardHeader className={cn('space-y-4 p-5 pb-4', isCompactLandscape && 'space-y-2 p-2 pb-1.5')}>
-        <CardTitle className={sectionTitleClass}>
-          <Users className="h-5 w-5 text-cyan-300" />
+      <CardHeader className={cn('space-y-4 p-5 pb-4', isCompactLandscape && 'space-y-0.5 p-0.5 pb-0.5')}>
+        <CardTitle className={cn(sectionTitleClass, isCompactLandscape && 'gap-1 text-[10px] tracking-[0.06em] sm:gap-1 sm:text-[10px] sm:tracking-[0.06em]')}>
+          <Users className={cn('h-5 w-5 text-cyan-300', isCompactLandscape && 'h-3.5 w-3.5 sm:h-3.5 sm:w-3.5')} />
           {t('training.players')}
         </CardTitle>
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <Search className={cn('absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400', isCompactLandscape && 'left-2 h-3 w-3 sm:left-2 sm:h-3 sm:w-3')} />
           <Input
             value={playerSearch}
             onChange={event => setPlayerSearch(event.target.value)}
             placeholder={t('training.placeholders.playerSearch')}
-            className={cn(searchInputClass, isCompactLandscape && 'h-7 rounded-[15px] pl-8 text-[10px]')}
+            className={cn(searchInputClass, isCompactLandscape && 'h-6 rounded-[10px] pl-6 text-[8px] sm:h-6 sm:rounded-[10px] sm:pl-6 sm:text-[8px]')}
           />
         </div>
       </CardHeader>
-      <CardContent className={cn('min-h-0 flex-1 overflow-hidden p-3 pt-0 sm:p-4 sm:pt-0', isCompactLandscape && 'p-2 pt-0')}>
-        <ScrollArea className={cn('h-full', isCompactLandscape ? 'pr-2' : 'pr-2')}>
+      <CardContent className={cn('min-h-0 flex-1 overflow-hidden p-3 pt-0 sm:p-4 sm:pt-0', isCompactLandscape && 'p-1 pt-0')}>
+        <ScrollArea className={cn('h-full min-h-0 touch-pan-y', isCompactLandscape ? 'pr-1' : 'pr-2')}>
           <div
             className={cn(
-              isCompactLandscape ? 'space-y-2 px-2.5 py-2' : 'space-y-3 pb-2',
+              isCompactLandscape ? 'space-y-1 px-1 py-1' : 'space-y-3 pb-2',
             )}
           >
             {filteredPlayers.length === 0 ? (
@@ -1643,25 +1783,25 @@ export default function TrainingPage() {
 
   const renderTrainingsPanel = (panelHeightClass?: string) => (
     <Card className={cn(panelClass, 'flex min-h-0 flex-col', panelHeightClass)}>
-      <CardHeader className={cn('space-y-4 p-5 pb-4', isCompactLandscape && 'space-y-2 p-2 pb-1.5')}>
-        <CardTitle className={sectionTitleClass}>
-          <Dumbbell className="h-5 w-5 text-emerald-300" />
+      <CardHeader className={cn('space-y-4 p-5 pb-4', isCompactLandscape && 'space-y-0.5 p-0.5 pb-0.5')}>
+        <CardTitle className={cn(sectionTitleClass, isCompactLandscape && 'gap-1 text-[10px] tracking-[0.06em] sm:gap-1 sm:text-[10px] sm:tracking-[0.06em]')}>
+          <Dumbbell className={cn('h-5 w-5 text-emerald-300', isCompactLandscape && 'h-3.5 w-3.5 sm:h-3.5 sm:w-3.5')} />
           {t('training.trainings')}
         </CardTitle>
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <Search className={cn('absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400', isCompactLandscape && 'left-2 h-3 w-3 sm:left-2 sm:h-3 sm:w-3')} />
           <Input
             value={trainingSearch}
             onChange={event => setTrainingSearch(event.target.value)}
             placeholder={t('training.placeholders.trainingSearch')}
-            className={cn(searchInputClass, isCompactLandscape && 'h-7 rounded-[15px] pl-8 text-[10px]')}
+            className={cn(searchInputClass, isCompactLandscape && 'h-6 rounded-[10px] pl-6 text-[8px] sm:h-6 sm:rounded-[10px] sm:pl-6 sm:text-[8px]')}
           />
         </div>
       </CardHeader>
-      <CardContent className={cn('min-h-0 flex-1 overflow-hidden p-3 pt-0 sm:p-4 sm:pt-0', isCompactLandscape && 'p-2 pt-0')}>
+      <CardContent className={cn('min-h-0 flex-1 overflow-hidden p-3 pt-0 sm:p-4 sm:pt-0', isCompactLandscape && 'p-1 pt-0')}>
         {isCompactLandscape ? (
-          <div className="h-full overflow-x-hidden overflow-y-auto pr-1">
-            <div className="space-y-2 pl-2.5 pr-4 py-2.5">
+          <div className="h-full min-h-0 touch-pan-y overflow-x-hidden overflow-y-auto pr-1">
+            <div className="space-y-1 px-1 py-1 pr-2">
               {filteredTrainings.length === 0 ? (
                 <div className="flex min-h-[160px] items-center justify-center rounded-[22px] border border-dashed border-white/10 bg-slate-950/60 px-4 text-center text-sm text-slate-400">
                   {t('training.empty.trainings')}
@@ -1670,7 +1810,7 @@ export default function TrainingPage() {
             </div>
           </div>
         ) : (
-          <ScrollArea className="h-full pr-4">
+          <ScrollArea className="h-full min-h-0 touch-pan-y pr-4">
             <div className="space-y-3 px-1.5 py-1.5 pb-2">
               {filteredTrainings.length === 0 ? (
                 <div className="flex min-h-[200px] items-center justify-center rounded-[22px] border border-dashed border-white/10 bg-slate-950/60 px-4 text-center text-sm text-slate-400">
@@ -2239,6 +2379,15 @@ export default function TrainingPage() {
 
   const renderCompactSelectionCard = (
     kind: 'players' | 'trainings',
+    options?: {
+      className?: string;
+      titleClassName?: string;
+      contentClassName?: string;
+      scrollAreaClassName?: string;
+      itemClassName?: string;
+      emptyClassName?: string;
+      summaryOnly?: boolean;
+    },
   ) => {
     const isPlayerCard = kind === 'players';
     const dropType: 'player' | 'training' = isPlayerCard ? 'player' : 'training';
@@ -2259,7 +2408,9 @@ export default function TrainingPage() {
         onDrop={event => handleDrop(event, dropType)}
         className={cn(
           panelClass,
-          'h-[132px] rounded-[20px] border border-dashed border-white/10 bg-[#040b1d]/70',
+          'flex min-h-0 flex-col rounded-[20px] border border-dashed border-white/10 bg-[#040b1d]/70',
+          options?.className ? 'min-h-0' : 'h-[132px]',
+          options?.className,
           (draggingType === dropType ||
             (touchDragPayload?.type === dropType && touchDropTarget === dropType)) &&
             (isPlayerCard
@@ -2267,26 +2418,40 @@ export default function TrainingPage() {
               : 'border-emerald-300/45 shadow-[0_0_0_1px_rgba(74,222,128,0.16),0_18px_40px_rgba(16,185,129,0.18)]'),
         )}
       >
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 p-2 pb-1">
-          <CardTitle className="text-[9px] font-semibold uppercase tracking-[0.08em] text-slate-100">
+        <CardHeader className="shrink-0 flex flex-row items-center justify-between space-y-0 p-2 pb-1">
+          <CardTitle className={cn('text-[9px] font-semibold uppercase tracking-[0.08em] text-slate-100', options?.titleClassName)}>
             {title}
           </CardTitle>
-          <span className="rounded-full border border-white/10 bg-slate-950/80 px-2 py-0.5 text-[9px] font-semibold text-slate-200">
+          <span className="rounded-full border border-white/10 bg-slate-950/80 px-1.5 py-0.5 text-[8px] font-semibold text-slate-200">
             {items.length}
           </span>
         </CardHeader>
-        <CardContent className="flex h-[94px] flex-col gap-1 p-2 pt-0">
+        <CardContent className={cn(options?.className ? 'flex min-h-0 flex-1 flex-col gap-1 overflow-hidden p-2 pt-0' : 'flex h-[94px] flex-col gap-1 overflow-hidden p-2 pt-0', options?.contentClassName)}>
           {items.length === 0 ? (
-            <div className="flex h-full items-center justify-center rounded-[14px] border border-dashed border-white/10 bg-slate-950/60 px-2 text-center text-[9px] leading-snug text-slate-400">
+            <div className={cn('flex h-full items-center justify-center rounded-[14px] border border-dashed border-white/10 bg-slate-950/60 px-2 text-center text-[9px] leading-snug text-slate-400', options?.emptyClassName)}>
               {emptyText}
             </div>
+          ) : options?.summaryOnly ? (
+            <div className={cn('flex h-full flex-col justify-between rounded-[12px] border px-2 py-1.5 shadow-[0_12px_24px_rgba(0,0,0,0.18)]', accentClass)}>
+              <div className="min-w-0">
+                <p className="truncate text-[9px] font-semibold text-white">{items[0].name}</p>
+                <p className="mt-0.5 truncate text-[8px] text-slate-400">
+                  {isPlayerCard
+                    ? `${(items[0] as Player).position} · ${t('training.labels.overall')} ${formatRatingLabel((items[0] as Player).overall)}`
+                    : `${t('common.minutesShort', { value: (items[0] as Training).duration })} · ${getTrainingAttributeLabel((items[0] as Training).type)}`}
+                </p>
+              </div>
+              <p className="text-[7px] uppercase tracking-[0.06em] text-slate-400">
+                {items.length > 1 ? `+${items.length - 1} ek secim` : '1 secim aktif'}
+              </p>
+            </div>
           ) : (
-            <ScrollArea className="h-full pr-1">
+            <ScrollArea className={cn('h-full min-h-0 pr-1', options?.scrollAreaClassName)}>
               <div className="space-y-1.5">
                 {items.map(item => (
                   <div
                     key={item.id}
-                    className={cn('rounded-[12px] border px-2 py-1.5 text-[9px] shadow-[0_12px_24px_rgba(0,0,0,0.18)]', accentClass)}
+                    className={cn('rounded-[12px] border px-2.5 py-2 text-[9px] shadow-[0_12px_24px_rgba(0,0,0,0.18)]', accentClass, options?.itemClassName)}
                   >
                     <p className="truncate font-semibold text-white">{item.name}</p>
                     <p className="mt-0.5 truncate text-[9px] text-slate-400">
@@ -2303,6 +2468,131 @@ export default function TrainingPage() {
       </Card>
     );
   };
+
+  const renderLandscapeTrainingActionPanel = () => (
+    <Card className={cn(panelClass, 'shrink-0 rounded-[20px]')}>
+      <CardHeader className="space-y-1 p-2 pb-1">
+        <div className="flex items-start justify-between gap-1.5">
+          <CardTitle className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.06em] text-slate-100">
+            <ClipboardList className="h-4 w-4 text-sky-300" />
+            {t('training.control')}
+          </CardTitle>
+          <span className="rounded-full border border-white/10 bg-slate-950/80 px-2 py-0.5 text-[8px] font-semibold uppercase leading-tight tracking-[0.04em] text-slate-300">
+            {isTraining ? t('training.labels.started') : canStart ? t('training.labels.sessionReady') : t('training.labels.sessionIdle')}
+          </span>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-1.5 p-2 pt-0">
+        <div className="grid grid-cols-4 gap-1.5 text-[8px]">
+          <div className="flex items-center justify-between gap-1 rounded-[10px] border border-white/10 bg-white/[0.04] px-2 py-0.5">
+            <p className="truncate text-[6px] uppercase leading-none tracking-[0.03em] text-slate-500">OYUNCU</p>
+            <p className="text-[11px] font-black text-white">{selectedPlayers.length}</p>
+          </div>
+          <div className="flex items-center justify-between gap-1 rounded-[10px] border border-white/10 bg-white/[0.04] px-2 py-0.5">
+            <p className="truncate text-[6px] uppercase leading-none tracking-[0.03em] text-slate-500">ANTRENMAN</p>
+            <p className="text-[11px] font-black text-white">{selectedTrainings.length}</p>
+          </div>
+          <div className="flex items-center justify-between gap-1 rounded-[10px] border border-white/10 bg-white/[0.04] px-2 py-0.5">
+            <p className="truncate text-[6px] uppercase leading-none tracking-[0.03em] text-slate-500">KOMBINASYON</p>
+            <p className="text-[11px] font-black text-white">{totalAssignments}</p>
+          </div>
+          <div className="flex items-center justify-between gap-1 rounded-[10px] border border-white/10 bg-white/[0.04] px-2 py-0.5">
+            <p className="truncate text-[6px] uppercase leading-none tracking-[0.03em] text-slate-500">SURE</p>
+            <p className="text-[11px] font-black text-white">{sessionDurationMinutes}</p>
+          </div>
+        </div>
+
+        <div
+          className={cn(
+            'rounded-[16px] border p-2 shadow-[0_0_0_1px_rgba(16,185,129,0.08),0_18px_48px_rgba(16,185,129,0.14)]',
+            leadAccent.card,
+            leadAccent.glow,
+          )}
+        >
+          <div className="flex items-start justify-between gap-1.5">
+            <div className="min-w-0">
+              <p className="text-[8px] uppercase tracking-[0.08em] text-cyan-300">
+                {isTraining ? t('training.labels.started') : t('training.control')}
+              </p>
+              <h3 className="mt-0.5 text-[12px] font-black leading-tight text-white">
+                {isTraining
+                  ? `${formatTime(Math.max(timeLeft, 0))} / ${formatTime(activeDurationSeconds)}`
+                  : canStart
+                    ? t('training.labels.sessionReady')
+                    : t('training.labels.sessionIdle')}
+              </h3>
+            </div>
+            <div className="shrink-0 text-right">
+              <p className="text-[8px] uppercase tracking-[0.08em] text-slate-500">{t('training.labels.duration')}</p>
+              <p className="mt-0.5 text-[11px] font-black text-white">
+                {isTraining ? formatTime(timeLeft) : formatMinutesShort(sessionDurationMinutes)}
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-1 h-1 overflow-hidden rounded-full bg-slate-950/80">
+            <div
+              className={cn('h-full rounded-full bg-gradient-to-r', leadAccent.progress)}
+              style={{ width: `${progressPercent}%` }}
+            />
+          </div>
+
+          <div className="mt-1.5 flex items-center gap-1 overflow-hidden text-[8px] text-slate-300">
+            <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-white/10 bg-slate-950/70 px-2 py-0.5">
+              <Diamond className="h-3 w-3" />
+              {diamondCost}
+            </span>
+            {isTraining && (
+              <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-white/10 bg-slate-950/70 px-2 py-0.5">
+                <Diamond className="h-3 w-3" />
+                {finishDiamondCost}
+              </span>
+            )}
+            {diamondCost === 0 && (
+              <span className="truncate text-emerald-200">
+                {t('training.labels.freeCombo')}
+              </span>
+            )}
+          </div>
+        </div>
+
+        {!isTraining ? (
+          <Button
+            onClick={handleStartTraining}
+            disabled={!canStart}
+            className="h-8 w-full rounded-[14px] border border-cyan-300/20 bg-gradient-to-r from-cyan-400 via-sky-400 to-emerald-400 px-2 text-[8px] font-black uppercase tracking-[0.06em] text-slate-950 shadow-[0_16px_36px_rgba(34,211,238,0.24)] disabled:cursor-not-allowed disabled:border-white/10 disabled:bg-slate-900 disabled:text-slate-500"
+          >
+            {t('training.actions.start')}
+          </Button>
+        ) : timeLeft > 0 ? (
+          <div className="grid grid-cols-2 gap-1.5">
+            <Button
+              onClick={handleFinishWithDiamonds}
+              variant="outline"
+              className="h-8 rounded-[12px] border border-amber-400/25 bg-amber-500/10 px-1.5 text-[8px] text-amber-100 hover:bg-amber-500/16"
+              disabled={isFinishingWithDiamonds}
+            >
+              <Diamond className="mr-1 h-3.5 w-3.5" />
+              {finishDiamondCost}
+            </Button>
+            <Button
+              onClick={handleWatchAd}
+              variant="secondary"
+              className="h-8 rounded-[14px] border border-fuchsia-300/30 bg-gradient-to-r from-fuchsia-500 via-violet-500 to-purple-500 px-1.5 text-[8px] font-black text-white shadow-[0_18px_40px_rgba(168,85,247,0.3)] hover:brightness-110 disabled:opacity-60"
+              disabled={isWatchingAd}
+            >
+              <Clapperboard className="mr-1 h-3.5 w-3.5" />
+              {isWatchingAd ? t('training.actions.loadingAd') : t('training.actions.finishWithAd')}
+            </Button>
+          </div>
+        ) : (
+          <p className="text-center text-[8px] text-slate-400">
+            {t('training.labels.lockedHint')}
+          </p>
+        )}
+      </CardContent>
+    </Card>
+  );
 
   const renderCompactTrainingControlPanel = () => (
     <Card className={cn(panelClass, 'h-[94px] rounded-[20px]')}>
@@ -2366,11 +2656,138 @@ export default function TrainingPage() {
     </Card>
   );
 
+  const renderHistorySheetTrigger = (compact = false) => (
+    <Sheet>
+      <SheetTrigger asChild>
+        <Button
+          variant={compact ? 'secondary' : 'outline'}
+          size="sm"
+          className={cn(
+            'shrink-0 rounded-2xl border border-white/10 bg-slate-950/80 font-semibold text-slate-100 hover:border-cyan-300/35 hover:bg-slate-900/90',
+            compact
+              ? 'h-7 px-1 text-[7px] uppercase tracking-[0.04em]'
+              : 'h-10 px-3 text-xs sm:h-11 sm:px-4 sm:text-sm',
+          )}
+        >
+          <History className={cn(compact ? 'mr-1 h-3 w-3' : 'mr-2 h-4 w-4')} />
+          {t('training.squadFilters.history')}
+        </Button>
+      </SheetTrigger>
+      <SheetContent className="flex h-full flex-col gap-4 border-l border-cyan-400/10 bg-[#020617]/98 px-5 py-5 text-slate-100 sm:max-w-lg">
+        <SheetHeader className="space-y-2 text-left">
+          <p className="text-[11px] uppercase tracking-[0.22em] text-cyan-300">{t('training.labels.results')}</p>
+          <SheetTitle className="text-left text-xl font-semibold text-white">{t('training.labels.historyTitle')}</SheetTitle>
+        </SheetHeader>
+        <div className="rounded-[22px] border border-white/10 bg-white/[0.03] p-4 text-sm text-slate-400">
+          {t('training.labels.historyDescription')}
+        </div>
+        <div className="min-h-0 flex-1">
+          <ScrollArea className="h-full pr-2">
+            {visibleHistory.length === 0 ? (
+              <div className="flex min-h-[320px] items-center justify-center rounded-[22px] border border-dashed border-white/10 bg-slate-950/60 px-4 text-center text-sm text-slate-400">{t('training.empty.noHistory')}</div>
+            ) : (
+              <div className="space-y-3">
+                {visibleHistory.map(record => {
+                  const player = players.find(item => item.id === record.playerId);
+                  const training = trainingCatalog.find(item => item.id === record.trainingId);
+                  return (
+                    <div key={record.id} className={cn('rounded-[22px] border p-4 text-sm shadow-[0_18px_40px_rgba(0,0,0,0.18)]', getTrainingHistoryCardClass(record.result))}>
+                      <div className="mb-3 flex items-center justify-between gap-3">
+                        <div>
+                          <p className="font-semibold text-white">{player?.name ?? t('training.empty.unknownPlayer')}</p>
+                          <p className="text-xs text-slate-400">{training?.name ?? t('training.empty.unknownTraining')}</p>
+                        </div>
+                        <span className="text-xs text-slate-400">{record.completedAt ? formatDate(record.completedAt.toDate(), { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : ''}</span>
+                      </div>
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          {record.gain > 0 ? (
+                            <span className="text-xs font-medium text-emerald-300">
+                              {training?.type
+                                ? t('training.labels.gain', {
+                                    label: getTrainingAttributeLabel(training.type),
+                                    value: (record.gain * 100).toFixed(1),
+                                  })
+                                : t('training.labels.development', {
+                                    value: (record.gain * 100).toFixed(1),
+                                  })}
+                            </span>
+                          ) : (
+                            <span className="text-xs text-slate-500">{t('training.empty.noGrowth')}</span>
+                          )}
+                        </div>
+                        <span className={cn('rounded-full px-3 py-1 text-xs font-semibold', getTrainingHistoryBadgeClass(record.result))}>{getTrainingResultLabel(record.result)}</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </ScrollArea>
+        </div>
+      </SheetContent>
+    </Sheet>
+  );
+
+  const renderSquadSelectionControls = (compact = false) => {
+    const controlClass = cn(
+      'min-w-0 rounded-2xl border border-white/10 bg-slate-950/80 font-semibold uppercase text-slate-100 transition hover:border-cyan-300/35 hover:bg-slate-900/90 disabled:opacity-40',
+      compact
+        ? 'h-7 px-1 text-[7px] tracking-[0.04em]'
+        : 'h-10 px-3 text-[11px] tracking-[0.16em] sm:h-11 sm:px-4 sm:text-xs sm:tracking-[0.22em]',
+    );
+
+    return (
+      <div
+        className={cn(
+          compact
+            ? 'grid w-full grid-cols-4 gap-1'
+            : 'flex items-center gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
+        )}
+      >
+        <Button variant="secondary" size="sm" className={controlClass} disabled={isTraining || squadRoleSelections.starters.length === 0} onClick={() => handleSquadSelection('starters')}>
+          {t('training.squadFilters.starters')}
+        </Button>
+        <Button variant="secondary" size="sm" className={controlClass} disabled={isTraining || squadRoleSelections.bench.length === 0} onClick={() => handleSquadSelection('bench')}>
+          {t('training.squadFilters.bench')}
+        </Button>
+        <Button variant="secondary" size="sm" className={controlClass} disabled={isTraining || squadRoleSelections.reserves.length === 0} onClick={() => handleSquadSelection('reserves')}>
+          {t('training.squadFilters.reserves')}
+        </Button>
+        {renderHistorySheetTrigger(compact)}
+      </div>
+    );
+  };
+
+  const renderDisplayMetricSelector = (compact = false) => (
+    <div
+      className={cn(
+        'rounded-[24px] border border-white/10 bg-[#040b1d]/85',
+        compact ? 'grid w-full grid-cols-4 gap-0.5 rounded-[18px] p-0.5' : 'grid grid-cols-2 gap-1.5 p-1.5 md:grid-cols-4 md:gap-2 md:p-2',
+      )}
+    >
+      {DISPLAY_METRIC_OPTIONS.map(option => (
+        <button
+          key={option.key}
+          type="button"
+          onClick={() => setDisplayMetric(option.key)}
+          className={cn(
+            'min-w-0 rounded-[18px] border text-center font-semibold uppercase leading-tight whitespace-nowrap transition',
+            compact ? 'rounded-[12px] px-0.5 py-1 text-[7px] tracking-[0.04em]' : 'px-2.5 py-2 text-[10px] tracking-[0.12em] sm:text-[11px] sm:tracking-[0.14em]',
+            displayMetric === option.key ? option.activeClass : option.idleClass,
+          )}
+        >
+          {t(option.labelKey)}
+        </button>
+      ))}
+    </div>
+  );
+
   const renderLibraryViewSwitcher = (compact = false) => (
     <div
       className={cn(
         'grid w-full grid-cols-2 rounded-[20px] border border-white/10 bg-[#030b1b]/80 p-1',
-        compact ? 'gap-1' : 'gap-1.5 rounded-[22px] p-1.5',
+        compact ? 'gap-0.5 rounded-[14px] p-0.5' : 'gap-1.5 rounded-[22px] p-1.5',
       )}
     >
       <button
@@ -2378,7 +2795,7 @@ export default function TrainingPage() {
         onClick={() => setMobileLibraryView('players')}
         className={cn(
           'rounded-[16px] font-semibold transition',
-          compact ? 'py-2 text-xs' : 'py-3 text-sm',
+          compact ? 'rounded-[10px] py-1 text-[9px] sm:py-1 sm:text-[9px]' : 'py-3 text-sm',
           mobileLibraryView === 'players'
             ? 'bg-cyan-500/12 text-cyan-100 shadow-[inset_0_0_0_1px_rgba(34,211,238,0.18)]'
             : 'text-slate-400 hover:text-slate-200',
@@ -2391,7 +2808,7 @@ export default function TrainingPage() {
         onClick={() => setMobileLibraryView('trainings')}
         className={cn(
           'rounded-[16px] font-semibold transition',
-          compact ? 'py-2 text-xs' : 'py-3 text-sm',
+          compact ? 'rounded-[10px] py-1 text-[9px] sm:py-1 sm:text-[9px]' : 'py-3 text-sm',
           mobileLibraryView === 'trainings'
             ? 'bg-emerald-500/12 text-emerald-100 shadow-[inset_0_0_0_1px_rgba(74,222,128,0.18)]'
             : 'text-slate-400 hover:text-slate-200',
@@ -2442,94 +2859,39 @@ export default function TrainingPage() {
       <div
         className={cn(
           'relative z-20 shrink-0 border-b border-cyan-400/10 bg-[#030712]/90 shadow-[0_24px_60px_rgba(0,0,0,0.52)] backdrop-blur-2xl',
-          isCompactLandscape ? 'px-1 py-1' : 'px-2.5 py-2.5 sm:px-4 sm:py-3',
+          isCompactLandscape ? 'px-0.5 py-0.5' : 'px-2.5 py-2.5 sm:px-4 sm:py-3',
         )}
       >
-        <div
-          className={cn(
-            'mx-auto flex max-w-[1600px] flex-col',
-            isCompactLandscape ? 'gap-1' : 'gap-2.5 lg:flex-row lg:items-center lg:justify-between',
-          )}
-        >
-            <div className={cn('flex items-center gap-3', isCompactLandscape && 'gap-1')}>
-            <BackButton
-              className={cn(
-                'rounded-2xl border border-white/10 bg-slate-950/80 text-slate-100 hover:border-cyan-300/35 hover:bg-slate-900/90',
-                isCompactLandscape ? 'h-7 w-7 rounded-[14px]' : 'h-10 w-10 sm:h-11 sm:w-11',
-              )}
-            />
-            <div>
-              <p className="text-[10px] uppercase tracking-[0.28em] text-cyan-300">{t('training.hubLabel')}</p>
-              <h1 className={cn('font-black uppercase tracking-[0.08em] text-white', isCompactLandscape ? 'text-[15px] leading-none' : 'text-xl sm:text-2xl')}>{t('training.title')}</h1>
+        {isCompactLandscape ? (
+          <div className="mx-auto grid max-w-[1600px] grid-cols-[auto_minmax(0,1fr)] items-center gap-1">
+            <div className="flex items-center gap-1 pr-1">
+              <BackButton className="h-6 w-6 rounded-[12px] border border-white/10 bg-slate-950/80 text-slate-100 hover:border-cyan-300/35 hover:bg-slate-900/90" />
+              <div className="min-w-0">
+                <p className="text-[8px] uppercase tracking-[0.28em] text-cyan-300">{t('training.hubLabel')}</p>
+                <h1 className="truncate text-[13px] font-black uppercase leading-none tracking-[0.08em] text-white">{t('training.title')}</h1>
+              </div>
+            </div>
+            <div className="grid min-w-0 grid-cols-2 items-center gap-1 border-l border-white/10 pl-1">
+              <div className="min-w-0">
+                {renderDisplayMetricSelector(true)}
+              </div>
+              <div className="min-w-0">
+                {renderSquadSelectionControls(true)}
+              </div>
             </div>
           </div>
-          <div className="flex items-center gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            <Button variant="secondary" size="sm" className={cn('shrink-0 rounded-2xl border border-white/10 bg-slate-950/80 font-semibold uppercase text-slate-100 transition hover:border-cyan-300/35 hover:bg-slate-900/90 disabled:opacity-40', isCompactLandscape ? 'h-7 px-2 text-[9px] tracking-[0.1em]' : 'h-10 px-3 text-[11px] tracking-[0.16em] sm:h-11 sm:px-4 sm:text-xs sm:tracking-[0.22em]')} disabled={isTraining || squadRoleSelections.starters.length === 0} onClick={() => handleSquadSelection('starters')}>{t('training.squadFilters.starters')}</Button>
-            <Button variant="secondary" size="sm" className={cn('shrink-0 rounded-2xl border border-white/10 bg-slate-950/80 font-semibold uppercase text-slate-100 transition hover:border-cyan-300/35 hover:bg-slate-900/90 disabled:opacity-40', isCompactLandscape ? 'h-7 px-2 text-[9px] tracking-[0.1em]' : 'h-10 px-3 text-[11px] tracking-[0.16em] sm:h-11 sm:px-4 sm:text-xs sm:tracking-[0.22em]')} disabled={isTraining || squadRoleSelections.bench.length === 0} onClick={() => handleSquadSelection('bench')}>{t('training.squadFilters.bench')}</Button>
-            <Button variant="secondary" size="sm" className={cn('shrink-0 rounded-2xl border border-white/10 bg-slate-950/80 font-semibold uppercase text-slate-100 transition hover:border-cyan-300/35 hover:bg-slate-900/90 disabled:opacity-40', isCompactLandscape ? 'h-7 px-2 text-[9px] tracking-[0.1em]' : 'h-10 px-3 text-[11px] tracking-[0.16em] sm:h-11 sm:px-4 sm:text-xs sm:tracking-[0.22em]')} disabled={isTraining || squadRoleSelections.reserves.length === 0} onClick={() => handleSquadSelection('reserves')}>{t('training.squadFilters.reserves')}</Button>
-            <Sheet>
-              <SheetTrigger asChild>
-                <Button variant="outline" size="sm" className={cn('shrink-0 rounded-2xl border border-white/10 bg-slate-950/80 font-semibold text-slate-100 hover:border-cyan-300/35 hover:bg-slate-900/90', isCompactLandscape ? 'h-7 px-2 text-[9px]' : 'h-10 px-3 text-xs sm:h-11 sm:px-4 sm:text-sm')}>
-                  <History className="mr-2 h-4 w-4" />
-                  {t('training.squadFilters.history')}
-                </Button>
-              </SheetTrigger>
-              <SheetContent className="flex h-full flex-col gap-4 border-l border-cyan-400/10 bg-[#020617]/98 px-5 py-5 text-slate-100 sm:max-w-lg">
-                <SheetHeader className="space-y-2 text-left">
-                  <p className="text-[11px] uppercase tracking-[0.22em] text-cyan-300">{t('training.labels.results')}</p>
-                  <SheetTitle className="text-left text-xl font-semibold text-white">{t('training.labels.historyTitle')}</SheetTitle>
-                </SheetHeader>
-                <div className="rounded-[22px] border border-white/10 bg-white/[0.03] p-4 text-sm text-slate-400">
-                  {t('training.labels.historyDescription')}
-                </div>
-                <div className="min-h-0 flex-1">
-                  <ScrollArea className="h-full pr-2">
-                    {visibleHistory.length === 0 ? (
-                      <div className="flex min-h-[320px] items-center justify-center rounded-[22px] border border-dashed border-white/10 bg-slate-950/60 px-4 text-center text-sm text-slate-400">{t('training.empty.noHistory')}</div>
-                    ) : (
-                      <div className="space-y-3">
-                        {visibleHistory.map(record => {
-                          const player = players.find(item => item.id === record.playerId);
-                          const training = trainingCatalog.find(item => item.id === record.trainingId);
-                          return (
-                            <div key={record.id} className={cn('rounded-[22px] border p-4 text-sm shadow-[0_18px_40px_rgba(0,0,0,0.18)]', getTrainingHistoryCardClass(record.result))}>
-                              <div className="mb-3 flex items-center justify-between gap-3">
-                                <div>
-                                  <p className="font-semibold text-white">{player?.name ?? t('training.empty.unknownPlayer')}</p>
-                                  <p className="text-xs text-slate-400">{training?.name ?? t('training.empty.unknownTraining')}</p>
-                                </div>
-                                <span className="text-xs text-slate-400">{record.completedAt ? formatDate(record.completedAt.toDate(), { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : ''}</span>
-                              </div>
-                              <div className="flex items-center justify-between gap-3">
-                                <div className="min-w-0">
-                                  {record.gain > 0 ? (
-                                    <span className="text-xs font-medium text-emerald-300">
-                                      {training?.type
-                                        ? t('training.labels.gain', {
-                                            label: getTrainingAttributeLabel(training.type),
-                                            value: (record.gain * 100).toFixed(1),
-                                          })
-                                        : t('training.labels.development', {
-                                            value: (record.gain * 100).toFixed(1),
-                                          })}
-                                    </span>
-                                  ) : (
-                                    <span className="text-xs text-slate-500">{t('training.empty.noGrowth')}</span>
-                                  )}
-                                </div>
-                                <span className={cn('rounded-full px-3 py-1 text-xs font-semibold', getTrainingHistoryBadgeClass(record.result))}>{getTrainingResultLabel(record.result)}</span>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </ScrollArea>
-                </div>
-              </SheetContent>
-            </Sheet>
+        ) : (
+          <div className="mx-auto flex max-w-[1600px] flex-col gap-2.5 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex items-center gap-3">
+              <BackButton className="h-10 w-10 rounded-2xl border border-white/10 bg-slate-950/80 text-slate-100 hover:border-cyan-300/35 hover:bg-slate-900/90 sm:h-11 sm:w-11" />
+              <div>
+                <p className="text-[10px] uppercase tracking-[0.28em] text-cyan-300">{t('training.hubLabel')}</p>
+                <h1 className="text-xl font-black uppercase tracking-[0.08em] text-white sm:text-2xl">{t('training.title')}</h1>
+              </div>
+            </div>
+            {renderSquadSelectionControls()}
           </div>
-        </div>
+        )}
       </div>
 
       <div className={cn('relative z-10 min-h-0 flex-1', isCompactLandscape ? 'overflow-hidden' : 'overflow-auto')}>
@@ -2539,48 +2901,53 @@ export default function TrainingPage() {
             isCompactLandscape ? 'gap-1 p-1' : 'gap-3 p-2.5 sm:p-4',
           )}
         >
-          <div className={cn('w-full sm:max-w-[460px]', isCompactLandscape ? 'max-w-[240px]' : 'max-w-[400px]')}>
-            <div className={cn('rounded-[24px] border border-white/10 bg-[#040b1d]/85', isCompactLandscape ? 'grid grid-cols-4 gap-1 p-1' : 'grid grid-cols-2 gap-1.5 p-1.5 md:grid-cols-4 md:gap-2 md:p-2')}>
-              {DISPLAY_METRIC_OPTIONS.map(option => (
-                <button
-                  key={option.key}
-                  type="button"
-                  onClick={() => setDisplayMetric(option.key)}
-                  className={cn(
-                    'min-w-0 rounded-[18px] border text-center font-semibold uppercase leading-tight whitespace-nowrap transition',
-                    isCompactLandscape ? 'px-1 py-1.5 text-[8px] tracking-[0.06em]' : 'px-2.5 py-2 text-[10px] tracking-[0.12em] sm:text-[11px] sm:tracking-[0.14em]',
-                    displayMetric === option.key ? option.activeClass : option.idleClass,
-                  )}
-                >
-                  {t(option.labelKey)}
-                </button>
-              ))}
+          {!isCompactLandscape ? (
+            <div className="w-full max-w-[400px] sm:max-w-[460px]">
+              {renderDisplayMetricSelector()}
             </div>
-          </div>
+          ) : null}
           <div
             className={cn(
               'grid min-h-0 w-full flex-1 pb-2',
               isCompactLandscape
-                ? 'grid-cols-[minmax(0,0.98fr)_minmax(0,1.08fr)_minmax(0,1.1fr)] gap-2 overflow-hidden pb-0'
+                ? 'grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-1 overflow-hidden pb-0'
                 : 'grid-cols-1 gap-3 lg:grid-cols-[320px_minmax(0,1.35fr)_340px] lg:overflow-visible xl:grid-cols-[340px_minmax(0,1.45fr)_360px]',
             )}
           >
             {isCompactLandscape ? (
               <>
                 <div className="order-1 min-h-0 min-w-0">
-                  {renderPlayersPanel('h-full w-full')}
-                </div>
-                <div className="order-2 min-h-0 min-w-0">
-                  <div className="flex h-full min-h-0 flex-col gap-2">
-                    <div className="grid grid-cols-2 gap-2">
-                      {renderCompactSelectionCard('players')}
-                      {renderCompactSelectionCard('trainings')}
+                  <div className="flex h-full min-h-0 flex-col gap-1">
+                    {renderLibraryViewSwitcher(true)}
+                    <div className="min-h-0 flex-1">
+                      {mobileLibraryView === 'players'
+                        ? renderPlayersPanel('h-full w-full')
+                        : renderTrainingsPanel('h-full w-full')}
                     </div>
-                    {renderCompactTrainingControlPanel()}
                   </div>
                 </div>
-                <div className="order-3 min-h-0 min-w-0">
-                  {renderTrainingsPanel('h-full w-full')}
+                <div className="order-2 min-h-0 min-w-0">
+                  <div className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-1">
+                    {renderLandscapeTrainingActionPanel()}
+                    <div className="grid h-full min-h-0 grid-cols-2 gap-1.5">
+                      {renderCompactSelectionCard('players', {
+                        className: '!h-full min-h-0 rounded-[14px]',
+                        titleClassName: 'text-[8px] tracking-[0.05em]',
+                        contentClassName: 'min-h-0 flex-1 p-1.5 pt-0',
+                        scrollAreaClassName: 'h-full min-h-0 pr-0.5',
+                        itemClassName: 'rounded-[12px] px-2 py-1.5 text-[8px]',
+                        emptyClassName: 'px-2 text-[8px] leading-snug',
+                      })}
+                      {renderCompactSelectionCard('trainings', {
+                        className: '!h-full min-h-0 rounded-[14px]',
+                        titleClassName: 'text-[8px] tracking-[0.05em]',
+                        contentClassName: 'min-h-0 flex-1 p-1.5 pt-0',
+                        scrollAreaClassName: 'h-full min-h-0 pr-0.5',
+                        itemClassName: 'rounded-[12px] px-2 py-1.5 text-[8px]',
+                        emptyClassName: 'px-2 text-[8px] leading-snug',
+                      })}
+                    </div>
+                  </div>
                 </div>
               </>
             ) : (
@@ -2628,7 +2995,7 @@ export default function TrainingPage() {
         </div>
       </div>
 
-      <Dialog open={Boolean(playerDetail)} onOpenChange={open => { if (!open) setPlayerDetail(null); }}>
+      <Dialog open={Boolean(playerDetail)} onOpenChange={open => { if (!open) closePlayerDetails(); }}>
         <DialogContent className="max-w-md border-none bg-transparent p-0 shadow-none">
           {playerDetail ? <PlayerStatusCard player={playerDetail} /> : null}
         </DialogContent>

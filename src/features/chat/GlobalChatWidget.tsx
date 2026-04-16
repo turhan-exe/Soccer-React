@@ -115,7 +115,7 @@ const GlobalChatWidget: React.FC = () => {
   const remainingCharacters = MAX_MESSAGE_LENGTH - inputValue.length;
   const buttonLabel = isOpen ? 'Sohbeti Kapat' : 'Sohbet';
   const subtitleText = isOpen
-    ? 'Mesajlar en fazla 24 saat boyunca tutulur.'
+    ? 'Mesajlar en fazla 1 hafta boyunca tutulur.'
     : 'Lig menajerleriyle sohbet et.';
 
   const handleToggle = useCallback(() => {
@@ -191,7 +191,7 @@ const GlobalChatWidget: React.FC = () => {
           <div className="nostalgia-chat-panel__header">
             <div>
               <h3>Oyuncu Sohbeti</h3>
-              <p>Son 24 saat icindeki mesajlar gosterilir.</p>
+              <p>Son 1 hafta icindeki mesajlar gosterilir.</p>
             </div>
             <button
               type="button"

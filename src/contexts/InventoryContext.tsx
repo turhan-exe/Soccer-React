@@ -6,15 +6,15 @@ import React, {
   useMemo,
   useState,
 } from 'react';
-import { doc, getDoc, serverTimestamp, setDoc } from 'firebase/firestore';
+import { doc, onSnapshot, runTransaction, serverTimestamp, setDoc } from 'firebase/firestore';
 import { toast } from 'sonner';
 import { BatteryCharging, Gift, HeartPulse, Smile } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
 import { useAuth } from '@/contexts/AuthContext';
-import { useDiamonds } from '@/contexts/DiamondContext';
 import { db } from '@/services/firebase';
 import { KIT_CONFIG } from '@/lib/kits';
+import { computeVipActive, resolveVipActive } from '@/lib/vipState';
 import type { KitType } from '@/types';
 import {
   applyKitOperationsInInventory,
@@ -23,7 +23,6 @@ import {
   DEFAULT_KIT_INVENTORY,
   grantDailyRewardKits,
   getUserConsumables,
-  grantKits,
   listenUserConsumables,
   replaceUserConsumables,
   sanitizeKitInventory,
@@ -140,6 +139,7 @@ export interface InventoryContextValue {
   canClaimMonthlyStarCard: boolean;
   consumeVipNostalgiaReward: () => void;
   isHydrated: boolean;
+  isVipReady: boolean;
 }
 
 const KIT_TYPES: KitType[] = ['energy', 'morale', 'health'];
@@ -260,20 +260,6 @@ const normalizeVipPlan = (value: unknown): VipPlan | null => {
   return isValidVipPlan(value) ? value : null;
 };
 
-const computeVipActive = (state: { isActive: boolean; expiresAt: string | null }): boolean => {
-  if (!state.isActive) {
-    return false;
-  }
-  if (!state.expiresAt) {
-    return true;
-  }
-  const expiresAt = new Date(state.expiresAt);
-  if (Number.isNaN(expiresAt.getTime())) {
-    return false;
-  }
-  return expiresAt.getTime() > Date.now();
-};
-
 const sanitizeVip = (candidate: Partial<VipState> | null | undefined): VipState => {
   const activatedAt = typeof candidate?.activatedAt === 'string' ? candidate.activatedAt : null;
   const expiresAt = typeof candidate?.expiresAt === 'string' ? candidate.expiresAt : null;
@@ -361,16 +347,6 @@ const normalizePersistedInventory = (raw: string | null): PersistedInventoryStor
 
 const userMetaRef = (uid: string) => doc(db, 'users', uid);
 
-const hasMeaningfulVipState = (vip: VipState): boolean =>
-  Boolean(vip.isActive)
-  || Boolean(vip.plan)
-  || Boolean(vip.activatedAt)
-  || Boolean(vip.expiresAt)
-  || Boolean(vip.lastMonthlyStarCardDate)
-  || (vip.starCardCredits ?? 0) > 0
-  || Boolean(vip.nostalgiaFreeClaimedAt)
-  || (vip.nostalgiaFreeTokens ?? 0) > 0;
-
 const persistUserVipState = async (uid: string, vip: VipState): Promise<void> => {
   await setDoc(
     userMetaRef(uid),
@@ -382,30 +358,16 @@ const persistUserVipState = async (uid: string, vip: VipState): Promise<void> =>
   );
 };
 
-const persistLastDailyRewardDate = async (
-  uid: string,
-  lastDailyRewardDate: string,
-): Promise<void> => {
-  await setDoc(
-    userMetaRef(uid),
-    {
-      lastDailyRewardDate,
-      dailyRewardUpdatedAt: serverTimestamp(),
-    },
-    { merge: true },
-  );
-};
-
 const InventoryContext = createContext<InventoryContextValue | undefined>(undefined);
 
 export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user } = useAuth();
-  const { spend } = useDiamonds();
 
   const [kits, setKits] = useState<KitInventory>({ ...DEFAULT_KIT_INVENTORY });
   const [meta, setMeta] = useState<InventoryMetaState>({ ...DEFAULT_META_STATE });
   const [isProcessing, setIsProcessing] = useState(false);
   const [hasHydrated, setHasHydrated] = useState(false);
+  const [hasTrustedUserMeta, setHasTrustedUserMeta] = useState(false);
 
   const storageKey = user ? `kits:${user.id}` : null;
 
@@ -419,65 +381,62 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       setKits({ ...DEFAULT_KIT_INVENTORY });
       setMeta({ ...DEFAULT_META_STATE });
       setHasHydrated(true);
+      setHasTrustedUserMeta(false);
       return;
     }
 
     let isMounted = true;
     let unsubscribe = () => undefined;
+    let unsubscribeUserMeta = () => undefined;
+    let hasResolvedTrustedUserMeta = false;
     const persisted = normalizePersistedInventory(window.localStorage.getItem(storageKey));
-
     setMeta({
       lastDailyRewardDate: persisted.lastDailyRewardDate,
-      vip: persisted.vip,
+      vip: { ...DEFAULT_VIP_STATE },
     });
     setHasHydrated(false);
+    setHasTrustedUserMeta(false);
 
-    const bootstrap = async () => {
-      try {
-        const [remote, userSnap] = await Promise.all([
-          getUserConsumables(user.id),
-          getDoc(userMetaRef(user.id)),
-        ]);
+    unsubscribeUserMeta = onSnapshot(
+      userMetaRef(user.id),
+      { includeMetadataChanges: true },
+      (userSnap) => {
         if (!isMounted) {
           return;
         }
 
-        const remoteUserData =
+        const userData =
           (userSnap.data() as {
             vip?: Partial<VipState> | null;
             lastDailyRewardDate?: string | null;
           } | undefined) ?? undefined;
-        const remoteVipCandidate = remoteUserData?.vip;
-        const remoteDailyRewardDate =
-          typeof remoteUserData?.lastDailyRewardDate === 'string'
-            ? remoteUserData.lastDailyRewardDate
+        const nextDailyRewardDate =
+          typeof userData?.lastDailyRewardDate === 'string'
+            ? userData.lastDailyRewardDate
             : null;
-        const hasRemoteVipState =
-          remoteVipCandidate != null &&
-          typeof remoteVipCandidate === 'object' &&
-          Object.keys(remoteVipCandidate as Record<string, unknown>).length > 0;
+        const canTrustVipState = !userSnap.metadata.fromCache || hasResolvedTrustedUserMeta;
 
-        if (!hasRemoteVipState && hasMeaningfulVipState(persisted.vip)) {
-          await persistUserVipState(user.id, persisted.vip).catch((error) => {
-            console.warn('[InventoryProvider] failed to migrate vip state to Firestore', error);
-          });
+        if (!userSnap.metadata.fromCache) {
+          hasResolvedTrustedUserMeta = true;
+          setHasTrustedUserMeta(true);
         }
 
-        if (!remoteDailyRewardDate && persisted.lastDailyRewardDate) {
-          await persistLastDailyRewardDate(user.id, persisted.lastDailyRewardDate).catch((error) => {
-            console.warn('[InventoryProvider] failed to migrate daily reward date to Firestore', error);
-          });
-        }
+        setMeta((previous) => ({
+          ...previous,
+          lastDailyRewardDate: nextDailyRewardDate ?? previous.lastDailyRewardDate,
+          vip: canTrustVipState ? sanitizeVip(userData?.vip ?? undefined) : previous.vip,
+        }));
+      },
+      (error) => {
+        console.warn('[InventoryProvider] user meta listener failed', error);
+      },
+    );
 
-        const effectiveVip = hasRemoteVipState
-          ? sanitizeVip(remoteVipCandidate ?? undefined)
-          : sanitizeVip(persisted.vip);
-        if (isMounted) {
-          setMeta((previous) => ({
-            ...previous,
-            lastDailyRewardDate: remoteDailyRewardDate ?? previous.lastDailyRewardDate,
-            vip: effectiveVip,
-          }));
+    const bootstrap = async () => {
+      try {
+        const remote = await getUserConsumables(user.id);
+        if (!isMounted) {
+          return;
         }
 
         if (remote) {
@@ -517,6 +476,7 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     return () => {
       isMounted = false;
       unsubscribe();
+      unsubscribeUserMeta();
     };
   }, [storageKey, user?.id]);
 
@@ -528,7 +488,7 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     const snapshot: PersistedInventoryStorage = {
       kits,
       lastDailyRewardDate: meta.lastDailyRewardDate,
-      vip: meta.vip,
+      vip: { ...DEFAULT_VIP_STATE },
     };
 
     try {
@@ -697,11 +657,11 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   }, [meta.lastDailyRewardDate, meta.vip, user]);
 
   useEffect(() => {
-    if (!hasHydrated || !user) {
+    if (!hasHydrated || !hasTrustedUserMeta || !user) {
       return;
     }
     processDailyReward();
-  }, [hasHydrated, processDailyReward, user?.id]);
+  }, [hasHydrated, hasTrustedUserMeta, processDailyReward, user?.id]);
 
   const activateVip = useCallback(
     async (plan: VipPlan = 'monthly') => {
@@ -716,65 +676,120 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       setIsProcessing(true);
 
       try {
-        await spend(config.diamondCost);
+        const purchaseResult = await runTransaction(db, async (tx) => {
+          const currentUserRef = userMetaRef(user.id);
+          const currentInventoryRef = doc(db, 'users', user.id, 'inventory', 'consumables');
+          const [userSnap, inventorySnap] = await Promise.all([
+            tx.get(currentUserRef),
+            tx.get(currentInventoryRef),
+          ]);
 
-        const now = new Date();
-        const activatedIso = now.toISOString();
-        const currentVip = sanitizeVip(meta.vip);
-        const wasActive = currentVip.isActive;
-        const currentExpiry = currentVip.expiresAt ? new Date(currentVip.expiresAt).getTime() : 0;
-        const nowTime = now.getTime();
-        const baseTime = currentExpiry > nowTime ? currentExpiry : nowTime;
-        const nextExpiry = new Date(baseTime + durationMs).toISOString();
+          const balance = Number(userSnap.data()?.diamondBalance ?? 0);
+          if (!Number.isFinite(balance) || balance < config.diamondCost) {
+            throw new Error('Yeterli elmas yok');
+          }
 
-        const nextVip: VipState = {
-          ...currentVip,
-          isActive: true,
-          plan,
-          activatedAt: activatedIso,
-          expiresAt: nextExpiry,
-          nostalgiaFreeTokens: currentVip.nostalgiaFreeTokens ?? 0,
-          nostalgiaFreeAvailable: currentVip.nostalgiaFreeAvailable,
-          starCardCredits: currentVip.starCardCredits ?? 0,
-        };
+          const currentVip = sanitizeVip(
+            ((userSnap.data() as { vip?: Partial<VipState> | null } | undefined)?.vip ?? undefined) ??
+              undefined,
+          );
+          const wasActive = currentVip.isActive;
+          const currentExpiry = currentVip.expiresAt ? new Date(currentVip.expiresAt).getTime() : 0;
+          const now = new Date();
+          const nowTime = now.getTime();
+          const baseTime = currentExpiry > nowTime ? currentExpiry : nowTime;
+          const nextExpiry = new Date(baseTime + durationMs).toISOString();
+          const shouldGrantKits =
+            activationBonus.kitAmount > 0 && (plan !== 'monthly' || !wasActive);
+          const currentKits = inventorySnap.exists()
+            ? sanitizeKitInventory((inventorySnap.data() as { kits?: unknown } | undefined)?.kits)
+            : { ...DEFAULT_KIT_INVENTORY };
+          const nextKits = { ...currentKits };
 
-        const shouldGrantKits =
-          activationBonus.kitAmount > 0 && (plan !== 'monthly' || !wasActive);
+          if (shouldGrantKits) {
+            nextKits.energy = sanitizeKitInventory({
+              ...nextKits,
+              energy: (nextKits.energy ?? 0) + activationBonus.kitAmount,
+            }).energy;
+            nextKits.morale = sanitizeKitInventory({
+              ...nextKits,
+              morale: (nextKits.morale ?? 0) + activationBonus.kitAmount,
+            }).morale;
+            nextKits.health = sanitizeKitInventory({
+              ...nextKits,
+              health: (nextKits.health ?? 0) + activationBonus.kitAmount,
+            }).health;
+          }
 
-        if (shouldGrantKits) {
-          await grantKits(user.id, {
-            energy: activationBonus.kitAmount,
-            morale: activationBonus.kitAmount,
-            health: activationBonus.kitAmount,
-          });
-        }
+          const nextVip: VipState = {
+            ...currentVip,
+            isActive: true,
+            plan,
+            activatedAt: now.toISOString(),
+            expiresAt: nextExpiry,
+            nostalgiaFreeTokens: currentVip.nostalgiaFreeTokens ?? 0,
+            nostalgiaFreeAvailable: currentVip.nostalgiaFreeAvailable,
+            starCardCredits: currentVip.starCardCredits ?? 0,
+          };
 
-        if (activationBonus.starCards > 0 && plan !== 'monthly') {
-          nextVip.starCardCredits = (nextVip.starCardCredits ?? 0) + activationBonus.starCards;
-        }
+          if (activationBonus.starCards > 0 && plan !== 'monthly') {
+            nextVip.starCardCredits = (nextVip.starCardCredits ?? 0) + activationBonus.starCards;
+          }
 
-        const nostalgiaTokensGranted = Math.max(0, activationBonus.nostalgiaTokens ?? 0);
-        if (nostalgiaTokensGranted > 0) {
-          const currentTokens = Math.max(0, nextVip.nostalgiaFreeTokens ?? 0);
-          const updatedTokens = currentTokens + nostalgiaTokensGranted;
-          nextVip.nostalgiaFreeTokens = updatedTokens;
-          nextVip.nostalgiaFreeAvailable = updatedTokens > 0;
-        } else {
-          nextVip.nostalgiaFreeAvailable = nextVip.nostalgiaFreeTokens > 0;
-        }
+          const nostalgiaTokensGranted = Math.max(0, activationBonus.nostalgiaTokens ?? 0);
+          if (nostalgiaTokensGranted > 0) {
+            const currentTokens = Math.max(0, nextVip.nostalgiaFreeTokens ?? 0);
+            const updatedTokens = currentTokens + nostalgiaTokensGranted;
+            nextVip.nostalgiaFreeTokens = updatedTokens;
+            nextVip.nostalgiaFreeAvailable = updatedTokens > 0;
+          } else {
+            nextVip.nostalgiaFreeAvailable = nextVip.nostalgiaFreeTokens > 0;
+          }
 
-        await persistUserVipState(user.id, nextVip);
+          const sanitizedNextVip = sanitizeVip(nextVip);
+
+          tx.set(
+            currentUserRef,
+            {
+              diamondBalance: Math.max(0, Math.round(balance - config.diamondCost)),
+              vip: sanitizedNextVip,
+              vipUpdatedAt: serverTimestamp(),
+            },
+            { merge: true },
+          );
+
+          if (shouldGrantKits) {
+            tx.set(
+              currentInventoryRef,
+              {
+                kits: nextKits,
+                updatedAt: serverTimestamp(),
+              },
+              { merge: true },
+            );
+          }
+
+          return {
+            vip: sanitizedNextVip,
+            kits: nextKits,
+            shouldGrantKits,
+          };
+        });
 
         setMeta((previous) => ({
           ...previous,
-          vip: nextVip,
+          vip: purchaseResult.vip,
         }));
+        if (purchaseResult.shouldGrantKits) {
+          setKits(purchaseResult.kits);
+        }
+        setHasTrustedUserMeta(true);
 
         toast.success(`${config.label} aktif edildi.`, {
           description: `VIP avantajlarin ${config.durationDays} gun boyunca acik.`,
         });
 
-        if (shouldGrantKits) {
+        if (purchaseResult.shouldGrantKits) {
           showKitRewardToast({
             title: 'VIP bonus hediyesi',
             subtitle: `Kondisyon, motivasyon ve saglik kitlerinden ${activationBonus.kitAmount} adet kazandin.`,
@@ -796,16 +811,15 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
                 : `Nostalji paketlerini ${activationBonus.nostalgiaTokens} kez ucretsiz acabilirsin.`,
           });
         }
-
-        processDailyReward();
       } catch (error) {
+        console.warn('[InventoryProvider] vip activation failed', error);
         const message = error instanceof Error ? error.message : 'VIP satin alinamadi.';
         toast.error(message || 'VIP satin alinamadi.');
       } finally {
         setIsProcessing(false);
       }
     },
-    [meta.vip, processDailyReward, spend, user],
+    [user],
   );
 
   const deactivateVip = useCallback(() => {
@@ -920,7 +934,7 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   const lastDailyRewardDate = meta.lastDailyRewardDate;
   const vipStatus = useMemo(() => sanitizeVip(meta.vip), [meta.vip]);
-  const vipActive = computeVipActive(vipStatus);
+  const vipActive = resolveVipActive(vipStatus, hasHydrated && hasTrustedUserMeta);
   const vipDurationMultiplier = vipActive
     ? Math.max(0.1, 1 - vipStatus.durationReductionPercent)
     : 1;
@@ -951,6 +965,7 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       canClaimMonthlyStarCard,
       consumeVipNostalgiaReward,
       isHydrated: hasHydrated,
+      isVipReady: hasTrustedUserMeta,
     }),
     [
       kits,
@@ -970,6 +985,7 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       canClaimMonthlyStarCard,
       consumeVipNostalgiaReward,
       hasHydrated,
+      hasTrustedUserMeta,
     ],
   );
 

@@ -26,7 +26,7 @@ const formatDate = (value: string | null): string => {
 const VipStorePage: React.FC = () => {
   const { user } = useAuth();
   const { balance } = useDiamonds();
-  const { vipPlans, activateVip, vipStatus, vipActive, isHydrated } = useInventory();
+  const { vipPlans, activateVip, vipStatus, vipActive, isHydrated, isVipReady } = useInventory();
   const [pendingPlan, setPendingPlan] = useState<VipPlan | null>(null);
 
   type VipPlanEntry = [VipPlan, VipPlanConfig];
@@ -44,7 +44,7 @@ const VipStorePage: React.FC = () => {
     }
   };
 
-  const canInteract = Boolean(user) && isHydrated && !pendingPlan;
+  const canInteract = Boolean(user) && isHydrated && isVipReady && !pendingPlan;
   const activePlanLabel = vipStatus.plan ? vipPlans[vipStatus.plan].label : 'Aktif VIP yok';
 
   return (

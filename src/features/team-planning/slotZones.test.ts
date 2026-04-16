@@ -51,6 +51,17 @@ describe("resolveFormationSlotZoneId", () => {
       })
     ).toBe("gizli forvet");
   });
+
+  it("normalizes legacy mojibake zone ids from persisted formations", () => {
+    expect(
+      resolveFormationSlotZoneId({
+        position: "RB",
+        x: 20,
+        y: 85,
+        zoneId: "saÄŸ bek",
+      })
+    ).toBe("sağ bek");
+  });
 });
 
 describe("resolveSlotZoneId", () => {

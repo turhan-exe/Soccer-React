@@ -98,4 +98,9 @@ export {
 export { notifyDueSignals } from './notify/dueSignals.js';
 export { finalizeDueTrainingSessions } from './notify/training.js';
 export { leagueMatchReminderHttp } from './notify/matchReminder.js';
-export { enforceChatModeration, checkChatSanction, applyChatSanction } from './chat/moderation.js';
+export {
+  enforceChatModeration,
+  checkChatSanction,
+  applyChatSanction,
+  cleanupExpiredGlobalChatMessages,
+} from './chat/moderation.js';

@@ -26,6 +26,15 @@ public class UnityPlayerActivity extends Activity implements IUnityPlayerLifecyc
         return cmdLine;
     }
 
+    /**
+     * Allows embedded callers to unload Unity and return to the host shell without
+     * routing back through UnityPlayer.destroy(), which hard-kills the process.
+     */
+    protected boolean shouldDestroyUnityPlayerOnDestroy()
+    {
+        return true;
+    }
+
     // Setup activity layout
     @Override protected void onCreate(Bundle savedInstanceState)
     {
@@ -67,7 +76,8 @@ public class UnityPlayerActivity extends Activity implements IUnityPlayerLifecyc
     // Quit Unity
     @Override protected void onDestroy ()
     {
-        mUnityPlayer.destroy();
+        if (mUnityPlayer != null && shouldDestroyUnityPlayerOnDestroy())
+            mUnityPlayer.destroy();
         super.onDestroy();
     }
 

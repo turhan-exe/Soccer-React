@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { SplashScreen } from '@capacitor/splash-screen';
 import { Toaster } from '@/components/ui/sonner';
@@ -17,11 +17,44 @@ import ForceUpdateGate from '@/components/system/ForceUpdateGate';
 import MatchControlPresenceHeartbeat from '@/components/system/MatchControlPresenceHeartbeat';
 import PushNotificationsBootstrap from '@/components/system/PushNotificationsBootstrap';
 import KeyboardViewportManager from '@/components/system/KeyboardViewportManager';
+import { useAuth } from '@/contexts/AuthContext';
+import { useInventory } from '@/contexts/InventoryContext';
 
 const queryClient = new QueryClient();
+const BOOT_UI_STABILIZATION_MS = 1000;
 
 type ScreenOrientationWithLock = ScreenOrientation & {
   lock?: (orientation: string) => Promise<void>;
+};
+
+const NativeStartupSplashController = () => {
+  const { isAuthReady } = useAuth();
+  const { isHydrated } = useInventory();
+  const [isSplashHidden, setIsSplashHidden] = useState(!Capacitor.isNativePlatform());
+
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform() || isSplashHidden) {
+      return;
+    }
+
+    if (!isAuthReady || !isHydrated) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      SplashScreen.hide({ fadeOutDuration: 200 })
+        .catch(() => undefined)
+        .finally(() => {
+          setIsSplashHidden(true);
+        });
+    }, BOOT_UI_STABILIZATION_MS);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [isAuthReady, isHydrated, isSplashHidden]);
+
+  return null;
 };
 
 const App = () => {
@@ -45,10 +78,6 @@ const App = () => {
 
     window.addEventListener('resize', handleResize, { passive: true });
     window.addEventListener('orientationchange', handleResize);
-
-    if (Capacitor.isNativePlatform()) {
-      SplashScreen.hide({ fadeOutDuration: 300 }).catch(() => undefined);
-    }
 
     return () => {
       window.removeEventListener('resize', handleResize);
@@ -120,6 +149,7 @@ const App = () => {
               <PushNotificationsBootstrap />
               <DiamondProvider>
                 <InventoryProvider>
+                  <NativeStartupSplashController />
                   <TooltipProvider>
                     <Toaster />
                     <RouterProvider router={router} future={{ v7_startTransition: true }} />

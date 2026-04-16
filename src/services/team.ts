@@ -11,6 +11,7 @@ import { addGameYears, applyGameAgingToPlayers } from '@/lib/gameTime';
 import { formations } from '@/lib/formations';
 import { getSalaryForOverall } from '@/lib/salary';
 import { INITIAL_CLUB_BALANCE } from '@/lib/clubFinance';
+import { clearLiveTeamIdentityCache } from './teamIdentity';
 
 const positions: Player['position'][] = ['GK','CB','LB','RB','CM','LM','RM','CAM','LW','RW','ST'];
 
@@ -241,6 +242,7 @@ export const updateTeamName = async (userId: string, teamName: string) => {
     { name: teamName },
     { merge: true },
   );
+  clearLiveTeamIdentityCache(userId);
 };
 
 export const updateTeamLogo = async (userId: string, logo: string | null) => {
@@ -250,6 +252,7 @@ export const updateTeamLogo = async (userId: string, logo: string | null) => {
     payload,
     { merge: true },
   );
+  clearLiveTeamIdentityCache(userId);
 };
 
 export const updateTeamAssets = async (
@@ -258,6 +261,7 @@ export const updateTeamAssets = async (
 ) => {
   const sanitized = sanitizeFirestoreData(payload);
   await setDoc(doc(db, 'teams', userId), sanitized, { merge: true });
+  clearLiveTeamIdentityCache(userId);
 };
 
 export const adjustTeamBudget = async (userId: string, amount: number): Promise<number> => {
@@ -439,6 +443,10 @@ type RenameStadiumResponse = {
 
 export const renameClubWithDiamonds = async (teamName: string): Promise<RenameClubResponse> => {
   const response = await renameClubCallable({ name: teamName });
+  const currentUid = auth.currentUser?.uid;
+  if (currentUid) {
+    clearLiveTeamIdentityCache(currentUid);
+  }
   return response.data;
 };
 
@@ -497,7 +505,7 @@ export const updatePlayerSalary = async (userId: string, playerId: string, salar
 export async function setLineupServer(params: {
   teamId: string;
   formation?: string;
-  tactics?: Record<string, any>;
+  tactics?: Record<string, unknown>;
   starters: string[];
   subs?: string[];
   reserves?: string[];

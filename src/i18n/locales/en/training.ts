@@ -28,8 +28,8 @@ export const enTraining: TranslationDictionary = {
     empty: {
       players: 'No matching player found.',
       trainings: 'No suitable training found.',
-      selectedPlayers: 'Drag and drop players here or double click them.',
-      selectedTrainings: 'Drop training cards into this area.',
+      selectedPlayers: 'Tap or click to select. Swipe to scroll the list, or press and hold before dragging.',
+      selectedTrainings: 'Tap or click to select. Swipe to scroll the list, or press and hold before dragging.',
       noHistory: 'No training records yet.',
       unknownPlayer: 'Unknown Player',
       unknownTraining: 'Unknown Training',
@@ -60,6 +60,7 @@ export const enTraining: TranslationDictionary = {
     },
     actions: {
       start: 'Start Training',
+      playerDetails: 'Player Details',
       finishWithDiamonds: 'Finish with Diamonds ({cost})',
       finishWithAd: 'Finish Now (Watch Ad)',
       loadingAd: 'Loading Video...',

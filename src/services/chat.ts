@@ -6,19 +6,22 @@ import {
   limit,
   onSnapshot,
   orderBy,
+  QueryConstraint,
   query,
   serverTimestamp,
   Timestamp,
+  where,
   type QueryDocumentSnapshot,
 } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import type { GlobalChatMessage } from '@/types';
 import { db, functions } from './firebase';
+import { resolveLiveTeamIdentities } from './teamIdentity';
 
 const GLOBAL_CHAT_COLLECTION = 'globalChatMessages';
 const MESSAGE_HISTORY_LIMIT = 60;
-const MESSAGE_TTL_HOURS = 24;
-const MESSAGE_TTL_MS = MESSAGE_TTL_HOURS * 60 * 60 * 1000;
+export const CHAT_RETENTION_DAYS = 7;
+export const CHAT_RETENTION_MS = CHAT_RETENTION_DAYS * 24 * 60 * 60 * 1000;
 const MAX_TEXT_LENGTH = 320;
 
 const chatCollectionRef = collection(db, GLOBAL_CHAT_COLLECTION);
@@ -110,20 +113,16 @@ const ensureColor = (value: unknown): string | null => {
   return trimmed ? trimmed : null;
 };
 
+const resolveChatDate = (value: unknown, fallbackMs = Date.now()): Date => {
+  const millis = toMillis(value);
+  return new Date(millis ?? fallbackMs);
+};
+
+export const getGlobalChatRetentionCutoffMs = (now = Date.now()): number =>
+  now - CHAT_RETENTION_MS;
+
 const documentToMessage = (docSnapshot: QueryDocumentSnapshot<DocumentData>): GlobalChatMessage => {
   const data = docSnapshot.data();
-  const createdAtValue = data.createdAt;
-  const expiresAtValue = data.expiresAt;
-  const createdAt =
-    createdAtValue instanceof Timestamp
-      ? createdAtValue.toDate()
-      : new Date(typeof createdAtValue === 'number' ? createdAtValue : Date.now());
-  const expiresAt =
-    expiresAtValue instanceof Timestamp
-      ? expiresAtValue.toDate()
-      : expiresAtValue
-        ? new Date(expiresAtValue)
-        : null;
 
   return {
     id: docSnapshot.id,
@@ -131,8 +130,8 @@ const documentToMessage = (docSnapshot: QueryDocumentSnapshot<DocumentData>): Gl
     userId: String(data.userId ?? ''),
     username: String(data.username ?? 'Menajer'),
     teamName: String(data.teamName ?? 'Takimim'),
-    createdAt,
-    expiresAt,
+    createdAt: resolveChatDate(data.createdAt),
+    expiresAt: data.expiresAt ? resolveChatDate(data.expiresAt) : null,
     isVip: Boolean(data.isVip),
     gradientStart: ensureColor(data.gradientStart),
     gradientEnd: ensureColor(data.gradientEnd),
@@ -140,36 +139,93 @@ const documentToMessage = (docSnapshot: QueryDocumentSnapshot<DocumentData>): Gl
   };
 };
 
-const removeExpiredMessages = (messages: GlobalChatMessage[], now = Date.now()): GlobalChatMessage[] => {
-  const ttlCutoff = now - MESSAGE_TTL_MS;
-  return messages.filter(message => {
-    const createdAtMs = message.createdAt.getTime();
-    const expiresAtMs = message.expiresAt?.getTime();
-    if (typeof expiresAtMs === 'number') {
-      return expiresAtMs > now;
+export const isExpiredGlobalChatMessage = (
+  message: Pick<GlobalChatMessage, 'createdAt' | 'expiresAt'>,
+  now = Date.now(),
+): boolean => {
+  const expiresAtMs = message.expiresAt?.getTime();
+  if (typeof expiresAtMs === 'number') {
+    return expiresAtMs <= now;
+  }
+
+  return message.createdAt.getTime() <= getGlobalChatRetentionCutoffMs(now);
+};
+
+export const filterRetainedGlobalChatMessages = (
+  messages: GlobalChatMessage[],
+  now = Date.now(),
+): GlobalChatMessage[] =>
+  messages.filter(message => !isExpiredGlobalChatMessage(message, now));
+
+const hydrateMessageTeamNames = async (messages: GlobalChatMessage[]): Promise<GlobalChatMessage[]> => {
+  const liveIdentities = await resolveLiveTeamIdentities(messages.map((message) => message.userId));
+  if (liveIdentities.size === 0) {
+    return messages;
+  }
+
+  return messages.map((message) => {
+    const identity = liveIdentities.get(message.userId);
+    if (!identity?.teamName || identity.teamName === message.teamName) {
+      return message;
     }
-    return createdAtMs > ttlCutoff;
+
+    return {
+      ...message,
+      teamName: identity.teamName,
+    };
   });
+};
+
+type SubscribeToGlobalChatOptions = {
+  limitCount?: number;
+  sinceMs?: number;
 };
 
 export const subscribeToGlobalChat = (
   onMessages: (messages: GlobalChatMessage[]) => void,
   onError?: (error: Error) => void,
+  options: SubscribeToGlobalChatOptions = {},
 ) => {
-  const chatQuery = query(chatCollectionRef, orderBy('createdAt', 'desc'), limit(MESSAGE_HISTORY_LIMIT));
+  const queryConstraints: QueryConstraint[] = [];
+  if (typeof options.sinceMs === 'number' && Number.isFinite(options.sinceMs)) {
+    queryConstraints.push(where('createdAt', '>=', Timestamp.fromMillis(options.sinceMs)));
+  }
+  queryConstraints.push(orderBy('createdAt', 'desc'));
+  queryConstraints.push(limit(options.limitCount ?? MESSAGE_HISTORY_LIMIT));
 
-  return onSnapshot(
+  const chatQuery = query(chatCollectionRef, ...queryConstraints);
+  let closed = false;
+  let hydrateSequence = 0;
+
+  const unsubscribe = onSnapshot(
     chatQuery,
     snapshot => {
-      const items = snapshot.docs.map(documentToMessage).sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
-      const filteredItems = removeExpiredMessages(items);
-      onMessages(filteredItems);
+      const currentSequence = ++hydrateSequence;
+
+      void (async () => {
+        const items = snapshot.docs
+          .map(documentToMessage)
+          .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+        const filteredItems = filterRetainedGlobalChatMessages(items);
+        const hydratedItems = await hydrateMessageTeamNames(filteredItems);
+
+        if (closed || currentSequence !== hydrateSequence) {
+          return;
+        }
+
+        onMessages(hydratedItems);
+      })();
     },
     error => {
       console.warn('[chat] realtime subscription failed', error);
       onError?.(error);
     },
   );
+
+  return () => {
+    closed = true;
+    unsubscribe();
+  };
 };
 
 type SendMessagePayload = {
@@ -219,7 +275,7 @@ export const sendGlobalChatMessage = async ({
     username,
     teamName,
     createdAt: serverTimestamp(),
-    expiresAt: Timestamp.fromMillis(Date.now() + MESSAGE_TTL_MS),
+    expiresAt: Timestamp.fromMillis(Date.now() + CHAT_RETENTION_MS),
     isVip,
   };
 

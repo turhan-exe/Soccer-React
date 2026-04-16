@@ -16,9 +16,27 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import BackButton from '@/components/ui/back-button';
 import { AlertTriangle, Ban, BellOff, CheckCircle2, MessageSquare, ShieldAlert, ShieldCheck } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { subscribeToGlobalChat } from '@/services/chat';
+import {
+  CHAT_RETENTION_DAYS,
+  filterRetainedGlobalChatMessages,
+  getGlobalChatRetentionCutoffMs,
+  subscribeToGlobalChat,
+} from '@/services/chat';
 import type { GlobalChatMessage } from '@/types';
-import { collection, getDocs, limit, onSnapshot, orderBy, query } from 'firebase/firestore';
+import {
+  collection,
+  type DocumentData,
+  getDocs,
+  limit,
+  onSnapshot,
+  orderBy,
+  type QueryConstraint,
+  type QueryDocumentSnapshot,
+  query,
+  startAfter,
+  Timestamp,
+  where,
+} from 'firebase/firestore';
 import { db } from '@/services/firebase';
 import { useAuth } from '@/contexts/AuthContext';
 import { getMatchControlPresenceStats, getRegisteredUsersCount, isMatchControlConfigured } from '@/services/matchControl';
@@ -74,7 +92,9 @@ type PlayerSummary = {
 };
 
 const ADMIN_EMAIL_DOMAIN = 'mgx.gg';
-const CHAT_HISTORY_LIMIT = 80;
+const CHAT_PAGE_SIZE = 100;
+const CHAT_PAGE_FETCH_LIMIT = CHAT_PAGE_SIZE + 1;
+const CHAT_REALTIME_WINDOW_LIMIT = 100;
 const CHAT_API_ENDPOINT = import.meta.env.VITE_CHAT_API_ENDPOINT || '';
 const USERS_API_ENDPOINT = import.meta.env.VITE_USERS_API_ENDPOINT || '';
 const SANCTION_ENDPOINT = import.meta.env.VITE_CHAT_SANCTION_ENDPOINT || '';
@@ -95,7 +115,7 @@ const keywordMatrix = [
 
 const SANCTIONS_COLLECTION = 'chatSanctions';
 
-export const messageJsonSchema = {
+const messageJsonSchema = {
   $id: 'mgx.chat.message',
   type: 'object',
   required: ['id', 'playerName', 'playerTag', 'channel', 'text', 'timestamp', 'severity', 'flags', 'status'],
@@ -112,7 +132,7 @@ export const messageJsonSchema = {
   },
 } as const;
 
-export const userJsonSchema = {
+const userJsonSchema = {
   $id: 'mgx.chat.user',
   type: 'object',
   required: ['id', 'username', 'teamLabel', 'lastSeen'],
@@ -141,14 +161,22 @@ const ensureDateValue = (value: unknown): Date => {
   return new Date(millis ?? Date.now());
 };
 
-const fetchMessages = async (): Promise<ChatMessage[]> => {
-  if (CHAT_API_ENDPOINT) {
-    const response = await fetch(`${CHAT_API_ENDPOINT}/chat/messages?limit=${CHAT_HISTORY_LIMIT}`);
-    if (!response.ok) {
-      throw new Error('Sohbet API istegi basarisiz.');
-    }
-    const payload = (await response.json()) as Partial<GlobalChatMessage>[];
-    const normalized = payload.map((item) => ({
+type ChatMessagesCursor =
+  | { kind: 'firestore'; snapshot: QueryDocumentSnapshot<DocumentData> }
+  | { kind: 'api'; beforeMs: number }
+  | null;
+
+type ChatMessagesPage = {
+  items: ChatMessage[];
+  cursor: ChatMessagesCursor;
+  hasMore: boolean;
+};
+
+const normalizeGlobalChatMessages = (
+  payload: Partial<GlobalChatMessage>[],
+): GlobalChatMessage[] =>
+  filterRetainedGlobalChatMessages(
+    payload.map((item) => ({
       id: String(item.id ?? generateRandomId()),
       text: String(item.text ?? ''),
       userId: typeof item.userId === 'string' ? item.userId : '',
@@ -160,30 +188,129 @@ const fetchMessages = async (): Promise<ChatMessage[]> => {
       gradientStart: typeof item.gradientStart === 'string' ? item.gradientStart : null,
       gradientEnd: typeof item.gradientEnd === 'string' ? item.gradientEnd : null,
       gradientAngle: typeof item.gradientAngle === 'number' ? item.gradientAngle : null,
-    }));
-    return normalized.map(transformIncomingMessage).sort((a, b) => b.timestamp - a.timestamp);
-  }
+    })),
+  );
 
-  const chatQuery = query(collection(db, 'globalChatMessages'), orderBy('createdAt', 'desc'), limit(CHAT_HISTORY_LIMIT));
-  const snapshot = await getDocs(chatQuery);
-  const items: GlobalChatMessage[] = snapshot.docs.map((docSnapshot) => {
-    const data = docSnapshot.data();
-    return {
-      id: docSnapshot.id,
-      text: String(data.text ?? ''),
-      userId: typeof data.userId === 'string' ? data.userId : '',
-      username: String(data.username ?? data.teamName ?? 'Menajer'),
-      teamName: String(data.teamName ?? 'Takimim'),
-      createdAt: ensureDateValue(data.createdAt),
-      expiresAt: data.expiresAt ? ensureDateValue(data.expiresAt) : null,
-      isVip: Boolean(data.isVip),
-      gradientStart: typeof data.gradientStart === 'string' ? data.gradientStart : null,
-      gradientEnd: typeof data.gradientEnd === 'string' ? data.gradientEnd : null,
-      gradientAngle: typeof data.gradientAngle === 'number' ? data.gradientAngle : null,
-    };
+const toModerationMessages = (items: GlobalChatMessage[]): ChatMessage[] =>
+  items
+    .map(transformIncomingMessage)
+    .sort((left, right) => right.timestamp - left.timestamp);
+
+const mergeChatMessages = (
+  current: ChatMessage[],
+  incoming: ChatMessage[],
+): ChatMessage[] => {
+  const merged = new Map<string, ChatMessage>();
+
+  current.forEach((message) => {
+    merged.set(message.id, message);
   });
 
-  return items.map(transformIncomingMessage).sort((a, b) => b.timestamp - a.timestamp);
+  incoming.forEach((message) => {
+    const existing = merged.get(message.id);
+    merged.set(
+      message.id,
+      existing?.status === 'deleted'
+        ? { ...message, status: 'deleted' }
+        : message,
+    );
+  });
+
+  return Array.from(merged.values()).sort(
+    (left, right) => right.timestamp - left.timestamp,
+  );
+};
+
+const fetchMessagesPage = async (
+  cursor: ChatMessagesCursor = null,
+): Promise<ChatMessagesPage> => {
+  const retentionCutoffMs = getGlobalChatRetentionCutoffMs();
+
+  if (CHAT_API_ENDPOINT) {
+    const params = new URLSearchParams({
+      limit: String(CHAT_PAGE_SIZE),
+      sinceMs: String(retentionCutoffMs),
+    });
+
+    if (cursor?.kind === 'api') {
+      params.set('before', String(cursor.beforeMs));
+      params.set('beforeMs', String(cursor.beforeMs));
+    }
+
+    const response = await fetch(
+      `${CHAT_API_ENDPOINT}/chat/messages?${params.toString()}`,
+    );
+    if (!response.ok) {
+      throw new Error('Sohbet API istegi basarisiz.');
+    }
+    const payload = normalizeGlobalChatMessages(
+      (await response.json()) as Partial<GlobalChatMessage>[],
+    ).sort(
+      (left, right) => right.createdAt.getTime() - left.createdAt.getTime(),
+    );
+
+    const pageItems = payload.slice(0, CHAT_PAGE_SIZE);
+    const nextBeforeMs = pageItems.at(-1)?.createdAt.getTime() ?? null;
+    const requestedBeforeMs = cursor?.kind === 'api' ? cursor.beforeMs : null;
+    const hasMore =
+      pageItems.length === CHAT_PAGE_SIZE
+      && nextBeforeMs !== null
+      && (requestedBeforeMs === null || nextBeforeMs < requestedBeforeMs);
+
+    return {
+      items: toModerationMessages(pageItems),
+      cursor: hasMore && nextBeforeMs !== null
+        ? { kind: 'api', beforeMs: nextBeforeMs }
+        : null,
+      hasMore,
+    };
+  }
+
+  const queryConstraints: QueryConstraint[] = [
+    where('createdAt', '>=', Timestamp.fromMillis(retentionCutoffMs)),
+    orderBy('createdAt', 'desc'),
+  ];
+
+  if (cursor?.kind === 'firestore') {
+    queryConstraints.push(startAfter(cursor.snapshot));
+  }
+
+  queryConstraints.push(limit(CHAT_PAGE_FETCH_LIMIT));
+
+  const snapshot = await getDocs(
+    query(collection(db, 'globalChatMessages'), ...queryConstraints),
+  );
+  const hasMore = snapshot.docs.length > CHAT_PAGE_SIZE;
+  const pageDocs = hasMore
+    ? snapshot.docs.slice(0, CHAT_PAGE_SIZE)
+    : snapshot.docs;
+
+  const items = normalizeGlobalChatMessages(
+    pageDocs.map((docSnapshot) => {
+      const data = docSnapshot.data();
+      return {
+        id: docSnapshot.id,
+        text: String(data.text ?? ''),
+        userId: typeof data.userId === 'string' ? data.userId : '',
+        username: String(data.username ?? data.teamName ?? 'Menajer'),
+        teamName: String(data.teamName ?? 'Takimim'),
+        createdAt: ensureDateValue(data.createdAt),
+        expiresAt: data.expiresAt ? ensureDateValue(data.expiresAt) : null,
+        isVip: Boolean(data.isVip),
+        gradientStart: typeof data.gradientStart === 'string' ? data.gradientStart : null,
+        gradientEnd: typeof data.gradientEnd === 'string' ? data.gradientEnd : null,
+        gradientAngle: typeof data.gradientAngle === 'number' ? data.gradientAngle : null,
+      } satisfies Partial<GlobalChatMessage>;
+    }),
+  );
+
+  return {
+    items: toModerationMessages(items),
+    cursor: hasMore && pageDocs.length > 0
+      ? { kind: 'firestore', snapshot: pageDocs[pageDocs.length - 1] }
+      : null,
+    hasMore,
+  };
 };
 
 const fetchUsers = async (
@@ -225,8 +352,8 @@ const fetchUsers = async (
     return derivePlayers(seedMessages, blockedUsers);
   }
 
-  const fallback = await fetchMessages();
-  return derivePlayers(fallback, blockedUsers);
+  const fallback = await fetchMessagesPage();
+  return derivePlayers(fallback.items, blockedUsers);
 };
 
 const evaluateMessage = (text: string): { severity: Severity; flags: string[] } => {
@@ -353,6 +480,8 @@ const ChatModerationAdmin = () => {
   const [sessionUser, setSessionUser] = useState<AdminSession | null>(null);
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [messagesCursor, setMessagesCursor] = useState<ChatMessagesCursor>(null);
+  const [hasMoreMessages, setHasMoreMessages] = useState(false);
   const [selectedMessageId, setSelectedMessageId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [severityFilter, setSeverityFilter] = useState<'all' | Severity>('all');
@@ -366,6 +495,7 @@ const ChatModerationAdmin = () => {
   const [isApplyingAction, setIsApplyingAction] = useState(false);
 
   const [isLoadingMessages, setIsLoadingMessages] = useState(true);
+  const [isLoadingMoreMessages, setIsLoadingMoreMessages] = useState(false);
   const [playerSummaries, setPlayerSummaries] = useState<PlayerSummary[]>([]);
   const [isLoadingPlayers, setIsLoadingPlayers] = useState(true);
   const [playersError, setPlayersError] = useState<string | null>(null);
@@ -383,14 +513,18 @@ const ChatModerationAdmin = () => {
 
     const hydrateFromBackend = async () => {
       try {
-        const initialMessages = await fetchMessages();
+        const initialPage = await fetchMessagesPage();
         if (!isMounted) return;
-        setMessages(initialMessages);
-        setSelectedMessageId((current) => current ?? initialMessages[0]?.id ?? null);
+        setMessages(initialPage.items);
+        setMessagesCursor(initialPage.cursor);
+        setHasMoreMessages(initialPage.hasMore);
+        setSelectedMessageId((current) => current ?? initialPage.items[0]?.id ?? null);
       } catch (error) {
         console.error('[chat] fetchMessages failed', error);
         if (isMounted) {
           setDataError('Sohbet akisi cekilemedi. Sayfayi yenileyin.');
+          setMessagesCursor(null);
+          setHasMoreMessages(false);
         }
       } finally {
         if (isMounted) {
@@ -404,8 +538,8 @@ const ChatModerationAdmin = () => {
     const unsubscribe = subscribeToGlobalChat(
       (incomingMessages) => {
         if (!isMounted) return;
-        const hydrated = incomingMessages.map(transformIncomingMessage).sort((a, b) => b.timestamp - a.timestamp);
-        setMessages(hydrated);
+        const hydrated = toModerationMessages(incomingMessages);
+        setMessages((prev) => mergeChatMessages(prev, hydrated));
         setSelectedMessageId((current) => current ?? hydrated[0]?.id ?? null);
         setIsLoadingMessages(false);
         setDataError(null);
@@ -417,6 +551,10 @@ const ChatModerationAdmin = () => {
           setIsLoadingMessages(false);
         }
       },
+      {
+        limitCount: CHAT_REALTIME_WINDOW_LIMIT,
+        sinceMs: getGlobalChatRetentionCutoffMs(),
+      },
     );
 
     return () => {
@@ -424,6 +562,27 @@ const ChatModerationAdmin = () => {
       unsubscribe();
     };
   }, []);
+
+  const loadMoreMessages = async () => {
+    if (!hasMoreMessages || !messagesCursor || isLoadingMoreMessages) {
+      return;
+    }
+
+    setIsLoadingMoreMessages(true);
+    setDataError(null);
+
+    try {
+      const nextPage = await fetchMessagesPage(messagesCursor);
+      setMessages((prev) => mergeChatMessages(prev, nextPage.items));
+      setMessagesCursor(nextPage.cursor);
+      setHasMoreMessages(nextPage.hasMore);
+    } catch (error) {
+      console.error('[chat] fetchMessagesPage failed', error);
+      setDataError('Eski mesajlar yuklenemedi. Lutfen tekrar deneyin.');
+    } finally {
+      setIsLoadingMoreMessages(false);
+    }
+  };
 
   useEffect(() => {
     const sanctionsQuery = query(collection(db, SANCTIONS_COLLECTION), orderBy('startedAt', 'desc'));
@@ -554,7 +713,7 @@ const ChatModerationAdmin = () => {
     return () => {
       isActive = false;
     };
-  }, [messages, activeSanctionsMap]);
+  }, [messages, activeSanctionsMap, playerSummaries.length]);
 
   useEffect(() => {
     let cancelled = false;
@@ -828,7 +987,7 @@ const ChatModerationAdmin = () => {
             </CardHeader>
             <CardContent className="px-4 pb-4 pt-0">
               <div className="text-2xl font-semibold text-white">{isLoadingMessages ? '...' : totalActiveMessages}</div>
-              <p className="text-xs text-slate-500">son 30 mesaj icinde</p>
+              <p className="text-xs text-slate-500">son {CHAT_RETENTION_DAYS} gun icinde</p>
             </CardContent>
           </Card>
           <Card className="border-slate-800 bg-slate-900/70">
@@ -894,7 +1053,7 @@ const ChatModerationAdmin = () => {
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <CardTitle>Gercek Zamanli Sohbet Akisi</CardTitle>
-                  <CardDescription>Filtre, ara ve mesajlara tikla.</CardDescription>
+                  <CardDescription>Son {CHAT_RETENTION_DAYS} gunu filtrele, ara ve mesajlara tikla.</CardDescription>
                 </div>
                 <Badge variant="outline" className="border-emerald-500/50 text-emerald-300">
                   {new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })} itibariyla canli
@@ -1001,6 +1160,26 @@ const ChatModerationAdmin = () => {
                       </button>
                     ))
                   )}
+                  {hasMoreMessages ? (
+                    <div className="pt-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="w-full border-slate-700 text-slate-300 hover:bg-slate-800"
+                        onClick={() => void loadMoreMessages()}
+                        disabled={isLoadingMoreMessages}
+                      >
+                        {isLoadingMoreMessages ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Yukleniyor...
+                          </>
+                        ) : (
+                          'Daha Fazla Yükle'
+                        )}
+                      </Button>
+                    </div>
+                  ) : null}
                 </div>
               </ScrollArea>
             </CardContent>

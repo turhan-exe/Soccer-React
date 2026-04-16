@@ -27,6 +27,7 @@ import { INITIAL_CLUB_BALANCE, normalizeClubBalance } from '@/lib/clubFinance';
 export type FinanceHistoryCategory =
   | 'match'
   | 'sponsor'
+  | 'ad'
   | 'loan'
   | 'salary'
   | 'stadium'
@@ -173,6 +174,7 @@ const MIN_STARTERS_FOR_REAL_STRENGTH = 8;
 const REVENUE_ROUNDING_UNIT = 50;
 export const VIP_DAILY_CREDIT_AMOUNT = 6_000;
 export const VIP_DAILY_CREDIT_DIAMOND_COST = 0;
+export const CLUB_BALANCE_REWARDED_AD_AMOUNT = 2_000;
 
 const istanbulDateKeyFormatter = new Intl.DateTimeFormat('en-US', {
   timeZone: 'Europe/Istanbul',
