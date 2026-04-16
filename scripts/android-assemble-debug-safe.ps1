@@ -3,7 +3,7 @@ param(
     [int]$HangTimeoutSec = 900,
     [int]$TotalTimeoutSec = 2400,
     [switch]$UseBeeBuilder,
-    [switch]$ExcludeMatchViewerFromMobileAssets,
+    [bool]$ExcludeMatchViewerFromMobileAssets = $true,
     [switch]$SkipWebPrepare,
     [switch]$SkipUnityExport
 )

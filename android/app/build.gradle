@@ -45,7 +45,7 @@ def unityDebugVersionSuffix = unityExportBuildId == "unknown"
     ? ""
     : "-u" + unityExportBuildId.replaceAll("[^A-Za-z0-9._-]", "_")
 def mobileExcludedMatchViewerDir = file("$projectDir/src/main/assets/public/Unity/match-viewer")
-def excludeMatchViewerFromMobileAssets = (project.findProperty("excludeMatchViewerFromMobileAssets") ?: "false").toString().toBoolean()
+def excludeMatchViewerFromMobileAssets = (project.findProperty("excludeMatchViewerFromMobileAssets") ?: "true").toString().toBoolean()
 
 gradle.taskGraph.whenReady { taskGraph ->
     def releaseRequested = taskGraph.allTasks.any { task ->
