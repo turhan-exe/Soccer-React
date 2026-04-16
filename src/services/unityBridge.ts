@@ -27,6 +27,14 @@ export type UnityBridgeEvent = {
   reason?: string;
 };
 
+export type UnityLaunchResult = {
+  ok: boolean;
+  nativeLaunch: boolean;
+  alreadyActive?: boolean;
+  bridgeMode?: string;
+  activityClass?: string;
+};
+
 type UnityMatchPluginOpenPayload = {
   serverIp: string;
   serverPort: number;
@@ -39,12 +47,7 @@ type UnityMatchPluginOpenPayload = {
 };
 
 type UnityMatchPlugin = {
-  openMatch(payload: UnityMatchPluginOpenPayload): Promise<{
-    ok: boolean;
-    nativeLaunch: boolean;
-    bridgeMode?: string;
-    activityClass?: string;
-  }>;
+  openMatch(payload: UnityMatchPluginOpenPayload): Promise<UnityLaunchResult>;
   closeMatch(): Promise<{ ok: boolean }>;
   addListener(
     eventName: 'unityEvent',
@@ -109,8 +112,8 @@ async function launchNativeOnAndroid(
   ip: string,
   port: number,
   matchRequest?: UnityLaunchPayload,
-): Promise<void> {
-  const response = await UnityMatch.openMatch({
+): Promise<UnityLaunchResult> {
+  return UnityMatch.openMatch({
     serverIp: ip,
     serverPort: Number.isFinite(port) ? Math.max(1, Math.floor(port)) : 7777,
     matchId: matchRequest?.matchId,
@@ -120,13 +123,9 @@ async function launchNativeOnAndroid(
     mode: matchRequest?.mode ?? 'friendly',
     role: matchRequest?.role ?? 'spectator',
   });
-
-  if (!response?.ok) {
-    throw new Error('Unity native launch failed.');
-  }
 }
 
-function launchWebMock(ip: string, port: number, matchRequest?: UnityLaunchPayload): void {
+function launchWebMock(ip: string, port: number, matchRequest?: UnityLaunchPayload): UnityLaunchResult {
   let intentUrl = `connect://${ip}:${port}`;
   if (matchRequest) {
     const params = new URLSearchParams();
@@ -153,6 +152,12 @@ function launchWebMock(ip: string, port: number, matchRequest?: UnityLaunchPaylo
     ? `${matchRequest.homeId} vs ${matchRequest.awayId} (${matchRequest.matchId || 'no-match-id'})`
     : 'Yok';
   alert(`[MOCK] Unity Native Penceresi Acildi!\nBaglanti: ${ip}:${port}\nMac: ${matchInfo}`);
+
+  return {
+    ok: true,
+    nativeLaunch: false,
+    bridgeMode: 'web-mock',
+  };
 }
 
 export const unityBridge = {
@@ -160,13 +165,18 @@ export const unityBridge = {
     ip: string,
     port: number = 7777,
     matchRequest?: UnityLaunchPayload,
-  ): Promise<void> {
+  ): Promise<UnityLaunchResult> {
     if (isAndroidNativePlatform()) {
-      await launchNativeOnAndroid(ip, port, matchRequest);
-      return;
+      await ensureUnityNativeEventListener();
+      const response = await launchNativeOnAndroid(ip, port, matchRequest);
+      if (!response?.ok) {
+        throw new Error('Unity native launch failed.');
+      }
+
+      return response;
     }
 
-    launchWebMock(ip, port, matchRequest);
+    return launchWebMock(ip, port, matchRequest);
   },
 
   async closeMatchActivity(): Promise<void> {

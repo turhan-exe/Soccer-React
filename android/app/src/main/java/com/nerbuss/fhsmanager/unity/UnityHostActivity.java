@@ -19,6 +19,8 @@ public class UnityHostActivity extends Activity {
   private static final String TAG = "UnityHostActivity";
   private static final int REQ_UNITY = 4107;
   private static final String UNITY_ACTIVITY_META = "com.nerbuss.fhsmanager.UNITY_ACTIVITY_CLASS";
+  private static final String DEFAULT_UNITY_ACTIVITY_CLASS =
+      "com.unity3d.player.EmbeddedUnityPlayerActivity";
   private static final int APP_BACKGROUND_COLOR = Color.parseColor("#020617");
   private boolean launchedChild;
   private boolean waitingChildResult;
@@ -175,25 +177,15 @@ public class UnityHostActivity extends Activity {
     try {
       unityActivityClass = Class.forName(unityActivityClassName);
     } catch (ClassNotFoundException e) {
-      final Class<?> fallbackUnityActivityClass = tryResolveFallbackUnityActivityClass();
-      if (fallbackUnityActivityClass == null) {
-        UnityBridgeState.emit(
-            "error",
-            "Unity activity class not found: " + unityActivityClassName + ". unityLibrary import edilmemis olabilir.",
-            matchId,
-            serverIp,
-            serverPort);
-        finish();
-        return;
-      }
-
       UnityBridgeState.emit(
           "error",
-          "Unity activity class missing, fallback kullaniliyor: " + unityActivityClassName,
+          "Unity activity class not found: "
+              + unityActivityClassName
+              + ". Embedded Unity activity import edilmemis olabilir.",
           matchId,
           serverIp,
           serverPort);
-      launchUnityActivity(fallbackUnityActivityClass);
+      finish();
       return;
     }
 
@@ -206,26 +198,17 @@ public class UnityHostActivity extends Activity {
       ApplicationInfo ai =
           getPackageManager().getApplicationInfo(getPackageName(), PackageManager.GET_META_DATA);
       if (ai.metaData == null) {
-        return "com.unity3d.player.UnityPlayerActivity";
+        return DEFAULT_UNITY_ACTIVITY_CLASS;
       }
 
       String value = ai.metaData.getString(UNITY_ACTIVITY_META);
       if (value == null || value.trim().isEmpty()) {
-        return "com.unity3d.player.UnityPlayerActivity";
+        return DEFAULT_UNITY_ACTIVITY_CLASS;
       }
 
       return value.trim();
     } catch (Throwable ignored) {
-      return "com.unity3d.player.UnityPlayerActivity";
-    }
-  }
-
-  @Nullable
-  private Class<?> tryResolveFallbackUnityActivityClass() {
-    try {
-      return Class.forName("com.unity3d.player.UnityPlayerActivity");
-    } catch (Throwable ignored) {
-      return null;
+      return DEFAULT_UNITY_ACTIVITY_CLASS;
     }
   }
 

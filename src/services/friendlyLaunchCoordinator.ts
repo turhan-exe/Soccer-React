@@ -17,7 +17,7 @@ const RESTORE_WINDOW_MS = 120_000;
 const CLAIMED_LAUNCH_TTL_MS = 12 * 60 * 60 * 1000;
 const REQUEST_READY_TIMEOUT_MS = 60_000;
 const JOIN_TICKET_TIMEOUT_MS = 15_000;
-const UNITY_HANDOFF_TIMEOUT_MS = 10_000;
+const UNITY_HANDOFF_TIMEOUT_MS = 20_000;
 const REQUEST_POLL_MS = 1_000;
 
 export type FriendlyLaunchPhase =
@@ -404,12 +404,12 @@ function shouldWaitForNativeUnityHandoff(): boolean {
 async function waitForUnityLaunchHandoff(
   matchId: string,
   timeoutMs: number,
-): Promise<void> {
+): Promise<string> {
   if (!shouldWaitForNativeUnityHandoff()) {
-    return;
+    return 'not_native_android';
   }
 
-  return new Promise<void>((resolve, reject) => {
+  return new Promise<string>((resolve, reject) => {
     let settled = false;
     let removeListener: (() => Promise<void>) | null = null;
     let timeoutId: ReturnType<typeof globalThis.setTimeout> | null = null;
@@ -448,7 +448,7 @@ async function waitForUnityLaunchHandoff(
       }
 
       if (eventType === 'ready' || eventType === 'connected') {
-        finalize(() => resolve());
+        finalize(() => resolve(eventType));
         return;
       }
 
@@ -645,6 +645,7 @@ async function runFriendlyLaunch(args: FriendlyLaunchStartArgs): Promise<Friendl
       serverPort: readyMatch.serverPort,
     });
 
+    updateActiveContext({ phase: 'opening_unity' });
     const handoffPromise = waitForUnityLaunchHandoff(readyMatch.matchId, UNITY_HANDOFF_TIMEOUT_MS);
     const launchPromise = unityBridge.launchMatchActivity(readyMatch.serverIp, readyMatch.serverPort, {
       matchId: readyMatch.matchId,
@@ -655,15 +656,43 @@ async function runFriendlyLaunch(args: FriendlyLaunchStartArgs): Promise<Friendl
       role: 'player',
     });
 
-    updateActiveContext({ phase: 'waiting_runtime_snapshot' });
+    updateActiveContext({ phase: 'awaiting_unity_handoff' });
 
-    await withTimeout(
-      Promise.all([launchPromise, handoffPromise]),
+    const launchResult = await withTimeout(
+      launchPromise,
       UNITY_HANDOFF_TIMEOUT_MS,
-      () => createFriendlyLaunchError('launch_timeout', 'Unity acilisi zaman asimina ugradi.'),
+      () => createFriendlyLaunchError('launch_timeout', 'Unity host acilisi zaman asimina ugradi.'),
     ).catch((error: unknown) => {
       if (error instanceof FriendlyLaunchError) throw error;
       throw createFriendlyLaunchError('open_match_failed', error instanceof Error ? error.message : 'Unity acilamadi.');
+    });
+
+    logFriendlyLaunch('friendly_launch_native_launch_resolved', activeContext, {
+      nativeLaunch: launchResult.nativeLaunch,
+      alreadyActive: Boolean(launchResult.alreadyActive),
+      bridgeMode: launchResult.bridgeMode || null,
+      activityClass: launchResult.activityClass || null,
+    });
+
+    let handoffEventType = 'already_active';
+    if (launchResult.alreadyActive) {
+      void handoffPromise.catch(() => undefined);
+    } else {
+      handoffEventType = await withTimeout(
+        handoffPromise,
+        UNITY_HANDOFF_TIMEOUT_MS,
+        () => createFriendlyLaunchError('launch_timeout', 'Unity handoff zaman asimina ugradi.'),
+      ).catch((error: unknown) => {
+        if (error instanceof FriendlyLaunchError) throw error;
+        throw createFriendlyLaunchError('open_match_failed', error instanceof Error ? error.message : 'Unity handoff tamamlanamadi.');
+      });
+    }
+
+    updateActiveContext({ phase: 'waiting_runtime_snapshot' });
+    logFriendlyLaunch('friendly_launch_handoff_resolved', activeContext, {
+      eventType: handoffEventType,
+      nativeLaunch: launchResult.nativeLaunch,
+      alreadyActive: Boolean(launchResult.alreadyActive),
     });
 
     const completed = updateActiveContext({ phase: 'done' });

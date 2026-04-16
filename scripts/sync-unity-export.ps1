@@ -17,6 +17,29 @@ $preservedBuildGradleContent = $null
 if (Test-Path $targetBuildGradlePath) {
     $preservedBuildGradleContent = Get-Content $targetBuildGradlePath -Raw
 }
+$preserveRelativePaths = @(
+    'proguard-unity.txt',
+    'src\main\AndroidManifest.xml',
+    'src\main\java\com\unity3d\player\UnityPlayerActivity.java',
+    'src\main\java\com\unity3d\player\EmbeddedUnityPlayerActivity.java',
+    'src\main\res\values\styles.xml',
+    'src\main\res\values-v21\styles.xml',
+    'src\main\res\values-v31\styles.xml'
+)
+foreach ($relativePath in $preserveRelativePaths) {
+    $sourcePath = Join-Path $targetRoot $relativePath
+    if (-not (Test-Path -LiteralPath $sourcePath)) {
+        continue
+    }
+
+    $backupPath = Join-Path $backupRoot $relativePath
+    $backupParent = Split-Path $backupPath -Parent
+    if (-not (Test-Path -LiteralPath $backupParent)) {
+        New-Item -ItemType Directory -Path $backupParent -Force | Out-Null
+    }
+
+    Copy-Item $sourcePath $backupPath -Force
+}
 
 $runtimeType = ''
 $abiNames = @()
@@ -267,12 +290,16 @@ function Apply-UnityShellReturnDestroyGuard {
         }
 
         $embeddedUnityPlayerActivity = $embeddedUnityPlayerActivity.Replace(
+            "            shellReturnRequested = true;",
+            "            shellReturnRequested = true;`r`n            skipDestroyOnDestroy = true;")
+
+        $embeddedUnityPlayerActivity = $embeddedUnityPlayerActivity.Replace(
             "        Log.d(TAG, ""onUnityPlayerUnloaded: finishing embedded activity for shell return."");`r`n        finishForShellReturn();",
             "        Log.d(TAG, ""onUnityPlayerUnloaded: finishing embedded activity for shell return."");`r`n        skipDestroyOnDestroy = true;`r`n        finishForShellReturn();")
 
         $embeddedUnityPlayerActivity = $embeddedUnityPlayerActivity.Replace(
             "        Log.d(TAG, ""onUnityPlayerQuitted: finishing embedded activity for shell return."");`r`n        finishForShellReturn();",
-            "        Log.d(TAG, ""onUnityPlayerQuitted: finishing embedded activity for shell return."");`r`n        skipDestroyOnDestroy = false;`r`n        finishForShellReturn();")
+            "        Log.d(TAG, ""onUnityPlayerQuitted: finishing embedded activity for shell return."");`r`n        skipDestroyOnDestroy = shellReturnRequested || skipDestroyOnDestroy;`r`n        finishForShellReturn();")
 
         [System.IO.File]::WriteAllText($EmbeddedUnityPlayerActivityPath, $embeddedUnityPlayerActivity, $Encoding)
     }

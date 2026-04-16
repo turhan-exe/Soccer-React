@@ -11,6 +11,7 @@ public class EmbeddedUnityPlayerActivity extends UnityPlayerActivity {
     private static final String TAG = "EmbeddedUnityPlayer";
     private boolean shellReturnRequested;
     private boolean skipDestroyOnDestroy;
+    private boolean finishRequested;
 
     @Override
     protected boolean shouldDestroyUnityPlayerOnDestroy() {
@@ -24,6 +25,8 @@ public class EmbeddedUnityPlayerActivity extends UnityPlayerActivity {
             }
 
             shellReturnRequested = true;
+            skipDestroyOnDestroy = true;
+            skipDestroyOnDestroy = true;
 
             try {
                 if (mUnityPlayer != null) {
@@ -49,11 +52,25 @@ public class EmbeddedUnityPlayerActivity extends UnityPlayerActivity {
     @Override
     public void onUnityPlayerQuitted() {
         Log.d(TAG, "onUnityPlayerQuitted: finishing embedded activity for shell return.");
-        skipDestroyOnDestroy = false;
+        skipDestroyOnDestroy = shellReturnRequested || skipDestroyOnDestroy;
         finishForShellReturn();
     }
 
+    @Override
+    protected void onDestroy() {
+        if (shellReturnRequested) {
+            skipDestroyOnDestroy = true;
+        }
+
+        super.onDestroy();
+    }
+
     private void finishForShellReturn() {
+        if (finishRequested || isFinishing()) {
+            return;
+        }
+
+        finishRequested = true;
         try {
             setResult(Activity.RESULT_OK);
         } catch (Throwable ignored) {
