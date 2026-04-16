@@ -74,6 +74,7 @@ const KIT_ICONS: Record<KitType, { icon: LucideIcon; color: string }> = {
 };
 
 const VISIBILITY_COOLDOWN_MS = 300;
+const VIP_RENDER_STABILIZATION_MS = 1000;
 
 export interface TopBarHandle {
   isTopBarVisible: boolean;
@@ -99,7 +100,16 @@ const TopBar = forwardRef<TopBarHandle, TopBarProps>(
     const { user, logout } = useAuth();
     const { theme, toggleTheme } = useTheme();
     const { balance } = useDiamonds();
-    const { kits, purchaseKit, isProcessing, vipActive, vipStatus, vipNostalgiaFreeAvailable } = useInventory();
+    const {
+      kits,
+      purchaseKit,
+      isProcessing,
+      vipActive,
+      vipStatus,
+      vipNostalgiaFreeAvailable,
+      isHydrated,
+      isVipReady,
+    } = useInventory();
     const kitTypes = useMemo(() => Object.keys(KIT_ICONS) as KitType[], []);
     const [activeKit, setActiveKit] = useState<KitType | null>(null);
     const [isUsageOpen, setIsUsageOpen] = useState(false);
@@ -124,13 +134,27 @@ const TopBar = forwardRef<TopBarHandle, TopBarProps>(
     const notificationContentRef = useRef<HTMLDivElement | null>(null);
     const lastVisibilityChangeRef = useRef<number>(0);
     const focusFrameRef = useRef<number | null>(null);
+    const [vipRenderReady, setVipRenderReady] = useState(false);
 
-    const vipIconClass = vipActive ? 'text-amber-300 drop-shadow' : 'text-slate-400';
-    const vipButtonClass = vipActive
-      ? 'bg-amber-500/10 text-amber-200 hover:bg-amber-500/20 hover:text-amber-100'
-      : 'text-slate-300 hover:text-white hover:bg-white/10';
-    const vipPlanName = vipStatus.plan ? vipStatus.plan.toUpperCase() : null;
-    const vipTooltip = vipActive
+    useEffect(() => {
+      if (!isHydrated || !isVipReady) {
+        setVipRenderReady(false);
+        return;
+      }
+
+      const timeoutId = window.setTimeout(() => {
+        setVipRenderReady(true);
+      }, VIP_RENDER_STABILIZATION_MS);
+
+      return () => {
+        window.clearTimeout(timeoutId);
+      };
+    }, [isHydrated, isVipReady]);
+
+    const showVipButton = isHydrated && isVipReady && vipRenderReady;
+    const showVipHighlight = showVipButton && vipActive;
+    const vipPlanName = showVipHighlight && vipStatus.plan ? vipStatus.plan.toUpperCase() : null;
+    const vipTooltip = showVipHighlight
       ? `VIP aktif${vipPlanName ? ` (${vipPlanName})` : ''}`
       : 'VIP paketlerini kesfet';
     const kitCount = kitTypes.length;
@@ -769,20 +793,49 @@ const TopBar = forwardRef<TopBarHandle, TopBarProps>(
                 <Button variant="ghost" size="sm" onClick={toggleTheme} className="nostalgia-topbar__icon-button">
                   {theme === 'light' ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
                 </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => navigate('/store/vip')}
-                  className={`nostalgia-topbar__vip-button ${vipButtonClass}`}
-                  title={vipTooltip}
-                >
-                  <div className="relative flex items-center gap-1">
-                    <Crown className={`h-4 w-4 ${vipIconClass}`} />
+                {showVipButton ? (
+                  showVipHighlight ? (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => navigate('/store/vip')}
+                      className="nostalgia-topbar__vip-button bg-amber-500/10 text-amber-200 transition-none hover:bg-amber-500/20 hover:text-amber-100"
+                      title={vipTooltip}
+                    >
+                      <div className="relative flex items-center gap-1">
+                        <Crown className="h-4 w-4 text-amber-300 drop-shadow" />
+                        <span className="text-xs font-semibold">VIP</span>
+                        <span className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-emerald-400 shadow" />
+                      </div>
+                      <span className="sr-only">VIP magazasi</span>
+                    </Button>
+                  ) : (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => navigate('/store/vip')}
+                      className="nostalgia-topbar__vip-button px-[0.8rem] text-slate-400 transition-none hover:bg-transparent hover:text-slate-300"
+                      title={vipTooltip}
+                      style={{
+                        backgroundColor: 'transparent',
+                        boxShadow: 'none',
+                        color: '#94a3b8',
+                        transition: 'none',
+                      }}
+                    >
+                      <span className="text-xs font-semibold tracking-[0.16em]">VIP</span>
+                      <span className="sr-only">VIP magazasi</span>
+                    </Button>
+                  )
+                ) : (
+                  <span
+                    aria-hidden="true"
+                    className="nostalgia-topbar__vip-button inline-flex items-center gap-1 px-[0.65rem] opacity-0 pointer-events-none"
+                  >
+                    <Crown className="h-4 w-4" />
                     <span className="text-xs font-semibold">VIP</span>
-                    {vipActive && <span className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-emerald-400 shadow" />}
-                  </div>
-                  <span className="sr-only">VIP magazasi</span>
-                </Button>
+                  </span>
+                )}
                 <Popover open={isNotificationOpen} onOpenChange={setIsNotificationOpen}>
                   <PopoverTrigger asChild>
                     <Button variant="ghost" size="sm" className="nostalgia-topbar__icon-button relative">

@@ -16,11 +16,14 @@ const PLAYER_RENAME_MIN_LENGTH = 2;
 const PLAYER_RENAME_MAX_LENGTH = 32;
 const PLAYER_RENAME_AD_COOLDOWN_HOURS = 24;
 const AD_MOB_VALIDATION_TOKEN = 'admob_validation_ping';
+const FINANCE_DEFAULT_BALANCE = 50_000;
+const CLUB_BALANCE_REWARD_AMOUNT = 2_000;
 
 const AD_MOB_KEYS_URL = 'https://www.gstatic.com/admob/reward/verifier-keys.json';
 
 type RewardPlacement =
   | 'kit_reward'
+  | 'club_balance'
   | 'training_finish'
   | 'player_rename'
   | 'youth_cooldown';
@@ -143,6 +146,7 @@ const sanitizePlacement = (value: unknown): RewardPlacement => {
   const placement = normalizeString(value);
   if (
     placement !== 'kit_reward'
+    && placement !== 'club_balance'
     && placement !== 'training_finish'
     && placement !== 'player_rename'
     && placement !== 'youth_cooldown'
@@ -294,6 +298,10 @@ const getTeamRef = (uid: string) => db.collection('teams').doc(uid);
 
 const getUserRef = (uid: string) => db.collection('users').doc(uid);
 
+const getFinanceRef = (uid: string) => db.collection('finance').doc(uid);
+
+const getFinanceHistoryCollection = (uid: string) => db.collection('finance').doc('history').collection(uid);
+
 const toMillis = (value: unknown): number | null => {
   if (value instanceof Timestamp) {
     return value.toMillis();
@@ -312,6 +320,19 @@ const toMillis = (value: unknown): number | null => {
   }
 
   return null;
+};
+
+const resolveTeamBalance = (
+  teamData: { budget?: number; transferBudget?: number } | undefined,
+  financeData: { balance?: number } | undefined,
+): number => {
+  const balanceSource = Number.isFinite(teamData?.transferBudget)
+    ? Number(teamData?.transferBudget)
+    : Number.isFinite(teamData?.budget)
+      ? Number(teamData?.budget)
+      : (financeData?.balance ?? FINANCE_DEFAULT_BALANCE);
+
+  return Math.max(0, Math.round(balanceSource));
 };
 
 const getExpiryTimestamp = (): FirebaseFirestore.Timestamp =>
@@ -599,6 +620,88 @@ const claimTrainingReward = async (
   });
 };
 
+const claimClubBalanceReward = async (
+  uid: string,
+  sessionRef: FirebaseFirestore.DocumentReference,
+): Promise<Record<string, unknown>> => {
+  const financeRef = getFinanceRef(uid);
+  const teamRef = getTeamRef(uid);
+  const historyRef = getFinanceHistoryCollection(uid).doc();
+
+  return db.runTransaction(async (tx) => {
+    const [freshSessionSnap, financeSnap, teamSnap] = await Promise.all([
+      tx.get(sessionRef),
+      tx.get(financeRef),
+      tx.get(teamRef),
+    ]);
+
+    const freshSession = freshSessionSnap.data() as RewardedSessionDoc | undefined;
+    if (!freshSession) {
+      throw new functions.https.HttpsError('not-found', 'Reklam oturumu bulunamadi.');
+    }
+
+    const financeData = (financeSnap.data() as { balance?: number } | undefined) ?? undefined;
+    const teamData =
+      (teamSnap.data() as { budget?: number; transferBudget?: number } | undefined) ?? undefined;
+    const currentBalance = resolveTeamBalance(teamData, financeData);
+
+    if (freshSession.status === 'claimed') {
+      return (freshSession.claimResult ?? {
+        type: 'club_balance',
+        amount: CLUB_BALANCE_REWARD_AMOUNT,
+        balance: currentBalance,
+      }) as Record<string, unknown>;
+    }
+    if (freshSession.status !== 'verified') {
+      throw new functions.https.HttpsError('failed-precondition', 'Odul henuz dogrulanmadi.');
+    }
+
+    const nextBalance = currentBalance + CLUB_BALANCE_REWARD_AMOUNT;
+    const reward = {
+      type: 'club_balance',
+      amount: CLUB_BALANCE_REWARD_AMOUNT,
+      balance: nextBalance,
+    };
+
+    tx.set(
+      financeRef,
+      {
+        balance: nextBalance,
+        updatedAt: FieldValue.serverTimestamp(),
+      },
+      { merge: true },
+    );
+    tx.set(
+      teamRef,
+      {
+        budget: nextBalance,
+        transferBudget: nextBalance,
+      },
+      { merge: true },
+    );
+    tx.set(historyRef, {
+      id: historyRef.id,
+      type: 'income',
+      category: 'ad',
+      amount: CLUB_BALANCE_REWARD_AMOUNT,
+      source: 'RewardedAd',
+      note: 'Reklam odulu',
+      timestamp: FieldValue.serverTimestamp(),
+    });
+    tx.set(
+      sessionRef,
+      {
+        status: 'claimed',
+        claimedAt: FieldValue.serverTimestamp(),
+        claimResult: reward,
+      },
+      { merge: true },
+    );
+
+    return reward;
+  });
+};
+
 const claimYouthCooldownReward = async (
   uid: string,
   sessionRef: FirebaseFirestore.DocumentReference,
@@ -826,6 +929,8 @@ export const claimRewardedAdReward = functions
     let reward: Record<string, unknown>;
     if (session.placement === 'kit_reward') {
       reward = await claimKitReward(uid, sessionRef, session);
+    } else if (session.placement === 'club_balance') {
+      reward = await claimClubBalanceReward(uid, sessionRef);
     } else if (session.placement === 'training_finish') {
       reward = await claimTrainingReward(uid, sessionRef);
     } else if (session.placement === 'youth_cooldown') {

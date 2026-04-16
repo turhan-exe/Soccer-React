@@ -10,6 +10,12 @@ import android.util.Log;
 public class EmbeddedUnityPlayerActivity extends UnityPlayerActivity {
     private static final String TAG = "EmbeddedUnityPlayer";
     private boolean shellReturnRequested;
+    private boolean skipDestroyOnDestroy;
+
+    @Override
+    protected boolean shouldDestroyUnityPlayerOnDestroy() {
+        return !skipDestroyOnDestroy;
+    }
 
     public void requestReturnToShell() {
         runOnUiThread(() -> {
@@ -36,12 +42,14 @@ public class EmbeddedUnityPlayerActivity extends UnityPlayerActivity {
     @Override
     public void onUnityPlayerUnloaded() {
         Log.d(TAG, "onUnityPlayerUnloaded: finishing embedded activity for shell return.");
+        skipDestroyOnDestroy = true;
         finishForShellReturn();
     }
 
     @Override
     public void onUnityPlayerQuitted() {
         Log.d(TAG, "onUnityPlayerQuitted: finishing embedded activity for shell return.");
+        skipDestroyOnDestroy = false;
         finishForShellReturn();
     }
 

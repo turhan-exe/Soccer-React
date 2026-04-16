@@ -5,6 +5,7 @@ import { functions } from '@/services/firebase';
 
 export type RewardPlacement =
   | 'kit_reward'
+  | 'club_balance'
   | 'training_finish'
   | 'player_rename'
   | 'youth_cooldown';

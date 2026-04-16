@@ -22,7 +22,9 @@ export const enMainMenu: TranslationDictionary = {
     },
     toasts: {
       loginRequiredForKitReward: 'Sign in to claim a kit reward.',
+      loginRequiredForClubBalanceReward: 'Sign in to claim the credit reward.',
       rewardGranted: 'Reward granted: +1 {kitLabel}.',
+      clubBalanceRewardGranted: 'Reward granted: +{amount} credits.',
       rewardRequiresCompletion: 'Finish the ad to claim the reward.',
       rewardPendingVerification:
         'The ad reward is being verified. It will appear in your inventory shortly.',
@@ -71,6 +73,13 @@ export const enMainMenu: TranslationDictionary = {
       loadingAd: 'Loading Ad...',
       watchAd: 'Watch Ad',
       useKit: 'Use',
+    },
+    clubBalanceMenu: {
+      title: 'Club Balance',
+      description: 'Finish one ad and add +{amount} credits to your account.',
+      watchAd: 'Watch Ad (+{amount})',
+      openFinance: 'Open Finance',
+      unavailable: 'Rewarded ads are only available in the Android app.',
     },
   },
 };

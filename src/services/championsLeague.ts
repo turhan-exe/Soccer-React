@@ -3,6 +3,7 @@ import { collection, getDocs } from 'firebase/firestore';
 import type { ChampionsLeagueEntrantDoc, KnockoutMatchDoc, League } from '@/types';
 import { isChampionsLeagueCompetition } from '@/lib/competition';
 import { db } from './firebase';
+import { resolveLiveTeamIdentities, type LiveTeamIdentity } from './teamIdentity';
 
 function toDate(value: unknown): Date | null {
   if (value && typeof (value as { toDate?: () => Date }).toDate === 'function') {
@@ -18,7 +19,7 @@ function compareMonthKey(left: string | undefined, right: string | undefined) {
   return String(left || '').localeCompare(String(right || ''));
 }
 
-function mapLeague(id: string, raw: Record<string, any>): League {
+function mapLeague(id: string, raw: Record<string, unknown>): League {
   return {
     id,
     name: raw.name || 'Şampiyonlar Ligi',
@@ -40,7 +41,7 @@ function mapLeague(id: string, raw: Record<string, any>): League {
   };
 }
 
-function mapKnockoutMatch(id: string, raw: Record<string, any>): KnockoutMatchDoc {
+function mapKnockoutMatch(id: string, raw: Record<string, unknown>): KnockoutMatchDoc {
   return {
     id,
     round: Number(raw.round || 0),
@@ -72,6 +73,28 @@ function mapKnockoutMatch(id: string, raw: Record<string, any>): KnockoutMatchDo
   };
 }
 
+function hydrateLeagueTeams(league: League, liveNames: Map<string, LiveTeamIdentity>): League {
+  if (!Array.isArray(league.teams) || league.teams.length === 0) {
+    return league;
+  }
+
+  let changed = false;
+  const teams = league.teams.map((team) => {
+    const resolvedName = liveNames.get(team.id)?.teamName;
+    if (!resolvedName || resolvedName === team.name) {
+      return team;
+    }
+
+    changed = true;
+    return {
+      ...team,
+      name: resolvedName,
+    };
+  });
+
+  return changed ? { ...league, teams } : league;
+}
+
 export async function getLatestChampionsLeagueOverview(): Promise<{
   league: League;
   entrants: ChampionsLeagueEntrantDoc[];
@@ -79,7 +102,7 @@ export async function getLatestChampionsLeagueOverview(): Promise<{
 } | null> {
   const leaguesSnap = await getDocs(collection(db, 'leagues'));
   const competitions = leaguesSnap.docs
-    .map((docSnap) => ({ id: docSnap.id, raw: docSnap.data() as Record<string, any> }))
+    .map((docSnap) => ({ id: docSnap.id, raw: docSnap.data() as Record<string, unknown> }))
     .filter((entry) => isChampionsLeagueCompetition(entry.raw))
     .sort((left, right) => {
       const monthCompare = compareMonthKey(right.raw.sourceMonth, left.raw.sourceMonth);
@@ -108,8 +131,63 @@ export async function getLatestChampionsLeagueOverview(): Promise<{
     .sort((left, right) => Number(left.seed || 0) - Number(right.seed || 0));
 
   const matches = matchesSnap.docs
-    .map((docSnap) => mapKnockoutMatch(docSnap.id, docSnap.data() as Record<string, any>))
+    .map((docSnap) => mapKnockoutMatch(docSnap.id, docSnap.data() as Record<string, unknown>))
     .sort((left, right) => left.round - right.round || left.slot - right.slot);
 
-  return { league, entrants, matches };
+  const liveIdentities = await resolveLiveTeamIdentities([
+    ...entrants.map((entrant) => entrant.teamId),
+    ...matches.flatMap((match) => [
+      match.homeTeamId ?? '',
+      match.awayTeamId ?? '',
+      match.winnerTeamId ?? '',
+    ]),
+    ...((league.teams ?? []).map((team) => team.id)),
+  ]);
+
+  const hydratedEntrants = entrants.map((entrant) => {
+    const identity = liveIdentities.get(entrant.teamId);
+    if (!identity?.teamName || identity.teamName === entrant.teamName) {
+      return entrant;
+    }
+
+    return {
+      ...entrant,
+      teamName: identity.teamName,
+    };
+  });
+
+  const hydratedMatches = matches.map((match) => {
+    const homeIdentity = match.homeTeamId ? liveIdentities.get(match.homeTeamId) : undefined;
+    const awayIdentity = match.awayTeamId ? liveIdentities.get(match.awayTeamId) : undefined;
+    const winnerIdentity = match.winnerTeamId ? liveIdentities.get(match.winnerTeamId) : undefined;
+    const nextHomeTeamName = homeIdentity?.teamName || match.homeTeamName || null;
+    const nextAwayTeamName = awayIdentity?.teamName || match.awayTeamName || null;
+    const nextWinnerTeamName =
+      winnerIdentity?.teamName
+      || (match.winnerTeamId && match.winnerTeamId === match.homeTeamId ? nextHomeTeamName : null)
+      || (match.winnerTeamId && match.winnerTeamId === match.awayTeamId ? nextAwayTeamName : null)
+      || match.winnerTeamName
+      || null;
+
+    if (
+      nextHomeTeamName === (match.homeTeamName || null)
+      && nextAwayTeamName === (match.awayTeamName || null)
+      && nextWinnerTeamName === (match.winnerTeamName || null)
+    ) {
+      return match;
+    }
+
+    return {
+      ...match,
+      homeTeamName: nextHomeTeamName,
+      awayTeamName: nextAwayTeamName,
+      winnerTeamName: nextWinnerTeamName,
+    };
+  });
+
+  return {
+    league: hydrateLeagueTeams(league, liveIdentities),
+    entrants: hydratedEntrants,
+    matches: hydratedMatches,
+  };
 }

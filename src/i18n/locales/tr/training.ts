@@ -28,8 +28,8 @@ export const trTraining: TranslationDictionary = {
     empty: {
       players: 'Eslesen oyuncu bulunamadi.',
       trainings: 'Uygun antrenman bulunamadi.',
-      selectedPlayers: 'Oyunculari surukleyip birakin veya cift tiklayin.',
-      selectedTrainings: 'Antrenman kartlarini bu alana birakin.',
+      selectedPlayers: 'Secmek icin tikla veya dokun. Listede kaydirmak icin surukle, tasimak icin basili tutup surukle.',
+      selectedTrainings: 'Secmek icin tikla veya dokun. Listede kaydirmak icin surukle, tasimak icin basili tutup surukle.',
       noHistory: 'Henuz antrenman kaydi bulunmuyor.',
       unknownPlayer: 'Bilinmeyen Oyuncu',
       unknownTraining: 'Bilinmeyen Antrenman',
@@ -60,6 +60,7 @@ export const trTraining: TranslationDictionary = {
     },
     actions: {
       start: 'Antrenmani Baslat',
+      playerDetails: 'Oyuncu Detayi',
       finishWithDiamonds: 'Elmasla Bitir ({cost})',
       finishWithAd: 'Hemen Bitir (Reklam Izle)',
       loadingAd: 'Video Yukleniyor...',

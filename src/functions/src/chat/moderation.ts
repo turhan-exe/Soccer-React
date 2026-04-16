@@ -5,8 +5,13 @@ import { FieldValue, getFirestore, Timestamp } from 'firebase-admin/firestore';
 
 const REGION = 'europe-west1';
 const db = getFirestore();
+const GLOBAL_CHAT_COLLECTION = 'globalChatMessages';
 const SANCTIONS_COLLECTION = 'chatSanctions';
 const MODERATION_LOGS = 'chatModerationLogs';
+const CHAT_RETENTION_DAYS = 7;
+const CHAT_RETENTION_MS = CHAT_RETENTION_DAYS * 24 * 60 * 60 * 1000;
+const CHAT_CLEANUP_BATCH_SIZE = 500;
+const CHAT_CLEANUP_MAX_BATCHES = 5;
 const ADMIN_SHARED_SECRET =
   process.env.CHAT_ADMIN_SECRET ||
   (functions.config()?.moderation?.secret as string | undefined) ||
@@ -77,7 +82,7 @@ const resolveAllowedOrigin = (value: string): string => {
   }
 };
 
-const setCorsHeaders = (res: functions.Response<any>) => {
+const setCorsHeaders = (res: functions.Response<unknown>) => {
   const resolvedOrigin = resolveAllowedOrigin(ADMIN_ALLOWED_ORIGIN);
   res.set('Access-Control-Allow-Origin', resolvedOrigin || '*');
   res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -122,6 +127,21 @@ const evaluateSanction = (sanction: ChatSanction) => {
   }
 
   return { active: false, type: sanction.type, expiresAt };
+};
+
+const deleteChatBatch = async (
+  docs: FirebaseFirestore.QueryDocumentSnapshot[],
+): Promise<number> => {
+  if (docs.length === 0) {
+    return 0;
+  }
+
+  const batch = db.batch();
+  docs.forEach((docSnapshot) => {
+    batch.delete(docSnapshot.ref);
+  });
+  await batch.commit();
+  return docs.length;
 };
 
 export const enforceChatModeration = functions
@@ -315,4 +335,92 @@ export const applyChatSanction = functions
       console.error('[chat] applyChatSanction failed', error);
       res.status(500).json({ error: 'SERVER_ERROR', message: 'Moderasyon kaydedilemedi.' });
     }
+  });
+
+export const cleanupExpiredGlobalChatMessages = functions
+  .region(REGION)
+  .pubsub.schedule('every 60 minutes')
+  .timeZone('Europe/Istanbul')
+  .onRun(async () => {
+    const nowMs = Date.now();
+    const nowTimestamp = Timestamp.fromMillis(nowMs);
+    const retentionCutoffTimestamp = Timestamp.fromMillis(nowMs - CHAT_RETENTION_MS);
+    const deletedIds = new Set<string>();
+    let deletedByExpiry = 0;
+    let deletedLegacy = 0;
+
+    for (let batchIndex = 0; batchIndex < CHAT_CLEANUP_MAX_BATCHES; batchIndex += 1) {
+      const snapshot = await db
+        .collection(GLOBAL_CHAT_COLLECTION)
+        .where('expiresAt', '<=', nowTimestamp)
+        .limit(CHAT_CLEANUP_BATCH_SIZE)
+        .get();
+
+      if (snapshot.empty) {
+        break;
+      }
+
+      const docsToDelete = snapshot.docs.filter((docSnapshot) => {
+        if (deletedIds.has(docSnapshot.id)) {
+          return false;
+        }
+
+        deletedIds.add(docSnapshot.id);
+        return true;
+      });
+
+      if (docsToDelete.length === 0) {
+        break;
+      }
+
+      deletedByExpiry += await deleteChatBatch(docsToDelete);
+    }
+
+    for (let batchIndex = 0; batchIndex < CHAT_CLEANUP_MAX_BATCHES; batchIndex += 1) {
+      const snapshot = await db
+        .collection(GLOBAL_CHAT_COLLECTION)
+        .orderBy('createdAt', 'asc')
+        .endAt(retentionCutoffTimestamp)
+        .limit(CHAT_CLEANUP_BATCH_SIZE)
+        .get();
+
+      if (snapshot.empty) {
+        break;
+      }
+
+      const docsToDelete = snapshot.docs.filter((docSnapshot) => {
+        if (deletedIds.has(docSnapshot.id)) {
+          return false;
+        }
+
+        const data = docSnapshot.data();
+        const createdAtMs = toMillis(data.createdAt);
+        if (createdAtMs === null || createdAtMs > nowMs - CHAT_RETENTION_MS) {
+          return false;
+        }
+
+        const expiresAtMs = toMillis(data.expiresAt);
+        if (expiresAtMs !== null && expiresAtMs > nowMs) {
+          return false;
+        }
+
+        deletedIds.add(docSnapshot.id);
+        return true;
+      });
+
+      if (docsToDelete.length === 0) {
+        break;
+      }
+
+      deletedLegacy += await deleteChatBatch(docsToDelete);
+    }
+
+    console.log('[chat] cleanupExpiredGlobalChatMessages complete', {
+      retentionDays: CHAT_RETENTION_DAYS,
+      deletedByExpiry,
+      deletedLegacy,
+      totalDeleted: deletedByExpiry + deletedLegacy,
+    });
+
+    return undefined;
   });

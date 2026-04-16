@@ -129,6 +129,9 @@ export const trSettings: TranslationDictionary = {
     about: {
       title: 'Hakkinda',
       version: 'Versiyon:',
+      versionLoading: 'Yukleniyor...',
+      versionUnavailable: 'Bilinmiyor',
+      androidBuild: 'Android build: {value}',
       lastUpdate: 'Son Guncelleme:',
       developer: 'Gelistirici:',
       privacyPolicy: 'Gizlilik Politikasi',

@@ -231,6 +231,53 @@ New-Item -ItemType Directory -Path (Join-Path $targetRoot 'src\main\res\values-v
 
 $buildGradleSource = Join-Path $exportRoot 'build.gradle'
 $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+
+function Apply-UnityShellReturnDestroyGuard {
+    param(
+        [string]$UnityPlayerActivityPath,
+        [string]$EmbeddedUnityPlayerActivityPath,
+        [System.Text.UTF8Encoding]$Encoding
+    )
+
+    if (Test-Path -LiteralPath $UnityPlayerActivityPath) {
+        $unityPlayerActivity = Get-Content $UnityPlayerActivityPath -Raw
+        $playerMethodNeedle = "    protected String updateUnityCommandLineArguments(String cmdLine)`r`n    {`r`n        return cmdLine;`r`n    }"
+        $playerMethodReplacement = "    protected String updateUnityCommandLineArguments(String cmdLine)`r`n    {`r`n        return cmdLine;`r`n    }`r`n`r`n    /**`r`n     * Allows embedded callers to unload Unity and return to the host shell without`r`n     * routing back through UnityPlayer.destroy(), which hard-kills the process.`r`n     */`r`n    protected boolean shouldDestroyUnityPlayerOnDestroy()`r`n    {`r`n        return true;`r`n    }"
+
+        if (-not $unityPlayerActivity.Contains('shouldDestroyUnityPlayerOnDestroy')) {
+            $unityPlayerActivity = $unityPlayerActivity.Replace($playerMethodNeedle, $playerMethodReplacement)
+        }
+
+        if (-not $unityPlayerActivity.Contains('if (mUnityPlayer != null && shouldDestroyUnityPlayerOnDestroy())')) {
+            $unityPlayerActivity = $unityPlayerActivity.Replace(
+                "        mUnityPlayer.destroy();",
+                "        if (mUnityPlayer != null && shouldDestroyUnityPlayerOnDestroy())`r`n            mUnityPlayer.destroy();")
+        }
+
+        [System.IO.File]::WriteAllText($UnityPlayerActivityPath, $unityPlayerActivity, $Encoding)
+    }
+
+    if (Test-Path -LiteralPath $EmbeddedUnityPlayerActivityPath) {
+        $embeddedUnityPlayerActivity = Get-Content $EmbeddedUnityPlayerActivityPath -Raw
+        $embeddedFieldNeedle = "    private boolean shellReturnRequested;"
+        $embeddedFieldReplacement = "    private boolean shellReturnRequested;`r`n    private boolean skipDestroyOnDestroy;`r`n`r`n    @Override`r`n    protected boolean shouldDestroyUnityPlayerOnDestroy() {`r`n        return !skipDestroyOnDestroy;`r`n    }"
+
+        if (-not $embeddedUnityPlayerActivity.Contains('skipDestroyOnDestroy')) {
+            $embeddedUnityPlayerActivity = $embeddedUnityPlayerActivity.Replace($embeddedFieldNeedle, $embeddedFieldReplacement)
+        }
+
+        $embeddedUnityPlayerActivity = $embeddedUnityPlayerActivity.Replace(
+            "        Log.d(TAG, ""onUnityPlayerUnloaded: finishing embedded activity for shell return."");`r`n        finishForShellReturn();",
+            "        Log.d(TAG, ""onUnityPlayerUnloaded: finishing embedded activity for shell return."");`r`n        skipDestroyOnDestroy = true;`r`n        finishForShellReturn();")
+
+        $embeddedUnityPlayerActivity = $embeddedUnityPlayerActivity.Replace(
+            "        Log.d(TAG, ""onUnityPlayerQuitted: finishing embedded activity for shell return."");`r`n        finishForShellReturn();",
+            "        Log.d(TAG, ""onUnityPlayerQuitted: finishing embedded activity for shell return."");`r`n        skipDestroyOnDestroy = false;`r`n        finishForShellReturn();")
+
+        [System.IO.File]::WriteAllText($EmbeddedUnityPlayerActivityPath, $embeddedUnityPlayerActivity, $Encoding)
+    }
+}
+
 if ($null -ne $preservedBuildGradleContent) {
     [System.IO.File]::WriteAllText((Join-Path $targetRoot 'build.gradle'), $preservedBuildGradleContent, $utf8NoBom)
 } else {
@@ -294,3 +341,7 @@ Copy-Item (Join-Path $backupRoot 'src\main\java\com\unity3d\player\EmbeddedUnity
 Copy-Item (Join-Path $backupRoot 'src\main\res\values\styles.xml') (Join-Path $targetRoot 'src\main\res\values\styles.xml') -Force
 Copy-Item (Join-Path $backupRoot 'src\main\res\values-v21\styles.xml') (Join-Path $targetRoot 'src\main\res\values-v21\styles.xml') -Force
 Copy-Item (Join-Path $backupRoot 'src\main\res\values-v31\styles.xml') (Join-Path $targetRoot 'src\main\res\values-v31\styles.xml') -Force
+Apply-UnityShellReturnDestroyGuard `
+    -UnityPlayerActivityPath (Join-Path $targetRoot 'src\main\java\com\unity3d\player\UnityPlayerActivity.java') `
+    -EmbeddedUnityPlayerActivityPath (Join-Path $targetRoot 'src\main\java\com\unity3d\player\EmbeddedUnityPlayerActivity.java') `
+    -Encoding $utf8NoBom

@@ -24,6 +24,7 @@ import {
   type FriendlyRequestListItem,
 } from '@/services/matchControl';
 import { unityBridge } from '@/services/unityBridge';
+import { markBootVisualReady } from '@/services/uiState';
 import {
   FriendlyLaunchError,
   getFriendlyLaunchFailureMessage,
@@ -44,6 +45,7 @@ import type { Fixture, KitType } from '@/types';
 import { normalizeRatingTo100, normalizeRatingTo100OrNull } from '@/lib/player';
 import { KIT_CONFIG, formatKitEffect } from '@/lib/kits';
 import { isFixtureLiveJoinable, LIVE_JOINABLE_STATES } from '@/lib/fixtureLive';
+import { CLUB_BALANCE_REWARDED_AD_AMOUNT } from '@/services/finance';
 
 import {
   Plus,
@@ -91,13 +93,29 @@ import iconFixtures from '@/assets/menu/icon_fixtures.png';
 
 import GlobalChatWidget from '@/features/chat/GlobalChatWidget';
 import KitUsageDialog from '@/components/kit/KitUsageDialog';
-import { getRewardedAdFailureMessage, runRewardedAdFlow } from '@/services/rewardedAds';
+import {
+  getRewardedAdFailureMessage,
+  isRewardedAdsSupported,
+  runRewardedAdFlow,
+} from '@/services/rewardedAds';
 import '@/styles/nostalgia-theme.css';
+
+const VIP_RENDER_STABILIZATION_MS = 1000;
 
 const KIT_ICONS: Record<KitType, { icon: any; color: string }> = {
   energy: { icon: BatteryCharging, color: 'text-emerald-500' },
   morale: { icon: Smile, color: 'text-amber-500' },
   health: { icon: HeartPulse, color: 'text-rose-500' },
+};
+
+const readRewardAmount = (
+  reward: Record<string, unknown> | undefined,
+  fallback: number,
+): number => {
+  const amount = reward?.amount;
+  return typeof amount === 'number' && Number.isFinite(amount)
+    ? Math.max(0, Math.round(amount))
+    : fallback;
 };
 
 // --- Types ---
@@ -221,7 +239,15 @@ export default function MainMenu() {
   const navigate = useNavigate();
   const { theme, toggleTheme } = useTheme();
   const { balance } = useDiamonds();
-  const { kits, purchaseKit, isProcessing, vipActive, vipNostalgiaFreeAvailable } = useInventory();
+  const {
+    kits,
+    purchaseKit,
+    isProcessing,
+    vipActive,
+    vipNostalgiaFreeAvailable,
+    isHydrated,
+    isVipReady,
+  } = useInventory();
   const { cashBalance, loading: financeLoading } = useClubFinance();
 
   const [matchHighlight, setMatchHighlight] = useState<MatchHighlight | null>(null);
@@ -230,6 +256,7 @@ export default function MainMenu() {
   const [actionableMatchTile, setActionableMatchTile] = useState<ActionableMatchTile | null>(null);
   const [actionableMatchLoading, setActionableMatchLoading] = useState(false);
   const launchFailureToastAttemptIdRef = useRef<string | null>(null);
+  const bootVisualReadyRef = useRef(false);
   const matchControlReady = useMemo(() => isMatchControlConfigured(), []);
   const canLaunchNativeMatch = useMemo(
     () => Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'android',
@@ -262,12 +289,22 @@ export default function MainMenu() {
   const currentKitType = kitCount > 0 ? kitTypes[currentKitIndex % kitCount] : null;
   const [isKitMenuOpen, setIsKitMenuOpen] = useState(false);
   const [isRewardingKit, setIsRewardingKit] = useState(false);
+  const [isClubBalanceMenuOpen, setIsClubBalanceMenuOpen] = useState(false);
+  const [isRewardingClubBalance, setIsRewardingClubBalance] = useState(false);
   const [activeKit, setActiveKit] = useState<KitType | null>(null);
   const [isUsageOpen, setIsUsageOpen] = useState(false);
+  const [vipRenderReady, setVipRenderReady] = useState(false);
+  const showVipButton = isHydrated && isVipReady && vipRenderReady;
+  const showVipHighlight = showVipButton && vipActive;
   const formattedClubBalance = useMemo(
     () => formatNumber(cashBalance),
     [cashBalance, formatNumber],
   );
+  const formattedClubBalanceReward = useMemo(
+    () => formatNumber(CLUB_BALANCE_REWARDED_AD_AMOUNT),
+    [formatNumber],
+  );
+  const clubBalanceAdsSupported = isRewardedAdsSupported();
 
   // Auto-cycle kits every 5 seconds
   useEffect(() => {
@@ -279,6 +316,43 @@ export default function MainMenu() {
 
     return () => clearInterval(interval);
   }, [kitCount, isKitMenuOpen]);
+
+  useEffect(() => {
+    if (!isHydrated || !isVipReady) {
+      setVipRenderReady(false);
+      bootVisualReadyRef.current = false;
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setVipRenderReady(true);
+    }, VIP_RENDER_STABILIZATION_MS);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [isHydrated, isVipReady]);
+
+  useEffect(() => {
+    if (!showVipButton || bootVisualReadyRef.current) {
+      return;
+    }
+
+    let rafA = 0;
+    let rafB = 0;
+
+    rafA = window.requestAnimationFrame(() => {
+      rafB = window.requestAnimationFrame(() => {
+        bootVisualReadyRef.current = true;
+        void markBootVisualReady();
+      });
+    });
+
+    return () => {
+      window.cancelAnimationFrame(rafA);
+      window.cancelAnimationFrame(rafB);
+    };
+  }, [showVipButton]);
 
   const isDark = theme === 'dark';
 
@@ -331,6 +405,41 @@ export default function MainMenu() {
     setActiveKit(type);
     setIsUsageOpen(true);
   };
+
+  const handleClubBalanceReward = useCallback(async () => {
+    if (!user) {
+      toast.error(t('mainMenu.toasts.loginRequiredForClubBalanceReward'));
+      return;
+    }
+
+    setIsRewardingClubBalance(true);
+    setIsClubBalanceMenuOpen(false);
+    try {
+      const result = await runRewardedAdFlow({
+        userId: user.id,
+        placement: 'club_balance',
+        context: {
+          surface: 'mainmenu',
+        },
+      });
+
+      if (result.outcome === 'claimed' || result.outcome === 'already_claimed') {
+        const amount = readRewardAmount(result.claim.reward, CLUB_BALANCE_REWARDED_AD_AMOUNT);
+        toast.success(t('mainMenu.toasts.clubBalanceRewardGranted', { amount: formatNumber(amount) }));
+      } else if (result.outcome === 'dismissed') {
+        toast.info(t('mainMenu.toasts.rewardRequiresCompletion'));
+      } else if (result.outcome === 'pending_verification') {
+        toast.info(t('mainMenu.toasts.rewardPendingVerification'));
+      } else {
+        toast.error(getRewardedAdFailureMessage(result.ad));
+      }
+    } catch (error) {
+      console.warn('[MainMenu] rewarded club balance failed', error);
+      toast.error(getRewardedAdFailureMessage(error));
+    } finally {
+      setIsRewardingClubBalance(false);
+    }
+  }, [formatNumber, t, user]);
 
   const handleUsageOpenChange = (open: boolean) => {
     setIsUsageOpen(open);
@@ -950,23 +1059,73 @@ export default function MainMenu() {
             </div>
 
             {/* Currency */}
-            <button
-              type="button"
-              onClick={() => navigate('/finance')}
-              className="hidden sm:inline-flex items-center gap-3 h-12 rounded-[22px] px-3.5 border border-emerald-400/20 bg-emerald-500/10 text-white shadow-inner transition-colors hover:bg-emerald-500/15"
-              data-testid="mainmenu-club-balance"
-              title={t('mainMenu.header.clubBalanceTooltip')}
-            >
-              <Wallet size={16} className="text-emerald-300" />
-              <div className="flex flex-col leading-none">
-                <span className="text-[9px] font-bold uppercase tracking-[0.18em] text-emerald-100/70">
-                  {t('mainMenu.header.clubBalance')}
-                </span>
-                <span className={`mt-1 text-sm font-black text-white ${financeLoading ? 'animate-pulse' : ''}`}>
-                  {financeLoading ? '...' : formattedClubBalance}
-                </span>
-              </div>
-            </button>
+            <Popover open={isClubBalanceMenuOpen} onOpenChange={setIsClubBalanceMenuOpen}>
+              <PopoverTrigger asChild>
+                <button
+                  type="button"
+                  className="hidden sm:inline-flex items-center gap-3 h-12 rounded-[22px] px-3.5 border border-emerald-400/20 bg-emerald-500/10 text-white shadow-inner transition-colors hover:bg-emerald-500/15"
+                  data-testid="mainmenu-club-balance"
+                  title={t('mainMenu.header.clubBalanceTooltip')}
+                >
+                  <Wallet size={16} className="text-emerald-300" />
+                  <div className="flex flex-col leading-none">
+                    <span className="text-[9px] font-bold uppercase tracking-[0.18em] text-emerald-100/70">
+                      {t('mainMenu.header.clubBalance')}
+                    </span>
+                    <span className={`mt-1 text-sm font-black text-white ${financeLoading ? 'animate-pulse' : ''}`}>
+                      {financeLoading ? '...' : formattedClubBalance}
+                    </span>
+                  </div>
+                </button>
+              </PopoverTrigger>
+              <PopoverContent
+                align="center"
+                className="w-72 rounded-2xl border border-white/10 bg-[#111827]/95 p-4 text-white shadow-2xl backdrop-blur-xl"
+              >
+                <div className="space-y-3">
+                  <div>
+                    <p className="text-sm font-semibold text-white">
+                      {t('mainMenu.clubBalanceMenu.title')}
+                    </p>
+                    <p className="mt-1 text-xs leading-relaxed text-slate-300">
+                      {t('mainMenu.clubBalanceMenu.description', {
+                        amount: formattedClubBalanceReward,
+                      })}
+                    </p>
+                    {!clubBalanceAdsSupported ? (
+                      <p className="mt-2 text-[11px] text-amber-200">
+                        {t('mainMenu.clubBalanceMenu.unavailable')}
+                      </p>
+                    ) : null}
+                  </div>
+
+                  <Button
+                    type="button"
+                    className="w-full bg-emerald-600 text-white hover:bg-emerald-500"
+                    disabled={isRewardingClubBalance}
+                    onClick={() => void handleClubBalanceReward()}
+                  >
+                    {isRewardingClubBalance
+                      ? t('mainMenu.rewardMenu.loadingAd')
+                      : t('mainMenu.clubBalanceMenu.watchAd', {
+                        amount: formattedClubBalanceReward,
+                      })}
+                  </Button>
+
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    className="w-full text-slate-200 hover:bg-white/5 hover:text-white"
+                    onClick={() => {
+                      setIsClubBalanceMenuOpen(false);
+                      navigate('/finance');
+                    }}
+                  >
+                    {t('mainMenu.clubBalanceMenu.openFinance')}
+                  </Button>
+                </div>
+              </PopoverContent>
+            </Popover>
             <div className="hidden sm:inline-flex items-center gap-2 h-12 rounded-[22px] border border-white/10 bg-slate-900/50 shadow-inner pl-3 pr-1">
               <div className="w-5 h-5 rotate-45 border-2 border-purple-500 bg-purple-400/20 shadow-[0_0_10px_rgba(168,85,247,0.5)]" />
               <span className="font-black text-sm pr-2 text-white">{formatNumber(balance)}</span>
@@ -978,14 +1137,37 @@ export default function MainMenu() {
             {/* Actions: VIP, Notifications, Theme, Logout */}
             <div className="flex items-center gap-2 border-l border-white/10 pl-3 ml-2">
               {/* VIP Button */}
-              <button
-                onClick={() => navigate('/store/vip')}
-                className={`h-11 w-11 rounded-[20px] transition-all relative group ${vipActive ? 'bg-amber-500/10 text-amber-300' : 'text-slate-400 hover:text-white'}`}
-                title={vipActive ? t('mainMenu.header.vipActiveTitle') : t('mainMenu.header.vipInactiveTitle')}
-              >
-                <Crown size={22} className={vipActive ? 'drop-shadow-[0_0_8px_rgba(251,191,36,0.5)]' : ''} />
-                {vipActive && <span className="absolute top-1 right-1 w-2 h-2 bg-emerald-500 rounded-full shadow-lg border border-slate-900" />}
-              </button>
+              {showVipButton ? (
+                showVipHighlight ? (
+                  <button
+                    onClick={() => navigate('/store/vip')}
+                    className="relative h-11 w-11 rounded-[20px] bg-amber-500/10 text-amber-300 transition-none"
+                    title={t('mainMenu.header.vipActiveTitle')}
+                  >
+                    <Crown size={22} className="drop-shadow-[0_0_8px_rgba(251,191,36,0.5)]" />
+                    <span className="absolute right-1 top-1 h-2 w-2 rounded-full border border-slate-900 bg-emerald-500 shadow-lg" />
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => navigate('/store/vip')}
+                    className="h-11 min-w-[52px] rounded-[20px] px-2 text-[10px] font-black tracking-[0.16em] text-slate-400 transition-none"
+                    title={t('mainMenu.header.vipInactiveTitle')}
+                    style={{
+                      backgroundColor: 'transparent',
+                      boxShadow: 'none',
+                      color: '#94a3b8',
+                      transition: 'none',
+                    }}
+                  >
+                    VIP
+                  </button>
+                )
+              ) : (
+                <span
+                  aria-hidden="true"
+                  className="h-11 min-w-[52px] rounded-[20px] opacity-0 pointer-events-none"
+                />
+              )}
 
               {/* Notifications */}
               <Popover open={isNotificationOpen} onOpenChange={setIsNotificationOpen}>
@@ -1057,7 +1239,7 @@ export default function MainMenu() {
               <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
             </div>
 
-            {/* SabitlenmiÅŸ Sol Ãœst Badge */}
+            {/* Fixed Top Left Badge */}
             <div className="absolute top-0 left-0 z-20">
               <div className="bg-slate-900 text-white text-[10px] font-bold px-3 py-1 rounded-br-xl border-r border-b border-white/20 uppercase tracking-wider shadow-lg">
                 {actionableMatchTile?.matchTypeLabel || matchHighlight?.competition || t('mainMenu.matchCard.defaultCompetition')}

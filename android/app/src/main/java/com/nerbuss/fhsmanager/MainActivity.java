@@ -2,10 +2,13 @@ package com.nerbuss.fhsmanager;
 
 import android.content.Intent;
 import android.graphics.Color;
+import android.os.Build;
 import android.os.Bundle;
 import android.view.View;
 import android.view.Window;
 import android.webkit.WebSettings;
+import android.webkit.WebView;
+import android.widget.FrameLayout;
 import androidx.core.view.WindowCompat;
 import androidx.core.view.WindowInsetsCompat;
 import androidx.core.view.WindowInsetsControllerCompat;
@@ -13,6 +16,7 @@ import com.getcapacitor.BridgeActivity;
 import com.nerbuss.fhsmanager.ads.RewardedAdsPlugin;
 import com.nerbuss.fhsmanager.auth.SecureCredentialsPlugin;
 import com.nerbuss.fhsmanager.billing.PlayBillingPlugin;
+import com.nerbuss.fhsmanager.ui.UiStatePlugin;
 import com.nerbuss.fhsmanager.update.PlayUpdatePlugin;
 import com.nerbuss.fhsmanager.unity.UnityBridgeState;
 import com.nerbuss.fhsmanager.unity.UnityMatchPlugin;
@@ -22,6 +26,15 @@ public class MainActivity extends BridgeActivity {
   private static final String EXTRA_FORCE_SHELL_RETURN = "unity_force_shell_return";
   private static final String SHELL_RETURN_EVENT =
       "window.dispatchEvent(new CustomEvent('nativeUnityShellReturn', { detail: { reason: 'unity-intent' } }));";
+  private static final long SNAPSHOT_GUARD_INITIAL_HIDE_DELAY_MS = 10000L;
+  private static final long SNAPSHOT_GUARD_READY_HIDE_DELAY_MS = 750L;
+  private static final long SNAPSHOT_GUARD_RESUME_HIDE_DELAY_MS = 1000L;
+  private static final long SNAPSHOT_GUARD_WEBVIEW_FADE_DELAY_MS = 300L;
+  private static final long SNAPSHOT_GUARD_WEBVIEW_FADE_DURATION_MS = 220L;
+  private final Runnable requestSnapshotGuardHideRunnable = this::requestSnapshotGuardHide;
+  private View snapshotGuardView;
+  private long snapshotGuardVisualStateRequestId = 0L;
+  private boolean bootVisualReadyReceived = false;
 
   @Override
   protected void onCreate(Bundle savedInstanceState) {
@@ -29,8 +42,14 @@ public class MainActivity extends BridgeActivity {
     registerPlugin(SecureCredentialsPlugin.class);
     registerPlugin(PlayBillingPlugin.class);
     registerPlugin(PlayUpdatePlugin.class);
+    registerPlugin(UiStatePlugin.class);
     registerPlugin(UnityMatchPlugin.class);
     super.onCreate(savedInstanceState);
+    installSnapshotGuard();
+    showSnapshotGuard();
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+      setRecentsScreenshotEnabled(false);
+    }
     hardenWebViewNetworkPolicy();
     enableImmersiveMode();
     dispatchPendingUnityShellReturn(getIntent());
@@ -57,8 +76,22 @@ public class MainActivity extends BridgeActivity {
   public void onResume() {
     super.onResume();
     enableImmersiveMode();
+    showSnapshotGuard();
+    scheduleSnapshotGuardHide();
     dispatchPendingUnityShellReturn(getIntent());
     dispatchPendingUnityShellReturnFromBridgeState();
+  }
+
+  @Override
+  public void onPause() {
+    showSnapshotGuard();
+    super.onPause();
+  }
+
+  @Override
+  public void onDestroy() {
+    clearSnapshotGuardCallbacks();
+    super.onDestroy();
   }
 
   private void dispatchPendingUnityShellReturn(Intent intent) {
@@ -145,5 +178,153 @@ public class MainActivity extends BridgeActivity {
 
     settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
     getBridge().getWebView().setBackgroundColor(APP_BACKGROUND_COLOR);
+  }
+
+  private void installSnapshotGuard() {
+    if (snapshotGuardView != null) {
+      return;
+    }
+
+    final FrameLayout root = findViewById(android.R.id.content);
+    if (root == null) {
+      return;
+    }
+
+    final View overlay = new View(this);
+    overlay.setBackgroundColor(APP_BACKGROUND_COLOR);
+    overlay.setVisibility(View.VISIBLE);
+    overlay.setClickable(false);
+    overlay.setFocusable(false);
+    overlay.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+
+    root.addView(
+        overlay,
+        new FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.MATCH_PARENT,
+            FrameLayout.LayoutParams.MATCH_PARENT));
+    snapshotGuardView = overlay;
+  }
+
+  private void showSnapshotGuard() {
+    clearSnapshotGuardCallbacks();
+    snapshotGuardVisualStateRequestId++;
+    prepareWebViewForGuard();
+    if (snapshotGuardView != null) {
+      snapshotGuardView.setVisibility(View.VISIBLE);
+      snapshotGuardView.bringToFront();
+    }
+  }
+
+  private void scheduleSnapshotGuardHide() {
+    if (snapshotGuardView == null) {
+      return;
+    }
+
+    snapshotGuardView.removeCallbacks(requestSnapshotGuardHideRunnable);
+    final long delayMs =
+        bootVisualReadyReceived
+            ? SNAPSHOT_GUARD_RESUME_HIDE_DELAY_MS
+            : SNAPSHOT_GUARD_INITIAL_HIDE_DELAY_MS;
+    snapshotGuardView.postDelayed(requestSnapshotGuardHideRunnable, delayMs);
+  }
+
+  public void markBootVisualReady() {
+    runOnUiThread(
+        () -> {
+          bootVisualReadyReceived = true;
+          clearSnapshotGuardCallbacks();
+          if (snapshotGuardView == null) {
+            return;
+          }
+
+          snapshotGuardView.postDelayed(
+              requestSnapshotGuardHideRunnable, SNAPSHOT_GUARD_READY_HIDE_DELAY_MS);
+        });
+  }
+
+  private void requestSnapshotGuardHide() {
+    if (snapshotGuardView == null) {
+      return;
+    }
+
+    final WebView webView = getBridgeWebView();
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M || webView == null) {
+      revealWebView(snapshotGuardVisualStateRequestId);
+      return;
+    }
+
+    final long requestId = ++snapshotGuardVisualStateRequestId;
+    webView.postVisualStateCallback(
+        requestId,
+        new WebView.VisualStateCallback() {
+          @Override
+          public void onComplete(long id) {
+            if (id != requestId) {
+              return;
+            }
+
+            runOnUiThread(
+                () -> {
+                  if (id != snapshotGuardVisualStateRequestId) {
+                    return;
+                  }
+
+                  revealWebView(id);
+                });
+          }
+        });
+  }
+
+  private WebView getBridgeWebView() {
+    if (getBridge() == null) {
+      return null;
+    }
+
+    return getBridge().getWebView();
+  }
+
+  private void prepareWebViewForGuard() {
+    final WebView webView = getBridgeWebView();
+    if (webView == null) {
+      return;
+    }
+
+    webView.animate().cancel();
+    webView.setAlpha(0f);
+  }
+
+  private void revealWebView(long requestId) {
+    final WebView webView = getBridgeWebView();
+    if (webView == null) {
+      hideSnapshotGuard();
+      return;
+    }
+
+    webView.animate().cancel();
+    webView.setAlpha(0f);
+    webView.postDelayed(
+        () ->
+            runOnUiThread(
+                () -> {
+                  if (requestId != snapshotGuardVisualStateRequestId) {
+                    return;
+                  }
+
+                  hideSnapshotGuard();
+                  webView.animate().alpha(1f).setDuration(SNAPSHOT_GUARD_WEBVIEW_FADE_DURATION_MS).start();
+                }),
+        SNAPSHOT_GUARD_WEBVIEW_FADE_DELAY_MS);
+  }
+
+  private void hideSnapshotGuard() {
+    if (snapshotGuardView != null) {
+      snapshotGuardView.setVisibility(View.GONE);
+    }
+  }
+
+  private void clearSnapshotGuardCallbacks() {
+    if (snapshotGuardView != null) {
+      snapshotGuardView.removeCallbacks(requestSnapshotGuardHideRunnable);
+    }
   }
 }

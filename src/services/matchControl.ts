@@ -3,6 +3,7 @@ import { auth } from '@/services/firebase';
 import type { ClubTeam, Player as ClubPlayer } from '@/types';
 import { collection, getCountFromServer } from 'firebase/firestore';
 import { db } from '@/services/firebase';
+import { resolveLiveTeamIdentities } from './teamIdentity';
 
 function resolveMatchControlBaseUrl(): string {
   const raw = (import.meta.env.VITE_MATCH_CONTROL_BASE_URL || '').trim();
@@ -1031,7 +1032,25 @@ export async function listFriendlyMatchHistory(payload: {
     { method: 'GET' },
   );
 
-  return Array.isArray(response.items) ? response.items : [];
+  const items = Array.isArray(response.items) ? response.items : [];
+  if (items.length === 0) {
+    return items;
+  }
+
+  const liveIdentities = await resolveLiveTeamIdentities(
+    items.flatMap((item) => [item.homeUserId ?? '', item.awayUserId ?? '']),
+  );
+
+  return items.map((item) => {
+    const homeIdentity = item.homeUserId ? liveIdentities.get(item.homeUserId) : undefined;
+    const awayIdentity = item.awayUserId ? liveIdentities.get(item.awayUserId) : undefined;
+
+    return {
+      ...item,
+      homeTeamName: homeIdentity?.teamName || item.homeTeamName,
+      awayTeamName: awayIdentity?.teamName || item.awayTeamName,
+    };
+  });
 }
 
 export async function acceptFriendlyRequest(

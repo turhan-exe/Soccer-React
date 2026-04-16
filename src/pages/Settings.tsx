@@ -36,6 +36,11 @@ import {
   showRewardedAdsPrivacyOptions,
   type RewardedAdsDebugInfo,
 } from '@/services/rewardedAds';
+import {
+  getInstalledAppVersion,
+  isAndroidNativeApp,
+  type InstalledAppVersion,
+} from '@/services/appVersion';
 import { updateTeamLogo, renameClubWithDiamonds, renameStadiumWithDiamonds, getTeam } from '@/services/team';
 import { setNativePushPreference } from '@/services/pushNotifications';
 import { updateUserContactInfo, updateUserNotificationPreferences } from '@/services/users';
@@ -65,20 +70,20 @@ const WHATSAPP_SUPPORT_HREF =
 export default function SettingsPage() {
   const [isCleaningLeagues, setIsCleaningLeagues] = useState(false);
   const handleCleanLeagues = async () => {
-    if (!confirm('Liglerdeki fazlalÄ±k botlar silinecek. Emin misiniz?')) return;
+    if (!confirm('Liglerdeki fazlalık botlar silinecek. Emin misiniz?')) return;
 
     setIsCleaningLeagues(true);
     try {
       const result = await repairLeagueCapacities();
-      toast.success(`Ä°ÅŸlem tamamlandÄ±. ${result.removedBots} bot silindi.`);
+      toast.success(`İşlem tamamlandı. ${result.removedBots} bot silindi.`);
       if (result.removedBots > 0) {
-        toast.info(`GÃ¼ncellenen ligler: ${result.updatedLeagues.join(', ')}`);
+        toast.info(`Güncellenen ligler: ${result.updatedLeagues.join(', ')}`);
       } else {
-        toast.info('TÃ¼m ligler kapasite sÄ±nÄ±rlarÄ± iÃ§inde. Silinecek bot bulunamadÄ±.');
+        toast.info('Tüm ligler kapasite sınırları içinde. Silinecek bot bulunamadı.');
       }
     } catch (error: unknown) {
       console.error(error);
-      toast.error(`Hata: ${error instanceof Error ? error.message : 'Temizlik sÄ±rasÄ±nda hata oluÅŸtu.'}`);
+      toast.error(`Hata: ${error instanceof Error ? error.message : 'Temizlik sırasında hata oluştu.'}`);
     } finally {
       setIsCleaningLeagues(false);
     }
@@ -106,6 +111,8 @@ export default function SettingsPage() {
   const [rewardedAdsDebugInfo, setRewardedAdsDebugInfo] = useState<RewardedAdsDebugInfo | null>(null);
   const [isLoadingRewardedAdsDebugInfo, setIsLoadingRewardedAdsDebugInfo] = useState(false);
   const [isOpeningAdInspector, setIsOpeningAdInspector] = useState(false);
+  const [installedAppVersion, setInstalledAppVersion] = useState<InstalledAppVersion | null>(null);
+  const [isLoadingInstalledAppVersion, setIsLoadingInstalledAppVersion] = useState(true);
   const navigate = useNavigate();
   const {
     lastDailyRewardDate,
@@ -160,11 +167,21 @@ export default function SettingsPage() {
     && Capacitor.getPlatform() === 'android'
     && (import.meta.env.DEV || import.meta.env.VITE_ENABLE_TEST_BUTTONS === '1');
   const themeLabel = theme === 'dark' ? t('common.themeDark') : t('common.themeLight');
+  const isAndroidApp = isAndroidNativeApp();
   const aboutLastUpdateLabel = formatDate(new Date('2025-08-18T00:00:00Z'), {
     day: 'numeric',
     month: 'long',
     year: 'numeric',
   });
+  const aboutVersionLabel = isLoadingInstalledAppVersion
+    ? t('settings.about.versionLoading')
+    : installedAppVersion?.versionName?.trim()
+      || installedAppVersion?.build?.trim()
+      || t('settings.about.versionUnavailable');
+  const aboutAndroidBuildLabel =
+    !isLoadingInstalledAppVersion && isAndroidApp && installedAppVersion?.build?.trim()
+      ? t('settings.about.androidBuild', { value: installedAppVersion.build.trim() })
+      : null;
 
   useEffect(() => {
     setLogoPreview(user?.teamLogo ?? null);
@@ -173,6 +190,32 @@ export default function SettingsPage() {
     setContactPhone(user?.contactPhone ?? '');
     setContactCrypto(user?.contactCrypto ?? '');
   }, [user?.contactPhone, user?.contactCrypto]);
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadInstalledAppVersion = async () => {
+      try {
+        const version = await getInstalledAppVersion();
+        if (!isMounted) {
+          return;
+        }
+
+        setInstalledAppVersion(version);
+      } catch (error) {
+        console.warn('[Settings] Failed to load app version', error);
+      } finally {
+        if (isMounted) {
+          setIsLoadingInstalledAppVersion(false);
+        }
+      }
+    };
+
+    void loadInstalledAppVersion();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
   useEffect(() => {
     if (!user) {
       setStadiumName(null);
@@ -561,7 +604,7 @@ export default function SettingsPage() {
                     {logoPreview ? (
                       <img src={logoPreview} alt={t('settings.teamIdentity.logoAlt')} className="h-full w-full object-cover" />
                     ) : (
-                      <span className="text-3xl">âš½</span>
+                      <span className="text-3xl">⚽</span>
                     )}
                   </div>
                   <div className="space-y-3">
@@ -936,10 +979,10 @@ export default function SettingsPage() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent className="border-white/10 bg-slate-950 text-slate-100">
-                      <SelectItem value="try">TÃ¼rk LirasÄ± (â‚º)</SelectItem>
-                      <SelectItem value="eur">Euro (â‚¬)</SelectItem>
+                      <SelectItem value="try">Türk Lirası (₺)</SelectItem>
+                      <SelectItem value="eur">Euro (€)</SelectItem>
                       <SelectItem value="usd">US Dollar ($)</SelectItem>
-                      <SelectItem value="gbp">British Pound (Â£)</SelectItem>
+                      <SelectItem value="gbp">British Pound (£)</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -1064,7 +1107,7 @@ export default function SettingsPage() {
                               </p>
                               <p className="mt-1 text-[11px] text-amber-200/80">
                                 Stage: {rewardedAdsDebugInfo.lastShowError?.stage || rewardedAdsDebugInfo.lastLoadError?.stage || '-'}
-                                {' â€¢ '}
+                                {' • '}
                                 Code: {rewardedAdsDebugInfo.lastShowError?.code ?? rewardedAdsDebugInfo.lastLoadError?.code ?? '-'}
                               </p>
                             </div>
@@ -1089,7 +1132,7 @@ export default function SettingsPage() {
                   ) : null}
 
                   {showLeagueBotCleanup && <div className="pt-4 border-t border-white/10">
-                    <p className="mb-2 text-xs text-slate-400">YÃ¶netici Ä°ÅŸlemleri</p>
+                    <p className="mb-2 text-xs text-slate-400">Yönetici İşlemleri</p>
                     <Button
                       variant="destructive"
                       className="w-full justify-start border-rose-500/20 bg-rose-500/10 text-rose-200 hover:bg-rose-500/20"
@@ -1101,7 +1144,7 @@ export default function SettingsPage() {
                       ) : (
                         <Trash2 className="mr-2 h-4 w-4" />
                       )}
-                      Lig BotlarÄ±nÄ± Temizle (Kapasite DÃ¼zelt)
+                      Lig Botlarını Temizle (Kapasite Düzelt)
                     </Button>
                   </div>}
                 </div>
@@ -1134,7 +1177,12 @@ export default function SettingsPage() {
               <div className="space-y-3 text-sm text-slate-300">
                 <div className="flex justify-between">
                   <span className="text-slate-400">{t('settings.about.version')}</span>
-                  <span>1.0.0</span>
+                  <div className="text-right">
+                    <span>{aboutVersionLabel}</span>
+                    {aboutAndroidBuildLabel ? (
+                      <p className="text-xs text-slate-400">{aboutAndroidBuildLabel}</p>
+                    ) : null}
+                  </div>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-slate-400">{t('settings.about.lastUpdate')}</span>

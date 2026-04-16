@@ -129,6 +129,9 @@ export const enSettings: TranslationDictionary = {
     about: {
       title: 'About',
       version: 'Version:',
+      versionLoading: 'Loading...',
+      versionUnavailable: 'Unknown',
+      androidBuild: 'Android build: {value}',
       lastUpdate: 'Last Update:',
       developer: 'Developer:',
       privacyPolicy: 'Privacy Policy',
