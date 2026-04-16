@@ -301,9 +301,10 @@ function Apply-UnityShellReturnDestroyGuard {
             "        Log.d(TAG, ""onUnityPlayerQuitted: finishing embedded activity for shell return."");`r`n        finishForShellReturn();",
             "        Log.d(TAG, ""onUnityPlayerQuitted: finishing embedded activity for shell return."");`r`n        skipDestroyOnDestroy = shellReturnRequested || skipDestroyOnDestroy;`r`n        finishForShellReturn();")
 
-        $embeddedUnityPlayerActivity = $embeddedUnityPlayerActivity.Replace(
-            "            skipDestroyOnDestroy = true;`r`n            skipDestroyOnDestroy = true;",
-            "            skipDestroyOnDestroy = true;")
+        $embeddedUnityPlayerActivity = [System.Text.RegularExpressions.Regex]::Replace(
+            $embeddedUnityPlayerActivity,
+            '(?m)^([ \t]*skipDestroyOnDestroy = true;\r?\n)[ \t]*skipDestroyOnDestroy = true;$',
+            '$1')
 
         [System.IO.File]::WriteAllText($EmbeddedUnityPlayerActivityPath, $embeddedUnityPlayerActivity, $Encoding)
     }
