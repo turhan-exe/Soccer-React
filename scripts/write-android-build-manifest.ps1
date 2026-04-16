@@ -89,6 +89,17 @@ function Get-GitSha {
     }
 }
 
+function Get-ShortGitSha {
+    param([string]$Sha)
+
+    if ([string]::IsNullOrWhiteSpace($Sha)) {
+        return 'nogit'
+    }
+
+    $trimmed = $Sha.Trim()
+    return $trimmed.Substring(0, [Math]::Min(7, $trimmed.Length)).ToLowerInvariant()
+}
+
 function Get-UnityVersion {
     param([string]$Root)
 
@@ -169,6 +180,54 @@ function Resolve-ArtifactPath {
     }
 
     return $null
+}
+
+function Get-ArtifactTimestamps {
+    param(
+        [string[]]$Abis,
+        [string]$UnityLibraryRoot
+    )
+
+    $timestamps = New-Object System.Collections.Generic.List[datetime]
+    $sharedCandidates = @(
+        (Join-Path $UnityLibraryRoot 'src\main\assets\bin\Data\Managed\Metadata\global-metadata.dat'),
+        (Join-Path $UnityLibraryRoot 'src\main\assets\bin\Data\globalgamemanagers')
+    )
+
+    foreach ($candidate in $sharedCandidates) {
+        if (Test-Path -LiteralPath $candidate) {
+            $timestamps.Add((Get-Item -LiteralPath $candidate).LastWriteTimeUtc)
+        }
+    }
+
+    foreach ($abi in $Abis) {
+        foreach ($artifactPath in @(
+            (Join-Path $UnityLibraryRoot "src\main\jniLibs\$abi\libil2cpp.so"),
+            (Join-Path $UnityLibraryRoot "src\main\jniLibs\$abi\libunity.so")
+        )) {
+            if (Test-Path -LiteralPath $artifactPath) {
+                $timestamps.Add((Get-Item -LiteralPath $artifactPath).LastWriteTimeUtc)
+            }
+        }
+    }
+
+    return $timestamps
+}
+
+function Get-ExportArtifactTimestampUtc {
+    param([string[]]$Abis)
+
+    $exportTimestamps = Get-ArtifactTimestamps -Abis $Abis -UnityLibraryRoot $exportUnityLibraryRoot
+    if ($exportTimestamps.Count -gt 0) {
+        return ($exportTimestamps | Sort-Object -Descending | Select-Object -First 1)
+    }
+
+    $targetTimestamps = Get-ArtifactTimestamps -Abis $Abis -UnityLibraryRoot $targetUnityLibraryRoot
+    if ($targetTimestamps.Count -gt 0) {
+        return ($targetTimestamps | Sort-Object -Descending | Select-Object -First 1)
+    }
+
+    return (Get-Date).ToUniversalTime()
 }
 
 function New-ArtifactInfo {
@@ -256,14 +315,19 @@ function Get-ApkArtifacts {
 }
 
 $existingManifest = Read-JsonFile -Path $ManifestPath
-$gitSha = [string](Get-ExistingValue -Source $existingManifest -PropertyName 'gitSha' -Fallback (Get-GitSha -Root $unityProjectRoot))
-$runtimeType = [string](Get-ExistingValue -Source $existingManifest -PropertyName 'runtimeType' -Fallback 'unknown')
-$buildTimestampUtc = [string](Get-ExistingValue -Source $existingManifest -PropertyName 'buildTimestampUtc' -Fallback (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ'))
-$buildId = [string](Get-ExistingValue -Source $existingManifest -PropertyName 'buildId' -Fallback ("androidexport-{0}" -f ((Get-Date).ToUniversalTime().ToString('yyyyMMddTHHmmssZ'))))
 $versionName = [string](Get-ExistingValue -Source $existingManifest -PropertyName 'versionName' -Fallback '1.0.0')
 $versionCode = [int](Get-ExistingValue -Source $existingManifest -PropertyName 'versionCode' -Fallback 0)
 $unityVersion = [string](Get-ExistingValue -Source $existingManifest -PropertyName 'unityVersion' -Fallback (Get-UnityVersion -Root $unityProjectRoot))
 $abis = Resolve-ExistingAbis -ExistingManifest $existingManifest
+$resolvedGitSha = (Get-GitSha -Root $unityProjectRoot)
+if ([string]::IsNullOrWhiteSpace($resolvedGitSha)) {
+    $resolvedGitSha = [string](Get-ExistingValue -Source $existingManifest -PropertyName 'gitSha' -Fallback '')
+}
+$gitSha = [string]$resolvedGitSha
+$runtimeType = [string](Get-ExistingValue -Source $existingManifest -PropertyName 'runtimeType' -Fallback 'unknown')
+$exportTimestampUtc = Get-ExportArtifactTimestampUtc -Abis $abis
+$buildTimestampUtc = $exportTimestampUtc.ToString('yyyy-MM-ddTHH:mm:ssZ')
+$buildId = "androidexport-{0}-{1}" -f (Get-ShortGitSha -Sha $gitSha), $exportTimestampUtc.ToString('yyyyMMddTHHmmssZ')
 $developmentBuild = [bool](Get-ExistingValue -Source $existingManifest -PropertyName 'developmentBuild' -Fallback $true)
 $allowDebugging = [bool](Get-ExistingValue -Source $existingManifest -PropertyName 'allowDebugging' -Fallback $true)
 $unityBuildFlavor = [string](Get-ExistingValue -Source $existingManifest -PropertyName 'unityBuildFlavor' -Fallback '')
