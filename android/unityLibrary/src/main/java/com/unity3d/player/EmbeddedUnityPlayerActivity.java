@@ -26,7 +26,6 @@ public class EmbeddedUnityPlayerActivity extends UnityPlayerActivity {
 
             shellReturnRequested = true;
             skipDestroyOnDestroy = true;
-            skipDestroyOnDestroy = true;
 
             try {
                 if (mUnityPlayer != null) {
