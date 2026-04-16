@@ -305,6 +305,10 @@ function Apply-UnityShellReturnDestroyGuard {
             $embeddedUnityPlayerActivity,
             '(?m)^([ \t]*skipDestroyOnDestroy = true;\r?\n)[ \t]*skipDestroyOnDestroy = true;$',
             '$1')
+        $embeddedUnityPlayerActivity = [System.Text.RegularExpressions.Regex]::Replace(
+            $embeddedUnityPlayerActivity,
+            '(?m)^([ \t]*skipDestroyOnDestroy = true;\r?\n)\r?\n([ \t]*try \{)$',
+            '$1$2')
 
         [System.IO.File]::WriteAllText($EmbeddedUnityPlayerActivityPath, $embeddedUnityPlayerActivity, $Encoding)
     }
