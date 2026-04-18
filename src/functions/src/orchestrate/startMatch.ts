@@ -95,21 +95,29 @@ export async function startMatchInternal(matchId: string, leagueId: string, opts
     const seasonId = String(fx.seasonId ?? fx.season ?? 'default');
     const homeClubName = h?.clubName || h?.name || h?.id || fx.homeTeamId;
     const awayClubName = a?.clubName || a?.name || a?.id || fx.awayTeamId;
+    const buildSnapshot = (teamId: string, raw: any, clubName: string) => ({
+      teamId,
+      clubName,
+      formation: raw?.lineup?.formation ?? raw?.plan?.formation ?? null,
+      shape: raw?.lineup?.shape ?? raw?.plan?.shape ?? null,
+      tactics: raw?.lineup?.tactics || {},
+      starters: raw?.lineup?.starters || raw?.plan?.starters || [],
+      subs: raw?.lineup?.subs || raw?.plan?.subs || raw?.plan?.bench || [],
+      reserves: raw?.lineup?.reserves || raw?.plan?.reserves || [],
+      slotAssignments: raw?.lineup?.slotAssignments || raw?.plan?.slotAssignments || [],
+      ...((raw?.lineup?.customFormations && typeof raw.lineup.customFormations === 'object')
+        ? { customFormations: raw.lineup.customFormations }
+        : (raw?.plan?.customFormations && typeof raw.plan.customFormations === 'object')
+          ? { customFormations: raw.plan.customFormations }
+          : {}),
+    });
     await planRef.set({
       matchId, leagueId, seasonId,
       createdAt: FieldValue.serverTimestamp(),
       rngSeed: fx.seed || Math.floor(Math.random() * 1e9),
       kickoffUtc: fx.date,
-      home: {
-        teamId: fx.homeTeamId, clubName: homeClubName,
-        formation: h?.lineup?.formation, tactics: h?.lineup?.tactics || {},
-        starters: h?.lineup?.starters || [], subs: h?.lineup?.subs || []
-      },
-      away: {
-        teamId: fx.awayTeamId, clubName: awayClubName,
-        formation: a?.lineup?.formation, tactics: a?.lineup?.tactics || {},
-        starters: a?.lineup?.starters || [], subs: a?.lineup?.subs || []
-      }
+      home: buildSnapshot(fx.homeTeamId, h, homeClubName),
+      away: buildSnapshot(fx.awayTeamId, a, awayClubName),
     });
   }
 

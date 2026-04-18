@@ -460,6 +460,31 @@ async function ensureMatchPlanSnapshot(matchId: string, leagueId: string, season
   const existing = await planRef.get();
   if (existing.exists) return;
 
+  const buildSnapshot = (team: TeamBundle) => {
+    const lineup = team.raw?.lineup || {};
+    const plan = team.raw?.plan || {};
+    return {
+      teamId: team.teamId,
+      clubName: team.raw?.clubName || team.raw?.name || team.teamId,
+      formation: typeof lineup?.formation === 'string' ? lineup.formation : typeof plan?.formation === 'string' ? plan.formation : null,
+      shape: typeof lineup?.shape === 'string' ? lineup.shape : typeof plan?.shape === 'string' ? plan.shape : null,
+      tactics: lineup?.tactics || {},
+      starters: Array.isArray(lineup?.starters) ? lineup.starters : Array.isArray(plan?.starters) ? plan.starters : [],
+      subs: Array.isArray(lineup?.subs) ? lineup.subs : Array.isArray(plan?.subs) ? plan.subs : Array.isArray(plan?.bench) ? plan.bench : [],
+      reserves: Array.isArray(lineup?.reserves) ? lineup.reserves : Array.isArray(plan?.reserves) ? plan.reserves : [],
+      slotAssignments: Array.isArray(lineup?.slotAssignments)
+        ? lineup.slotAssignments
+        : Array.isArray(plan?.slotAssignments)
+          ? plan.slotAssignments
+          : [],
+      ...((lineup?.customFormations && typeof lineup.customFormations === 'object')
+        ? { customFormations: lineup.customFormations }
+        : (plan?.customFormations && typeof plan.customFormations === 'object')
+          ? { customFormations: plan.customFormations }
+          : {}),
+    };
+  };
+
   await planRef.create({
     matchId,
     leagueId,
@@ -467,22 +492,8 @@ async function ensureMatchPlanSnapshot(matchId: string, leagueId: string, season
     createdAt: FieldValue.serverTimestamp(),
     rngSeed: fixture.seed || Math.floor(Math.random() * 1e9),
     kickoffUtc: fixture.date,
-    home: {
-      teamId: home.teamId,
-      clubName: home.raw?.clubName || home.raw?.name || home.teamId,
-      formation: typeof home.raw?.lineup?.formation === 'string' ? home.raw.lineup.formation : null,
-      tactics: home.raw?.lineup?.tactics || {},
-      starters: home.raw?.lineup?.starters || [],
-      subs: home.raw?.lineup?.subs || [],
-    },
-    away: {
-      teamId: away.teamId,
-      clubName: away.raw?.clubName || away.raw?.name || away.teamId,
-      formation: typeof away.raw?.lineup?.formation === 'string' ? away.raw.lineup.formation : null,
-      tactics: away.raw?.lineup?.tactics || {},
-      starters: away.raw?.lineup?.starters || [],
-      subs: away.raw?.lineup?.subs || [],
-    },
+    home: buildSnapshot(home),
+    away: buildSnapshot(away),
   });
 }
 

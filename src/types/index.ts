@@ -116,6 +116,14 @@ export type CustomFormationLayout = Record<
 
 export type CustomFormationMap = Record<string, CustomFormationLayout>;
 
+export type ResolvedTeamSlotAssignment = {
+  playerId: string;
+  slotIndex: number;
+  position: Position;
+  x: number;
+  y: number;
+};
+
 export interface ClubTeam {
   id: string;
   name: string;
@@ -145,6 +153,7 @@ export interface ClubTeam {
     shape?: string;
     updatedAt?: string;
     customFormations?: CustomFormationMap;
+    slotAssignments?: ResolvedTeamSlotAssignment[];
   };
   lineup?: {
     formation?: string;
@@ -155,6 +164,7 @@ export interface ClubTeam {
     shape?: string;
     updatedAt?: string;
     customFormations?: CustomFormationMap;
+    slotAssignments?: ResolvedTeamSlotAssignment[];
   };
 }
 

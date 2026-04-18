@@ -1,3 +1,4 @@
+import type { CustomFormationMap, ResolvedTeamSlotAssignment } from './index';
 import type { FirebaseTimestamp } from './common';
 
 export interface MatchPlanDoc {
@@ -11,17 +12,24 @@ export interface MatchPlanDoc {
     teamId: string;
     clubName?: string;
     formation?: string;
+    shape?: string;
     tactics?: Record<string, any>;
     starters: string[];       // 11 player ids
     subs: string[];           // 0..12 player ids
+    reserves?: string[];
+    slotAssignments?: ResolvedTeamSlotAssignment[];
+    customFormations?: CustomFormationMap;
   };
   away: {
     teamId: string;
     clubName?: string;
     formation?: string;
+    shape?: string;
     tactics?: Record<string, any>;
     starters: string[];
     subs: string[];
+    reserves?: string[];
+    slotAssignments?: ResolvedTeamSlotAssignment[];
+    customFormations?: CustomFormationMap;
   };
 }
-

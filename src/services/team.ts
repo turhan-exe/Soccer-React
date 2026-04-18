@@ -3,7 +3,14 @@ import { FirebaseError } from 'firebase/app';
 import type { User as FirebaseAuthUser } from 'firebase/auth';
 import { httpsCallable } from 'firebase/functions';
 import { auth, db, functions } from '@/services/firebase';
-import { Player, ClubTeam, CustomFormationMap, TeamBadge, TeamKitAssets } from '@/types';
+import {
+  Player,
+  ClubTeam,
+  CustomFormationMap,
+  ResolvedTeamSlotAssignment,
+  TeamBadge,
+  TeamKitAssets,
+} from '@/types';
 import { generateRandomName } from '@/lib/names';
 import { calculateOverall, getRoles } from '@/lib/player';
 import { normalizeTeamPlayers } from '@/lib/playerVitals';
@@ -11,6 +18,10 @@ import { addGameYears, applyGameAgingToPlayers } from '@/lib/gameTime';
 import { formations } from '@/lib/formations';
 import { getSalaryForOverall } from '@/lib/salary';
 import { INITIAL_CLUB_BALANCE } from '@/lib/clubFinance';
+import {
+  buildResolvedTeamSlotAssignments,
+  sanitizeResolvedTeamSlotAssignments,
+} from '@/lib/teamPlanSlots';
 import { clearLiveTeamIdentityCache } from './teamIdentity';
 
 const positions: Player['position'][] = ['GK','CB','LB','RB','CM','LM','RM','CAM','LW','RW','ST'];
@@ -295,6 +306,7 @@ type TeamPlanUpdate = {
     reserves?: string[];
   };
   customFormations?: CustomFormationMap;
+  slotAssignments?: ResolvedTeamSlotAssignment[];
 };
 
 const sanitizeFirestoreData = <T>(value: T): T => {
@@ -318,7 +330,7 @@ export const saveTeamPlayers = async (userId: string, players: Player[], plan?: 
   const payload: Record<string, unknown> = { players: sanitizeFirestoreData(normalizedPlayers) };
 
   if (plan) {
-    const { formation, shape, squads, tactics, customFormations } = plan;
+    const { formation, shape, squads, tactics, customFormations, slotAssignments } = plan;
     const dedupe = (list?: string[]) =>
       Array.from(new Set((list ?? []).map(id => String(id)))).filter(Boolean);
 
@@ -400,6 +412,14 @@ export const saveTeamPlayers = async (userId: string, players: Player[], plan?: 
     };
 
     const sanitizedCustomFormations = sanitizeCustomFormations(customFormations);
+    const sanitizedSlotAssignments =
+      sanitizeResolvedTeamSlotAssignments(slotAssignments, rosterIds) ??
+      buildResolvedTeamSlotAssignments({
+        formation: sanitizedFormation,
+        players: normalizedPlayers,
+        starters: sanitizedSquads.starters,
+        customFormations: sanitizedCustomFormations,
+      });
 
     payload.plan = {
       formation: sanitizedFormation,
@@ -409,6 +429,7 @@ export const saveTeamPlayers = async (userId: string, players: Player[], plan?: 
       updatedAt: timestamp,
       ...(sanitizedShape ? { shape: sanitizedShape } : {}),
       ...(sanitizedCustomFormations ? { customFormations: sanitizedCustomFormations } : {}),
+      ...(sanitizedSlotAssignments.length > 0 ? { slotAssignments: sanitizedSlotAssignments } : {}),
     };
 
     payload.lineup = {
@@ -420,6 +441,7 @@ export const saveTeamPlayers = async (userId: string, players: Player[], plan?: 
       updatedAt: timestamp,
       ...(sanitizedShape ? { shape: sanitizedShape } : {}),
       ...(sanitizedCustomFormations ? { customFormations: sanitizedCustomFormations } : {}),
+      ...(sanitizedSlotAssignments.length > 0 ? { slotAssignments: sanitizedSlotAssignments } : {}),
     };
   }
 
@@ -505,10 +527,13 @@ export const updatePlayerSalary = async (userId: string, playerId: string, salar
 export async function setLineupServer(params: {
   teamId: string;
   formation?: string;
+  shape?: string;
   tactics?: Record<string, unknown>;
   starters: string[];
   subs?: string[];
   reserves?: string[];
+  customFormations?: CustomFormationMap;
+  slotAssignments?: ResolvedTeamSlotAssignment[];
 }): Promise<void> {
   const dedupe = (list?: string[]) => Array.from(new Set((list ?? []).map(String))).filter(Boolean);
   const starters = dedupe(params.starters);
@@ -519,9 +544,12 @@ export async function setLineupServer(params: {
   await fn({
     teamId: params.teamId,
     formation: params.formation || 'auto',
+    shape: params.shape || undefined,
     tactics: params.tactics || {},
     starters,
     subs,
     reserves,
+    customFormations: params.customFormations || undefined,
+    slotAssignments: params.slotAssignments || undefined,
   });
 }

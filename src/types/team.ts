@@ -1,4 +1,4 @@
-import type { CustomFormationMap } from '@/types';
+import type { CustomFormationMap, ResolvedTeamSlotAssignment } from '@/types';
 
 export interface Lineup {
   formation: string;          // e.g. "4-3-3"
@@ -6,7 +6,9 @@ export interface Lineup {
   subs: string[];             // playerId[]
   reserves?: string[];        // optional reserve list for UI snapshots
   tactics?: Record<string, any>;
+  shape?: string;
   customFormations?: CustomFormationMap;
+  slotAssignments?: ResolvedTeamSlotAssignment[];
 }
 
 export interface TeamDoc {

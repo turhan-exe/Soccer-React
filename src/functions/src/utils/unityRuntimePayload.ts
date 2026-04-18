@@ -1,10 +1,21 @@
 type TeamPlanPayload = {
   formation?: string;
+  shape?: string;
   tactics?: Record<string, any>;
   starters?: string[];
   subs?: string[];
   reserves?: string[];
   bench?: string[];
+  slotAssignments?: TeamSlotAssignmentPayload[];
+  customFormations?: Record<string, Record<string, { x?: number; y?: number; position?: string }>>;
+};
+
+type TeamSlotAssignmentPayload = {
+  playerId: string;
+  slotIndex: number;
+  position: string;
+  x: number;
+  y: number;
 };
 
 type UnityRuntimePlayerPayload = {
@@ -37,9 +48,11 @@ export type UnityRuntimeTeamPayload = {
   teamKey: string;
   teamName: string;
   formation: string;
+  shape?: string;
   kit: UnityRuntimeKitPayload;
   lineup: UnityRuntimePlayerPayload[];
   bench: UnityRuntimePlayerPayload[];
+  slotAssignments?: TeamSlotAssignmentPayload[];
 };
 
 function hashString(input: string): number {
@@ -241,24 +254,91 @@ function resolveFormation(data: any): string {
   );
 }
 
+function resolveShape(data: any): string | undefined {
+  const value =
+    data?.lineup?.shape ||
+    data?.plan?.shape;
+  if (typeof value !== 'string') {
+    return undefined;
+  }
+  const trimmed = value.trim();
+  return trimmed || undefined;
+}
+
+function normalizeSlotAssignments(values: unknown): TeamSlotAssignmentPayload[] | undefined {
+  if (!Array.isArray(values) || values.length === 0) {
+    return undefined;
+  }
+
+  const normalized = values
+    .map((value) => {
+      if (!value || typeof value !== 'object') {
+        return null;
+      }
+
+      const playerId = String((value as { playerId?: unknown }).playerId || '').trim();
+      const slotIndex = Number((value as { slotIndex?: unknown }).slotIndex);
+      if (!playerId || !Number.isFinite(slotIndex) || slotIndex < 0) {
+        return null;
+      }
+
+      const position = String((value as { position?: unknown }).position || '').trim() || 'CM';
+      const x = Number((value as { x?: unknown }).x);
+      const y = Number((value as { y?: unknown }).y);
+
+      return {
+        playerId,
+        slotIndex: Math.floor(slotIndex),
+        position,
+        x: Number.isFinite(x) ? x : 0,
+        y: Number.isFinite(y) ? y : 0,
+      } satisfies TeamSlotAssignmentPayload;
+    })
+    .filter((value): value is TeamSlotAssignmentPayload => value !== null)
+    .sort((left, right) => left.slotIndex - right.slotIndex);
+
+  return normalized.length > 0 ? normalized : undefined;
+}
+
 function resolvePlan(data: any): TeamPlanPayload | undefined {
   const starters = normalizeIdList(data?.lineup?.starters || data?.plan?.starters);
   const subs = normalizeIdList(data?.lineup?.subs || data?.plan?.subs || data?.plan?.bench);
   const reserves = normalizeIdList(data?.lineup?.reserves || data?.plan?.reserves);
   const formation = resolveFormation(data);
+  const shape = resolveShape(data);
   const tactics = data?.lineup?.tactics || data?.plan?.tactics;
+  const slotAssignments = normalizeSlotAssignments(
+    data?.lineup?.slotAssignments || data?.plan?.slotAssignments,
+  );
+  const customFormations =
+    data?.lineup?.customFormations && typeof data.lineup.customFormations === 'object'
+      ? data.lineup.customFormations
+      : data?.plan?.customFormations && typeof data.plan.customFormations === 'object'
+        ? data.plan.customFormations
+        : undefined;
 
-  if (!formation && starters.length === 0 && subs.length === 0 && reserves.length === 0 && !tactics) {
+  if (
+    !formation &&
+    !shape &&
+    starters.length === 0 &&
+    subs.length === 0 &&
+    reserves.length === 0 &&
+    !tactics &&
+    !slotAssignments
+  ) {
     return undefined;
   }
 
   return {
     formation,
+    shape,
     tactics: tactics && typeof tactics === 'object' ? tactics : undefined,
     starters: starters.length ? starters : undefined,
     subs: subs.length ? subs : undefined,
     bench: subs.length ? subs : undefined,
     reserves: reserves.length ? reserves : undefined,
+    slotAssignments,
+    customFormations,
   };
 }
 
@@ -268,6 +348,11 @@ export function buildUnityRuntimeTeamPayload(teamId: string, data: any): UnityRu
   const lineupIds = normalizeIdList(data?.lineup?.starters || data?.plan?.starters);
   const benchIds = normalizeIdList(data?.lineup?.subs || data?.plan?.bench || data?.plan?.subs);
   const reserveIds = normalizeIdList(data?.lineup?.reserves || data?.plan?.reserves);
+  const formation = resolveFormation(data);
+  const shape = resolveShape(data);
+  const slotAssignments = normalizeSlotAssignments(
+    data?.lineup?.slotAssignments || data?.plan?.slotAssignments,
+  );
 
   let lineupPlayers = pickPlayersById(lineupIds, allPlayers);
   let benchPlayers = [
@@ -331,9 +416,11 @@ export function buildUnityRuntimeTeamPayload(teamId: string, data: any): UnityRu
     plan: resolvePlan(data),
     teamKey: teamId,
     teamName,
-    formation: resolveFormation(data),
+    formation,
+    ...(shape ? { shape } : {}),
     kit: deriveKitColors(seed),
     lineup: lineupPlayers.slice(0, 11).map((player, index) => toUnityPlayerPayload(player, index)),
     bench: benchPlayers.map((player, index) => toUnityPlayerPayload(player, 11 + index)),
+    ...(slotAssignments ? { slotAssignments } : {}),
   };
 }

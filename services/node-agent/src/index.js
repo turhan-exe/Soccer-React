@@ -706,6 +706,55 @@ function normalizeObjectPayload(value) {
   return value;
 }
 
+function summarizeTeamPayload(payload) {
+  const normalized = normalizeObjectPayload(payload);
+  if (!normalized) {
+    return null;
+  }
+
+  const plan =
+    normalizeObjectPayload(normalized.plan) ||
+    normalizeObjectPayload(normalized.lineup) ||
+    null;
+  const slotAssignments = Array.isArray(normalized.slotAssignments)
+    ? normalized.slotAssignments
+    : Array.isArray(plan?.slotAssignments)
+      ? plan.slotAssignments
+      : [];
+
+  return {
+    teamKey:
+      typeof normalized.teamKey === "string"
+        ? normalized.teamKey
+        : typeof normalized.teamId === "string"
+          ? normalized.teamId
+          : typeof normalized.id === "string"
+            ? normalized.id
+            : null,
+    teamName:
+      typeof normalized.teamName === "string"
+        ? normalized.teamName
+        : typeof normalized.name === "string"
+          ? normalized.name
+          : typeof normalized.clubName === "string"
+            ? normalized.clubName
+            : null,
+    formation:
+      typeof normalized.formation === "string"
+        ? normalized.formation
+        : typeof plan?.formation === "string"
+          ? plan.formation
+          : null,
+    shape:
+      typeof normalized.shape === "string"
+        ? normalized.shape
+        : typeof plan?.shape === "string"
+          ? plan.shape
+          : null,
+    slotAssignments: slotAssignments.length,
+  };
+}
+
 function encodePayloadForEnv(value) {
   const normalized = normalizeObjectPayload(value);
   if (!normalized) return "";
@@ -1083,6 +1132,8 @@ function allocationSummary(allocation) {
     releaseReason: allocation.releaseReason || null,
     runtimeBuildId: runtime.buildId || null,
     assemblyHash: runtime.assemblyHash || null,
+    homePayload: summarizeTeamPayload(allocation.homeTeamPayload),
+    awayPayload: summarizeTeamPayload(allocation.awayTeamPayload),
   };
 }
 

@@ -26,6 +26,11 @@ public class EmbeddedUnityPlayerActivity extends UnityPlayerActivity {
 
             shellReturnRequested = true;
             skipDestroyOnDestroy = true;
+            skipDestroyOnDestroy = true;
+            skipDestroyOnDestroy = true;
+            skipDestroyOnDestroy = true;
+            skipDestroyOnDestroy = true;
+            skipDestroyOnDestroy = true;
             try {
                 if (mUnityPlayer != null) {
                     Log.d(TAG, "requestReturnToShell: unloading Unity player for shell return.");

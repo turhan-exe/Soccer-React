@@ -1,8 +1,17 @@
 import { Capacitor, CapacitorHttp } from '@capacitor/core';
 import { auth } from '@/services/firebase';
-import type { ClubTeam, Player as ClubPlayer } from '@/types';
+import type {
+  ClubTeam,
+  CustomFormationMap,
+  Player as ClubPlayer,
+  ResolvedTeamSlotAssignment,
+} from '@/types';
 import { collection, getCountFromServer } from 'firebase/firestore';
 import { db } from '@/services/firebase';
+import {
+  buildResolvedTeamSlotAssignments,
+  sanitizeResolvedTeamSlotAssignments,
+} from '@/lib/teamPlanSlots';
 import { resolveLiveTeamIdentities } from './teamIdentity';
 
 function resolveMatchControlBaseUrl(): string {
@@ -114,13 +123,27 @@ export type UnityRuntimeKitPayload = {
   gkSecondary: string;
 };
 
+export type UnityRuntimeTeamPlanPayload = {
+  formation: string;
+  shape?: string;
+  starters?: string[];
+  subs?: string[];
+  bench?: string[];
+  reserves?: string[];
+  slotAssignments?: ResolvedTeamSlotAssignment[];
+  customFormations?: CustomFormationMap;
+};
+
 export type UnityRuntimeTeamPayload = {
   teamKey: string;
   teamName: string;
   formation: string;
+  shape?: string;
   kit: UnityRuntimeKitPayload;
   lineup: UnityRuntimePlayerPayload[];
   bench: UnityRuntimePlayerPayload[];
+  slotAssignments?: ResolvedTeamSlotAssignment[];
+  plan?: UnityRuntimeTeamPlanPayload;
 };
 
 export type FriendlyRequestListItem = {
@@ -897,6 +920,29 @@ export function buildUnityRuntimeTeamPayload(team: ClubTeam | null | undefined):
     team.lineup?.subs?.map(String) ||
     team.plan?.bench?.map(String) ||
     [];
+  const reserveIds =
+    team.lineup?.reserves?.map(String) ||
+    team.plan?.reserves?.map(String) ||
+    [];
+  const formation = String(team.lineup?.formation || team.plan?.formation || '4-2-3-1');
+  const shape =
+    typeof team.lineup?.shape === 'string'
+      ? team.lineup.shape
+      : typeof team.plan?.shape === 'string'
+        ? team.plan.shape
+        : undefined;
+  const rosterIds = allPlayers.map((player) => String(player.id));
+  const slotAssignments =
+    sanitizeResolvedTeamSlotAssignments(
+      team.lineup?.slotAssignments || team.plan?.slotAssignments,
+      rosterIds,
+    ) ??
+    buildResolvedTeamSlotAssignments({
+      formation,
+      players: allPlayers,
+      starters: lineupIds,
+      customFormations: team.lineup?.customFormations || team.plan?.customFormations,
+    });
 
   let lineupPlayers = pickPlayersById(lineupIds, allPlayers);
   let benchPlayers = pickPlayersById(benchIds, allPlayers);
@@ -992,10 +1038,23 @@ export function buildUnityRuntimeTeamPayload(team: ClubTeam | null | undefined):
   return {
     teamKey: String(team.id || team.name),
     teamName: String(team.name || team.id || 'Team'),
-    formation: String(team.lineup?.formation || team.plan?.formation || '4-2-3-1'),
+    formation,
+    ...(shape ? { shape } : {}),
     kit,
     lineup: lineupPlayers.slice(0, 11).map((player, idx) => toUnityPlayerPayload(player, idx, seed)),
     bench: benchPlayers.map((player, idx) => toUnityPlayerPayload(player, 11 + idx, seed)),
+    ...(slotAssignments.length > 0 ? { slotAssignments } : {}),
+    plan: {
+      formation,
+      ...(shape ? { shape } : {}),
+      ...(lineupIds.length > 0 ? { starters: lineupIds } : {}),
+      ...(benchIds.length > 0 ? { subs: benchIds, bench: benchIds } : {}),
+      ...(reserveIds.length > 0 ? { reserves: reserveIds } : {}),
+      ...(slotAssignments.length > 0 ? { slotAssignments } : {}),
+      ...((team.lineup?.customFormations || team.plan?.customFormations)
+        ? { customFormations: team.lineup?.customFormations || team.plan?.customFormations }
+        : {}),
+    },
   };
 }
 

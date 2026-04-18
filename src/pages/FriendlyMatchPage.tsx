@@ -42,6 +42,8 @@ function normalizeFriendlyRequestStatus(value: unknown): string {
   return String(value || '').trim().toLowerCase();
 }
 
+const UNITY_AUTO_RELAUNCH_SUPPRESS_MS = 10 * 60_000;
+
 export default function FriendlyMatchPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -77,7 +79,11 @@ export default function FriendlyMatchPage() {
   const hasLoggedConnectionErrorRef = useRef(false);
   const delayedHistoryRefreshTimersRef = useRef<number[]>([]);
   const launchFailureToastAttemptIdRef = useRef<string | null>(null);
-  const launchSuccessToastAttemptIdRef = useRef<string | null>(null);
+  const recentUnityClosedRef = useRef<{
+    requestId: string | null;
+    matchId: string | null;
+    at: number;
+  } | null>(null);
 
   const apiEnabled = useMemo(() => isMatchControlConfigured(), []);
   const canRunApiFlow = apiEnabled && !!user?.id;
@@ -185,6 +191,23 @@ export default function FriendlyMatchPage() {
       message.includes('offline dostluk maci gunluk limitine ulasildi') ||
       message.includes('dostluk maci icin sunucu dolu') ||
       message.includes('dostluk maci sunucusuna ulasilamiyor')
+    );
+  }, []);
+
+  const wasRecentlyClosed = useCallback((targetRequestId: string, targetMatchId: string): boolean => {
+    const recent = recentUnityClosedRef.current;
+    if (!recent) {
+      return false;
+    }
+
+    if (Date.now() - recent.at > UNITY_AUTO_RELAUNCH_SUPPRESS_MS) {
+      recentUnityClosedRef.current = null;
+      return false;
+    }
+
+    return (
+      (!!targetRequestId && recent.requestId === targetRequestId) ||
+      (!!targetMatchId && recent.matchId === targetMatchId)
     );
   }, []);
 
@@ -313,12 +336,51 @@ export default function FriendlyMatchPage() {
       return;
     }
 
+    const launchSnapshot = getFriendlyLaunchSnapshot();
+    const hasActiveAttempt = Boolean(
+      launchSnapshot &&
+      launchSnapshot.phase !== 'done' &&
+      launchSnapshot.phase !== 'failed' &&
+      (launchSnapshot.requestId === targetRequestId || launchSnapshot.matchId === targetMatchId),
+    );
+    let nativeLaunchActive = false;
+    try {
+      const nativeLaunchStatus = await unityBridge.getLaunchStatus();
+      nativeLaunchActive = Boolean(nativeLaunchStatus?.active);
+    } catch {
+      nativeLaunchActive = false;
+    }
+
+    const recentlyClosed = wasRecentlyClosed(targetRequestId, targetMatchId);
+    let claimed = isFriendlyLaunchClaimed({ requestId: targetRequestId, matchId: targetMatchId });
+    if (!nativeLaunchActive && !hasActiveAttempt && !recentlyClosed) {
+      clearFriendlyLaunchClaim({
+        requestId: targetRequestId,
+        matchId: targetMatchId,
+      });
+      claimed = false;
+    }
+
     if (
       requestState === 'accepted' &&
       requestId === targetRequestId &&
-      matchId === targetMatchId
+      matchId === targetMatchId &&
+      (nativeLaunchActive || hasActiveAttempt || claimed || recentlyClosed)
     ) {
       console.info('[FriendlyMatchPage] skipping auto launch for currently tracked accepted request', {
+        requestId: targetRequestId,
+        matchId: targetMatchId,
+        source: 'poll-sync',
+        nativeLaunchActive,
+        hasActiveAttempt,
+        claimed,
+        recentlyClosed,
+      });
+      return;
+    }
+
+    if (recentlyClosed) {
+      console.info('[FriendlyMatchPage] skipping auto launch after recent Unity close', {
         requestId: targetRequestId,
         matchId: targetMatchId,
         source: 'poll-sync',
@@ -326,7 +388,7 @@ export default function FriendlyMatchPage() {
       return;
     }
 
-    if (isFriendlyLaunchClaimed({ requestId: targetRequestId, matchId: targetMatchId })) {
+    if (claimed) {
       console.info('[FriendlyMatchPage] skipping auto launch for claimed request', {
         requestId: targetRequestId,
         matchId: targetMatchId,
@@ -335,12 +397,8 @@ export default function FriendlyMatchPage() {
       return;
     }
 
-    const launchSnapshot = getFriendlyLaunchSnapshot();
     if (
-      launchSnapshot &&
-      launchSnapshot.phase !== 'done' &&
-      launchSnapshot.phase !== 'failed' &&
-      (launchSnapshot.requestId === targetRequestId || launchSnapshot.matchId === targetMatchId)
+      hasActiveAttempt
     ) {
       console.info('[FriendlyMatchPage] skipping auto launch for active attempt', {
         requestId: targetRequestId,
@@ -383,7 +441,7 @@ export default function FriendlyMatchPage() {
         console.error('[FriendlyMatchPage] auto launch accepted request failed', error);
       }
     }
-  }, [awayId, canRunApiFlow, homeId, launchFriendlyMatch, matchId, requestId, requestState, shouldSuppressHandledConsoleError, user?.id]);
+  }, [awayId, canRunApiFlow, homeId, launchFriendlyMatch, matchId, requestId, requestState, shouldSuppressHandledConsoleError, user?.id, wasRecentlyClosed]);
 
   const syncLists = useCallback(async () => {
     if (!canRunApiFlow || !user?.id) {
@@ -506,6 +564,13 @@ export default function FriendlyMatchPage() {
 
       const type = String(event?.type || '').toLowerCase();
       if (type === 'error' || type === 'connection_failed') {
+        recentUnityClosedRef.current = null;
+        clearFriendlyLaunchClaim({
+          requestId: requestId || undefined,
+          matchId: String(event?.matchId || '').trim() || matchId || undefined,
+        });
+        setLoadingAction(null);
+        setRequestState('idle');
         hideUnityLaunchOverlay();
         void resolveFriendlyBootstrapFailureMessage(
           String(event?.matchId || '').trim() || matchId,
@@ -516,6 +581,9 @@ export default function FriendlyMatchPage() {
             reason: reason || event?.reason || null,
           });
           toast.error(message);
+          void syncLists();
+          void refreshHistory();
+          scheduleDelayedHistoryRefreshes();
         });
         return;
       }
@@ -530,6 +598,12 @@ export default function FriendlyMatchPage() {
       }
 
       if (type === 'closed') {
+        recentUnityClosedRef.current = {
+          requestId: requestId || null,
+          matchId: String(event?.matchId || '').trim() || matchId || null,
+          at: Date.now(),
+        };
+        setLoadingAction(null);
         hideUnityLaunchOverlay();
         void resolveFriendlyBootstrapFailureMessage(
           String(event?.matchId || '').trim() || matchId,
@@ -582,16 +656,7 @@ export default function FriendlyMatchPage() {
 
       if (context.phase === 'done') {
         hideUnityLaunchOverlay();
-        if (launchSuccessToastAttemptIdRef.current !== context.attemptId) {
-          launchSuccessToastAttemptIdRef.current = context.attemptId;
-          logFriendlyToast('success', 'Unity client baglantisi baslatildi.', {
-            attemptId: context.attemptId,
-            phase: context.phase,
-            requestId: context.requestId || null,
-            matchId: context.matchId || null,
-          });
-          toast.success('Unity client baglantisi baslatildi.');
-        }
+        setLoadingAction(null);
         return;
       }
 

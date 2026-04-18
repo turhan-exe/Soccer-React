@@ -35,6 +35,16 @@ export type UnityLaunchResult = {
   activityClass?: string;
 };
 
+export type UnityLaunchStatus = {
+  ok: boolean;
+  active: boolean;
+  inFlight?: boolean;
+  hostActive?: boolean;
+  embeddedActivityActive?: boolean;
+  pendingShellReturn?: boolean;
+  activeActivityClass?: string | null;
+};
+
 type UnityMatchPluginOpenPayload = {
   serverIp: string;
   serverPort: number;
@@ -49,6 +59,7 @@ type UnityMatchPluginOpenPayload = {
 type UnityMatchPlugin = {
   openMatch(payload: UnityMatchPluginOpenPayload): Promise<UnityLaunchResult>;
   closeMatch(): Promise<{ ok: boolean }>;
+  getLaunchStatus(): Promise<UnityLaunchStatus>;
   addListener(
     eventName: 'unityEvent',
     listenerFunc: (event: UnityBridgeEvent) => void,
@@ -186,6 +197,22 @@ export const unityBridge = {
     }
 
     await UnityMatch.closeMatch();
+  },
+
+  async getLaunchStatus(): Promise<UnityLaunchStatus> {
+    if (!isAndroidNativePlatform()) {
+      return {
+        ok: true,
+        active: false,
+        inFlight: false,
+        hostActive: false,
+        embeddedActivityActive: false,
+        pendingShellReturn: false,
+        activeActivityClass: null,
+      };
+    }
+
+    return UnityMatch.getLaunchStatus();
   },
 
   async onUnityEvent(

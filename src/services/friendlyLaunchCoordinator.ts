@@ -242,11 +242,19 @@ function wasRecentlyCompleted(key: string | null): boolean {
   return completedAt > 0 && now() - completedAt <= RESTORE_WINDOW_MS;
 }
 
-function markCompleted(key: string | null): void {
-  if (!key) return;
+function clearRecentLaunchRegistryEntries(keys: string[]): void {
+  if (keys.length === 0) return;
   const registry = pruneRecentLaunchRegistry();
-  registry[key] = now();
-  writeRecentLaunchRegistry(registry);
+  let changed = false;
+  keys.forEach((key) => {
+    if (registry[key]) {
+      delete registry[key];
+      changed = true;
+    }
+  });
+  if (changed) {
+    writeRecentLaunchRegistry(registry);
+  }
 }
 
 function markLaunchClaim(context: Pick<FriendlyLaunchContext, 'attemptId' | 'source' | 'requestId' | 'matchId'>): void {
@@ -278,6 +286,7 @@ export function clearFriendlyLaunchClaim(input: Pick<FriendlyLaunchContext, 'req
   if (changed) {
     writeClaimedLaunchRegistry(registry);
   }
+  clearRecentLaunchRegistryEntries(keys);
 }
 
 export function isFriendlyLaunchClaimed(input: Pick<FriendlyLaunchContext, 'requestId' | 'matchId'>): boolean {
@@ -697,11 +706,6 @@ async function runFriendlyLaunch(args: FriendlyLaunchStartArgs): Promise<Friendl
 
     const completed = updateActiveContext({ phase: 'done' });
     logFriendlyLaunch('friendly_launch_open_match_succeeded', completed);
-    if (trigger !== 'manual') {
-      markCompleted(activeLaunchKey);
-    } else {
-      markCompleted(activeLaunchKey);
-    }
     resetActiveContext();
     return completed;
   } catch (error: unknown) {
@@ -803,8 +807,8 @@ export function describeFriendlyLaunchPhase(phase: FriendlyLaunchPhase): { title
       };
     case 'done':
       return {
-        title: 'Unity baslatildi',
-        detail: 'Mac baglantisi Unity tarafina aktarildi.',
+        title: 'Unity devrede',
+        detail: 'Yerel Unity gecisi tamamlandi. Simulasyon hala yukleniyor olabilir.',
       };
     case 'failed':
     default:

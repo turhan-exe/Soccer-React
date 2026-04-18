@@ -97,6 +97,37 @@ public final class UnityBridgeState {
     }
   }
 
+  static JSObject snapshotLaunchStatus() {
+    final Activity activeHost;
+    final boolean inFlight;
+    final boolean shellReturnPending;
+    synchronized (LOCK) {
+      activeHost = activeUnityHostRef.get();
+      inFlight = unityLaunchInFlight;
+      shellReturnPending = pendingShellReturn;
+    }
+
+    final Activity currentUnityActivity = resolveCurrentUnityActivity();
+    final boolean hostActive = activeHost != null;
+    final boolean embeddedActivityActive = isUnityActivity(currentUnityActivity);
+
+    JSObject out = new JSObject();
+    out.put("ok", true);
+    out.put("active", inFlight || hostActive || embeddedActivityActive);
+    out.put("inFlight", inFlight);
+    out.put("hostActive", hostActive);
+    out.put("embeddedActivityActive", embeddedActivityActive);
+    out.put("pendingShellReturn", shellReturnPending);
+
+    if (currentUnityActivity != null) {
+      out.put("activeActivityClass", currentUnityActivity.getClass().getName());
+    } else if (activeHost != null) {
+      out.put("activeActivityClass", activeHost.getClass().getName());
+    }
+
+    return out;
+  }
+
   public static boolean requestCloseActiveUnityHost() {
     final Activity activity;
     synchronized (LOCK) {

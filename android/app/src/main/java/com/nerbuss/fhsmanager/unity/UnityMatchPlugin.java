@@ -94,6 +94,11 @@ public class UnityMatchPlugin extends Plugin {
     call.resolve(out);
   }
 
+  @PluginMethod
+  public void getLaunchStatus(PluginCall call) {
+    call.resolve(UnityBridgeState.snapshotLaunchStatus());
+  }
+
   void dispatchUnityEvent(JSObject event) {
     if (event == null) {
       return;

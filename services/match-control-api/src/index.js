@@ -317,6 +317,55 @@ function normalizeObjectPayload(value) {
   return value;
 }
 
+function summarizeTeamPayload(payload) {
+  const normalized = normalizeObjectPayload(payload);
+  if (!normalized) {
+    return null;
+  }
+
+  const plan =
+    normalizeObjectPayload(normalized.plan) ||
+    normalizeObjectPayload(normalized.lineup) ||
+    null;
+  const slotAssignments = Array.isArray(normalized.slotAssignments)
+    ? normalized.slotAssignments
+    : Array.isArray(plan?.slotAssignments)
+      ? plan.slotAssignments
+      : [];
+
+  return {
+    teamKey:
+      typeof normalized.teamKey === "string"
+        ? normalized.teamKey
+        : typeof normalized.teamId === "string"
+          ? normalized.teamId
+          : typeof normalized.id === "string"
+            ? normalized.id
+            : null,
+    teamName:
+      typeof normalized.teamName === "string"
+        ? normalized.teamName
+        : typeof normalized.name === "string"
+          ? normalized.name
+          : typeof normalized.clubName === "string"
+            ? normalized.clubName
+            : null,
+    formation:
+      typeof normalized.formation === "string"
+        ? normalized.formation
+        : typeof plan?.formation === "string"
+          ? plan.formation
+          : null,
+    shape:
+      typeof normalized.shape === "string"
+        ? normalized.shape
+        : typeof plan?.shape === "string"
+          ? plan.shape
+          : null,
+    slotAssignments: slotAssignments.length,
+  };
+}
+
 function parseJsonObjectField(value) {
   if (!value) return null;
   if (typeof value === "object" && !Array.isArray(value)) {
@@ -3501,6 +3550,17 @@ fastify.post("/v1/friendly/requests", async (request, reply) => {
 
   const requestId = makeId("fr");
   const expiresAt = new Date(Date.now() + config.friendlyRequestTtlSec * 1000).toISOString();
+  fastify.log.info(
+    {
+      requesterUserId,
+      opponentUserId: opponentUserId || null,
+      homeTeamId,
+      awayTeamId,
+      homePayload: summarizeTeamPayload(homeTeamPayload),
+      awayPayload: summarizeTeamPayload(awayTeamPayload),
+    },
+    "friendly_request_payload_summary",
+  );
   const data = {
     id: requestId,
     requesterUserId,
@@ -4112,6 +4172,18 @@ fastify.post("/v1/league/prepare-slot", async (request, reply) => {
       .code(400)
       .send({ error: "leagueId, fixtureId, homeTeamId, awayTeamId required" });
   }
+
+  fastify.log.info(
+    {
+      leagueId,
+      fixtureId,
+      homeTeamId,
+      awayTeamId,
+      homePayload: summarizeTeamPayload(homeTeamPayload),
+      awayPayload: summarizeTeamPayload(awayTeamPayload),
+    },
+    "league_prepare_slot_payload_summary",
+  );
 
   const existing = await findLeagueMatchByFixture(leagueId, fixtureId);
   if (existing) {

@@ -25,6 +25,41 @@ type TeamDocShape = {
   players?: (Player & { squadRole?: string })[];
 };
 
+function normalizeSlotAssignments(values: any, allowedIds: Set<string>) {
+  if (!Array.isArray(values)) return [];
+  return values
+    .map((value) => {
+      if (!value || typeof value !== 'object') return null;
+      const playerId = String(value.playerId || '').trim();
+      const slotIndex = Number(value.slotIndex);
+      if (!playerId || !allowedIds.has(playerId) || !Number.isFinite(slotIndex) || slotIndex < 0) {
+        return null;
+      }
+      const x = Number(value.x);
+      const y = Number(value.y);
+      const position = typeof value.position === 'string' && value.position.trim() ? value.position.trim() : 'CM';
+      return {
+        playerId,
+        slotIndex: Math.floor(slotIndex),
+        position,
+        x: Number.isFinite(x) ? x : 0,
+        y: Number.isFinite(y) ? y : 0,
+      };
+    })
+    .filter(
+      (
+        value,
+      ): value is {
+        playerId: string;
+        slotIndex: number;
+        position: string;
+        x: number;
+        y: number;
+      } => value !== null,
+    )
+    .sort((left, right) => left.slotIndex - right.slotIndex);
+}
+
 function pickXI(players: (Player & { squadRole?: string })[] | undefined) {
   if (!players || !Array.isArray(players)) return [] as Player[];
   const starters = players.filter((p) => p.squadRole === 'starting').slice(0, 11);
@@ -175,14 +210,14 @@ export const lockLineup = functions.region('europe-west1').https.onRequest(async
 /**
  * Callable: setLineup
  * Saves formation/tactics and starting XI/bench under teams/{teamId}.lineup with validation.
- * Input: { teamId, formation, tactics, starters: string[], subs?: string[] }
+ * Input: { teamId, formation, shape, tactics, starters: string[], subs?: string[], reserves?: string[] }
  */
 export const setLineup = functions.region('europe-west1').https.onCall(async (request) => {
   requireAppCheck(request as any);
   const uid = request.auth?.uid;
   if (!uid) throw new functions.https.HttpsError('unauthenticated', 'Auth required');
 
-  const { teamId, formation, tactics, starters, subs, reserves } = (request.data || {}) as any;
+  const { teamId, formation, shape, tactics, starters, subs, reserves, customFormations, slotAssignments } = (request.data || {}) as any;
   if (!teamId || !Array.isArray(starters)) {
     throw new functions.https.HttpsError('invalid-argument', 'teamId and starters[] required');
   }
@@ -215,12 +250,21 @@ export const setLineup = functions.region('europe-west1').https.onCall(async (re
     throw new functions.https.HttpsError('invalid-argument', 'Unknown player ids: ' + unknown.join(','));
   }
 
+  const normalizedShape =
+    typeof shape === 'string' && shape.trim() ? shape.trim() : undefined;
+  const normalizedCustomFormations =
+    customFormations && typeof customFormations === 'object' ? customFormations : undefined;
+  const normalizedSlotAssignments = normalizeSlotAssignments(slotAssignments, haveIds);
+
   const lineup = {
     formation: typeof formation === 'string' ? formation : 'auto',
+    ...(normalizedShape ? { shape: normalizedShape } : {}),
     tactics: (tactics && typeof tactics === 'object') ? tactics : {},
     starters: startersList,
     subs: benchList,
     reserves: reserveList,
+    ...(normalizedCustomFormations ? { customFormations: normalizedCustomFormations } : {}),
+    ...(normalizedSlotAssignments.length > 0 ? { slotAssignments: normalizedSlotAssignments } : {}),
     updatedAt: FieldValue.serverTimestamp(),
   };
 
