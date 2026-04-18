@@ -1,17 +1,23 @@
 import { translate } from '@/i18n/runtime';
 
-export type TrainingResult =
-  | 'fail'
+export type TrainingGeneratedResult =
   | 'very_low'
   | 'low'
   | 'medium'
   | 'high'
-  | 'full'
+  | 'full';
+
+export type LegacyTrainingResult =
+  | 'fail'
   | 'average'
   | 'success';
 
+export type TrainingResult =
+  | TrainingGeneratedResult
+  | LegacyTrainingResult;
+
 export type TrainingOutcome = {
-  result: Exclude<TrainingResult, 'average' | 'success'>;
+  result: TrainingGeneratedResult;
   gainMultiplier: number;
 };
 
@@ -20,8 +26,7 @@ type TrainingOutcomeThreshold = TrainingOutcome & {
 };
 
 const TRAINING_OUTCOME_THRESHOLDS: TrainingOutcomeThreshold[] = [
-  { upperBoundExclusive: 1, result: 'fail', gainMultiplier: 0 },
-  { upperBoundExclusive: 26, result: 'very_low', gainMultiplier: 0.1 },
+  { upperBoundExclusive: 25, result: 'very_low', gainMultiplier: 0.1 },
   { upperBoundExclusive: 50, result: 'low', gainMultiplier: 0.25 },
   { upperBoundExclusive: 75, result: 'medium', gainMultiplier: 0.5 },
   { upperBoundExclusive: 90, result: 'high', gainMultiplier: 0.75 },

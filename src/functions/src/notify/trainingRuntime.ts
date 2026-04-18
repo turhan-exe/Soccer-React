@@ -44,6 +44,13 @@ export type TrainingDefinition = {
   type: keyof PlayerAttributes;
 };
 
+type TrainingGeneratedResult =
+  | 'very_low'
+  | 'low'
+  | 'medium'
+  | 'high'
+  | 'full';
+
 const trainings: TrainingDefinition[] = [
   { id: 'top-speed', name: 'Top Speed', type: 'topSpeed' },
   { id: 'shooting', name: 'Shooting', type: 'shooting' },
@@ -87,6 +94,33 @@ export const resolveTrainingDefinitions = (ids: string[]) =>
     .map((id) => trainings.find((training) => training.id === id))
     .filter((training): training is TrainingDefinition => Boolean(training));
 
+const resolveTrainingOutcome = (rollPercent: number): {
+  result: TrainingGeneratedResult;
+  gainMultiplier: number;
+} => {
+  const normalizedRoll = Number.isFinite(rollPercent)
+    ? Math.max(0, Math.min(100, rollPercent))
+    : 0;
+
+  if (normalizedRoll < 25) {
+    return { result: 'very_low', gainMultiplier: 0.1 };
+  }
+
+  if (normalizedRoll < 50) {
+    return { result: 'low', gainMultiplier: 0.25 };
+  }
+
+  if (normalizedRoll < 75) {
+    return { result: 'medium', gainMultiplier: 0.5 };
+  }
+
+  if (normalizedRoll < 90) {
+    return { result: 'high', gainMultiplier: 0.75 };
+  }
+
+  return { result: 'full', gainMultiplier: 1 };
+};
+
 export function runTrainingSimulation(
   players: TrainingPlayer[],
   trainingDefs: TrainingDefinition[],
@@ -97,7 +131,7 @@ export function runTrainingSimulation(
     playerName: string;
     trainingId: string;
     trainingName: string;
-    result: 'success' | 'average' | 'fail';
+    result: TrainingGeneratedResult;
     gain: number;
   }> = [];
   const updatedPlayers: TrainingPlayer[] = [];
@@ -112,19 +146,13 @@ export function runTrainingSimulation(
       const attributeKey = training.type;
       const currentValue = Number(snapshot.attributes[attributeKey] || 0);
       let gain = 0;
-      let result: 'success' | 'average' | 'fail' = 'fail';
+      let result: TrainingGeneratedResult = 'very_low';
 
       if (currentValue < 1) {
-        const improvement = 0.005 + rng() * 0.03;
-        const successRoll = rng() * 100;
-
-        if (successRoll > 75) {
-          gain = improvement;
-          result = 'success';
-        } else if (successRoll > 45) {
-          gain = improvement * 0.5;
-          result = 'average';
-        }
+        const baseImprovement = 0.005 + rng() * 0.03;
+        const outcome = resolveTrainingOutcome(rng() * 100);
+        result = outcome.result;
+        gain = baseImprovement * outcome.gainMultiplier;
 
         if (gain > 0) {
           const newValue = Math.min(currentValue + gain, 1);

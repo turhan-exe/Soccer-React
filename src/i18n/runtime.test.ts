@@ -25,7 +25,8 @@ describe('i18n runtime helpers', () => {
     expect(getPositionLabel('GK')).toBe('Kaleci');
     expect(getPositionShortLabel('RB')).toBe('SGB');
     expect(getTrainingAttributeLabel('strength')).toBe('Guc');
-    expect(getTrainingResultLabel('high')).toBe('Yuksek Gelisim');
+    expect(getTrainingResultLabel('high')).toBe('Basarili Gelisim');
+    expect(getTrainingResultLabel('average')).toBe('Orta Gelisim');
     expect(getYouthDevelopmentLabel(35)).toBe('Cok Yuksek Potansiyel');
   });
 
@@ -35,7 +36,8 @@ describe('i18n runtime helpers', () => {
     expect(getPositionLabel('GK')).toBe('Goalkeeper');
     expect(getPositionShortLabel('RB')).toBe('RB');
     expect(getTrainingAttributeLabel('strength')).toBe('Strength');
-    expect(getTrainingResultLabel('high')).toBe('High Growth');
+    expect(getTrainingResultLabel('high')).toBe('Successful Growth');
+    expect(getTrainingResultLabel('average')).toBe('Medium Growth');
     expect(getYouthDevelopmentLabel(12)).toBe('Room to Grow');
   });
 });

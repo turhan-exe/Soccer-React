@@ -102,9 +102,9 @@ export const enShared: TranslationDictionary = {
     trainingResultLabels: {
       very_low: 'Very Low Growth',
       low: 'Low Growth',
-      medium: 'Medium Growth',
+      medium: 'Half Growth',
       average: 'Medium Growth',
-      high: 'High Growth',
+      high: 'Successful Growth',
       full: 'Full Growth',
       success: 'Full Growth',
       fail: 'Failed',

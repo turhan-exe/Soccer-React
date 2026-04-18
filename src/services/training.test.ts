@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { finishTrainingWithDiamonds, TRAINING_FINISH_COST } from './training';
 
 vi.mock('./firebase', () => ({ db: {} }));
+vi.mock('./team', () => ({ getTeam: vi.fn(), saveTeamPlayers: vi.fn() }));
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 const {

@@ -1,5 +1,9 @@
 import { calculateOverall } from '@/lib/player';
 import { applyTrainingVitalsLoss } from '@/lib/playerVitals';
+import {
+  resolveTrainingOutcome,
+  type TrainingGeneratedResult,
+} from '@/lib/trainingResults';
 import type { Player, Training } from '@/types';
 
 export type TrainingSimulationRecord = {
@@ -7,7 +11,7 @@ export type TrainingSimulationRecord = {
   playerName: string;
   trainingId: string;
   trainingName: string;
-  result: 'success' | 'average' | 'fail';
+  result: TrainingGeneratedResult;
   gain: number;
 };
 
@@ -34,21 +38,13 @@ export function runTrainingSimulation(
       const attributeKey = training.type;
       const currentValue = snapshot.attributes[attributeKey];
       let gain = 0;
-      let result: 'success' | 'average' | 'fail' = 'fail';
+      let result: TrainingGeneratedResult = 'very_low';
 
       if (currentValue < 1) {
-        const improvement = 0.005 + rng() * 0.03;
-        const successRoll = rng() * 100;
-
-        if (successRoll > 75) {
-          gain = improvement;
-          result = 'success';
-        } else if (successRoll > 45) {
-          gain = improvement * 0.5;
-          result = 'average';
-        } else {
-          result = 'fail';
-        }
+        const baseImprovement = 0.005 + rng() * 0.03;
+        const outcome = resolveTrainingOutcome(rng() * 100);
+        result = outcome.result;
+        gain = baseImprovement * outcome.gainMultiplier;
 
         if (gain > 0) {
           const newValue = Math.min(currentValue + gain, 1);

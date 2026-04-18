@@ -19,6 +19,7 @@ import { db } from '@/services/firebase';
 import { getTeam, saveTeamPlayers } from '@/services/team';
 import { trainings } from '@/lib/data';
 import { runTrainingSimulation } from '@/lib/trainingSession';
+import type { TrainingResult } from '@/lib/trainingResults';
 import type { Player, Training } from '@/types';
 import { toast } from 'sonner';
 
@@ -41,7 +42,7 @@ export interface TrainingHistoryRecord {
   playerName: string;
   trainingId: string;
   trainingName: string;
-  result: 'success' | 'average' | 'fail';
+  result: TrainingResult;
   gain: number;
   completedAt: Timestamp;
   viewed?: boolean;
