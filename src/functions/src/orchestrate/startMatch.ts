@@ -4,6 +4,7 @@ import * as functions from 'firebase-functions/v1';
 import { log } from '../logger.js';
 import { v2 as cloudTasks } from '@google-cloud/tasks';
 import { scheduleFinalizeWatchdog } from './retry.js';
+import { buildUnityRuntimeTeamPayload } from '../utils/unityRuntimePayload.js';
 
 
 const db = getFirestore();
@@ -95,22 +96,28 @@ export async function startMatchInternal(matchId: string, leagueId: string, opts
     const seasonId = String(fx.seasonId ?? fx.season ?? 'default');
     const homeClubName = h?.clubName || h?.name || h?.id || fx.homeTeamId;
     const awayClubName = a?.clubName || a?.name || a?.id || fx.awayTeamId;
-    const buildSnapshot = (teamId: string, raw: any, clubName: string) => ({
-      teamId,
-      clubName,
-      formation: raw?.lineup?.formation ?? raw?.plan?.formation ?? null,
-      shape: raw?.lineup?.shape ?? raw?.plan?.shape ?? null,
-      tactics: raw?.lineup?.tactics || {},
-      starters: raw?.lineup?.starters || raw?.plan?.starters || [],
-      subs: raw?.lineup?.subs || raw?.plan?.subs || raw?.plan?.bench || [],
-      reserves: raw?.lineup?.reserves || raw?.plan?.reserves || [],
-      slotAssignments: raw?.lineup?.slotAssignments || raw?.plan?.slotAssignments || [],
-      ...((raw?.lineup?.customFormations && typeof raw.lineup.customFormations === 'object')
-        ? { customFormations: raw.lineup.customFormations }
-        : (raw?.plan?.customFormations && typeof raw.plan.customFormations === 'object')
-          ? { customFormations: raw.plan.customFormations }
-          : {}),
-    });
+    const buildSnapshot = (teamId: string, raw: any, clubName: string) => {
+      const runtimePayload = buildUnityRuntimeTeamPayload(teamId, raw);
+      const resolvedPlan = runtimePayload.plan || {};
+      return {
+        teamId,
+        clubName,
+        formation: resolvedPlan.formation ?? runtimePayload.formation ?? null,
+        shape: resolvedPlan.shape ?? runtimePayload.shape ?? null,
+        tactics: resolvedPlan.tactics || raw?.lineup?.tactics || raw?.plan?.tactics || {},
+        starters: resolvedPlan.starters || raw?.lineup?.starters || raw?.plan?.starters || [],
+        subs: resolvedPlan.subs || resolvedPlan.bench || raw?.lineup?.subs || raw?.plan?.subs || raw?.plan?.bench || [],
+        reserves: resolvedPlan.reserves || raw?.lineup?.reserves || raw?.plan?.reserves || [],
+        slotAssignments: resolvedPlan.slotAssignments || runtimePayload.slotAssignments || [],
+        ...(resolvedPlan.customFormations
+          ? { customFormations: resolvedPlan.customFormations }
+          : ((raw?.lineup?.customFormations && typeof raw.lineup.customFormations === 'object')
+              ? { customFormations: raw.lineup.customFormations }
+              : (raw?.plan?.customFormations && typeof raw.plan.customFormations === 'object')
+                ? { customFormations: raw.plan.customFormations }
+                : {})),
+      };
+    };
     await planRef.set({
       matchId, leagueId, seasonId,
       createdAt: FieldValue.serverTimestamp(),

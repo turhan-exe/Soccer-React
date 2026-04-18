@@ -461,27 +461,75 @@ async function ensureMatchPlanSnapshot(matchId: string, leagueId: string, season
   if (existing.exists) return;
 
   const buildSnapshot = (team: TeamBundle) => {
+    const runtimePayload = buildUnityRuntimeTeamPayload(team.teamId, team.raw);
     const lineup = team.raw?.lineup || {};
     const plan = team.raw?.plan || {};
+    const resolvedPlan = runtimePayload.plan || {};
     return {
       teamId: team.teamId,
       clubName: team.raw?.clubName || team.raw?.name || team.teamId,
-      formation: typeof lineup?.formation === 'string' ? lineup.formation : typeof plan?.formation === 'string' ? plan.formation : null,
-      shape: typeof lineup?.shape === 'string' ? lineup.shape : typeof plan?.shape === 'string' ? plan.shape : null,
-      tactics: lineup?.tactics || {},
-      starters: Array.isArray(lineup?.starters) ? lineup.starters : Array.isArray(plan?.starters) ? plan.starters : [],
-      subs: Array.isArray(lineup?.subs) ? lineup.subs : Array.isArray(plan?.subs) ? plan.subs : Array.isArray(plan?.bench) ? plan.bench : [],
-      reserves: Array.isArray(lineup?.reserves) ? lineup.reserves : Array.isArray(plan?.reserves) ? plan.reserves : [],
-      slotAssignments: Array.isArray(lineup?.slotAssignments)
-        ? lineup.slotAssignments
-        : Array.isArray(plan?.slotAssignments)
-          ? plan.slotAssignments
-          : [],
-      ...((lineup?.customFormations && typeof lineup.customFormations === 'object')
-        ? { customFormations: lineup.customFormations }
-        : (plan?.customFormations && typeof plan.customFormations === 'object')
-          ? { customFormations: plan.customFormations }
-          : {}),
+      formation:
+        typeof resolvedPlan.formation === 'string'
+          ? resolvedPlan.formation
+          : typeof runtimePayload.formation === 'string'
+            ? runtimePayload.formation
+            : typeof lineup?.formation === 'string'
+              ? lineup.formation
+              : typeof plan?.formation === 'string'
+                ? plan.formation
+                : null,
+      shape:
+        typeof resolvedPlan.shape === 'string'
+          ? resolvedPlan.shape
+          : typeof runtimePayload.shape === 'string'
+            ? runtimePayload.shape
+            : typeof lineup?.shape === 'string'
+              ? lineup.shape
+              : typeof plan?.shape === 'string'
+                ? plan.shape
+                : null,
+      tactics: resolvedPlan.tactics || lineup?.tactics || {},
+      starters: Array.isArray(resolvedPlan.starters)
+        ? resolvedPlan.starters
+        : Array.isArray(lineup?.starters)
+          ? lineup.starters
+          : Array.isArray(plan?.starters)
+            ? plan.starters
+            : [],
+      subs: Array.isArray(resolvedPlan.subs)
+        ? resolvedPlan.subs
+        : Array.isArray(resolvedPlan.bench)
+          ? resolvedPlan.bench
+          : Array.isArray(lineup?.subs)
+            ? lineup.subs
+            : Array.isArray(plan?.subs)
+              ? plan.subs
+              : Array.isArray(plan?.bench)
+                ? plan.bench
+                : [],
+      reserves: Array.isArray(resolvedPlan.reserves)
+        ? resolvedPlan.reserves
+        : Array.isArray(lineup?.reserves)
+          ? lineup.reserves
+          : Array.isArray(plan?.reserves)
+            ? plan.reserves
+            : [],
+      slotAssignments: Array.isArray(resolvedPlan.slotAssignments)
+        ? resolvedPlan.slotAssignments
+        : Array.isArray(runtimePayload.slotAssignments)
+          ? runtimePayload.slotAssignments
+          : Array.isArray(lineup?.slotAssignments)
+            ? lineup.slotAssignments
+            : Array.isArray(plan?.slotAssignments)
+              ? plan.slotAssignments
+              : [],
+      ...(resolvedPlan.customFormations && typeof resolvedPlan.customFormations === 'object'
+        ? { customFormations: resolvedPlan.customFormations }
+        : (lineup?.customFormations && typeof lineup.customFormations === 'object')
+          ? { customFormations: lineup.customFormations }
+          : (plan?.customFormations && typeof plan.customFormations === 'object')
+            ? { customFormations: plan.customFormations }
+            : {}),
     };
   };
 

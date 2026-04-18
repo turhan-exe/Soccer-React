@@ -33,6 +33,14 @@ type UnityRuntimeKitPayload = {
   gkSecondary: string;
 };
 
+type FormationSlot = {
+  position: string;
+  x: number;
+  y: number;
+};
+
+type ManualFormationMap = Record<string, { x?: number; y?: number; position?: string }>;
+
 export type UnityRuntimeTeamPayload = {
   id: string;
   teamId: string;
@@ -54,6 +62,351 @@ export type UnityRuntimeTeamPayload = {
   bench: UnityRuntimePlayerPayload[];
   slotAssignments?: TeamSlotAssignmentPayload[];
 };
+
+const FORMATION_SLOTS: Record<string, FormationSlot[]> = {
+  '4-4-2': [
+    { position: 'GK', x: 45, y: 95 },
+    { position: 'LB', x: 15, y: 70 },
+    { position: 'CB', x: 35, y: 65 },
+    { position: 'CB', x: 65, y: 65 },
+    { position: 'RB', x: 85, y: 70 },
+    { position: 'LM', x: 15, y: 45 },
+    { position: 'CM', x: 40, y: 45 },
+    { position: 'CM', x: 60, y: 45 },
+    { position: 'RM', x: 85, y: 45 },
+    { position: 'ST', x: 40, y: 20 },
+    { position: 'ST', x: 60, y: 20 },
+  ],
+  '4-3-3': [
+    { position: 'GK', x: 45, y: 95 },
+    { position: 'LB', x: 15, y: 70 },
+    { position: 'CB', x: 35, y: 65 },
+    { position: 'CB', x: 65, y: 65 },
+    { position: 'RB', x: 85, y: 70 },
+    { position: 'CM', x: 30, y: 45 },
+    { position: 'CM', x: 50, y: 40 },
+    { position: 'CM', x: 70, y: 45 },
+    { position: 'LW', x: 20, y: 25 },
+    { position: 'ST', x: 50, y: 15 },
+    { position: 'RW', x: 80, y: 25 },
+  ],
+  '3-5-2': [
+    { position: 'GK', x: 45, y: 95 },
+    { position: 'CB', x: 30, y: 70 },
+    { position: 'CB', x: 50, y: 65 },
+    { position: 'CB', x: 70, y: 70 },
+    { position: 'LM', x: 10, y: 45 },
+    { position: 'CM', x: 30, y: 45 },
+    { position: 'CM', x: 50, y: 40 },
+    { position: 'CM', x: 70, y: 45 },
+    { position: 'RM', x: 90, y: 45 },
+    { position: 'ST', x: 40, y: 20 },
+    { position: 'ST', x: 60, y: 20 },
+  ],
+  '4-5-1': [
+    { position: 'GK', x: 45, y: 95 },
+    { position: 'LB', x: 15, y: 70 },
+    { position: 'CB', x: 35, y: 65 },
+    { position: 'CB', x: 65, y: 65 },
+    { position: 'RB', x: 85, y: 70 },
+    { position: 'LM', x: 15, y: 50 },
+    { position: 'CM', x: 35, y: 50 },
+    { position: 'CAM', x: 50, y: 45 },
+    { position: 'CM', x: 65, y: 50 },
+    { position: 'RM', x: 85, y: 50 },
+    { position: 'ST', x: 50, y: 20 },
+  ],
+  '4-2-3-1': [
+    { position: 'GK', x: 45, y: 95 },
+    { position: 'LB', x: 15, y: 70 },
+    { position: 'CB', x: 35, y: 65 },
+    { position: 'CB', x: 65, y: 65 },
+    { position: 'RB', x: 85, y: 70 },
+    { position: 'CM', x: 40, y: 55 },
+    { position: 'CM', x: 60, y: 55 },
+    { position: 'LW', x: 20, y: 35 },
+    { position: 'CAM', x: 50, y: 35 },
+    { position: 'RW', x: 80, y: 35 },
+    { position: 'ST', x: 50, y: 20 },
+  ],
+  '5-3-2': [
+    { position: 'GK', x: 45, y: 95 },
+    { position: 'LB', x: 10, y: 70 },
+    { position: 'CB', x: 30, y: 65 },
+    { position: 'CB', x: 50, y: 60 },
+    { position: 'CB', x: 70, y: 65 },
+    { position: 'RB', x: 90, y: 70 },
+    { position: 'CM', x: 35, y: 45 },
+    { position: 'CM', x: 50, y: 40 },
+    { position: 'CM', x: 65, y: 45 },
+    { position: 'ST', x: 40, y: 20 },
+    { position: 'ST', x: 60, y: 20 },
+  ],
+  '5-4-1': [
+    { position: 'GK', x: 45, y: 95 },
+    { position: 'LB', x: 10, y: 70 },
+    { position: 'CB', x: 30, y: 65 },
+    { position: 'CB', x: 50, y: 60 },
+    { position: 'CB', x: 70, y: 65 },
+    { position: 'RB', x: 90, y: 70 },
+    { position: 'LM', x: 20, y: 50 },
+    { position: 'CM', x: 40, y: 50 },
+    { position: 'CM', x: 60, y: 50 },
+    { position: 'RM', x: 80, y: 50 },
+    { position: 'ST', x: 50, y: 20 },
+  ],
+  '3-4-3': [
+    { position: 'GK', x: 45, y: 95 },
+    { position: 'CB', x: 30, y: 70 },
+    { position: 'CB', x: 50, y: 65 },
+    { position: 'CB', x: 70, y: 70 },
+    { position: 'LM', x: 10, y: 50 },
+    { position: 'CM', x: 40, y: 50 },
+    { position: 'CM', x: 60, y: 50 },
+    { position: 'RM', x: 90, y: 50 },
+    { position: 'LW', x: 20, y: 25 },
+    { position: 'ST', x: 50, y: 15 },
+    { position: 'RW', x: 80, y: 25 },
+  ],
+  '4-1-4-1': [
+    { position: 'GK', x: 45, y: 95 },
+    { position: 'LB', x: 15, y: 70 },
+    { position: 'CB', x: 35, y: 65 },
+    { position: 'CB', x: 65, y: 65 },
+    { position: 'RB', x: 85, y: 70 },
+    { position: 'CM', x: 50, y: 55 },
+    { position: 'LM', x: 15, y: 40 },
+    { position: 'CM', x: 35, y: 40 },
+    { position: 'CM', x: 65, y: 40 },
+    { position: 'RM', x: 85, y: 40 },
+    { position: 'ST', x: 50, y: 20 },
+  ],
+};
+
+function normalizePositionKey(value: string): string {
+  return value
+    .trim()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toUpperCase()
+    .replace(/[^A-Z]/g, '');
+}
+
+function canonicalizePosition(value: unknown, fallback = 'CM'): string {
+  if (typeof value !== 'string' || !value.trim()) {
+    return fallback;
+  }
+
+  const normalized = normalizePositionKey(value);
+  if (!normalized) {
+    return fallback;
+  }
+
+  const aliases: Record<string, string> = {
+    GK: 'GK',
+    KL: 'GK',
+    GOALKEEPER: 'GK',
+    GOALIE: 'GK',
+    CB: 'CB',
+    STP: 'CB',
+    STOPER: 'CB',
+    DEF: 'CB',
+    RCB: 'CB',
+    LCB: 'CB',
+    LB: 'LB',
+    SLB: 'LB',
+    LWB: 'LB',
+    RB: 'RB',
+    SGB: 'RB',
+    RWB: 'RB',
+    CM: 'CM',
+    MO: 'CM',
+    CMF: 'CM',
+    MID: 'CM',
+    DM: 'CM',
+    DMF: 'CM',
+    CDM: 'CM',
+    LM: 'LM',
+    SLO: 'LM',
+    LMF: 'LM',
+    RM: 'RM',
+    SGO: 'RM',
+    RMF: 'RM',
+    CAM: 'CAM',
+    OOS: 'CAM',
+    AM: 'CAM',
+    AMF: 'CAM',
+    LW: 'LW',
+    SLK: 'LW',
+    LWF: 'LW',
+    RW: 'RW',
+    SGK: 'RW',
+    RWF: 'RW',
+    ST: 'ST',
+    SF: 'ST',
+    SANTRAFOR: 'ST',
+    FORVET: 'ST',
+    STRIKER: 'ST',
+    SS: 'ST',
+  };
+
+  return aliases[normalized] || fallback;
+}
+
+function clampPercentage(value: unknown): number {
+  const numeric = typeof value === 'number' ? value : Number(value);
+  if (!Number.isFinite(numeric)) {
+    return 0;
+  }
+  return Number(Math.max(0, Math.min(100, numeric)).toFixed(4));
+}
+
+function findFormationSlots(formation?: string | null): FormationSlot[] {
+  const normalized = String(formation || '').trim();
+  return FORMATION_SLOTS[normalized] || FORMATION_SLOTS['4-2-3-1'];
+}
+
+function sanitizeManualAssignment(
+  value: unknown,
+  fallback: string,
+): { x: number; y: number; position: string } | null {
+  if (!value || typeof value !== 'object') {
+    return null;
+  }
+
+  return {
+    x: clampPercentage((value as { x?: unknown }).x),
+    y: clampPercentage((value as { y?: unknown }).y),
+    position: canonicalizePosition((value as { position?: unknown }).position, fallback),
+  };
+}
+
+function buildResolvedSlotAssignments(args: {
+  formation?: string | null;
+  players: any[];
+  starters: string[];
+  customFormations?: Record<string, ManualFormationMap>;
+}): TeamSlotAssignmentPayload[] | undefined {
+  const slots = findFormationSlots(args.formation);
+  if (!Array.isArray(args.players) || args.players.length === 0 || slots.length === 0) {
+    return undefined;
+  }
+
+  const playersById = new Map(
+    args.players.map((player) => [String(player?.id ?? player?.uniqueId ?? ''), player] as const),
+  );
+  const starterIds = Array.from(new Set((args.starters || []).map(String))).filter((playerId) =>
+    playersById.has(playerId),
+  );
+  if (starterIds.length === 0) {
+    return undefined;
+  }
+
+  const remainingPlayerIds = new Set(starterIds);
+  const manualFormation =
+    args.customFormations && args.formation
+      ? args.customFormations[String(args.formation).trim()] || {}
+      : {};
+  const slotAssignments = new Map<number, { player: any; manual: ReturnType<typeof sanitizeManualAssignment> }>();
+
+  for (const [playerId, manual] of Object.entries(manualFormation)) {
+    const player = playersById.get(String(playerId));
+    if (!player || !remainingPlayerIds.has(String(playerId))) {
+      continue;
+    }
+
+    const sanitizedManual = sanitizeManualAssignment(manual, canonicalizePosition(player?.position, 'CM'));
+    const targetIndex = slots.findIndex((slot, index) => {
+      if (slotAssignments.has(index)) {
+        return false;
+      }
+
+      return canonicalizePosition(sanitizedManual?.position, slot.position) === canonicalizePosition(slot.position, slot.position);
+    });
+
+    if (targetIndex === -1) {
+      continue;
+    }
+
+    slotAssignments.set(targetIndex, { player, manual: sanitizedManual });
+    remainingPlayerIds.delete(String(playerId));
+  }
+
+  slots.forEach((slot, index) => {
+    if (slotAssignments.has(index)) {
+      return;
+    }
+
+    const canonicalSlot = canonicalizePosition(slot.position, slot.position);
+    const matchingPlayerId = starterIds.find((playerId) => {
+      if (!remainingPlayerIds.has(playerId)) {
+        return false;
+      }
+
+      const player = playersById.get(playerId);
+      if (!player) {
+        return false;
+      }
+
+      if (canonicalizePosition(player?.position, slot.position) === canonicalSlot) {
+        return true;
+      }
+
+      return Array.isArray(player?.roles) && player.roles.some((role: unknown) => canonicalizePosition(role, slot.position) === canonicalSlot);
+    });
+
+    if (!matchingPlayerId) {
+      return;
+    }
+
+    const player = playersById.get(matchingPlayerId);
+    if (!player) {
+      return;
+    }
+
+    slotAssignments.set(index, { player, manual: null });
+    remainingPlayerIds.delete(matchingPlayerId);
+  });
+
+  slots.forEach((slot, index) => {
+    if (slotAssignments.has(index) || remainingPlayerIds.size === 0) {
+      return;
+    }
+
+    const nextPlayerId = starterIds.find((playerId) => remainingPlayerIds.has(playerId));
+    if (!nextPlayerId) {
+      return;
+    }
+
+    const player = playersById.get(nextPlayerId);
+    if (!player) {
+      remainingPlayerIds.delete(nextPlayerId);
+      return;
+    }
+
+    slotAssignments.set(index, { player, manual: null });
+    remainingPlayerIds.delete(nextPlayerId);
+  });
+
+  const resolved = slots
+    .map((slot, index) => {
+      const assigned = slotAssignments.get(index);
+      if (!assigned) {
+        return null;
+      }
+
+      return {
+        playerId: String(assigned.player?.id ?? assigned.player?.uniqueId ?? ''),
+        slotIndex: index,
+        position: assigned.manual?.position || canonicalizePosition(slot.position, slot.position),
+        x: assigned.manual?.x ?? clampPercentage(slot.x),
+        y: assigned.manual?.y ?? clampPercentage(slot.y),
+      } satisfies TeamSlotAssignmentPayload;
+    })
+    .filter((value): value is TeamSlotAssignmentPayload => value !== null && !!value.playerId);
+
+  return resolved.length > 0 ? resolved : undefined;
+}
 
 function hashString(input: string): number {
   let hash = 2166136261;
@@ -316,6 +669,15 @@ function resolvePlan(data: any): TeamPlanPayload | undefined {
       : data?.plan?.customFormations && typeof data.plan.customFormations === 'object'
         ? data.plan.customFormations
         : undefined;
+  const allPlayers = stableSortPlayers(Array.isArray(data?.players) ? data.players : []);
+  const resolvedSlotAssignments =
+    slotAssignments ||
+    buildResolvedSlotAssignments({
+      formation,
+      players: allPlayers,
+      starters,
+      customFormations,
+    });
 
   if (
     !formation &&
@@ -324,7 +686,7 @@ function resolvePlan(data: any): TeamPlanPayload | undefined {
     subs.length === 0 &&
     reserves.length === 0 &&
     !tactics &&
-    !slotAssignments
+    !resolvedSlotAssignments
   ) {
     return undefined;
   }
@@ -337,7 +699,7 @@ function resolvePlan(data: any): TeamPlanPayload | undefined {
     subs: subs.length ? subs : undefined,
     bench: subs.length ? subs : undefined,
     reserves: reserves.length ? reserves : undefined,
-    slotAssignments,
+    slotAssignments: resolvedSlotAssignments,
     customFormations,
   };
 }
@@ -350,9 +712,22 @@ export function buildUnityRuntimeTeamPayload(teamId: string, data: any): UnityRu
   const reserveIds = normalizeIdList(data?.lineup?.reserves || data?.plan?.reserves);
   const formation = resolveFormation(data);
   const shape = resolveShape(data);
-  const slotAssignments = normalizeSlotAssignments(
-    data?.lineup?.slotAssignments || data?.plan?.slotAssignments,
-  );
+  const customFormations =
+    data?.lineup?.customFormations && typeof data.lineup.customFormations === 'object'
+      ? data.lineup.customFormations
+      : data?.plan?.customFormations && typeof data.plan.customFormations === 'object'
+        ? data.plan.customFormations
+        : undefined;
+  const slotAssignments =
+    normalizeSlotAssignments(
+      data?.lineup?.slotAssignments || data?.plan?.slotAssignments,
+    ) ||
+    buildResolvedSlotAssignments({
+      formation,
+      players: allPlayers,
+      starters: lineupIds,
+      customFormations,
+    });
 
   let lineupPlayers = pickPlayersById(lineupIds, allPlayers);
   let benchPlayers = [
