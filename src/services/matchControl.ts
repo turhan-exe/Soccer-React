@@ -72,6 +72,10 @@ function normalizeMatchControlErrorMessage(errorCode: string, fallback?: string)
     return 'Offline dostluk maci gunluk limitine ulasildi. Lutfen daha sonra tekrar deneyin.';
   }
 
+  if (normalized === 'rewarded_match_entry_required') {
+    return 'Canli maca girmek icin reklami tamamlamalisin.';
+  }
+
   return fallback || errorCode;
 }
 
@@ -212,6 +216,8 @@ export type MatchStatusResponse = {
   state: string;
   serverIp: string;
   serverPort: number;
+  friendlyRequestId?: string | null;
+  fixtureId?: string | null;
   lastBootstrapStage?: string | null;
   lastBootstrapAt?: string | null;
   gameplaySceneAt?: string | null;

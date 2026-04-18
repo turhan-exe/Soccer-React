@@ -92,6 +92,7 @@ export { claimVipDailyCredits } from './economy/vipDailyCredit.js';
 export {
   createRewardedAdSession,
   claimRewardedAdReward,
+  getMatchEntryAccessStatus,
   logRewardedAdDiagnostic,
   admobRewardedSsv,
 } from './economy/rewardedAds.js';

@@ -98,6 +98,10 @@ import {
   isRewardedAdsSupported,
   runRewardedAdFlow,
 } from '@/services/rewardedAds';
+import {
+  ensureMatchEntryAccess,
+  getMatchEntryAccessOutcomeMessage,
+} from '@/services/matchEntryAccess';
 import '@/styles/nostalgia-theme.css';
 
 const VIP_RENDER_STABILIZATION_MS = 1000;
@@ -146,6 +150,7 @@ type ActionableMatchTile = {
   actionLabel: string;
   fallbackRoute: string;
   matchId?: string;
+  fixtureId?: string;
   requestId?: string;
   homeId?: string;
   awayId?: string;
@@ -627,6 +632,7 @@ export default function MainMenu() {
             subtitle: `${user.teamName || t('common.teamFallback')} vs ${opponentTeam?.name || t('common.rivalFallback')}`,
             actionLabel: t('mainMenu.matchTile.watch'),
             fallbackRoute: '/fixtures',
+            fixtureId: liveFixture.id,
             matchId: liveFixture.live?.matchId,
             homeId: liveFixture.homeTeamId,
             awayId: liveFixture.awayTeamId,
@@ -671,15 +677,64 @@ export default function MainMenu() {
     setActionableMatchLoading(true);
     try {
       if (actionableMatchTile.kind === 'friendly_live') {
+        const requestId = String(actionableMatchTile.requestId || '').trim();
+        if (!requestId) {
+          toast.error('Dostluk maci istegi bulunamadi.');
+          navigate(actionableMatchTile.fallbackRoute);
+          return;
+        }
+
+        const access = await ensureMatchEntryAccess({
+          userId: user.id,
+          matchKind: 'friendly',
+          targetId: requestId,
+          requestId,
+          matchId: actionableMatchTile.matchId,
+          surface: 'mainmenu',
+        });
+        if (access.outcome !== 'granted') {
+          const message = getMatchEntryAccessOutcomeMessage(access);
+          if (access.outcome === 'failed') {
+            toast.error(message);
+          } else {
+            toast.info(message);
+          }
+          return;
+        }
+
         await startFriendlyLaunch({
           source: 'main-menu',
           userId: user.id,
-          requestId: actionableMatchTile.requestId,
+          requestId,
           matchId: actionableMatchTile.matchId,
           homeId: actionableMatchTile.homeId || 'HOME',
           awayId: actionableMatchTile.awayId || 'AWAY',
           trigger: 'manual',
         });
+        return;
+      }
+
+      const fixtureId = String(actionableMatchTile.fixtureId || '').trim();
+      if (!fixtureId) {
+        navigate(actionableMatchTile.fallbackRoute);
+        return;
+      }
+
+      const access = await ensureMatchEntryAccess({
+        userId: user.id,
+        matchKind: 'league',
+        targetId: fixtureId,
+        fixtureId,
+        matchId: actionableMatchTile.matchId,
+        surface: 'mainmenu',
+      });
+      if (access.outcome !== 'granted') {
+        const message = getMatchEntryAccessOutcomeMessage(access);
+        if (access.outcome === 'failed') {
+          toast.error(message);
+        } else {
+          toast.info(message);
+        }
         return;
       }
 
@@ -710,9 +765,14 @@ export default function MainMenu() {
       });
     } catch (error) {
       console.error('[MainMenu] actionable match launch failed', error);
-      if (!(error instanceof FriendlyLaunchError)) {
-        toast.error(t('mainMenu.toasts.matchConnectionFailed'));
+      if (error instanceof FriendlyLaunchError) {
+        return;
       }
+      toast.error(
+        error instanceof Error && error.message.trim()
+          ? error.message.trim()
+          : t('mainMenu.toasts.matchConnectionFailed'),
+      );
     } finally {
       setActionableMatchLoading(false);
     }

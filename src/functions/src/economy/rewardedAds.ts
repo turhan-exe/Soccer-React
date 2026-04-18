@@ -5,6 +5,12 @@ import {
   createPublicKey,
   verify as verifySignature,
 } from 'crypto';
+import {
+  MATCH_ENTRY_ACCESS_TTL_MS,
+  buildMatchEntryAccessDocId,
+  resolveMatchEntryAccessStatus,
+  type MatchEntryKind,
+} from './matchEntryAccess.js';
 
 import '../_firebase.js';
 
@@ -26,7 +32,8 @@ type RewardPlacement =
   | 'club_balance'
   | 'training_finish'
   | 'player_rename'
-  | 'youth_cooldown';
+  | 'youth_cooldown'
+  | 'match_entry';
 type RewardSessionStatus = 'created' | 'verified' | 'claimed';
 type KitType = 'energy' | 'morale' | 'health';
 type RewardedAdDiagnosticStage = 'init' | 'load' | 'show' | 'ssv' | 'unknown';
@@ -60,6 +67,20 @@ type RewardedAdDiagnosticDoc = {
   error?: Record<string, unknown> | null;
   debug?: Record<string, unknown> | null;
   createdAt: FirebaseFirestore.FieldValue | FirebaseFirestore.Timestamp;
+};
+
+type MatchEntryAccessDoc = {
+  uid: string;
+  matchKind: MatchEntryKind;
+  targetId: string;
+  fixtureId?: string | null;
+  requestId?: string | null;
+  matchId?: string | null;
+  competitionType?: string | null;
+  sourceSessionId?: string | null;
+  expiresAt: FirebaseFirestore.Timestamp;
+  createdAt: FirebaseFirestore.FieldValue | FirebaseFirestore.Timestamp;
+  updatedAt: FirebaseFirestore.FieldValue | FirebaseFirestore.Timestamp;
 };
 
 type VerifyingKeyCache = {
@@ -150,10 +171,30 @@ const sanitizePlacement = (value: unknown): RewardPlacement => {
     && placement !== 'training_finish'
     && placement !== 'player_rename'
     && placement !== 'youth_cooldown'
+    && placement !== 'match_entry'
   ) {
     throw new functions.https.HttpsError('invalid-argument', 'Gecersiz reklam placement gonderildi.');
   }
   return placement;
+};
+
+const sanitizeFirestoreDocSegment = (value: unknown, fieldName: string): string => {
+  const normalized = normalizeString(value);
+  if (!normalized) {
+    throw new functions.https.HttpsError('invalid-argument', `${fieldName} zorunludur.`);
+  }
+  if (normalized.includes('/')) {
+    throw new functions.https.HttpsError('invalid-argument', `${fieldName} gecersiz karakter iceriyor.`);
+  }
+  return normalized.slice(0, 160);
+};
+
+const sanitizeMatchEntryKind = (value: unknown): MatchEntryKind => {
+  const normalized = normalizeString(value);
+  if (normalized === 'friendly' || normalized === 'league' || normalized === 'champions') {
+    return normalized;
+  }
+  throw new functions.https.HttpsError('invalid-argument', 'Gecersiz mac giris tipi gonderildi.');
 };
 
 const sanitizeDiagnosticStage = (value: unknown): RewardedAdDiagnosticStage => {
@@ -282,6 +323,19 @@ const sanitizeSessionContext = (
     };
   }
 
+  if (placement === 'match_entry') {
+    return {
+      ...sanitized,
+      matchKind: sanitizeMatchEntryKind(sanitized.matchKind),
+      targetId: sanitizeFirestoreDocSegment(sanitized.targetId, 'targetId'),
+      fixtureId: sanitized.fixtureId == null ? null : sanitizeFirestoreDocSegment(sanitized.fixtureId, 'fixtureId'),
+      requestId: sanitized.requestId == null ? null : sanitizeFirestoreDocSegment(sanitized.requestId, 'requestId'),
+      matchId: sanitized.matchId == null ? null : sanitizeFirestoreDocSegment(sanitized.matchId, 'matchId'),
+      competitionType: normalizeString(sanitized.competitionType) || null,
+      surface: normalizeString(sanitized.surface),
+    };
+  }
+
   return {
     ...sanitized,
     surface: normalizeString(sanitized.surface),
@@ -289,6 +343,8 @@ const sanitizeSessionContext = (
 };
 
 const getSessionRef = (sessionId: string) => db.collection('rewardedAdSessions').doc(sessionId);
+const getMatchEntryAccessRef = (uid: string, matchKind: MatchEntryKind, targetId: string) =>
+  db.collection('rewardedMatchEntryAccess').doc(buildMatchEntryAccessDocId(uid, matchKind, targetId));
 
 const getInventoryRef = (uid: string) => db.collection('users').doc(uid).collection('inventory').doc('consumables');
 
@@ -855,6 +911,87 @@ const claimPlayerRenameReward = async (
   });
 };
 
+const claimMatchEntryReward = async (
+  uid: string,
+  sessionRef: FirebaseFirestore.DocumentReference,
+  session: RewardedSessionDoc,
+): Promise<Record<string, unknown>> => {
+  const matchKind = sanitizeMatchEntryKind(session.context.matchKind);
+  const targetId = sanitizeFirestoreDocSegment(session.context.targetId, 'targetId');
+  const fixtureId =
+    session.context.fixtureId == null
+      ? null
+      : sanitizeFirestoreDocSegment(session.context.fixtureId, 'fixtureId');
+  const requestId =
+    session.context.requestId == null
+      ? null
+      : sanitizeFirestoreDocSegment(session.context.requestId, 'requestId');
+  const matchId =
+    session.context.matchId == null
+      ? null
+      : sanitizeFirestoreDocSegment(session.context.matchId, 'matchId');
+  const competitionType = normalizeString(session.context.competitionType) || null;
+  const grantRef = getMatchEntryAccessRef(uid, matchKind, targetId);
+
+  return db.runTransaction(async (tx) => {
+    const [freshSessionSnap, grantSnap] = await Promise.all([
+      tx.get(sessionRef),
+      tx.get(grantRef),
+    ]);
+
+    const freshSession = freshSessionSnap.data() as RewardedSessionDoc | undefined;
+    if (!freshSession) {
+      throw new functions.https.HttpsError('not-found', 'Reklam oturumu bulunamadi.');
+    }
+    if (freshSession.status === 'claimed') {
+      return (freshSession.claimResult ?? {}) as Record<string, unknown>;
+    }
+    if (freshSession.status !== 'verified') {
+      throw new functions.https.HttpsError('failed-precondition', 'Odul henuz dogrulanmadi.');
+    }
+
+    const expiresAt = Timestamp.fromMillis(Date.now() + MATCH_ENTRY_ACCESS_TTL_MS);
+    const reward = {
+      type: 'match_entry',
+      matchKind,
+      targetId,
+      fixtureId,
+      requestId,
+      matchId,
+      competitionType,
+      sourceSessionId: sessionRef.id,
+      expiresAtIso: expiresAt.toDate().toISOString(),
+    };
+    const existingCreatedAt = grantSnap.exists ? grantSnap.get('createdAt') : null;
+    const payload: MatchEntryAccessDoc = {
+      uid,
+      matchKind,
+      targetId,
+      fixtureId,
+      requestId,
+      matchId,
+      competitionType,
+      sourceSessionId: sessionRef.id,
+      expiresAt,
+      createdAt: existingCreatedAt ?? FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+    };
+
+    tx.set(grantRef, payload, { merge: true });
+    tx.set(
+      sessionRef,
+      {
+        status: 'claimed',
+        claimedAt: FieldValue.serverTimestamp(),
+        claimResult: reward,
+      },
+      { merge: true },
+    );
+
+    return reward;
+  });
+};
+
 export const createRewardedAdSession = functions
   .region(REGION)
   .https.onCall(async (data, context) => {
@@ -935,6 +1072,8 @@ export const claimRewardedAdReward = functions
       reward = await claimTrainingReward(uid, sessionRef);
     } else if (session.placement === 'youth_cooldown') {
       reward = await claimYouthCooldownReward(uid, sessionRef);
+    } else if (session.placement === 'match_entry') {
+      reward = await claimMatchEntryReward(uid, sessionRef, session);
     } else {
       reward = await claimPlayerRenameReward(uid, sessionRef, session);
     }
@@ -945,6 +1084,18 @@ export const claimRewardedAdReward = functions
       placement: session.placement,
       reward,
     };
+  });
+
+export const getMatchEntryAccessStatus = functions
+  .region(REGION)
+  .https.onCall(async (data, context) => {
+    const uid = validateAuth(context);
+    const matchKind = sanitizeMatchEntryKind(data?.matchKind);
+    const targetId = sanitizeFirestoreDocSegment(data?.targetId, 'targetId');
+    const grantSnap = await getMatchEntryAccessRef(uid, matchKind, targetId).get();
+    const grant = (grantSnap.data() as MatchEntryAccessDoc | undefined) ?? undefined;
+
+    return resolveMatchEntryAccessStatus(grant);
   });
 
 export const logRewardedAdDiagnostic = functions

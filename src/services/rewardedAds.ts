@@ -8,7 +8,10 @@ export type RewardPlacement =
   | 'club_balance'
   | 'training_finish'
   | 'player_rename'
-  | 'youth_cooldown';
+  | 'youth_cooldown'
+  | 'match_entry';
+
+export type MatchEntryKind = 'friendly' | 'league' | 'champions';
 
 export type RewardedAdSurface =
   | 'mainmenu'
@@ -16,7 +19,10 @@ export type RewardedAdSurface =
   | 'training'
   | 'team_planning'
   | 'settings'
-  | 'youth';
+  | 'youth'
+  | 'friendly_match'
+  | 'fixtures'
+  | 'match_watcher';
 
 export type RewardedSessionContext = {
   surface?: RewardedAdSurface;
@@ -26,6 +32,12 @@ export type RewardedSessionContext = {
   trainingIds?: string[];
   newName?: string;
   trainingId?: string;
+  matchKind?: MatchEntryKind;
+  targetId?: string;
+  fixtureId?: string;
+  requestId?: string;
+  matchId?: string;
+  competitionType?: string;
   [key: string]: unknown;
 };
 
@@ -52,6 +64,16 @@ export type RewardClaimResult =
       sessionId: string;
       placement: RewardPlacement;
     };
+
+export type MatchEntryAccessStatusPayload = {
+  matchKind: MatchEntryKind;
+  targetId: string;
+};
+
+export type MatchEntryAccessStatusResponse = {
+  active: boolean;
+  expiresAtIso: string | null;
+};
 
 export type RewardedAdStage = 'init' | 'load' | 'show' | 'ssv' | 'unknown';
 
@@ -165,6 +187,11 @@ const claimRewardedAdRewardCallable = httpsCallable<{ sessionId: string }, Rewar
   functions,
   'claimRewardedAdReward',
 );
+
+const getMatchEntryAccessStatusCallable = httpsCallable<
+  MatchEntryAccessStatusPayload,
+  MatchEntryAccessStatusResponse
+>(functions, 'getMatchEntryAccessStatus');
 
 const logRewardedAdDiagnosticCallable = httpsCallable<RewardedAdDiagnosticPayload, { ok: boolean }>(
   functions,
@@ -561,6 +588,13 @@ export async function createRewardedAdSession(
 
 export async function claimRewardedAdReward(sessionId: string): Promise<RewardClaimResult> {
   const response = await claimRewardedAdRewardCallable({ sessionId });
+  return response.data;
+}
+
+export async function getMatchEntryAccessStatus(
+  payload: MatchEntryAccessStatusPayload,
+): Promise<MatchEntryAccessStatusResponse> {
+  const response = await getMatchEntryAccessStatusCallable(payload);
   return response.data;
 }
 

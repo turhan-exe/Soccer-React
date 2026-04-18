@@ -30,6 +30,10 @@ import {
   startFriendlyLaunch,
   subscribeFriendlyLaunch,
 } from '@/services/friendlyLaunchCoordinator';
+import {
+  ensureMatchEntryAccess,
+  getMatchEntryAccessOutcomeMessage,
+} from '@/services/matchEntryAccess';
 
 function normalizeFriendlyAcceptMode(value: unknown): 'manual' | 'offline_auto' | 'unknown' {
   const normalized = String(value || '').trim().toLowerCase();
@@ -43,6 +47,7 @@ function normalizeFriendlyRequestStatus(value: unknown): string {
 }
 
 const UNITY_AUTO_RELAUNCH_SUPPRESS_MS = 10 * 60_000;
+const AUTO_MATCH_ENTRY_PROMPT_SUPPRESS_MS = 60_000;
 
 export default function FriendlyMatchPage() {
   const navigate = useNavigate();
@@ -84,6 +89,7 @@ export default function FriendlyMatchPage() {
     matchId: string | null;
     at: number;
   } | null>(null);
+  const autoMatchEntryPromptSuppressedUntilRef = useRef<Record<string, number>>({});
 
   const apiEnabled = useMemo(() => isMatchControlConfigured(), []);
   const canRunApiFlow = apiEnabled && !!user?.id;
@@ -302,6 +308,32 @@ export default function FriendlyMatchPage() {
     });
   };
 
+  const suppressAutoMatchEntryPrompt = useCallback((targetRequestId: string) => {
+    if (!targetRequestId) {
+      return;
+    }
+    autoMatchEntryPromptSuppressedUntilRef.current[targetRequestId] =
+      Date.now() + AUTO_MATCH_ENTRY_PROMPT_SUPPRESS_MS;
+  }, []);
+
+  const isAutoMatchEntryPromptSuppressed = useCallback((targetRequestId: string): boolean => {
+    if (!targetRequestId) {
+      return false;
+    }
+
+    const suppressedUntil = Number(
+      autoMatchEntryPromptSuppressedUntilRef.current[targetRequestId] || 0,
+    );
+    if (!suppressedUntil) {
+      return false;
+    }
+    if (suppressedUntil <= Date.now()) {
+      delete autoMatchEntryPromptSuppressedUntilRef.current[targetRequestId];
+      return false;
+    }
+    return true;
+  }, []);
+
   const launchFriendlyMatch = useCallback(async (args: {
     requestId?: string;
     matchId?: string;
@@ -314,16 +346,57 @@ export default function FriendlyMatchPage() {
       return;
     }
 
+    const requestedMatchId = args.matchId?.trim() || undefined;
+    let targetRequestId = args.requestId?.trim() || '';
+
+    try {
+      if (!targetRequestId && requestedMatchId) {
+        const status = await getMatchStatus(requestedMatchId);
+        targetRequestId = String(status.friendlyRequestId || '').trim();
+      }
+      if (!targetRequestId) {
+        toast.error('Dostluk maci istegi bulunamadi.');
+        return;
+      }
+
+      const access = await ensureMatchEntryAccess({
+        userId: user.id,
+        matchKind: 'friendly',
+        targetId: targetRequestId,
+        requestId: targetRequestId,
+        matchId: requestedMatchId,
+        surface: 'friendly_match',
+      });
+      if (access.outcome !== 'granted') {
+        if (args.trigger === 'auto') {
+          suppressAutoMatchEntryPrompt(targetRequestId);
+        }
+        const message = getMatchEntryAccessOutcomeMessage(access);
+        if (access.outcome === 'failed') {
+          toast.error(message);
+        } else {
+          toast.info(message);
+        }
+        return;
+      }
+    } catch (error) {
+      if (args.trigger === 'auto') {
+        suppressAutoMatchEntryPrompt(targetRequestId);
+      }
+      toast.error(getMatchEntryAccessOutcomeMessage(error));
+      return;
+    }
+
     await startFriendlyLaunch({
       source: 'friendly-page',
       userId: user.id,
       homeId: (args.homeTeamId || homeId).trim() || homeId,
       awayId: (args.awayTeamId || awayId).trim() || awayId,
-      requestId: args.requestId?.trim() || undefined,
-      matchId: args.matchId?.trim() || undefined,
+      requestId: targetRequestId,
+      matchId: requestedMatchId,
       trigger: args.trigger || 'manual',
     });
-  }, [awayId, canRunApiFlow, homeId, user?.id]);
+  }, [awayId, canRunApiFlow, homeId, suppressAutoMatchEntryPrompt, user?.id]);
 
   const autoLaunchAcceptedRequest = useCallback(async (item: FriendlyRequestListItem) => {
     if (!canRunApiFlow || !user?.id) {
@@ -388,6 +461,15 @@ export default function FriendlyMatchPage() {
       return;
     }
 
+    if (isAutoMatchEntryPromptSuppressed(targetRequestId)) {
+      console.info('[FriendlyMatchPage] skipping auto launch while rewarded prompt is suppressed', {
+        requestId: targetRequestId,
+        matchId: targetMatchId,
+        source: 'poll-sync',
+      });
+      return;
+    }
+
     if (claimed) {
       console.info('[FriendlyMatchPage] skipping auto launch for claimed request', {
         requestId: targetRequestId,
@@ -441,7 +523,7 @@ export default function FriendlyMatchPage() {
         console.error('[FriendlyMatchPage] auto launch accepted request failed', error);
       }
     }
-  }, [awayId, canRunApiFlow, homeId, launchFriendlyMatch, matchId, requestId, requestState, shouldSuppressHandledConsoleError, user?.id, wasRecentlyClosed]);
+  }, [awayId, canRunApiFlow, homeId, isAutoMatchEntryPromptSuppressed, launchFriendlyMatch, matchId, requestId, requestState, shouldSuppressHandledConsoleError, user?.id, wasRecentlyClosed]);
 
   const syncLists = useCallback(async () => {
     if (!canRunApiFlow || !user?.id) {
@@ -916,6 +998,23 @@ export default function FriendlyMatchPage() {
 
     setLoadingAction(`accept:${targetRequestId}`);
     try {
+      const access = await ensureMatchEntryAccess({
+        userId: user.id,
+        matchKind: 'friendly',
+        targetId: targetRequestId.trim(),
+        requestId: targetRequestId.trim(),
+        surface: 'friendly_match',
+      });
+      if (access.outcome !== 'granted') {
+        const message = getMatchEntryAccessOutcomeMessage(access);
+        if (access.outcome === 'failed') {
+          toast.error(message);
+        } else {
+          toast.info(message);
+        }
+        return;
+      }
+
       const accepted = await acceptFriendlyRequest(targetRequestId.trim(), {
         acceptingUserId: user.id,
         role: 'player',

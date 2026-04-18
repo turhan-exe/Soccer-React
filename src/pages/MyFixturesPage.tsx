@@ -29,6 +29,10 @@ import {
   normalizeFixtureStatus,
   resolveEffectiveFixtureLiveState,
 } from '@/lib/fixtureLive';
+import {
+  ensureMatchEntryAccess,
+  getMatchEntryAccessOutcomeMessage,
+} from '@/services/matchEntryAccess';
 
 interface DisplayFixture extends Fixture {
   opponent: string;
@@ -236,6 +240,25 @@ export default function MyFixturesPage() {
 
     setJoiningFixtureId(fixture.id);
     try {
+      const access = await ensureMatchEntryAccess({
+        userId: user.id,
+        matchKind: 'league',
+        targetId: fixture.id,
+        fixtureId: fixture.id,
+        matchId: fixture.live?.matchId || undefined,
+        competitionType: fixture.competitionType,
+        surface: 'fixtures',
+      });
+      if (access.outcome !== 'granted') {
+        const message = getMatchEntryAccessOutcomeMessage(access);
+        if (access.outcome === 'failed') {
+          toast.error(message);
+        } else {
+          toast.info(message);
+        }
+        return;
+      }
+
       const status = await getMatchStatus(fixture.live.matchId);
       const latestState = normalizeFixtureStatus(status.state);
 

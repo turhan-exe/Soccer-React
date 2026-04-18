@@ -8,6 +8,12 @@ import Redis from "ioredis";
 import pg from "pg";
 import { applicationDefault, cert, getApps, initializeApp as initializeFirebaseAdminApp } from "firebase-admin/app";
 import { getAuth as getFirebaseAuth } from "firebase-admin/auth";
+import { getFirestore as getFirebaseFirestore } from "firebase-admin/firestore";
+import {
+  buildRewardedMatchEntryAccessDocId,
+  isRewardedMatchEntryAccessActive,
+  resolveRewardedMatchEntryRequirement,
+} from "./rewardedMatchEntry.js";
 
 const { Pool } = pg;
 
@@ -208,6 +214,7 @@ let pgReady = false;
 let redisReady = false;
 const pendingMatchReleaseTimers = new Map();
 const firebaseAuthClientByProject = new Map();
+const firebaseFirestoreClientByProject = new Map();
 
 function toBase64(raw) {
   const input = String(raw || "").replace(/-/g, "+").replace(/_/g, "/");
@@ -235,22 +242,15 @@ function inferFirebaseProjectIdFromToken(token) {
   return aud;
 }
 
-function getFirebaseAdminAuth(projectIdOverride = "") {
+function getFirebaseAdminApp(projectIdOverride = "") {
   const effectiveProjectId = String(
     projectIdOverride || config.firebaseProjectId || "",
   ).trim();
   const cacheKey = effectiveProjectId || "default";
-  const cached = firebaseAuthClientByProject.get(cacheKey);
-  if (cached) {
-    return cached;
-  }
-
   const appName = `match-control-${cacheKey}`;
   const existingApp = getApps().find((app) => app.name === appName);
   if (existingApp) {
-    const authClient = getFirebaseAuth(existingApp);
-    firebaseAuthClientByProject.set(cacheKey, authClient);
-    return authClient;
+    return { app: existingApp, cacheKey };
   }
 
   const parsedServiceAccount = safeParseJson(config.firebaseServiceAccountJson, null);
@@ -270,10 +270,34 @@ function getFirebaseAdminAuth(projectIdOverride = "") {
     appOptions.projectId = effectiveProjectId;
   }
 
-  const adminApp = initializeFirebaseAdminApp(appOptions, appName);
-  const authClient = getFirebaseAuth(adminApp);
+  return {
+    app: initializeFirebaseAdminApp(appOptions, appName),
+    cacheKey,
+  };
+}
+
+function getFirebaseAdminAuth(projectIdOverride = "") {
+  const { app, cacheKey } = getFirebaseAdminApp(projectIdOverride);
+  const cached = firebaseAuthClientByProject.get(cacheKey);
+  if (cached) {
+    return cached;
+  }
+
+  const authClient = getFirebaseAuth(app);
   firebaseAuthClientByProject.set(cacheKey, authClient);
   return authClient;
+}
+
+function getFirebaseAdminFirestore(projectIdOverride = "") {
+  const { app, cacheKey } = getFirebaseAdminApp(projectIdOverride);
+  const cached = firebaseFirestoreClientByProject.get(cacheKey);
+  if (cached) {
+    return cached;
+  }
+
+  const firestoreClient = getFirebaseFirestore(app);
+  firebaseFirestoreClientByProject.set(cacheKey, firestoreClient);
+  return firestoreClient;
 }
 
 async function verifyFirebaseTokenWithFallback(token) {
@@ -3401,6 +3425,91 @@ function ensureApiAuth(request, reply) {
   return requireApiAuth(request, reply);
 }
 
+async function loadRewardedMatchEntryAccess(uid, matchKind, targetId) {
+  const firestore = getFirebaseAdminFirestore();
+  const docId = buildRewardedMatchEntryAccessDocId(uid, matchKind, targetId);
+  const snapshot = await firestore.collection("rewardedMatchEntryAccess").doc(docId).get();
+  if (!snapshot.exists) {
+    return null;
+  }
+  return snapshot.data() || null;
+}
+
+async function ensureFriendlyAcceptRewardedMatchEntryAccess(
+  request,
+  reply,
+  acceptingUserId,
+  requestId,
+  acceptedRole,
+) {
+  if (acceptedRole !== "player" || request.identity?.type !== "firebase_user") {
+    return true;
+  }
+
+  try {
+    const grant = await loadRewardedMatchEntryAccess(
+      acceptingUserId,
+      "friendly",
+      requestId,
+    );
+    if (isRewardedMatchEntryAccessActive(grant)) {
+      return true;
+    }
+  } catch (error) {
+    fastify.log.error(
+      { err: error, acceptingUserId, requestId },
+      "rewarded_match_entry_accept_check_failed",
+    );
+  }
+
+  reply.code(403).send({
+    error: "rewarded_match_entry_required",
+    matchKind: "friendly",
+    targetId: requestId,
+  });
+  return false;
+}
+
+async function ensureRewardedMatchEntryAccess(identity, userId, match, role, reply) {
+  if (identity?.type !== "firebase_user") {
+    return true;
+  }
+
+  const requirement = resolveRewardedMatchEntryRequirement(match, role);
+  if (!requirement) {
+    return true;
+  }
+
+  try {
+    const grant = await loadRewardedMatchEntryAccess(
+      userId,
+      requirement.matchKind,
+      requirement.targetId,
+    );
+    if (isRewardedMatchEntryAccessActive(grant)) {
+      return true;
+    }
+  } catch (error) {
+    fastify.log.error(
+      {
+        err: error,
+        userId,
+        matchId: match?.id || null,
+        matchKind: requirement.matchKind,
+        targetId: requirement.targetId,
+      },
+      "rewarded_match_entry_check_failed",
+    );
+  }
+
+  reply.code(403).send({
+    error: "rewarded_match_entry_required",
+    matchKind: requirement.matchKind,
+    targetId: requirement.targetId,
+  });
+  return false;
+}
+
 async function releaseMatchNodeAllocation(match, reason = "completed") {
   if (!match?.nodeId) return;
 
@@ -3782,6 +3891,18 @@ fastify.post("/v1/friendly/requests/:requestId/accept", async (request, reply) =
     return reply.code(403).send({ error: "forbidden_accepting_user" });
   }
 
+  if (
+    !(await ensureFriendlyAcceptRewardedMatchEntryAccess(
+      request,
+      reply,
+      acceptingUserId,
+      requestId,
+      acceptedRole,
+    ))
+  ) {
+    return;
+  }
+
   try {
     const { match, reused } = await ensureFriendlyRequestAccepted({
       pending,
@@ -3896,6 +4017,19 @@ fastify.post("/v1/matches/:matchId/join-ticket", async (request, reply) => {
     }
   }
 
+  const effectiveRole = match.mode === "league" ? "player" : role;
+  if (
+    !(await ensureRewardedMatchEntryAccess(
+      request.identity,
+      userId,
+      match,
+      effectiveRole,
+      reply,
+    ))
+  ) {
+    return;
+  }
+
   const effectiveMatch = await ensureFriendlyMatchTransportReady(match);
 
   if (isTerminalMatchState(effectiveMatch)) {
@@ -3914,7 +4048,6 @@ fastify.post("/v1/matches/:matchId/join-ticket", async (request, reply) => {
     match.mode === "league"
       ? config.leagueJoinTicketTtlSec
       : config.joinTicketTtlSec;
-  const effectiveRole = match.mode === "league" ? "player" : role;
 
   const joinTicket = issueJoinTicket({
     matchId,
@@ -3958,6 +4091,8 @@ fastify.get("/v1/matches/:matchId/status", async (request, reply) => {
     state: effectiveMatch.status,
     serverIp: effectiveMatch.serverIp,
     serverPort: effectiveMatch.serverPort,
+    friendlyRequestId: effectiveMatch.friendlyRequestId || null,
+    fixtureId: effectiveMatch.fixtureId || null,
     lastBootstrapStage: effectiveMatch.lastBootstrapStage || null,
     lastBootstrapAt: effectiveMatch.lastBootstrapAt || null,
     gameplaySceneAt: effectiveMatch.gameplaySceneAt || null,
