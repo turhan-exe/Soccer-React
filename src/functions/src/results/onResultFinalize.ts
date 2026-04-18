@@ -109,7 +109,7 @@ export const onResultFinalize = functions
         const cur = (fxSnap.data() as Record<string, unknown>) ?? {};
         const currentStatus = String(cur.status || 'scheduled');
         const currentVideo = (cur['video'] as Record<string, unknown> | undefined) ?? undefined;
-        const updatePatch: Record<string, unknown> = {
+        const updatePatch: FirebaseFirestore.UpdateData<FirebaseFirestore.DocumentData> = {
           status: 'played',
           replayPath,
           videoMissing: true,

@@ -15,9 +15,10 @@ const INITIAL_CLUB_BALANCE = 50_000;
 const DEFAULT_VITAL_GAUGE = 0.75;
 const DEFAULT_HEALTHY_HEALTH = 1;
 const DEFAULT_INJURED_HEALTH = 0.5;
+const LEAGUE_STARTER_CONDITION_LOSS = 0.08;
 const LEAGUE_BENCH_MOTIVATION_PENALTY = 0.05;
 const LEAGUE_SQUAD_OUT_MOTIVATION_PENALTY = 0.08;
-const LEAGUE_LINEUP_EFFECTS_VERSION = 1;
+const LEAGUE_LINEUP_EFFECTS_VERSION = 2;
 
 type ResolvedRevenueTeamIds = Partial<Record<RevenueSide, string | null>>;
 
@@ -123,17 +124,19 @@ const normalizeRosterPlayers = (players: unknown[]): Record<string, unknown>[] =
 
 type LeagueLineupPenaltySummary = {
   changed: boolean;
+  starterConditionPenalties: number;
   benchPenalties: number;
   squadOutPenalties: number;
   players: Record<string, unknown>[];
 };
 
-const applyLineupPenaltyToRoster = (
+export const applyLeagueLineupEffectsToRoster = (
   players: Record<string, unknown>[],
   starters: Set<string>,
   subs: Set<string>,
 ): LeagueLineupPenaltySummary => {
   let changed = false;
+  let starterConditionPenalties = 0;
   let benchPenalties = 0;
   let squadOutPenalties = 0;
 
@@ -148,34 +151,70 @@ const applyLineupPenaltyToRoster = (
     }
 
     if (starters.has(playerId)) {
-      return player;
+      const currentCondition =
+        typeof player.condition === 'number'
+          ? clampGauge(player.condition)
+          : DEFAULT_VITAL_GAUGE;
+      const nextCondition = clampGauge(
+        currentCondition - LEAGUE_STARTER_CONDITION_LOSS,
+      );
+
+      if (nextCondition === currentCondition) {
+        return player;
+      }
+
+      starterConditionPenalties += 1;
+      changed = true;
+      return {
+        ...player,
+        condition: nextCondition,
+      };
     }
 
     if (subs.has(playerId)) {
+      const currentMotivation =
+        typeof player.motivation === 'number'
+          ? clampGauge(player.motivation)
+          : DEFAULT_VITAL_GAUGE;
+      const nextMotivation = clampGauge(
+        currentMotivation - LEAGUE_BENCH_MOTIVATION_PENALTY,
+      );
+
+      if (nextMotivation === currentMotivation) {
+        return player;
+      }
+
       benchPenalties += 1;
       changed = true;
       return {
         ...player,
-        motivation: clampGauge(
-          (typeof player.motivation === 'number' ? player.motivation : DEFAULT_VITAL_GAUGE) -
-            LEAGUE_BENCH_MOTIVATION_PENALTY,
-        ),
+        motivation: nextMotivation,
       };
+    }
+
+    const currentMotivation =
+      typeof player.motivation === 'number'
+        ? clampGauge(player.motivation)
+        : DEFAULT_VITAL_GAUGE;
+    const nextMotivation = clampGauge(
+      currentMotivation - LEAGUE_SQUAD_OUT_MOTIVATION_PENALTY,
+    );
+
+    if (nextMotivation === currentMotivation) {
+      return player;
     }
 
     squadOutPenalties += 1;
     changed = true;
     return {
       ...player,
-      motivation: clampGauge(
-        (typeof player.motivation === 'number' ? player.motivation : DEFAULT_VITAL_GAUGE) -
-          LEAGUE_SQUAD_OUT_MOTIVATION_PENALTY,
-      ),
+      motivation: nextMotivation,
     };
   });
 
   return {
     changed,
+    starterConditionPenalties,
     benchPenalties,
     squadOutPenalties,
     players: nextPlayers,
@@ -472,13 +511,23 @@ export async function applyLeagueMatchRevenueInTx(
 export async function applyLeagueLineupMotivationEffects(
   leagueId: string,
   fixtureId: string,
-): Promise<{ status: string; benchPenalties: number; squadOutPenalties: number }> {
+): Promise<{
+  status: string;
+  starterConditionPenalties: number;
+  benchPenalties: number;
+  squadOutPenalties: number;
+}> {
   const fixtureRef = db.doc(`leagues/${leagueId}/fixtures/${fixtureId}`);
 
   return db.runTransaction(async (tx) => {
     const fixtureSnap = await tx.get(fixtureRef);
     if (!fixtureSnap.exists) {
-      return { status: 'missing_fixture', benchPenalties: 0, squadOutPenalties: 0 };
+      return {
+        status: 'missing_fixture',
+        starterConditionPenalties: 0,
+        benchPenalties: 0,
+        squadOutPenalties: 0,
+      };
     }
 
     const fixture = (fixtureSnap.data() as Record<string, unknown>) ?? {};
@@ -492,7 +541,12 @@ export async function applyLeagueLineupMotivationEffects(
         : null;
 
     if (currentStatus) {
-      return { status: currentStatus, benchPenalties: 0, squadOutPenalties: 0 };
+      return {
+        status: currentStatus,
+        starterConditionPenalties: 0,
+        benchPenalties: 0,
+        squadOutPenalties: 0,
+      };
     }
 
     const planSnap = await tx.get(matchPlanDoc(fixtureId));
@@ -509,7 +563,12 @@ export async function applyLeagueLineupMotivationEffects(
         },
         { merge: true },
       );
-      return { status: 'skipped_missing_match_plan', benchPenalties: 0, squadOutPenalties: 0 };
+      return {
+        status: 'skipped_missing_match_plan',
+        starterConditionPenalties: 0,
+        benchPenalties: 0,
+        squadOutPenalties: 0,
+      };
     }
 
     const plan = (planSnap.data() as Record<string, unknown>) ?? {};
@@ -528,6 +587,7 @@ export async function applyLeagueLineupMotivationEffects(
       },
     ];
 
+    let starterConditionPenalties = 0;
     let benchPenalties = 0;
     let squadOutPenalties = 0;
     let appliedToAnyTeam = false;
@@ -547,10 +607,15 @@ export async function applyLeagueLineupMotivationEffects(
       const teamData = (teamSnap.data() as { players?: unknown[] } | undefined) ?? undefined;
       const rawPlayers = Array.isArray(teamData?.players) ? teamData.players : [];
       const normalizedPlayers = normalizeRosterPlayers(rawPlayers);
-      const summary = applyLineupPenaltyToRoster(normalizedPlayers, side.starters, side.subs);
+      const summary = applyLeagueLineupEffectsToRoster(
+        normalizedPlayers,
+        side.starters,
+        side.subs,
+      );
       const rosterChanged =
         summary.changed || JSON.stringify(rawPlayers) !== JSON.stringify(summary.players);
 
+      starterConditionPenalties += summary.starterConditionPenalties;
       benchPenalties += summary.benchPenalties;
       squadOutPenalties += summary.squadOutPenalties;
 
@@ -567,6 +632,8 @@ export async function applyLeagueLineupMotivationEffects(
           lineupMotivationStatus: appliedToAnyTeam ? 'applied' : 'applied_no_changes',
           lineupMotivationVersion: LEAGUE_LINEUP_EFFECTS_VERSION,
           lineupMotivationUpdatedAt: FieldValue.serverTimestamp(),
+          lineupMotivationStarterConditionCount: starterConditionPenalties,
+          lineupMotivationStarterConditionLoss: LEAGUE_STARTER_CONDITION_LOSS,
           lineupMotivationBenchCount: benchPenalties,
           lineupMotivationSquadOutCount: squadOutPenalties,
         },
@@ -576,6 +643,7 @@ export async function applyLeagueLineupMotivationEffects(
 
     return {
       status: appliedToAnyTeam ? 'applied' : 'applied_no_changes',
+      starterConditionPenalties,
       benchPenalties,
       squadOutPenalties,
     };

@@ -55,7 +55,7 @@ export const reportResult = functions.region('europe-west1').https.onRequest(asy
       const cur = (snap.data() as Record<string, unknown>) ?? {};
       const currentStatus = String(cur.status || 'scheduled');
 
-      const updatePatch: Record<string, unknown> = {
+      const updatePatch: FirebaseFirestore.UpdateData<FirebaseFirestore.DocumentData> = {
         status: 'played',
         score,
         replayPath,

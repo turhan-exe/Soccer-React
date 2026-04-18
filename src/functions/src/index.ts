@@ -97,6 +97,7 @@ export {
 } from './economy/rewardedAds.js';
 export { notifyDueSignals } from './notify/dueSignals.js';
 export { finalizeDueTrainingSessions } from './notify/training.js';
+export { recoverTeamConditionCron } from './notify/conditionRecovery.js';
 export { leagueMatchReminderHttp } from './notify/matchReminder.js';
 export {
   enforceChatModeration,

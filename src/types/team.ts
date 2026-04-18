@@ -1,4 +1,5 @@
 import type { CustomFormationMap, ResolvedTeamSlotAssignment } from '@/types';
+import type { ConditionRecoveryPendingToast } from './conditionRecovery';
 
 export interface Lineup {
   formation: string;          // e.g. "4-3-3"
@@ -16,6 +17,9 @@ export interface TeamDoc {
   leagueId: string;           // denormalized for convenience
   ownerUid: string;
   clubName: string;
+  conditionRecoveryDueAt?: string | null;
+  conditionRecoveryPendingToast?: ConditionRecoveryPendingToast | null;
+  conditionRecoveryAt?: string | null;
   elo?: number;
   lineupLocked?: boolean;
   lineup?: Lineup;            // set via setLineup

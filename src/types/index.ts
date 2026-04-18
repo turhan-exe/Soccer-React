@@ -1,4 +1,5 @@
 import type { MatchVideoMeta } from './matchReplay';
+import type { ConditionRecoveryPendingToast } from './conditionRecovery';
 
 export type SquadRole = 'starting' | 'bench' | 'reserve';
 
@@ -131,6 +132,9 @@ export interface ClubTeam {
   kitHome: string;
   kitAway: string;
   logo?: string | null;
+  conditionRecoveryDueAt?: string | null;
+  conditionRecoveryPendingToast?: ConditionRecoveryPendingToast | null;
+  conditionRecoveryAt?: string | null;
   /** Opsiyonel: Unity TeamSelection için logonun URL ve meta bilgisi */
   badge?: TeamBadge | null;
   /** Opsiyonel: Unity kit dokuları (home/away/third) */
@@ -415,6 +419,7 @@ export interface GlobalChatMessage {
 
 // Plan 2.1 schema exports (Firestore documents)
 export type { FirebaseTimestamp } from './common';
+export type { ConditionRecoveryPendingToast } from './conditionRecovery';
 export type { LeagueDoc, LeagueState } from './league';
 export type { TeamDoc, Lineup } from './team';
 export type { FixtureDoc, FixtureStatus, FixtureLiveDoc } from './fixture';

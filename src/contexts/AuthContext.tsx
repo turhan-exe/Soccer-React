@@ -5,10 +5,12 @@ import React, {
   ReactNode,
   useEffect,
   useCallback,
+  useRef,
 } from 'react';
 import { onAuthStateChanged, updateProfile, User as FirebaseUser } from 'firebase/auth';
 import { App as CapacitorApp } from '@capacitor/app';
 import { Capacitor } from '@capacitor/core';
+import { toast } from 'sonner';
 import { User } from '@/types';
 import { auth } from '@/services/firebase';
 import {
@@ -24,6 +26,11 @@ import { createInitialTeam, getTeam, updateTeamName } from '@/services/team';
 import { requestAssign } from '@/services/leagues';
 import { generateRandomName } from '@/lib/names';
 import { getUserProfile } from '@/services/users';
+import {
+  formatConditionRecoveryGainPercent,
+  shouldSkipConditionRecoveryTrigger,
+} from '@/lib/playerConditionRecovery';
+import { claimTeamConditionRecoveryToast } from '@/services/teamConditionRecovery';
 
 interface AuthContextType {
   user: User | null;
@@ -64,6 +71,59 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isAuthReady, setIsAuthReady] = useState(false);
+  const conditionRecoveryStateRef = useRef<{
+    inFlight: boolean;
+    lastRunAtMs: number | null;
+    lastUserId: string | null;
+  }>({
+    inFlight: false,
+    lastRunAtMs: null,
+    lastUserId: null,
+  });
+
+  const triggerConditionRecoveryToast = useCallback(
+    async (reason: 'login' | 'foreground') => {
+      const firebaseUser = auth.currentUser;
+      if (!firebaseUser) {
+        return;
+      }
+
+      const nowMs = Date.now();
+      const runtimeState = conditionRecoveryStateRef.current;
+      if (
+        shouldSkipConditionRecoveryTrigger(runtimeState, {
+          userId: firebaseUser.uid,
+          nowMs,
+        })
+      ) {
+        return;
+      }
+
+      runtimeState.inFlight = true;
+      runtimeState.lastRunAtMs = nowMs;
+      runtimeState.lastUserId = firebaseUser.uid;
+
+      try {
+        const result = await claimTeamConditionRecoveryToast(firebaseUser.uid);
+        if (result.status === 'ok' && result.averageGainPct > 0) {
+          toast.success(
+            `Oyuncular dinlendi: ortalama +%${formatConditionRecoveryGainPercent(
+              result.averageGainPct,
+            )} kondisyon kazandi.`,
+          );
+        }
+      } catch (error) {
+        console.warn(`[AuthContext] ${reason} condition recovery failed`, error);
+      } finally {
+        conditionRecoveryStateRef.current = {
+          inFlight: false,
+          lastRunAtMs: Date.now(),
+          lastUserId: firebaseUser.uid,
+        };
+      }
+    },
+    [],
+  );
 
   type PendingSocialRegistration = {
     provider: 'google' | 'apple';
@@ -212,6 +272,44 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   }, []);
 
   useEffect(() => {
+    const handleForeground = () => {
+      void triggerConditionRecoveryToast('foreground');
+    };
+
+    if (Capacitor.isNativePlatform()) {
+      const appStateListener = CapacitorApp.addListener('appStateChange', ({ isActive }) => {
+        if (isActive) {
+          handleForeground();
+        }
+      });
+
+      return () => {
+        void appStateListener.then((listener) => listener.remove());
+      };
+    }
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        handleForeground();
+      }
+    };
+
+    const handleWindowFocus = () => {
+      if (document.visibilityState === 'visible') {
+        handleForeground();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', handleWindowFocus);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleWindowFocus);
+    };
+  }, [triggerConditionRecoveryToast]);
+
+  useEffect(() => {
     let isActive = true;
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       try {
@@ -284,11 +382,19 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
               console.error('[AuthContext] createInitialTeam failed after login', creationError);
             }
           } else if (!(team as any)?.leagueId) {
+            await triggerConditionRecoveryToast('login');
             try {
               await requestAssign(firebaseUser.uid);
             } catch {}
+          } else {
+            await triggerConditionRecoveryToast('login');
           }
         } else if (isActive) {
+          conditionRecoveryStateRef.current = {
+            inFlight: false,
+            lastRunAtMs: null,
+            lastUserId: null,
+          };
           setUser(null);
         }
       } catch (err) {
@@ -306,7 +412,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       isActive = false;
       unsubscribe();
     };
-  }, []);
+  }, [triggerConditionRecoveryToast]);
 
   const login = async (email: string, password: string) => {
     setIsLoading(true);

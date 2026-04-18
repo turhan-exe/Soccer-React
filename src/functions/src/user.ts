@@ -4,6 +4,7 @@ import './_firebase.js';
 import { getFirestore, FieldValue, type DocumentReference, type QuerySnapshot } from 'firebase-admin/firestore';
 import { getAuth, UserRecord } from 'firebase-admin/auth';
 import { ensureBotTeamDoc } from './utils/bots.js';
+import { createConditionRecoveryDueAt } from './utils/teamConditionRecovery.js';
 
 const db = getFirestore();
 
@@ -23,6 +24,8 @@ export const assignTeamOnUserCreate = functions
           ownerUid: uid,
           name: teamNameBase,
           createdAt: FieldValue.serverTimestamp(),
+          conditionRecoveryDueAt: createConditionRecoveryDueAt(Date.now()),
+          conditionRecoveryPendingToast: null,
         }, { merge: true });
       } else {
         const data = teamSnap.data() as any;

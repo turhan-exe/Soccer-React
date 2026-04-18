@@ -13,6 +13,7 @@ import {
 } from '@/types';
 import { generateRandomName } from '@/lib/names';
 import { calculateOverall, getRoles } from '@/lib/player';
+import { createConditionRecoveryDueAt } from '@/lib/playerConditionRecovery';
 import { normalizeTeamPlayers } from '@/lib/playerVitals';
 import { addGameYears, applyGameAgingToPlayers } from '@/lib/gameTime';
 import { formations } from '@/lib/formations';
@@ -124,6 +125,8 @@ const generateTeamData = (id: string, name: string, manager: string): ClubTeam =
     kitHome: 'home',
     kitAway: 'away',
     logo: null,
+    conditionRecoveryDueAt: createConditionRecoveryDueAt(),
+    conditionRecoveryPendingToast: null,
     budget: INITIAL_CLUB_BALANCE,
     transferBudget: INITIAL_CLUB_BALANCE,
     players,

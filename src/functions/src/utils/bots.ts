@@ -1,4 +1,5 @@
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
+import { createConditionRecoveryDueAt } from './teamConditionRecovery.js';
 
 const db = getFirestore();
 const BOT_TEAM_PREFIX = 'botteam-';
@@ -149,6 +150,8 @@ export async function ensureBotTeamDoc(input: BotTeamInput) {
     budget: INITIAL_CLUB_BALANCE,
     isBot: true,
     botId: input.botId,
+    conditionRecoveryDueAt: createConditionRecoveryDueAt(Date.now()),
+    conditionRecoveryPendingToast: null,
     players,
     lineup,
     plan: lineup,
