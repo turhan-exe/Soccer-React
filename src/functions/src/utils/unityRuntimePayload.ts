@@ -23,6 +23,17 @@ type UnityRuntimePlayerPayload = {
   name: string;
   order: number;
   attributes: Record<string, number>;
+  visual?: UnityRuntimePlayerVisualPayload;
+};
+
+type UnityRuntimePlayerVisualPayload = {
+  skinColor: string;
+  hairStyle: string;
+  hairColor: string;
+  facialHairStyle: string;
+  facialHairColor: string;
+  bootColor: string;
+  sockAccessoryColor: string;
 };
 
 type UnityRuntimeKitPayload = {
@@ -40,6 +51,38 @@ type FormationSlot = {
 };
 
 type ManualFormationMap = Record<string, { x?: number; y?: number; position?: string }>;
+
+const UNITY_SKIN_COLORS = ['Bright', 'White', 'Brown', 'Black'] as const;
+const UNITY_HAIR_STYLES = [
+  'ShortHair',
+  'LongHair',
+  'Ponytail',
+  'PartedHair',
+  'Mohawk',
+  'Bald',
+] as const;
+const UNITY_FACIAL_HAIR_STYLES = ['None', 'Mustache', 'Goatee', 'LongBeard'] as const;
+const UNITY_HAIR_COLORS = [
+  'Brown',
+  'DarkBrown',
+  'Black',
+  'LightYellow',
+  'Yellow',
+  'Gray',
+  'White',
+  'Green',
+  'DarkGreen',
+  'Blue',
+  'DarkBlue',
+  'LightRed',
+  'Red',
+  'LightOrange',
+  'Orange',
+] as const;
+const UNITY_BOOT_COLORS = ['Black', 'Red', 'Orange', 'Purple', 'Cyan', 'Gray', 'White'] as const;
+const UNITY_SOCK_ACCESSORY_COLORS = ['None', 'Black', 'Gray', 'White'] as const;
+
+type EnumValues<T extends readonly string[]> = T[number];
 
 export type UnityRuntimeTeamPayload = {
   id: string;
@@ -408,6 +451,69 @@ function buildResolvedSlotAssignments(args: {
   return resolved.length > 0 ? resolved : undefined;
 }
 
+function normalizeEnumToken(value: unknown): string | null {
+  if (value == null) return null;
+  const raw = String(value).trim();
+  if (!raw) return null;
+  return raw.replace(/[\s_-]+/g, '').toLowerCase();
+}
+
+function parseExplicitIndex(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return Math.round(value);
+  }
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  if (!/^-?\d+$/.test(trimmed)) return null;
+  const parsed = Number(trimmed);
+  return Number.isFinite(parsed) ? Math.round(parsed) : null;
+}
+
+function createEnumResolver<const T extends readonly string[]>(values: T) {
+  const byNormalized = new Map<string, EnumValues<T>>();
+  values.forEach((entry) => {
+    byNormalized.set(normalizeEnumToken(entry) || entry.toLowerCase(), entry);
+  });
+
+  return (value: unknown): EnumValues<T> | null => {
+    const numericIndex = parseExplicitIndex(value);
+    if (numericIndex != null && numericIndex >= 0 && numericIndex < values.length) {
+      return values[numericIndex];
+    }
+
+    const token = normalizeEnumToken(value);
+    if (!token) return null;
+    return byNormalized.get(token) ?? null;
+  };
+}
+
+const resolveSkinColor = createEnumResolver(UNITY_SKIN_COLORS);
+const resolveHairStyle = createEnumResolver(UNITY_HAIR_STYLES);
+const resolveFacialHairStyle = createEnumResolver(UNITY_FACIAL_HAIR_STYLES);
+const resolveHairColor = createEnumResolver(UNITY_HAIR_COLORS);
+const resolveBootColor = createEnumResolver(UNITY_BOOT_COLORS);
+const resolveSockAccessoryColor = createEnumResolver(UNITY_SOCK_ACCESSORY_COLORS);
+
+function asObjectRecord(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  return value as Record<string, unknown>;
+}
+
+function getCandidateValue(
+  sources: Array<Record<string, unknown> | null>,
+  keys: string[],
+): unknown {
+  for (const source of sources) {
+    if (!source) continue;
+    for (const key of keys) {
+      if (key in source && source[key] != null) {
+        return source[key];
+      }
+    }
+  }
+  return undefined;
+}
+
 function hashString(input: string): number {
   let hash = 2166136261;
   for (let index = 0; index < input.length; index += 1) {
@@ -415,6 +521,31 @@ function hashString(input: string): number {
     hash = Math.imul(hash, 16777619);
   }
   return hash >>> 0;
+}
+
+function hashSeed(seed: string, salt: string): number {
+  return hashString(`${seed}:${salt}`);
+}
+
+function pickDeterministic<const T extends readonly string[]>(
+  seed: string,
+  salt: string,
+  values: T,
+): EnumValues<T> {
+  return values[hashSeed(seed, salt) % values.length];
+}
+
+function pickDeterministicInt(seed: string, salt: string, min: number, max: number): number {
+  const span = Math.max(1, max - min + 1);
+  return min + (hashSeed(seed, salt) % span);
+}
+
+function deterministicFacialHair(seed: string): EnumValues<typeof UNITY_FACIAL_HAIR_STYLES> {
+  const roll = hashSeed(seed, 'facialHairWeighted') % 100;
+  if (roll < 58) return 'None';
+  if (roll < 73) return 'Mustache';
+  if (roll < 91) return 'Goatee';
+  return 'LongBeard';
 }
 
 function clampByte(value: number): number {
@@ -488,16 +619,56 @@ function toUnityStatValue(value: unknown): number {
   return Math.max(0, Math.min(100, Math.round(numeric)));
 }
 
-function toUnityHeightValue(value: unknown): number {
+function toUnityHeightValue(value: unknown, seed: string): number {
   const numeric = typeof value === 'number' ? value : Number(value);
-  if (!Number.isFinite(numeric)) return 180;
+  if (!Number.isFinite(numeric)) return pickDeterministicInt(seed, 'heightFallback', 170, 195);
   return Math.max(150, Math.min(210, Math.round(numeric)));
 }
 
-function toUnityWeightValue(value: unknown): number {
+function toUnityWeightValue(value: unknown, seed: string): number {
   const numeric = typeof value === 'number' ? value : Number(value);
-  if (!Number.isFinite(numeric)) return 75;
+  if (!Number.isFinite(numeric)) return pickDeterministicInt(seed, 'weightFallback', 60, 90);
   return Math.max(45, Math.min(110, Math.round(numeric)));
+}
+
+function buildUnityPlayerVisualPayload(player: any, order: number, teamSeed: string): UnityRuntimePlayerVisualPayload {
+  const rawPlayer = player as Record<string, unknown>;
+  const nestedVisual = asObjectRecord(rawPlayer?.visual);
+  const nestedAppearance = asObjectRecord(rawPlayer?.appearance);
+  const sources = [nestedVisual, nestedAppearance, rawPlayer];
+  const seed = `${teamSeed}:${String(player?.uniqueId || player?.id || `p_${order}`)}:${String(player?.name || '')}:${order}`;
+
+  const skinColor =
+    resolveSkinColor(getCandidateValue(sources, ['skinColor', 'skin', 'skinTone'])) ??
+    pickDeterministic(seed, 'skinColor', UNITY_SKIN_COLORS);
+  const hairStyle =
+    resolveHairStyle(getCandidateValue(sources, ['hairStyle', 'hairStyles'])) ??
+    pickDeterministic(seed, 'hairStyle', UNITY_HAIR_STYLES);
+  const hairColor =
+    resolveHairColor(getCandidateValue(sources, ['hairColor'])) ??
+    pickDeterministic(seed, 'hairColor', UNITY_HAIR_COLORS);
+  const facialHairStyle =
+    resolveFacialHairStyle(getCandidateValue(sources, ['facialHairStyle', 'facialHairStyles'])) ??
+    deterministicFacialHair(seed);
+  const facialHairColor =
+    resolveHairColor(getCandidateValue(sources, ['facialHairColor'])) ??
+    pickDeterministic(seed, 'facialHairColor', UNITY_HAIR_COLORS);
+  const bootColor =
+    resolveBootColor(getCandidateValue(sources, ['bootColor', 'bootsColor'])) ??
+    pickDeterministic(seed, 'bootColor', UNITY_BOOT_COLORS);
+  const sockAccessoryColor =
+    resolveSockAccessoryColor(getCandidateValue(sources, ['sockAccessoryColor', 'sockColor'])) ??
+    pickDeterministic(seed, 'sockAccessoryColor', UNITY_SOCK_ACCESSORY_COLORS);
+
+  return {
+    skinColor,
+    hairStyle,
+    hairColor,
+    facialHairStyle,
+    facialHairColor,
+    bootColor,
+    sockAccessoryColor,
+  };
 }
 
 function normalizeIdList(values: unknown): string[] {
@@ -570,7 +741,8 @@ function createFallbackPlayer(id: string, name: string, squadRole: 'starting' | 
   };
 }
 
-function toUnityPlayerPayload(player: any, order: number): UnityRuntimePlayerPayload {
+function toUnityPlayerPayload(player: any, order: number, teamSeed: string): UnityRuntimePlayerPayload {
+  const playerSeed = `${teamSeed}:${String(player?.uniqueId || player?.id || `p_${order}`)}:${String(player?.name || '')}:${order}`;
   return {
     playerId: String(player?.uniqueId || player?.id || `p_${order}`),
     name: String(player?.name || `Player ${order + 1}`),
@@ -591,9 +763,10 @@ function toUnityPlayerPayload(player: any, order: number): UnityRuntimePlayerPay
       positioning: toUnityStatValue(player?.attributes?.positioning),
       reaction: toUnityStatValue(player?.attributes?.reaction),
       ballControl: toUnityStatValue(player?.attributes?.ballControl),
-      height: toUnityHeightValue(player?.height),
-      weight: toUnityWeightValue(player?.weight),
+      height: toUnityHeightValue(player?.height, playerSeed),
+      weight: toUnityWeightValue(player?.weight, playerSeed),
     },
+    visual: buildUnityPlayerVisualPayload(player, order, teamSeed),
   };
 }
 
@@ -794,8 +967,8 @@ export function buildUnityRuntimeTeamPayload(teamId: string, data: any): UnityRu
     formation,
     ...(shape ? { shape } : {}),
     kit: deriveKitColors(seed),
-    lineup: lineupPlayers.slice(0, 11).map((player, index) => toUnityPlayerPayload(player, index)),
-    bench: benchPlayers.map((player, index) => toUnityPlayerPayload(player, 11 + index)),
+    lineup: lineupPlayers.slice(0, 11).map((player, index) => toUnityPlayerPayload(player, index, seed)),
+    bench: benchPlayers.map((player, index) => toUnityPlayerPayload(player, 11 + index, seed)),
     ...(slotAssignments ? { slotAssignments } : {}),
   };
 }
