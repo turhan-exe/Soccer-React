@@ -10,7 +10,7 @@ import { useInventory } from '@/contexts/InventoryContext';
 import { useClubFinance } from '@/hooks/useClubFinance';
 import {
   getMyLeagueId,
-  getFixturesForTeam,
+  getFixturesForTeamSlotAware,
   getLeagueTeams,
   listLeagueStandings
 } from '@/services/leagues';
@@ -44,7 +44,10 @@ import { upcomingMatches } from '@/lib/data';
 import type { Fixture, KitType } from '@/types';
 import { normalizeRatingTo100, normalizeRatingTo100OrNull } from '@/lib/player';
 import { KIT_CONFIG, formatKitEffect } from '@/lib/kits';
-import { isFixtureLiveJoinable, LIVE_JOINABLE_STATES } from '@/lib/fixtureLive';
+import {
+  getLeagueActionableFixture,
+  LIVE_JOINABLE_STATES,
+} from '@/lib/fixtureLive';
 import { CLUB_BALANCE_REWARDED_AD_AMOUNT } from '@/services/finance';
 
 import {
@@ -142,13 +145,19 @@ type MatchHighlight = {
 };
 
 type ActionableMatchTile = {
-  kind: 'friendly_pending' | 'friendly_live' | 'league_live';
+  kind:
+    | 'friendly_pending'
+    | 'friendly_live'
+    | 'league_live'
+    | 'league_queued'
+    | 'league_preparing_delayed';
   matchTypeLabel: string;
   statusLabel: string;
   title: string;
   subtitle: string;
   actionLabel: string;
   fallbackRoute: string;
+  hintMessage?: string;
   matchId?: string;
   fixtureId?: string;
   requestId?: string;
@@ -612,30 +621,46 @@ export default function MainMenu() {
       const leagueId = await getMyLeagueId(user.id);
       if (leagueId) {
         const [fixtures, teams] = await Promise.all([
-          getFixturesForTeam(leagueId, user.id),
+          getFixturesForTeamSlotAware(leagueId, user.id),
           getLeagueTeams(leagueId).catch(() => []),
         ]);
 
-        const liveFixture = fixtures
-          .filter((fixture) => isFixtureLiveJoinable(fixture))
-          .sort((a, b) => a.date.getTime() - b.date.getTime())[0];
+        const actionableFixture = getLeagueActionableFixture(fixtures);
 
-        if (liveFixture) {
-          const home = liveFixture.homeTeamId === user.id;
-          const opponentId = home ? liveFixture.awayTeamId : liveFixture.homeTeamId;
+        if (actionableFixture) {
+          const home = actionableFixture.fixture.homeTeamId === user.id;
+          const opponentId = home
+            ? actionableFixture.fixture.awayTeamId
+            : actionableFixture.fixture.homeTeamId;
           const opponentTeam = teams.find((team: { id: string; name: string }) => team.id === opponentId);
+          const isLive = actionableFixture.state === 'live';
+          const isQueued = actionableFixture.state === 'queued';
           leagueTile = {
-            kind: 'league_live',
+            kind:
+              actionableFixture.state === 'preparing_delayed'
+                ? 'league_preparing_delayed'
+                : isQueued
+                  ? 'league_queued'
+                  : 'league_live',
             matchTypeLabel: t('mainMenu.matchTile.league'),
-            statusLabel: t('mainMenu.matchTile.live'),
+            statusLabel: isLive
+              ? t('mainMenu.matchTile.live')
+              : isQueued
+                ? t('mainMenu.matchTile.queued')
+                : t('mainMenu.matchTile.preparing'),
             title: t('mainMenu.matchTile.leagueMatch'),
             subtitle: `${user.teamName || t('common.teamFallback')} vs ${opponentTeam?.name || t('common.rivalFallback')}`,
-            actionLabel: t('mainMenu.matchTile.watch'),
+            actionLabel: isLive ? t('mainMenu.matchTile.watch') : t('mainMenu.matchTile.preparingAction'),
             fallbackRoute: '/fixtures',
-            fixtureId: liveFixture.id,
-            matchId: liveFixture.live?.matchId,
-            homeId: liveFixture.homeTeamId,
-            awayId: liveFixture.awayTeamId,
+            hintMessage: isLive
+              ? undefined
+              : isQueued
+                ? t('mainMenu.toasts.leagueQueuedInfo')
+                : t('mainMenu.toasts.leaguePreparingInfo'),
+            fixtureId: actionableFixture.fixture.id,
+            matchId: actionableFixture.fixture.live?.matchId,
+            homeId: actionableFixture.fixture.homeTeamId,
+            awayId: actionableFixture.fixture.awayTeamId,
           };
         }
       }
@@ -659,7 +684,16 @@ export default function MainMenu() {
   const handleActionableMatchClick = useCallback(async () => {
     if (!actionableMatchTile) return;
 
-    if (actionableMatchTile.kind === 'friendly_pending' || !user?.id || !matchControlReady) {
+    if (
+      actionableMatchTile.kind === 'friendly_pending'
+      || actionableMatchTile.kind === 'league_queued'
+      || actionableMatchTile.kind === 'league_preparing_delayed'
+      || !user?.id
+      || !matchControlReady
+    ) {
+      if (actionableMatchTile.hintMessage) {
+        toast.info(actionableMatchTile.hintMessage);
+      }
       navigate(actionableMatchTile.fallbackRoute);
       return;
     }
@@ -1019,11 +1053,7 @@ export default function MainMenu() {
     || t('common.rivalFallbackUpper');
   const matchTimeText = matchHighlight?.timeText?.trim() || '';
   const actionableButtonLabel =
-    actionableMatchTile?.kind === 'friendly_pending'
-      ? actionableMatchTile.actionLabel
-      : actionableMatchTile
-        ? t('mainMenu.matchTile.watch')
-        : null;
+    actionableMatchTile?.actionLabel || null;
 
   return (
     <div className={`fixed inset-0 z-50 w-full h-full font-sans select-none transition-colors duration-500 overflow-hidden ${isDark ? 'bg-slate-950 text-white' : 'bg-slate-100 text-slate-900'}`}>
@@ -1345,12 +1375,25 @@ export default function MainMenu() {
                 <div className="min-w-[220px] rounded-xl border border-white/15 bg-slate-950/58 p-[2px] shadow-2xl backdrop-blur-md">
                   <div className="rounded-[10px] bg-gradient-to-r from-cyan-500 via-emerald-400 to-sky-500 bg-[length:200%_200%] px-5 py-2 text-center text-slate-950 animate-pulse">
                     <div className="text-[10px] font-black uppercase tracking-[0.22em]">
-                      {actionableMatchTile.matchTypeLabel} {actionableMatchTile.kind === 'friendly_pending' ? t('mainMenu.matchCard.requestSuffix') : t('mainMenu.matchCard.matchSuffix')}
+                      {actionableMatchTile.statusLabel}
                     </div>
                     <div className="flex items-center justify-center gap-2">
                       {actionableMatchLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                      <span className="text-3xl font-black tracking-[0.18em]">{actionableButtonLabel}</span>
+                      <span
+                        className={`font-black tracking-[0.14em] ${
+                          actionableButtonLabel && actionableButtonLabel.length > 8
+                            ? 'text-2xl'
+                            : 'text-3xl'
+                        }`}
+                      >
+                        {actionableButtonLabel}
+                      </span>
                     </div>
+                    {actionableMatchTile.hintMessage ? (
+                      <div className="mt-1 text-[10px] font-semibold tracking-[0.08em]">
+                        {actionableMatchTile.hintMessage}
+                      </div>
+                    ) : null}
                   </div>
                 </div>
               ) : (

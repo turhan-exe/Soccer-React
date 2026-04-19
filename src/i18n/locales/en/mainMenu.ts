@@ -30,12 +30,18 @@ export const enMainMenu: TranslationDictionary = {
         'The ad reward is being verified. It will appear in your inventory shortly.',
       leagueWatchUnavailable:
         'This league match is no longer available to watch live.',
+      leagueQueuedInfo:
+        'This league match is waiting for free capacity. Watch will open when it is ready.',
+      leaguePreparingInfo:
+        'This league match is preparing. Live watch will open shortly.',
       matchConnectionFailed: 'The match connection could not be started.',
     },
     matchTile: {
       friendly: 'FRIENDLY',
       league: 'LEAGUE',
       live: 'LIVE',
+      queued: 'QUEUED',
+      preparing: 'PREPARING',
       ready: 'READY',
       request: 'REQUEST',
       pending: 'PENDING',
@@ -44,6 +50,7 @@ export const enMainMenu: TranslationDictionary = {
       friendlyWaiting: 'Friendly Pending',
       leagueMatch: 'League Match',
       watch: 'WATCH',
+      preparingAction: 'PREPARING',
       open: 'OPEN',
       go: 'GO',
     },

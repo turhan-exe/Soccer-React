@@ -24,10 +24,10 @@ import type { Fixture } from '@/types';
 import { toast } from 'sonner';
 import {
   isFixtureEffectivelyRunning,
-  isFixtureLiveJoinable,
   LIVE_JOINABLE_STATES,
   normalizeFixtureStatus,
-  resolveEffectiveFixtureLiveState,
+  resolveFixtureLivePresentationState,
+  resolveFixtureWatchAvailability,
 } from '@/lib/fixtureLive';
 import {
   ensureMatchEntryAccess,
@@ -40,10 +40,6 @@ interface DisplayFixture extends Fixture {
   opponentLogo?: string;
   home: boolean;
   competitionName?: string;
-}
-
-function resolveEffectiveLiveState(fixture: DisplayFixture): string {
-  return resolveEffectiveFixtureLiveState(fixture);
 }
 
 function getErrorMessage(error: unknown, fallback: string): string {
@@ -68,22 +64,28 @@ function getErrorMessage(error: unknown, fallback: string): string {
 
 function getLiveStateKey(
   fixture: DisplayFixture,
-): 'live' | 'preparing' | 'finished' | 'error' | null {
-  const state = resolveEffectiveLiveState(fixture);
-  if (!state) return null;
-  if (state === 'running') return 'live';
-  if (state === 'server_started' || state === 'starting' || state === 'warm') {
-    return 'preparing';
-  }
-  if (state === 'ended') return 'finished';
-  if (state === 'failed' || state === 'prepare_failed' || state === 'kickoff_failed') {
-    return 'error';
-  }
-  return null;
+): 'live' | 'preparing' | 'queued' | 'preparingDelayed' | 'finished' | 'error' | null {
+  const state = resolveFixtureLivePresentationState(fixture);
+  if (state === 'preparing_delayed') return 'preparingDelayed';
+  return state;
 }
 
 function isLiveJoinable(fixture: DisplayFixture): boolean {
-  return isFixtureLiveJoinable(fixture);
+  return resolveFixtureWatchAvailability(fixture) === 'joinable';
+}
+
+function getWaitingMessage(
+  fixture: DisplayFixture,
+  t: (key: string, params?: Record<string, unknown>) => string,
+): string | null {
+  const availability = resolveFixtureWatchAvailability(fixture);
+  if (availability === 'queued') {
+    return t('fixtures.labels.queueHint');
+  }
+  if (availability === 'preparing_delayed') {
+    return t('fixtures.labels.preparingDelayedHint');
+  }
+  return null;
 }
 
 export default function MyFixturesPage() {
@@ -387,7 +389,9 @@ export default function MyFixturesPage() {
             fixtures.map((fixture) => {
               const liveStateKey = getLiveStateKey(fixture);
               const liveLabel = liveStateKey ? t(`fixtures.labels.${liveStateKey}`) : null;
-              const joinable = isLiveJoinable(fixture);
+              const availability = resolveFixtureWatchAvailability(fixture);
+              const joinable = availability === 'joinable';
+              const waitingMessage = getWaitingMessage(fixture, t);
               const joining = joiningFixtureId === fixture.id;
               const myTeamName = user?.teamName || t('common.teamFallback');
 
@@ -491,6 +495,10 @@ export default function MyFixturesPage() {
                           className={`inline-flex items-center gap-1 rounded-full border px-3 py-1 text-[11px] font-bold tracking-[0.2em] ${
                             liveStateKey === 'live'
                               ? 'border-cyan-400/40 bg-cyan-500/10 text-cyan-200'
+                              : liveStateKey === 'queued'
+                                ? 'border-amber-400/40 bg-amber-500/10 text-amber-200'
+                                : liveStateKey === 'preparingDelayed'
+                                  ? 'border-orange-400/40 bg-orange-500/10 text-orange-200'
                               : liveStateKey === 'preparing'
                                 ? 'border-amber-400/40 bg-amber-500/10 text-amber-200'
                                 : liveStateKey === 'error'
@@ -509,17 +517,24 @@ export default function MyFixturesPage() {
                         </span>
                       ) : null}
 
-                      {joinable ? (
+                      {joinable || waitingMessage ? (
                         <Button
                           type="button"
                           size="sm"
                           onClick={() => void handleJoinLiveFixture(fixture)}
-                          disabled={joining || !matchControlReady}
-                          className="bg-cyan-500 font-bold text-slate-950 hover:bg-cyan-400"
+                          disabled={joining || !matchControlReady || !joinable}
+                          className={
+                            joinable
+                              ? 'bg-cyan-500 font-bold text-slate-950 hover:bg-cyan-400'
+                              : 'bg-amber-500/70 font-bold text-slate-950 hover:bg-amber-500/70'
+                          }
                         >
                           {joining ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                          {t('fixtures.labels.watch')}
+                          {joinable ? t('fixtures.labels.watch') : t('fixtures.labels.preparingCta')}
                         </Button>
+                      ) : null}
+                      {waitingMessage ? (
+                        <span className="text-xs font-medium text-amber-100/90">{waitingMessage}</span>
                       ) : null}
                     </div>
                   </div>

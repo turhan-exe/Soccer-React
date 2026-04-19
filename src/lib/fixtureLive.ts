@@ -10,6 +10,7 @@ type TimestampLike =
 type FixtureLiveLike = {
   matchId?: string | null;
   state?: string | null;
+  reason?: string | null;
   prewarmedAt?: TimestampLike;
   kickoffAttemptedAt?: TimestampLike;
   startedAt?: TimestampLike;
@@ -27,11 +28,27 @@ export const LIVE_JOINABLE_STATES = new Set(['server_started', 'running']);
 
 const LIVE_PREPARING_STATES = new Set(['warm', 'starting', 'server_started']);
 const LIVE_ACTIVE_STATES = new Set(['warm', 'starting', 'server_started', 'running']);
+const LIVE_DELAYED_STATES = new Set(['warm', 'starting', 'server_started']);
+const QUEUE_REASON_TOKENS = ['no_free_slot', 'allocation_failed'];
 const LIVE_ACTIVITY_MAX_AGE_MS = 6 * 60 * 60 * 1000;
 const LIVE_PREP_FUTURE_WINDOW_MS = 3 * 60 * 60 * 1000;
 const LIVE_PREP_PAST_GRACE_MS = 2 * 60 * 60 * 1000;
 const LIVE_RUNNING_DATE_WINDOW_MS = 18 * 60 * 60 * 1000;
 const LIVE_FUTURE_CLOCK_SKEW_MS = 5 * 60 * 1000;
+
+export type FixtureLivePresentationState =
+  | 'live'
+  | 'preparing'
+  | 'queued'
+  | 'preparing_delayed'
+  | 'finished'
+  | 'error';
+
+export type FixtureWatchAvailability =
+  | 'joinable'
+  | 'queued'
+  | 'preparing_delayed'
+  | 'unavailable';
 
 export function normalizeFixtureStatus(value: unknown): string {
   return String(value || '').trim().toLowerCase();
@@ -47,6 +64,16 @@ function toMillis(value: TimestampLike): number | null {
     return value.seconds * 1000 + Math.floor((value.nanoseconds || 0) / 1_000_000);
   }
   return null;
+}
+
+function hasQueueReason(fixture: FixtureLiveAware): boolean {
+  const reason = normalizeFixtureStatus(fixture.live?.reason);
+  return QUEUE_REASON_TOKENS.some((token) => reason.includes(token));
+}
+
+function isKickoffReached(fixture: FixtureLiveAware, nowMs = Date.now()): boolean {
+  const fixtureDateMs = toMillis(fixture.date as TimestampLike);
+  return fixtureDateMs != null && nowMs >= fixtureDateMs;
 }
 
 function getLatestLifecycleAtMs(fixture: FixtureLiveAware): number | null {
@@ -108,6 +135,99 @@ export function resolveEffectiveFixtureLiveState(fixture: FixtureLiveAware, nowM
   if (fixtureStatus === 'failed' && LIVE_JOINABLE_STATES.has(liveState)) return 'failed';
   if (!hasActiveFixtureLiveSignal(fixture, nowMs)) return '';
   return liveState;
+}
+
+export function resolveFixtureLivePresentationState(
+  fixture: FixtureLiveAware,
+  nowMs = Date.now(),
+): FixtureLivePresentationState | null {
+  const fixtureStatus = normalizeFixtureStatus(fixture.status);
+  const rawLiveState = normalizeFixtureStatus(fixture.live?.state);
+  const effectiveLiveState = resolveEffectiveFixtureLiveState(fixture, nowMs);
+  const liveState = effectiveLiveState || rawLiveState;
+  const hasMatchId = String(fixture.live?.matchId || '').trim().length > 0;
+  const kickoffReached = isKickoffReached(fixture, nowMs);
+  const queuedFailure =
+    kickoffReached
+    && hasQueueReason(fixture)
+    && (
+      rawLiveState === 'failed'
+      || rawLiveState === 'prepare_failed'
+      || rawLiveState === 'kickoff_failed'
+    );
+
+  if (fixtureStatus === 'played' || liveState === 'ended') {
+    return 'finished';
+  }
+
+  if (isFixtureLiveJoinable(fixture, nowMs)) {
+    return 'live';
+  }
+
+  if (queuedFailure) {
+    return hasMatchId ? 'preparing_delayed' : 'queued';
+  }
+
+  if (
+    rawLiveState === 'failed'
+    || rawLiveState === 'prepare_failed'
+    || rawLiveState === 'kickoff_failed'
+    || fixtureStatus === 'failed'
+  ) {
+    return 'error';
+  }
+
+  if (kickoffReached) {
+    if (hasMatchId || LIVE_DELAYED_STATES.has(rawLiveState) || LIVE_DELAYED_STATES.has(liveState)) {
+      return 'preparing_delayed';
+    }
+    if (
+      fixtureStatus === 'scheduled'
+      || fixtureStatus === 'running'
+      || hasQueueReason(fixture)
+    ) {
+      return 'queued';
+    }
+  }
+
+  if (LIVE_PREPARING_STATES.has(liveState) || LIVE_PREPARING_STATES.has(rawLiveState)) {
+    return 'preparing';
+  }
+
+  return null;
+}
+
+export function resolveFixtureWatchAvailability(
+  fixture: FixtureLiveAware,
+  nowMs = Date.now(),
+): FixtureWatchAvailability {
+  const state = resolveFixtureLivePresentationState(fixture, nowMs);
+  if (state === 'live') return 'joinable';
+  if (state === 'queued') return 'queued';
+  if (state === 'preparing_delayed') return 'preparing_delayed';
+  return 'unavailable';
+}
+
+export function getLeagueActionableFixture<T extends FixtureLiveAware>(
+  fixtures: T[],
+  nowMs = Date.now(),
+): { fixture: T; state: 'live' | 'queued' | 'preparing_delayed' } | null {
+  const ranked = fixtures
+    .map((fixture) => ({
+      fixture,
+      state: resolveFixtureLivePresentationState(fixture, nowMs),
+      dateMs: toMillis(fixture.date as TimestampLike) ?? Number.POSITIVE_INFINITY,
+    }))
+    .sort((left, right) => left.dateMs - right.dateMs);
+
+  for (const targetState of ['live', 'preparing_delayed', 'queued'] as const) {
+    const match = ranked.find((item) => item.state === targetState);
+    if (match) {
+      return { fixture: match.fixture, state: targetState };
+    }
+  }
+
+  return null;
 }
 
 export function isFixtureEffectivelyRunning(fixture: FixtureLiveAware, nowMs = Date.now()): boolean {
