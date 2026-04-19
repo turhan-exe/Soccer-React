@@ -13,6 +13,14 @@ export type KitOperation = {
   playerId: string;
 };
 
+export type KitOperationSkipReason = 'no_effect';
+
+export type KitApplicabilityResult = {
+  nextPlayer: Player;
+  canApply: boolean;
+  reason?: KitOperationSkipReason;
+};
+
 export const SAFE_KIT_THRESHOLD = 0.6;
 
 const readGauge = (value: number | undefined | null): number => {
@@ -41,6 +49,39 @@ export const applyKitEffectToPlayer = (player: Player, type: KitType): Player =>
     injuryStatus: config.healsInjury ? 'healthy' : player.injuryStatus ?? 'healthy',
   };
 };
+
+const hasKitEffect = (player: Player, nextPlayer: Player): boolean =>
+  nextPlayer.health !== player.health
+  || nextPlayer.condition !== player.condition
+  || nextPlayer.motivation !== player.motivation
+  || (nextPlayer.injuryStatus ?? 'healthy') !== (player.injuryStatus ?? 'healthy');
+
+export const getKitApplicability = (
+  player: Player,
+  type: KitType,
+): KitApplicabilityResult => {
+  const nextPlayer = applyKitEffectToPlayer(player, type);
+  if (!hasKitEffect(player, nextPlayer)) {
+    return {
+      nextPlayer,
+      canApply: false,
+      reason: 'no_effect',
+    };
+  }
+
+  return {
+    nextPlayer,
+    canApply: true,
+  };
+};
+
+export const getApplicableKitPlayerIds = (
+  players: Player[],
+  type: KitType,
+): string[] =>
+  players
+    .filter((player) => getKitApplicability(player, type).canApply)
+    .map((player) => String(player.id));
 
 export const buildThresholdKitPlan = (
   player: Player,
@@ -79,7 +120,11 @@ export const buildThresholdKitPlan = (
       type: nextType,
       playerId: player.id,
     });
-    simulated = applyKitEffectToPlayer(simulated, nextType);
+    const application = getKitApplicability(simulated, nextType);
+    if (!application.canApply) {
+      break;
+    }
+    simulated = application.nextPlayer;
   }
 
   return operations;

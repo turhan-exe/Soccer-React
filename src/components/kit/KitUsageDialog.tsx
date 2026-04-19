@@ -24,11 +24,17 @@ import {
   SAFE_KIT_THRESHOLD,
   buildThresholdKitPlan,
   countKitOperations,
+  getApplicableKitPlayerIds,
+  getKitApplicability,
   splitKitOperationsByInventory,
   type KitOperation,
 } from "@/lib/kitOperations";
 import { formatRatingLabel } from "@/lib/player";
 import { toGaugePercentage } from "@/lib/playerVitals";
+import {
+  isKitNoEffectError,
+  type ApplyKitOperationsResult,
+} from "@/services/inventory";
 import { getTeam } from "@/services/team";
 import {
   getRewardedAdFailureMessage,
@@ -77,6 +83,11 @@ const uniquePlayerIds = (operations: KitOperation[]): string[] =>
 
 const countUniquePlayers = (operations: KitOperation[]): number =>
   uniquePlayerIds(operations).length;
+
+type RunOperationsResult = {
+  result: ApplyKitOperationsResult;
+  updatedPlayers: Player[];
+};
 
 const KitUsageDialog = ({
   open,
@@ -165,6 +176,40 @@ const KitUsageDialog = ({
     });
   }, [players, search, kitType]);
 
+  const currentKitApplicabilityById = useMemo(() => {
+    if (!kitType) {
+      return new Map<string, ReturnType<typeof getKitApplicability>>();
+    }
+
+    return new Map(
+      players.map((player) => [
+        String(player.id),
+        getKitApplicability(player, kitType),
+      ])
+    );
+  }, [players, kitType]);
+
+  const applicableVisiblePlayerIds = useMemo(
+    () =>
+      kitType
+        ? getApplicableKitPlayerIds(filteredPlayers, kitType)
+        : [],
+    [filteredPlayers, kitType]
+  );
+
+  const lockedKitApplicabilityByType = useMemo(() => {
+    if (!lockedPlayer) {
+      return new Map<KitType, ReturnType<typeof getKitApplicability>>();
+    }
+
+    return new Map(
+      AVAILABLE_KIT_TYPES.map((availableKitType) => [
+        availableKitType,
+        getKitApplicability(lockedPlayer, availableKitType),
+      ])
+    );
+  }, [lockedPlayer]);
+
   const lockedPlan = useMemo(
     () =>
       lockedPlayer
@@ -184,12 +229,17 @@ const KitUsageDialog = ({
   const selectedOperations = useMemo(
     () =>
       kitType
-        ? selectedPlayerIds.map((selectedId) => ({
-            type: kitType,
-            playerId: selectedId,
-          }))
+        ? selectedPlayerIds
+            .filter(
+              (selectedId) =>
+                currentKitApplicabilityById.get(String(selectedId))?.canApply
+            )
+            .map((selectedId) => ({
+              type: kitType,
+              playerId: selectedId,
+            }))
         : [],
-    [kitType, selectedPlayerIds]
+    [currentKitApplicabilityById, kitType, selectedPlayerIds]
   );
 
   const pendingCounts = useMemo(
@@ -208,7 +258,11 @@ const KitUsageDialog = ({
         (accumulator, option) => ({
           ...accumulator,
           [option.role]: filteredPlayers
-            .filter((player) => player.squadRole === option.role)
+            .filter(
+              (player) =>
+                player.squadRole === option.role &&
+                currentKitApplicabilityById.get(String(player.id))?.canApply
+            )
             .map((player) => String(player.id)),
         }),
         {
@@ -217,7 +271,7 @@ const KitUsageDialog = ({
           reserve: [],
         }
       ),
-    [filteredPlayers]
+    [currentKitApplicabilityById, filteredPlayers]
   );
 
   const squadRoleCounts = useMemo(
@@ -237,8 +291,8 @@ const KitUsageDialog = ({
   );
 
   const allVisibleSelected =
-    visiblePlayerIds.length > 0 &&
-    visiblePlayerIds.every((visibleId) =>
+    applicableVisiblePlayerIds.length > 0 &&
+    applicableVisiblePlayerIds.every((visibleId) =>
       selectedPlayerIds.includes(visibleId)
     );
 
@@ -261,9 +315,18 @@ const KitUsageDialog = ({
       closeAfter?: boolean;
       submittingToken?: string;
     }
-  ) => {
+  ): Promise<RunOperationsResult> => {
     if (operations.length === 0) {
-      return [];
+      return {
+        result: {
+          updatedPlayers: [],
+          kits,
+          appliedOperations: [],
+          skippedOperations: [],
+          playerNames: [],
+        },
+        updatedPlayers: [],
+      };
     }
 
     setSubmittingKey(options?.submittingToken ?? "bulk");
@@ -283,7 +346,10 @@ const KitUsageDialog = ({
         onOpenChange(false);
       }
 
-      return updatedPlayers;
+      return {
+        result,
+        updatedPlayers,
+      };
     } finally {
       setSubmittingKey(null);
     }
@@ -332,21 +398,34 @@ const KitUsageDialog = ({
         result.outcome === "claimed" ||
         result.outcome === "already_claimed"
       ) {
-        await runOperations([nextOperation], {
-          successMessage: null,
-          closeAfter: false,
-          submittingToken: `apply-reward:${nextOperation.type}:${nextOperation.playerId}`,
-        });
-        setPendingOperations(remainingOperations);
-        toast.success(
-          remainingOperations.length > 0
-            ? `${getOperationLabel(
+        try {
+          await runOperations([nextOperation], {
+            successMessage: null,
+            closeAfter: false,
+            submittingToken: `apply-reward:${nextOperation.type}:${nextOperation.playerId}`,
+          });
+          setPendingOperations(remainingOperations);
+          toast.success(
+            remainingOperations.length > 0
+              ? `${getOperationLabel(
+                  nextOperation
+                )} reklamla kazanildi. Kalan islemler icin devam edebilirsin.`
+              : `${getOperationLabel(
+                  nextOperation
+                )} reklamla kazanildi ve uygulandi.`
+          );
+        } catch (error) {
+          if (isKitNoEffectError(error)) {
+            setPendingOperations(remainingOperations);
+            toast.info(
+              `${getOperationLabel(
                 nextOperation
-              )} reklamla kazanildi. Kalan islemler icin devam edebilirsin.`
-            : `${getOperationLabel(
-                nextOperation
-              )} reklamla kazanildi ve uygulandi.`
-        );
+              )} envantere eklendi ama secili oyuncu artik hazir.`
+            );
+            return;
+          }
+          throw error;
+        }
         return;
       }
 
@@ -363,7 +442,9 @@ const KitUsageDialog = ({
       toast.error(getRewardedAdFailureMessage(result.ad));
     } catch (error) {
       console.warn("[KitUsageDialog] rewarded continue failed", error);
-      toast.error(getRewardedAdFailureMessage(error));
+      if (!isKitNoEffectError(error)) {
+        toast.error(getRewardedAdFailureMessage(error));
+      }
     } finally {
       setIsRewardingKit(false);
       setSubmittingKey(null);
@@ -396,17 +477,27 @@ const KitUsageDialog = ({
         result.outcome === "claimed" ||
         result.outcome === "already_claimed"
       ) {
-        await runOperations(
-          [{ type: selectedKitType, playerId: targetPlayerId }],
-          {
-            successMessage: null,
-            closeAfter: !isPlayerLockedMode,
-            submittingToken: `apply-reward:${selectedKitType}:${targetPlayerId}`,
+        try {
+          await runOperations(
+            [{ type: selectedKitType, playerId: targetPlayerId }],
+            {
+              successMessage: null,
+              closeAfter: !isPlayerLockedMode,
+              submittingToken: `apply-reward:${selectedKitType}:${targetPlayerId}`,
+            }
+          );
+          toast.success(
+            `${KIT_CONFIG[selectedKitType].label} reklamla kazanildi ve uygulandi.`
+          );
+        } catch (error) {
+          if (isKitNoEffectError(error)) {
+            toast.info(
+              `${KIT_CONFIG[selectedKitType].label} envantere eklendi ama secili oyuncu artik hazir.`
+            );
+            return;
           }
-        );
-        toast.success(
-          `${KIT_CONFIG[selectedKitType].label} reklamla kazanildi ve uygulandi.`
-        );
+          throw error;
+        }
         return;
       }
 
@@ -423,7 +514,9 @@ const KitUsageDialog = ({
       toast.error(getRewardedAdFailureMessage(result.ad));
     } catch (error) {
       console.warn("[KitUsageDialog] rewarded single apply failed", error);
-      toast.error(getRewardedAdFailureMessage(error));
+      if (!isKitNoEffectError(error)) {
+        toast.error(getRewardedAdFailureMessage(error));
+      }
     } finally {
       setIsRewardingKit(false);
       setSubmittingKey(null);
@@ -441,15 +534,21 @@ const KitUsageDialog = ({
     const { ready, pending } = splitKitOperationsByInventory(operations, kits);
     if (ready.length > 0) {
       try {
-        await runOperations(ready, {
+        const { result } = await runOperations(ready, {
           successMessage: null,
           closeAfter: false,
           submittingToken: "locked-bulk",
         });
         setPendingOperations(pending);
+        const appliedCount = result.appliedOperations.length;
+        const skippedCount = result.skippedOperations.length;
         if (pending.length > 0) {
           toast.info(
-            `${ready.length} kit uygulandi. Kalan islemler icin reklamla devam edebilirsin.`
+            `${appliedCount} kit uygulandi. ${skippedCount > 0 ? `${skippedCount} islem artik gerekmiyordu. ` : ""}Kalan islemler icin reklamla devam edebilirsin.`
+          );
+        } else if (skippedCount > 0) {
+          toast.info(
+            `${appliedCount} kit uygulandi. ${skippedCount} islemde oyuncu zaten hazirdi.`
           );
         } else {
           toast.success("Oyuncunun eksikleri guvenli seviyeye tamamlandi.");
@@ -472,26 +571,32 @@ const KitUsageDialog = ({
     const operations =
       pendingOperations.length > 0 ? pendingOperations : selectedOperations;
     if (operations.length === 0) {
-      toast.info("Toplu uygulama icin once oyuncu secmelisin.");
+      toast.info("Toplu uygulama icin etkilenebilecek oyuncu secmelisin.");
       return;
     }
 
     const { ready, pending } = splitKitOperationsByInventory(operations, kits);
     if (ready.length > 0) {
       try {
-        await runOperations(ready, {
+        const { result } = await runOperations(ready, {
           successMessage: null,
           closeAfter: false,
           submittingToken: "multi-bulk",
         });
         setSelectedPlayerIds(uniquePlayerIds(pending));
         setPendingOperations(pending);
+        const appliedCount = result.appliedOperations.length;
+        const skippedCount = result.skippedOperations.length;
         if (pending.length > 0) {
           toast.info(
-            `${ready.length} oyuncuya kit uygulandi. Kalanlar icin reklamla devam edebilirsin.`
+            `${appliedCount} oyuncuya kit uygulandi. ${skippedCount > 0 ? `${skippedCount} oyuncu zaten hazirdi. ` : ""}Kalanlar icin reklamla devam edebilirsin.`
+          );
+        } else if (skippedCount > 0) {
+          toast.info(
+            `${appliedCount} oyuncuya kit uygulandi. ${skippedCount} oyuncu zaten hazirdi.`
           );
         } else {
-          toast.success(`${ready.length} oyuncuya kit uygulandi.`);
+          toast.success(`${appliedCount} oyuncuya kit uygulandi.`);
         }
       } catch (error) {
         console.warn("[KitUsageDialog] multi apply failed", error);
@@ -507,6 +612,15 @@ const KitUsageDialog = ({
     candidatePlayerId: string,
     checked: boolean
   ) => {
+    if (kitType) {
+      const application = currentKitApplicabilityById.get(
+        String(candidatePlayerId)
+      );
+      if (!application?.canApply) {
+        return;
+      }
+    }
+
     setPendingOperations([]);
     setActiveSquadSelection(null);
     setSelectedPlayerIds((previous) => {
@@ -521,7 +635,7 @@ const KitUsageDialog = ({
     setPendingOperations([]);
     setActiveSquadSelection(null);
     setSelectedPlayerIds((previous) =>
-      Array.from(new Set([...previous, ...visiblePlayerIds]))
+      Array.from(new Set([...previous, ...applicableVisiblePlayerIds]))
     );
   };
 
@@ -720,6 +834,9 @@ const KitUsageDialog = ({
                     {AVAILABLE_KIT_TYPES.map((availableKitType) => {
                       const config = KIT_CONFIG[availableKitType];
                       const availableCount = kits[availableKitType] ?? 0;
+                      const application =
+                        lockedKitApplicabilityByType.get(availableKitType);
+                      const canApply = Boolean(application?.canApply);
                       const isSubmitting =
                         submittingKey ===
                           `${availableKitType}:${lockedPlayer.id}` &&
@@ -747,18 +864,28 @@ const KitUsageDialog = ({
                                 >
                                   {availableCount}
                                 </Badge>
+                                {!canApply && (
+                                  <Badge variant="outline">Hazır</Badge>
+                                )}
                               </div>
                               <div className="text-xs text-muted-foreground">
-                                {config.description}
+                                {canApply
+                                  ? config.description
+                                  : "Bu kit şu anda etki etmez."}
                               </div>
-                              <div className="text-xs font-medium text-emerald-600 dark:text-emerald-400">
-                                {formatKitEffect(availableKitType)}
-                              </div>
+                              {canApply ? (
+                                <div className="text-xs font-medium text-emerald-600 dark:text-emerald-400">
+                                  {formatKitEffect(availableKitType)}
+                                </div>
+                              ) : null}
                             </div>
                             <Button
                               size="sm"
-                              disabled={isProcessing || isRewardingKit}
+                              disabled={!canApply || isProcessing || isRewardingKit}
                               onClick={() => {
+                                if (!canApply) {
+                                  return;
+                                }
                                 if (availableCount <= 0) {
                                   void handleRewardedSingleApply(
                                     availableKitType,
@@ -775,7 +902,11 @@ const KitUsageDialog = ({
                               {(isSubmitting || isRewarding) && (
                                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                               )}
-                              {availableCount === 0 ? "Reklam İzle" : "Kullan"}
+                              {!canApply
+                                ? "Hazır"
+                                : availableCount === 0
+                                ? "Reklam İzle"
+                                : "Kullan"}
                             </Button>
                           </div>
                         </div>
@@ -799,7 +930,7 @@ const KitUsageDialog = ({
 
                 <div className="flex flex-wrap items-center gap-2">
                   <Badge variant="outline">
-                    {selectedPlayerIds.length} seçili oyuncu
+                    {selectedOperations.length} seçili oyuncu
                   </Badge>
                   {pendingOperations.length > 0 && (
                     <Badge variant="secondary">
@@ -863,7 +994,7 @@ const KitUsageDialog = ({
                   <Button
                     size="sm"
                     disabled={
-                      (selectedPlayerIds.length === 0 &&
+                      (selectedOperations.length === 0 &&
                         pendingOperations.length === 0) ||
                       isProcessing ||
                       isRewardingKit
@@ -882,7 +1013,7 @@ const KitUsageDialog = ({
                     variant="outline"
                     size="sm"
                     disabled={
-                      visiblePlayerIds.length === 0 ||
+                      applicableVisiblePlayerIds.length === 0 ||
                       allVisibleSelected ||
                       isProcessing ||
                       isRewardingKit
@@ -946,6 +1077,10 @@ const KitUsageDialog = ({
                     const health = toGaugePercentage(player.health, 1);
                     const condition = toGaugePercentage(player.condition);
                     const motivation = toGaugePercentage(player.motivation);
+                    const application = currentKitApplicabilityById.get(
+                      String(player.id)
+                    );
+                    const canApply = Boolean(application?.canApply);
                     const isSubmitting =
                       submittingKey === `${kitType}:${player.id}` &&
                       isProcessing;
@@ -965,7 +1100,7 @@ const KitUsageDialog = ({
                           <div className="flex items-start gap-3">
                             <Checkbox
                               checked={isSelected}
-                              disabled={isProcessing || isRewardingKit}
+                              disabled={!canApply || isProcessing || isRewardingKit}
                               onCheckedChange={(checked) =>
                                 togglePlayerSelection(
                                   String(player.id),
@@ -989,13 +1124,24 @@ const KitUsageDialog = ({
                                 {player.injuryStatus === "injured" && (
                                   <Badge variant="destructive">Sakat</Badge>
                                 )}
+                                {!canApply && (
+                                  <Badge variant="outline">Hazır</Badge>
+                                )}
                               </div>
+                              {!canApply && (
+                                <div className="text-xs text-muted-foreground">
+                                  Bu kit bu oyuncuda şu anda etki etmez.
+                                </div>
+                              )}
                             </div>
                           </div>
                           <Button
                             size="sm"
-                            disabled={isProcessing || isRewardingKit}
+                            disabled={!canApply || isProcessing || isRewardingKit}
                             onClick={() => {
+                              if (!canApply) {
+                                return;
+                              }
                               if (remaining <= 0) {
                                 void handleRewardedSingleApply(
                                   kitType,
@@ -1009,7 +1155,11 @@ const KitUsageDialog = ({
                             {(isSubmitting || isRewarding) && (
                               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                             )}
-                            {remaining === 0 ? "Reklam İzle" : "Kiti Kullan"}
+                            {!canApply
+                              ? "Hazır"
+                              : remaining === 0
+                              ? "Reklam İzle"
+                              : "Kiti Kullan"}
                           </Button>
                         </div>
 

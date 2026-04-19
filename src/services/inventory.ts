@@ -8,18 +8,19 @@ import {
   type Unsubscribe,
 } from 'firebase/firestore';
 
-import { KIT_CONFIG } from '@/lib/kits';
 import {
   normalizeTeamPlayers,
 } from '@/lib/playerVitals';
 import {
-  applyKitEffectToPlayer,
+  getKitApplicability,
   type KitOperation,
+  type KitOperationSkipReason,
 } from '@/lib/kitOperations';
 import type { ClubTeam, KitType, Player } from '@/types';
 import { db } from '@/services/firebase';
 
 export type KitInventory = Record<KitType, number>;
+export const KIT_NO_EFFECT_ERROR = 'kit_no_effect';
 
 export type ConsumablesInventoryDoc = {
   kits: KitInventory;
@@ -28,10 +29,15 @@ export type ConsumablesInventoryDoc = {
   source?: string;
 };
 
+export type SkippedKitOperation = KitOperation & {
+  reason: KitOperationSkipReason;
+};
+
 export type ApplyKitOperationsResult = {
   updatedPlayers: Player[];
   kits: KitInventory;
   appliedOperations: KitOperation[];
+  skippedOperations: SkippedKitOperation[];
   playerNames: string[];
 };
 
@@ -61,6 +67,9 @@ export const sanitizeKitInventory = (value: unknown): KitInventory => {
     health: sanitizeCount(candidate.health),
   };
 };
+
+export const isKitNoEffectError = (error: unknown): error is Error =>
+  error instanceof Error && error.message === KIT_NO_EFFECT_ERROR;
 
 const sanitizeFirestoreData = <T>(value: T): T => {
   if (Array.isArray(value)) {
@@ -305,6 +314,7 @@ export async function applyKitOperationsInInventory(
       : DEFAULT_KIT_INVENTORY;
     const nextKits: KitInventory = { ...currentKits };
     const appliedOperations: KitOperation[] = [];
+    const skippedOperations: SkippedKitOperation[] = [];
     const updatedPlayers = new Map<string, Player>();
 
     operations.forEach((operation) => {
@@ -320,35 +330,50 @@ export async function applyKitOperationsInInventory(
         throw new Error('Oyuncu bulunamadi.');
       }
 
-      const nextPlayer = applyKitEffectToPlayer(
+      const application = getKitApplicability(
         players[playerIndex] as Player,
         operation.type,
       );
+      if (!application.canApply) {
+        skippedOperations.push({
+          ...operation,
+          reason: application.reason ?? 'no_effect',
+        });
+        return;
+      }
 
+      const nextPlayer = application.nextPlayer;
       players[playerIndex] = nextPlayer;
       nextKits[operation.type] = Math.max(0, available - 1);
       updatedPlayers.set(String(nextPlayer.id), nextPlayer);
       appliedOperations.push(operation);
     });
 
-    tx.set(
-      currentTeamRef,
-      { players: sanitizeFirestoreData(normalizeTeamPlayers(players)) },
-      { merge: true },
-    );
-    tx.set(
-      currentInventoryRef,
-      {
-        kits: nextKits,
-        updatedAt: serverTimestamp(),
-      },
-      { merge: true },
-    );
+    if (appliedOperations.length === 0 && skippedOperations.length > 0) {
+      throw new Error(KIT_NO_EFFECT_ERROR);
+    }
+
+    if (appliedOperations.length > 0) {
+      tx.set(
+        currentTeamRef,
+        { players: sanitizeFirestoreData(normalizeTeamPlayers(players)) },
+        { merge: true },
+      );
+      tx.set(
+        currentInventoryRef,
+        {
+          kits: nextKits,
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true },
+      );
+    }
 
     return {
       updatedPlayers: Array.from(updatedPlayers.values()),
       kits: nextKits,
       appliedOperations,
+      skippedOperations,
       playerNames: Array.from(updatedPlayers.values()).map((player) => player.name),
     };
   });

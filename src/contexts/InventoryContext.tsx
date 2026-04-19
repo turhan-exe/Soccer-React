@@ -23,6 +23,7 @@ import {
   DEFAULT_KIT_INVENTORY,
   grantDailyRewardKits,
   getUserConsumables,
+  isKitNoEffectError,
   listenUserConsumables,
   replaceUserConsumables,
   sanitizeKitInventory,
@@ -543,7 +544,9 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         return result;
       } catch (error) {
         console.warn('[InventoryProvider] apply kit failed', error);
-        if (error instanceof Error && error.message !== 'auth-required') {
+        if (isKitNoEffectError(error)) {
+          toast.info('Bu kit secili oyuncuda su anda etki etmez.');
+        } else if (error instanceof Error && error.message !== 'auth-required') {
           toast.error(error.message || 'Kit kullanilamadi.');
         }
         throw error;
@@ -569,6 +572,7 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           updatedPlayers: [],
           kits: kits,
           appliedOperations: [],
+          skippedOperations: [],
           playerNames: [],
         };
       }
@@ -577,21 +581,29 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       try {
         const result = await applyKitOperationsInInventory(user.id, operations);
         const successMessage = options?.successMessage;
+        const appliedCount = result.appliedOperations.length;
+        const skippedCount = result.skippedOperations.length;
         if (successMessage === null) {
           // no-op
         } else if (successMessage) {
           toast.success(successMessage);
-        } else if (result.appliedOperations.length === 1) {
+        } else if (appliedCount === 1 && skippedCount === 0) {
           const [operation] = result.appliedOperations;
           const [playerName = 'Oyuncu'] = result.playerNames;
           toast.success(`${KIT_CONFIG[operation.type].label} ${playerName} icin uygulandi.`);
+        } else if (appliedCount > 0 && skippedCount > 0) {
+          toast.success(
+            `${appliedCount} kit uygulamasi tamamlandi. ${skippedCount} oyuncu zaten hazirdi.`,
+          );
         } else {
-          toast.success(`${result.appliedOperations.length} kit uygulamasi tamamlandi.`);
+          toast.success(`${appliedCount} kit uygulamasi tamamlandi.`);
         }
         return result;
       } catch (error) {
         console.warn('[InventoryProvider] apply kit operations failed', error);
-        if (error instanceof Error && error.message !== 'auth-required') {
+        if (isKitNoEffectError(error)) {
+          toast.info('Secilen oyuncular bu kit icin zaten hazir.');
+        } else if (error instanceof Error && error.message !== 'auth-required') {
           toast.error(error.message || 'Toplu kit kullanimi basarisiz oldu.');
         }
         throw error;
