@@ -15,6 +15,11 @@ import {
   roundsForCapacity,
 } from './utils/leagueConfig.js';
 import { enqueueLeagueMatchReminders } from './notify/matchReminder.js';
+import {
+  alignLeagueStartDate,
+  assignLeagueKickoffHours,
+  parseLeagueKickoffHours,
+} from './utils/leagueKickoff.js';
 
 const db = getFirestore();
 const REGION = 'europe-west1';
@@ -24,6 +29,11 @@ const DEFAULTS = {
   CAPACITY: DEFAULT_MONTHLY_CAPACITY,
   TIMEZONE: 'Europe/Istanbul',
 };
+const LEAGUE_KICKOFF_HOURS_TR = parseLeagueKickoffHours(
+  process.env.LEAGUE_KICKOFF_HOURS_TR ||
+    (functions.config() as any)?.liveleague?.kickoff_hours_tr ||
+    '11,19',
+);
 
 type BootstrapInput = {
   forceReset?: boolean;
@@ -175,23 +185,30 @@ async function runBootstrap(input: BootstrapInput = {}) {
   const botNames = new Map(botSnap.docs.map((d) => [d.id, (d.data() as any).name || d.id]));
   const botRatings = new Map(botSnap.docs.map((d) => [d.id, (d.data() as any).rating]));
   const usedBotIds = new Set<string>();
+  const kickoffHours = assignLeagueKickoffHours({
+    pool: LEAGUE_KICKOFF_HOURS_TR,
+    count: LEAGUE_COUNT,
+  });
 
   const fixturesTemplate = generateDoubleRoundRobinSlots(capacity);
 
   // Create leagues + slots + fixtures + standings
   for (let i = 1; i <= LEAGUE_COUNT; i++) {
     const ref = db.collection('leagues').doc();
+    const kickoffHourTR = kickoffHours[i - 1] || LEAGUE_KICKOFF_HOURS_TR[0] || 19;
+    const leagueStartDate = alignLeagueStartDate(startDate, kickoffHourTR);
     const leagueData = {
       name: `Lig ${i}`,
       season: 1,
       capacity,
       timezone: TIMEZONE,
+      kickoffHourTR,
       state: 'scheduled' as const,
       competitionType: 'domestic' as const,
       competitionFormat: 'round_robin' as const,
       hiddenFromLeagueList: false,
       createdAt: FieldValue.serverTimestamp(),
-      startDate: Timestamp.fromDate(startDate),
+      startDate: Timestamp.fromDate(leagueStartDate),
       rounds: ROUNDS,
       monthKey: mKey,
     };
@@ -262,7 +279,7 @@ async function runBootstrap(input: BootstrapInput = {}) {
     let ops = 0;
     const reminderJobs: Array<{ fixtureId: string; kickoffAt: Date }> = [];
     for (const f of fixturesTemplate) {
-      const date = dateForRound(startDate, f.round);
+      const date = dateForRound(leagueStartDate, f.round);
       const docRef = ref.collection('fixtures').doc();
       reminderJobs.push({ fixtureId: docRef.id, kickoffAt: date });
       const homeTeamId = slotMap.get(f.homeSlot)?.teamId || null;

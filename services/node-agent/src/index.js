@@ -755,16 +755,6 @@ function summarizeTeamPayload(payload) {
   };
 }
 
-function encodePayloadForEnv(value) {
-  const normalized = normalizeObjectPayload(value);
-  if (!normalized) return "";
-  try {
-    return Buffer.from(JSON.stringify(normalized), "utf8").toString("base64");
-  } catch {
-    return "";
-  }
-}
-
 function encodePayloadForArg(value) {
   const normalized = normalizeObjectPayload(value);
   if (!normalized) return "";
@@ -807,6 +797,32 @@ function isPortReservedByAllocation(allocation) {
   return ["allocated", "starting", "running", "stopping"].includes(allocation.state);
 }
 
+function parseAllocationTime(value) {
+  const time = Date.parse(String(value || ""));
+  return Number.isFinite(time) ? time : null;
+}
+
+function shouldKeepAllocatedReservation(allocation) {
+  if (!allocation || allocation.state !== "allocated") {
+    return false;
+  }
+
+  const now = Date.now();
+  const kickoffAt = parseAllocationTime(allocation.kickoffAt);
+  if (kickoffAt != null) {
+    // League prewarm reserves a slot ahead of kickoff without a spawned process.
+    // Keep that reservation through kickoff plus a short buffer so start can still happen.
+    return kickoffAt + 20 * 60 * 1000 > now;
+  }
+
+  const createdAt = parseAllocationTime(allocation.createdAt);
+  if (createdAt != null) {
+    return createdAt + 20 * 60 * 1000 > now;
+  }
+
+  return false;
+}
+
 function isPidAlive(pid) {
   const normalizedPid = Number(pid || 0);
   if (!Number.isInteger(normalizedPid) || normalizedPid <= 0) {
@@ -841,6 +857,9 @@ function pruneStaleInMemoryAllocations(source = "unknown") {
       continue;
     }
     if (allocation.pid && isPidAlive(allocation.pid)) {
+      continue;
+    }
+    if (shouldKeepAllocatedReservation(allocation)) {
       continue;
     }
 
@@ -1234,8 +1253,6 @@ function buildProcessArgs(allocation) {
 
 function buildChildEnv(allocation) {
   const liveVideoRecordingEnabled = canRenderLiveVideo();
-  const homeTeamPayloadJson = encodePayloadForArg(allocation.homeTeamPayload);
-  const awayTeamPayloadJson = encodePayloadForArg(allocation.awayTeamPayload);
 
   return {
     ...process.env,
@@ -1255,10 +1272,6 @@ function buildChildEnv(allocation) {
     AWAY_USER_ID: allocation.awayUserId || "",
     HOME_TEAM_ID: allocation.homeTeamId || "",
     AWAY_TEAM_ID: allocation.awayTeamId || "",
-    HOME_TEAM_PAYLOAD_JSON: homeTeamPayloadJson,
-    AWAY_TEAM_PAYLOAD_JSON: awayTeamPayloadJson,
-    HOME_TEAM_PAYLOAD_B64: encodePayloadForEnv(allocation.homeTeamPayload),
-    AWAY_TEAM_PAYLOAD_B64: encodePayloadForEnv(allocation.awayTeamPayload),
     // Some FHS runtime variants read UNITY_* keys instead of generic keys.
     UNITY_MATCH_ID: allocation.matchId,
     UNITY_SESSION_SECRET: allocation.sessionSecret,

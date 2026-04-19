@@ -1,11 +1,34 @@
-import "dotenv/config";
+import fs from "node:fs";
 import process from "node:process";
 import admin from "firebase-admin";
 
 const TZ = "Europe/Istanbul";
 const DEFAULT_HOURS = [12, 15, 16, 17, 18, 19];
-const DEFAULT_DISTRIBUTION = [3, 4, 4, 4, 5, 5];
+const DEFAULT_DISTRIBUTION = [4, 4, 4, 4, 4, 5];
 const MAX_BATCH = 400;
+
+function loadEnvFileIfPresent(filePath) {
+  if (!fs.existsSync(filePath)) {
+    return;
+  }
+
+  const content = fs.readFileSync(filePath, "utf8");
+  for (const line of content.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) continue;
+    const separator = trimmed.indexOf("=");
+    if (separator <= 0) continue;
+    const key = trimmed.slice(0, separator).trim();
+    const value = trimmed.slice(separator + 1).trim();
+    if (!key || Object.prototype.hasOwnProperty.call(process.env, key)) {
+      continue;
+    }
+    process.env[key] = value;
+  }
+}
+
+loadEnvFileIfPresent(".env");
+loadEnvFileIfPresent(".env.local");
 
 function parseList(raw, parser) {
   return String(raw || "")

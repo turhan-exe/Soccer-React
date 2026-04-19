@@ -10,13 +10,13 @@ export { getMatchVideo } from './replay/getMatchVideo.js';
 export { onMatchVideoFinalize } from './replay/onMatchVideoFinalize.js';
 export { renderMatchHttp } from './replay/renderJob.js';
 export { scheduleDailyMatches } from './replay/scheduleDailyMatches.js';
-export { prepareLeagueKickoffWindow, prepareLeagueKickoffWindowHttp, kickoffPreparedLeagueMatches, kickoffPreparedLeagueMatchesHttp, runLeagueCatchupForDateHttp, reconcileLeagueLiveMatches, recoverLeagueKickoffSlots, backfillLiveLeagueMedia, ingestLeagueMatchLifecycleHttp, } from './liveLeague.js';
+export { recoverHistoricalFixturesNightly, recoverHistoricalFixturesHttp, prepareLeagueKickoffWindow, prepareLeagueKickoffWindowHttp, kickoffPreparedLeagueMatches, kickoffPreparedLeagueMatchesHttp, runLeagueCatchupForDateHttp, reconcileLeagueLiveMatches, recoverLeagueKickoffSlots, backfillLiveLeagueMedia, ingestLeagueMatchLifecycleHttp, } from './liveLeague.js';
 export { bootstrapChampionsLeagueMonthly, bootstrapChampionsLeagueMonthlyHttp, syncChampionsLeagueProgressHttp, syncChampionsLeagueProgressOnFixtureWrite, } from './championsLeague.js';
 export { marketCreateListing, marketCancelListing, marketPurchaseListing, expireStaleTransferListings, autoListExpiredContracts, } from './market.js';
 // Plan 4: Sözleşmeler (React ⇄ Functions ⇄ Unity)
 // League onboarding & fixtures management
 export { assignTeamToLeague, assignTeamToLeagueHttp, requestJoinLeague, finalizeIfFull, generateRoundRobinFixturesFn, } from './league.js';
-export { rebuildDailyFixtures, rebuildDailyFixturesHttp, rebuildAllDailyFixturesHttp, } from './fixFixtures.js';
+export { rebuildDailyFixtures, rebuildDailyFixturesHttp, rebuildAllDailyFixturesHttp, repairLeagueFixtureCalendarHttp, } from './fixFixtures.js';
 // Monthly slot-based leagues system
 export { bootstrapMonthlyLeaguesOneTime, bootstrapMonthlyLeaguesOneTimeHttp } from './bootstrap.js';
 export { assignRealTeamToFirstAvailableBotSlot, assignRealTeamToFirstAvailableBotSlotHttp, assignAllTeamsToLeaguesCallable, assignAllTeamsToLeagues, assignAllTeamsToLeaguesHttpAuth } from './assign.js';
@@ -45,5 +45,7 @@ export { createRewardedAdSession, claimRewardedAdReward, getMatchEntryAccessStat
 export { notifyDueSignals } from './notify/dueSignals.js';
 export { finalizeDueTrainingSessions } from './notify/training.js';
 export { recoverTeamConditionCron } from './notify/conditionRecovery.js';
+export { repairIncompleteSquadsDaily, repairIncompleteSquadsHttp, } from './notify/squadRepair.js';
 export { leagueMatchReminderHttp } from './notify/matchReminder.js';
+export { sendPendingRecoveryAlertEmails } from './notify/recoveryAlerts.js';
 export { enforceChatModeration, checkChatSanction, applyChatSanction, cleanupExpiredGlobalChatMessages, } from './chat/moderation.js';

@@ -14,15 +14,15 @@ Run 25 leagues with live simulation in time slots, without impacting friendly ma
   - `league-05 -> 10.0.0.8 (204.168.146.29)`
 
 ## Capacity Rule
-- 1 league = 8 matches (16 teams).
-- 5 nodes x 8 slots = 40 matches at once.
+- Current production league setup = 7 matches per league per slot.
+- 5 nodes x 7 slots = 35 matches at once.
 - Safe 25-league distribution:
-  - `12:00 -> 3 leagues (24 matches)`
-  - `15:00 -> 4 leagues (32 matches)`
-  - `16:00 -> 4 leagues (32 matches)`
-  - `17:00 -> 4 leagues (32 matches)`
-  - `18:00 -> 5 leagues (40 matches)`
-  - `19:00 -> 5 leagues (40 matches)`
+  - `12:00 -> 4 leagues (28 matches)`
+  - `15:00 -> 4 leagues (28 matches)`
+  - `16:00 -> 4 leagues (28 matches)`
+  - `17:00 -> 4 leagues (28 matches)`
+  - `18:00 -> 4 leagues (28 matches)`
+  - `19:00 -> 5 leagues (35 matches)`
 
 ## Phase 1 - Stabilize 5 League Nodes
 ### 1) Rebuild control league pool config
@@ -98,12 +98,22 @@ Acceptance:
 ## Phase 3 - League-to-Hour Mapping
 Use:
 ```bash
-npm run live-league:assign-hours -- --project-id osm-react --hours 12,15,16,17,18,19 --distribution 3,4,4,4,5,5 --apply-fixtures --date-from 2026-03-06 --write
+npm run live-league:assign-hours -- --project-id osm-react --hours 12,15,16,17,18,19 --distribution 4,4,4,4,4,5 --apply-fixtures --date-from 2026-03-06 --write
 ```
 
 Acceptance:
-- No hour exceeds 40 matches.
+- No hour exceeds 35 matches.
 - Fixture `date` values match assigned slot hours.
+
+### Runtime Audit
+Use:
+```bash
+node scripts/live-runtime-audit.mjs --env-file services/match-control-api/.env
+```
+
+Acceptance:
+- Friendly and league pools report runtime `buildId`, `assemblyHash`, and `gameAssemblyHash`.
+- Any mismatch is visible in the audit JSON under `parity`.
 
 ## Phase 4 - Staging Validation
 Run load per slot first (`count=40`), then full day procedural checks.

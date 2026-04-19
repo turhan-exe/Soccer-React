@@ -1,34 +1,36 @@
 {
-    "name":  "football-manager-functions",
-    "version":  "0.1.0",
-    "private":  true,
-    "type":  "module",
-    "engines":  {
-                    "node":  "20"
-                },
-    "main":  "lib/index.js",
-    "scripts":  {
-                    "build":  "tsc -p tsconfig.json",
-                    "clean":  "rimraf lib",
-                    "lint":  "echo \u0027no lint configured\u0027",
-                    "serve":  "firebase emulators:start --only functions",
-                    "deploy":  "firebase deploy --only functions",
-                    "seed":  "node src/functions/scripts/seed.mjs",
-                    "push-live":  "node src/functions/scripts/push-live.mjs",
-                    "finalize:sample":  "node src/functions/scripts/finalize-sample.mjs",
-                    "e2e:happy":  "node src/functions/scripts/e2e-lock-start-finalize.mjs"
-                },
-    "dependencies":  {
-                         "@google-cloud/tasks":  "6.2.0",
-                         "date-fns":  "^3.6.0",
-                         "date-fns-tz":  "^3.2.0",
-                         "firebase-admin":  "^12.6.0",
-                         "firebase-functions":  "^6.2.0",
-                         "uuid":  "^9.0.1"
-                     },
-    "devDependencies":  {
-                            "@types/node":  "^22.5.5",
-                            "rimraf":  "^5.0.7",
-                            "typescript":  "^5.5.4"
-                        }
+    "name": "football-manager-functions",
+    "version": "0.1.0",
+    "private": true,
+    "type": "module",
+    "engines": {
+        "node": "20"
+    },
+    "main": "lib/index.js",
+    "scripts": {
+        "build": "tsc -p tsconfig.json",
+        "clean": "rimraf lib",
+        "lint": "echo 'no lint configured'",
+        "serve": "firebase emulators:start --only functions",
+        "deploy": "firebase deploy --only functions",
+        "seed": "node src/functions/scripts/seed.mjs",
+        "push-live": "node src/functions/scripts/push-live.mjs",
+        "finalize:sample": "node src/functions/scripts/finalize-sample.mjs",
+        "e2e:happy": "node src/functions/scripts/e2e-lock-start-finalize.mjs"
+    },
+    "dependencies": {
+        "@google-cloud/tasks": "6.2.0",
+        "date-fns": "^3.6.0",
+        "date-fns-tz": "^3.2.0",
+        "firebase-admin": "^12.6.0",
+        "firebase-functions": "^6.2.0",
+        "nodemailer": "^8.0.5",
+        "uuid": "^9.0.1"
+    },
+    "devDependencies": {
+        "@types/node": "^22.5.5",
+        "@types/nodemailer": "^8.0.0",
+        "rimraf": "^5.0.7",
+        "typescript": "^5.5.4"
+    }
 }

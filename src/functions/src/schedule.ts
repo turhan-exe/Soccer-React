@@ -7,6 +7,12 @@ import { ensureBotTeamDoc } from './utils/bots.js';
 import { DEFAULT_MONTHLY_CAPACITY, resolveLeagueCapacity, roundsForCapacity } from './utils/leagueConfig.js';
 import { enqueueLeagueMatchReminders } from './notify/matchReminder.js';
 import {
+  alignLeagueStartDate,
+  assignLeagueKickoffHours,
+  normalizeLeagueKickoffHour,
+  parseLeagueKickoffHours,
+} from './utils/leagueKickoff.js';
+import {
   buildMonthlyLeagueResetPlan,
   type MonthlyLeagueResetLeagueInput,
 } from './utils/monthlyLeagueResetPlan.js';
@@ -17,6 +23,11 @@ const REGION = 'europe-west1';
 const MAX_BATCH = 450;
 const DEFAULT_TIMEZONE = 'Europe/Istanbul';
 const DEFAULT_KICKOFF_HOUR_TR = 19;
+const LEAGUE_KICKOFF_HOURS_TR = parseLeagueKickoffHours(
+  process.env.LEAGUE_KICKOFF_HOURS_TR ||
+    (functions.config() as any)?.liveleague?.kickoff_hours_tr ||
+    '11,19',
+);
 const ADMIN_SECRET = (functions.config() as any)?.admin?.secret
   || (functions.config() as any)?.scheduler?.secret
   || (functions.config() as any)?.orchestrate?.secret
@@ -57,7 +68,7 @@ type ExistingLeagueMeta = {
   name: string;
   season: number;
   timezone: string;
-  kickoffHourTR: number;
+  kickoffHourTR: number | null;
   createdAtMillis: number;
 };
 
@@ -87,14 +98,6 @@ function timestampToMillis(value: unknown): number {
   }
   if (value instanceof Date) return value.getTime();
   return 0;
-}
-
-function parseKickoffHour(value: unknown): number {
-  const hour = Number(value);
-  if (!Number.isInteger(hour) || hour < 0 || hour > 23) {
-    return DEFAULT_KICKOFF_HOUR_TR;
-  }
-  return hour;
 }
 
 function readSlotIndex(doc: FirebaseFirestore.QueryDocumentSnapshot<FirebaseFirestore.DocumentData>) {
@@ -441,22 +444,11 @@ function computeNextLeagueOrdinal(names: string[]) {
 }
 
 function planKickoffHours(existingHours: number[], count: number) {
-  const pool = Array.from(new Set(existingHours.map(parseKickoffHour))).sort((a, b) => a - b);
-  const hours = pool.length > 0 ? pool : [DEFAULT_KICKOFF_HOUR_TR];
-  const counts = new Map<number, number>();
-  hours.forEach((hour) => counts.set(hour, 0));
-  existingHours.forEach((hour) => counts.set(parseKickoffHour(hour), (counts.get(parseKickoffHour(hour)) || 0) + 1));
-
-  const assigned: number[] = [];
-  for (let i = 0; i < count; i += 1) {
-    const nextHour = [...hours].sort((a, b) => {
-      const countDiff = (counts.get(a) || 0) - (counts.get(b) || 0);
-      return countDiff !== 0 ? countDiff : a - b;
-    })[0]!;
-    assigned.push(nextHour);
-    counts.set(nextHour, (counts.get(nextHour) || 0) + 1);
-  }
-  return assigned;
+  return assignLeagueKickoffHours({
+    pool: LEAGUE_KICKOFF_HOURS_TR,
+    existingHours,
+    count,
+  });
 }
 
 async function deleteCollectionDocs(
@@ -530,6 +522,7 @@ async function recreateLeagueForReset(input: {
   template: ReturnType<typeof generateDoubleRoundRobinSlots>;
 }) {
   const { league, ownedTeams, startDate, monthKey, capacity, rounds, template } = input;
+  const leagueStartDate = alignLeagueStartDate(startDate, league.kickoffHourTR, DEFAULT_KICKOFF_HOUR_TR);
   const slots = await buildSlotStatesForLeague(league.leagueId, league.humanTeamIds, ownedTeams, capacity);
   const teamMirror = league.humanTeamIds.map((teamId) => ({
     id: teamId,
@@ -559,7 +552,7 @@ async function recreateLeagueForReset(input: {
     kickoffHourTR: league.kickoffHourTR,
     capacity,
     state: 'scheduled',
-    startDate: Timestamp.fromDate(startDate),
+    startDate: Timestamp.fromDate(leagueStartDate),
     rounds,
     monthKey,
     lockedAt: FieldValue.serverTimestamp(),
@@ -626,7 +619,7 @@ async function recreateLeagueForReset(input: {
 
   for (const fixture of template) {
     const fixtureRef = league.ref.collection('fixtures').doc();
-    const kickoffAt = dateForRound(startDate, fixture.round);
+    const kickoffAt = dateForRound(leagueStartDate, fixture.round);
     const homeTeamId = slotMap.get(fixture.homeSlot) || null;
     const awayTeamId = slotMap.get(fixture.awaySlot) || null;
     reminderJobs.push({ fixtureId: fixtureRef.id, kickoffAt });
@@ -747,10 +740,24 @@ export async function resetSeasonMonthlyInternal(input: ResetSeasonInput = {}) {
       name: normalizeString(data?.name) || `Lig ${leagueDoc.id.slice(0, 6)}`,
       season: Number(data?.season || 1),
       timezone: normalizeString(data?.timezone) || DEFAULT_TIMEZONE,
-      kickoffHourTR: parseKickoffHour(data?.kickoffHourTR),
+      kickoffHourTR: normalizeLeagueKickoffHour(data?.kickoffHourTR),
       createdAtMillis: timestampToMillis(data?.createdAt),
     };
   });
+
+  const knownKickoffHours = existingLeagueMetas
+    .map((meta) => meta.kickoffHourTR)
+    .filter((hour): hour is number => hour != null);
+  const fallbackKickoffHours = planKickoffHours(
+    knownKickoffHours,
+    existingLeagueMetas.filter((meta) => meta.kickoffHourTR == null).length + resetPlan.newLeagues.length,
+  );
+  let fallbackKickoffIndex = 0;
+  const nextFallbackKickoffHour = () => {
+    const hour = fallbackKickoffHours[fallbackKickoffIndex] || LEAGUE_KICKOFF_HOURS_TR[0] || DEFAULT_KICKOFF_HOUR_TR;
+    fallbackKickoffIndex += 1;
+    return hour;
+  };
 
   const plannedLeagues: PlannedLeagueWrite[] = existingLeagueMetas.map((meta, index) => ({
     leagueId: meta.leagueId,
@@ -758,7 +765,7 @@ export async function resetSeasonMonthlyInternal(input: ResetSeasonInput = {}) {
     name: meta.name,
     season: meta.season,
     timezone: meta.timezone,
-    kickoffHourTR: meta.kickoffHourTR,
+    kickoffHourTR: meta.kickoffHourTR ?? nextFallbackKickoffHour(),
     humanTeamIds: resetPlan.existingLeagues[index]?.humanTeamIds || [],
     isNew: false,
   }));
@@ -767,10 +774,6 @@ export async function resetSeasonMonthlyInternal(input: ResetSeasonInput = {}) {
     const allLeagueDocs = await db.collection('leagues').get();
     const allLeagueNames = allLeagueDocs.docs.map((doc) => String((doc.data() as any)?.name || ''));
     const nextOrdinal = computeNextLeagueOrdinal(allLeagueNames);
-    const kickoffHours = planKickoffHours(
-      allLeagueDocs.docs.map((doc) => parseKickoffHour((doc.data() as any)?.kickoffHourTR)),
-      resetPlan.newLeagues.length
-    );
     const baseSeason = existingLeagueMetas[0]?.season ?? 1;
     const baseTimezone = existingLeagueMetas[0]?.timezone || DEFAULT_TIMEZONE;
 
@@ -782,7 +785,7 @@ export async function resetSeasonMonthlyInternal(input: ResetSeasonInput = {}) {
         name: `Lig ${nextOrdinal + index}`,
         season: baseSeason,
         timezone: baseTimezone,
-        kickoffHourTR: kickoffHours[index] || DEFAULT_KICKOFF_HOUR_TR,
+        kickoffHourTR: nextFallbackKickoffHour(),
         humanTeamIds: newLeague.humanTeamIds,
         isNew: true,
       });

@@ -1,6 +1,29 @@
-import "dotenv/config";
+import fs from "node:fs";
 import process from "node:process";
 import admin from "firebase-admin";
+
+function loadEnvFileIfPresent(filePath) {
+  if (!fs.existsSync(filePath)) {
+    return;
+  }
+
+  const content = fs.readFileSync(filePath, "utf8");
+  for (const line of content.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) continue;
+    const separator = trimmed.indexOf("=");
+    if (separator <= 0) continue;
+    const key = trimmed.slice(0, separator).trim();
+    const value = trimmed.slice(separator + 1).trim();
+    if (!key || Object.prototype.hasOwnProperty.call(process.env, key)) {
+      continue;
+    }
+    process.env[key] = value;
+  }
+}
+
+loadEnvFileIfPresent(".env");
+loadEnvFileIfPresent(".env.local");
 
 function parseDate(raw) {
   const day = String(raw || "").trim();

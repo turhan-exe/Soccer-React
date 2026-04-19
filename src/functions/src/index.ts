@@ -12,6 +12,8 @@ export { onMatchVideoFinalize } from './replay/onMatchVideoFinalize.js';
 export { renderMatchHttp } from './replay/renderJob.js';
 export { scheduleDailyMatches } from './replay/scheduleDailyMatches.js';
 export {
+  recoverHistoricalFixturesNightly,
+  recoverHistoricalFixturesHttp,
   prepareLeagueKickoffWindow,
   prepareLeagueKickoffWindowHttp,
   kickoffPreparedLeagueMatches,
@@ -49,6 +51,7 @@ export {
   rebuildDailyFixtures,
   rebuildDailyFixturesHttp,
   rebuildAllDailyFixturesHttp,
+  repairLeagueFixtureCalendarHttp,
 } from './fixFixtures.js';
 // Monthly slot-based leagues system
 export { bootstrapMonthlyLeaguesOneTime, bootstrapMonthlyLeaguesOneTimeHttp } from './bootstrap.js';
@@ -99,7 +102,12 @@ export {
 export { notifyDueSignals } from './notify/dueSignals.js';
 export { finalizeDueTrainingSessions } from './notify/training.js';
 export { recoverTeamConditionCron } from './notify/conditionRecovery.js';
+export {
+  repairIncompleteSquadsDaily,
+  repairIncompleteSquadsHttp,
+} from './notify/squadRepair.js';
 export { leagueMatchReminderHttp } from './notify/matchReminder.js';
+export { sendPendingRecoveryAlertEmails } from './notify/recoveryAlerts.js';
 export {
   enforceChatModeration,
   checkChatSanction,

@@ -15,6 +15,28 @@ import {
 import { finalizeFixtureWithFallbackResult } from './utils/matchResultFallback.js';
 import { enqueueRenderJob } from './replay/renderJob.js';
 import { enqueueLeagueMatchReminder } from './notify/matchReminder.js';
+import {
+  resolveReservationKickoffAt,
+  resolveSameDayRetryKickoffAt,
+} from './utils/liveLeagueCatchup.js';
+import {
+  compareHistoricalFixtureDates,
+  getHistoricalRecoveryAttemptCount,
+  isHistoricalRecoverySettled,
+  NIGHTLY_RECOVERY_BATCH_SIZE,
+  NIGHTLY_RECOVERY_MAX_ATTEMPTS,
+  NIGHTLY_RECOVERY_RETRY_DELAY_MINUTES,
+  NIGHTLY_RECOVERY_RUNNER_LOCK_MINUTES,
+  NIGHTLY_RECOVERY_SCAN_LIMIT,
+  NIGHTLY_RECOVERY_WAVE_STALE_MINUTES,
+  NIGHTLY_RECOVERY_WAVE_LOCK_MINUTES,
+  resolveHistoricalRecoveryCandidateKind,
+  resolveHistoricalRecoveryKickoffAt,
+  resolveHistoricalRetryAt,
+  shouldFallbackAfterHistoricalAttempts,
+  toTimestampMillis,
+} from './utils/historicalRecovery.js';
+import { queueHistoricalRecoveryAlert } from './notify/recoveryAlerts.js';
 
 const REGION = 'europe-west1';
 const TZ = 'Europe/Istanbul';
@@ -92,6 +114,12 @@ const LEAGUE_FAILED_RESCHEDULE_MIN_DELAY_MINUTES = Number(
     (functions.config() as any)?.liveleague?.failed_reschedule_min_delay_minutes ||
     5,
 );
+const HISTORICAL_RECOVERY_RUNTIME_PATH = 'ops_recovery_runtime/nightly-historical';
+const HISTORICAL_RECOVERY_WAVES_COLLECTION = 'ops_recovery_waves';
+const HISTORICAL_RECOVERY_ACTIVE_STATE = 'active';
+const HISTORICAL_RECOVERY_OPEN_LAST_HOUR_TR = 9;
+const HISTORICAL_RECOVERY_OPEN_LAST_MINUTE_TR = 0;
+const HISTORICAL_RECOVERY_RUNNING_TIMEOUT_MINUTES = 30;
 
 const AUTO_RESCHEDULE_REASON_TOKENS = [
   'running_timeout',
@@ -99,10 +127,14 @@ const AUTO_RESCHEDULE_REASON_TOKENS = [
   'kickoff_retry_exhausted',
   'prepare_failed',
   'kickoff_failed',
+  'match_not_found',
+  'allocation_not_found',
+  'start_404',
   'match_start_timeout',
   'match_start_failed',
   'no_free_slot',
   'allocation_failed',
+  'fetch failed',
   'timeout',
 ];
 
@@ -160,6 +192,30 @@ type MatchControlInternalMatch = {
   videoStoragePath?: string | null;
   videoWatchUrl?: string | null;
   updatedAt?: string | null;
+};
+
+type FixtureEntry = {
+  doc: FirebaseFirestore.QueryDocumentSnapshot;
+  leagueId: string;
+  fixture: any;
+};
+
+type HistoricalRecoveryWaveDoc = {
+  waveId: string;
+  status: string;
+  fixturePaths: string[];
+  createdAt?: FirebaseFirestore.Timestamp | FirebaseFirestore.FieldValue | null;
+  updatedAt?: FirebaseFirestore.Timestamp | FirebaseFirestore.FieldValue | null;
+  completedAt?: FirebaseFirestore.Timestamp | FirebaseFirestore.FieldValue | null;
+  includeChampions?: boolean;
+  limit?: number;
+  fromDate?: FirebaseFirestore.Timestamp | null;
+};
+
+type HistoricalRecoveryScanOptions = {
+  limit?: number;
+  includeChampions?: boolean;
+  fromDate?: Date | null;
 };
 
 type ManualCatchupMode = 'prepare' | 'kickoff' | 'full';
@@ -333,6 +389,73 @@ function parseCatchupMode(raw: unknown): ManualCatchupMode {
   throw new Error('mode must be one of prepare, kickoff, full');
 }
 
+function getHistoricalRecoveryRuntimeRef() {
+  return db.doc(HISTORICAL_RECOVERY_RUNTIME_PATH);
+}
+
+function getHistoricalRecoveryWaveRef(waveId: string) {
+  return db.collection(HISTORICAL_RECOVERY_WAVES_COLLECTION).doc(waveId);
+}
+
+function readBoolean(value: unknown) {
+  return value === true;
+}
+
+function parseOptionalBoolean(raw: unknown, fallback = false) {
+  if (raw == null || raw === '') return fallback;
+  const normalized = String(raw).trim().toLowerCase();
+  if (normalized === 'true' || normalized === '1') return true;
+  if (normalized === 'false' || normalized === '0') return false;
+  return fallback;
+}
+
+function normalizeCompetitionType(value: unknown) {
+  return String(value || '').trim().toLowerCase() || 'domestic_league';
+}
+
+function isChampionsLeagueFixture(fixture: any) {
+  return normalizeCompetitionType(fixture?.competitionType) === 'champions_league';
+}
+
+function resolveFixtureKickoffReferenceDate(fixture: any) {
+  return resolveHistoricalRecoveryKickoffAt(fixture);
+}
+
+function resolveFixtureReservationKickoffAt(
+  fixture: any,
+  options: KickoffResolveOptions = {},
+  now = new Date(),
+  explicitKickoffAt?: Date | null,
+) {
+  const overrideKickoffAt =
+    explicitKickoffAt instanceof Date && !Number.isNaN(explicitKickoffAt.getTime())
+      ? explicitKickoffAt
+      : null;
+  if (overrideKickoffAt) {
+    return overrideKickoffAt;
+  }
+
+  const recoveryKickoffAt = resolveHistoricalRecoveryKickoffAt(fixture);
+  if (recoveryKickoffAt) {
+    return recoveryKickoffAt;
+  }
+
+  const fixtureKickoffAt = fixture?.date?.toDate?.() as Date | undefined;
+  return resolveReservationKickoffAt(fixtureKickoffAt, options, now);
+}
+
+function shouldOpenHistoricalRecoveryWave(now = new Date()) {
+  const hour = Number(formatInTimeZone(now, TZ, 'H'));
+  const minute = Number(formatInTimeZone(now, TZ, 'm'));
+  if (!Number.isFinite(hour) || !Number.isFinite(minute)) {
+    return true;
+  }
+  if (hour < HISTORICAL_RECOVERY_OPEN_LAST_HOUR_TR) {
+    return true;
+  }
+  return hour === HISTORICAL_RECOVERY_OPEN_LAST_HOUR_TR && minute <= HISTORICAL_RECOVERY_OPEN_LAST_MINUTE_TR;
+}
+
 function applyCors(req: functions.https.Request, res: functions.Response<any>) {
   res.set('Access-Control-Allow-Origin', '*');
   res.set('Access-Control-Allow-Headers', 'Authorization, Content-Type, x-admin-secret');
@@ -455,7 +578,15 @@ async function loadTeamBundle(teamId: string): Promise<TeamBundle | null> {
   };
 }
 
-async function ensureMatchPlanSnapshot(matchId: string, leagueId: string, seasonId: string, fixture: any, home: TeamBundle, away: TeamBundle) {
+async function ensureMatchPlanSnapshot(
+  matchId: string,
+  leagueId: string,
+  seasonId: string,
+  fixture: any,
+  home: TeamBundle,
+  away: TeamBundle,
+  kickoffUtc?: Date | null,
+) {
   const planRef = db.doc(`matchPlans/${matchId}`);
   const existing = await planRef.get();
   if (existing.exists) return;
@@ -539,7 +670,10 @@ async function ensureMatchPlanSnapshot(matchId: string, leagueId: string, season
     seasonId,
     createdAt: FieldValue.serverTimestamp(),
     rngSeed: fixture.seed || Math.floor(Math.random() * 1e9),
-    kickoffUtc: fixture.date,
+    kickoffUtc:
+      kickoffUtc instanceof Date && !Number.isNaN(kickoffUtc.getTime())
+        ? Timestamp.fromDate(kickoffUtc)
+        : fixture.date,
     home: buildSnapshot(home),
     away: buildSnapshot(away),
   });
@@ -667,6 +801,222 @@ async function writeSyntheticResult(
   return 'recovered' as const;
 }
 
+async function backfillLiveLeagueMediaEntry(
+  entry: FixtureEntry,
+  now = new Date(),
+  options: { allowFallback?: boolean } = {},
+) {
+  const fixture = entry.fixture;
+  const live = fixture?.live || {};
+  const matchId = String(live.matchId || '').trim();
+  if (!matchId) {
+    return {
+      checked: 0,
+      replaySynced: 0,
+      videoHealed: 0,
+      resultRecovered: 0,
+      missingScore: 0,
+      renderQueued: 0,
+      fallbackApplied: 0,
+      fallbackFailed: 0,
+      failed: 0,
+    };
+  }
+
+  try {
+    const match = await getInternalMatchDetails(matchId);
+    if (!match) {
+      return {
+        checked: 1,
+        replaySynced: 0,
+        videoHealed: 0,
+        resultRecovered: 0,
+        missingScore: 0,
+        renderQueued: 0,
+        fallbackApplied: 0,
+        fallbackFailed: 0,
+        failed: 0,
+      };
+    }
+
+    const seasonId = deriveSeasonId(fixture, match);
+    const replayPath = deriveReplayPath(entry.leagueId, seasonId, entry.doc.id, match, fixture);
+    const videoPath = deriveVideoPath(seasonId, entry.doc.id, match, fixture);
+    const patch: Record<string, unknown> = {};
+    let replaySynced = 0;
+    let videoHealed = 0;
+    let resultRecovered = 0;
+    let missingScore = 0;
+    let renderQueued = 0;
+    let fallbackApplied = 0;
+    let fallbackFailed = 0;
+
+    if (!fixture?.replayPath && match?.replayStoragePath) {
+      patch.replayPath = replayPath;
+    }
+
+    if (match?.videoStoragePath && (await storageFileExists(videoPath))) {
+      patch.videoMissing = false;
+      patch.videoError = FieldValue.delete();
+      patch['video.storagePath'] = videoPath;
+      patch['video.type'] = 'mp4-v1';
+      patch['video.source'] = fixture?.video?.source || 'live';
+      patch['video.uploaded'] = true;
+      patch['video.updatedAt'] = FieldValue.serverTimestamp();
+    }
+
+    if (Object.keys(patch).length > 0) {
+      await entry.doc.ref.update(patch);
+      if (patch.replayPath) replaySynced += 1;
+      if (patch['video.uploaded']) videoHealed += 1;
+    }
+
+    const endedAtMs = live?.endedAt?.toDate?.()?.getTime?.() || 0;
+    const endedLongEnoughAgo = endedAtMs > 0 && now.getTime() - endedAtMs > 10 * 60 * 1000;
+
+    if (
+      endedLongEnoughAgo &&
+      match.status === 'ended' &&
+      String(fixture.status || '').toLowerCase() !== 'played'
+    ) {
+      const recoveryStatus = await writeSyntheticResult(entry.leagueId, entry.doc.id, fixture, match);
+      if (recoveryStatus === 'recovered') {
+        resultRecovered += 1;
+        return {
+          checked: 1,
+          replaySynced,
+          videoHealed,
+          resultRecovered,
+          missingScore,
+          renderQueued,
+          fallbackApplied,
+          fallbackFailed,
+          failed: 0,
+        };
+      }
+      if (recoveryStatus === 'missing_score') {
+        if (options.allowFallback === false) {
+          missingScore += 1;
+          return {
+            checked: 1,
+            replaySynced,
+            videoHealed,
+            resultRecovered,
+            missingScore,
+            renderQueued,
+            fallbackApplied,
+            fallbackFailed,
+            failed: 0,
+          };
+        }
+        try {
+          const fallback = await finalizeFixtureWithFallbackResult({
+            leagueId: entry.leagueId,
+            fixtureId: entry.doc.id,
+            matchId,
+            reason: match.endedReason || 'backfill_missing_score',
+          });
+          if (fallback.status === 'applied') {
+            fallbackApplied += 1;
+          }
+          return {
+            checked: 1,
+            replaySynced,
+            videoHealed,
+            resultRecovered,
+            missingScore,
+            renderQueued,
+            fallbackApplied,
+            fallbackFailed,
+            failed: 0,
+          };
+        } catch (error: any) {
+          fallbackFailed += 1;
+          functions.logger.warn('[backfillLiveLeagueMedia] fallback failed', {
+            fixtureId: entry.doc.id,
+            leagueId: entry.leagueId,
+            matchId,
+            error: error?.message || String(error),
+          });
+          return {
+            checked: 1,
+            replaySynced,
+            videoHealed,
+            resultRecovered,
+            missingScore,
+            renderQueued,
+            fallbackApplied,
+            fallbackFailed,
+            failed: 1,
+          };
+        }
+      }
+    }
+
+    const shouldQueueRenderFallback =
+      String(fixture.status || '').toLowerCase() === 'played' &&
+      fixture.videoMissing === true &&
+      endedLongEnoughAgo &&
+      !fixture?.video?.renderQueuedAt &&
+      (
+        fixture.videoError === 'upload_timeout' ||
+        String(match.videoStatus || '').toLowerCase() === 'failed' ||
+        !(await storageFileExists(videoPath))
+      );
+
+    if (shouldQueueRenderFallback && (await storageFileExists(replayPath))) {
+      await enqueueRenderJob({
+        matchId: entry.doc.id,
+        leagueId: entry.leagueId,
+        seasonId,
+        replayPath,
+        videoPath,
+      });
+      await entry.doc.ref.update({
+        videoMissing: true,
+        videoError: FieldValue.delete(),
+        'video.storagePath': videoPath,
+        'video.type': 'mp4-v1',
+        'video.source': 'render-fallback',
+        'video.uploaded': false,
+        'video.updatedAt': FieldValue.serverTimestamp(),
+        'video.renderQueuedAt': FieldValue.serverTimestamp(),
+      });
+      renderQueued += 1;
+    }
+
+    return {
+      checked: 1,
+      replaySynced,
+      videoHealed,
+      resultRecovered,
+      missingScore,
+      renderQueued,
+      fallbackApplied,
+      fallbackFailed,
+      failed: 0,
+    };
+  } catch (error: any) {
+    functions.logger.warn('[backfillLiveLeagueMedia] item failed', {
+      fixtureId: entry.doc.id,
+      leagueId: entry.leagueId,
+      matchId,
+      error: error?.message || String(error),
+    });
+    return {
+      checked: 1,
+      replaySynced: 0,
+      videoHealed: 0,
+      resultRecovered: 0,
+      missingScore: 0,
+      renderQueued: 0,
+      fallbackApplied: 0,
+      fallbackFailed: 0,
+      failed: 1,
+    };
+  }
+}
+
 async function backfillLiveLeagueMediaInternal(now = new Date()) {
   const day = dayKeyTR(now);
   const fixtures = await loadFixturesForReconcile(now);
@@ -680,119 +1030,15 @@ async function backfillLiveLeagueMediaInternal(now = new Date()) {
   let failed = 0;
 
   for (const entry of fixtures) {
-    const fixture = entry.fixture;
-    const live = fixture?.live || {};
-    const matchId = String(live.matchId || '').trim();
-    if (!matchId) continue;
-    checked += 1;
-
-    try {
-      const match = await getInternalMatchDetails(matchId);
-      if (!match) continue;
-
-      const seasonId = deriveSeasonId(fixture, match);
-      const replayPath = deriveReplayPath(entry.leagueId, seasonId, entry.doc.id, match, fixture);
-      const videoPath = deriveVideoPath(seasonId, entry.doc.id, match, fixture);
-      const patch: Record<string, unknown> = {};
-
-      if (!fixture?.replayPath && match?.replayStoragePath) {
-        patch.replayPath = replayPath;
-      }
-
-      if (match?.videoStoragePath && (await storageFileExists(videoPath))) {
-        patch.videoMissing = false;
-        patch.videoError = FieldValue.delete();
-        patch['video.storagePath'] = videoPath;
-        patch['video.type'] = 'mp4-v1';
-        patch['video.source'] = fixture?.video?.source || 'live';
-        patch['video.uploaded'] = true;
-        patch['video.updatedAt'] = FieldValue.serverTimestamp();
-      }
-
-      if (Object.keys(patch).length > 0) {
-        await entry.doc.ref.update(patch);
-        if (patch.replayPath) replaySynced += 1;
-        if (patch['video.uploaded']) videoHealed += 1;
-      }
-
-      const endedAtMs = live?.endedAt?.toDate?.()?.getTime?.() || 0;
-      const endedLongEnoughAgo = endedAtMs > 0 && now.getTime() - endedAtMs > 10 * 60 * 1000;
-
-      if (
-        endedLongEnoughAgo &&
-        match.status === 'ended' &&
-        String(fixture.status || '').toLowerCase() !== 'played'
-      ) {
-        const recoveryStatus = await writeSyntheticResult(entry.leagueId, entry.doc.id, fixture, match);
-        if (recoveryStatus === 'recovered') {
-          resultRecovered += 1;
-          continue;
-        }
-        if (recoveryStatus === 'missing_score') {
-          try {
-            const fallback = await finalizeFixtureWithFallbackResult({
-              leagueId: entry.leagueId,
-              fixtureId: entry.doc.id,
-              matchId,
-              reason: match.endedReason || 'backfill_missing_score',
-            });
-            if (fallback.status === 'applied') {
-              fallbackApplied += 1;
-            }
-            continue;
-          } catch (error: any) {
-            failed += 1;
-            fallbackFailed += 1;
-            functions.logger.warn('[backfillLiveLeagueMedia] fallback failed', {
-              fixtureId: entry.doc.id,
-              leagueId: entry.leagueId,
-              matchId,
-              error: error?.message || String(error),
-            });
-          }
-        }
-      }
-
-      const shouldQueueRenderFallback =
-        String(fixture.status || '').toLowerCase() === 'played' &&
-        fixture.videoMissing === true &&
-        endedLongEnoughAgo &&
-        !fixture?.video?.renderQueuedAt &&
-        (
-          fixture.videoError === 'upload_timeout' ||
-          String(match.videoStatus || '').toLowerCase() === 'failed' ||
-          !(await storageFileExists(videoPath))
-        );
-
-      if (shouldQueueRenderFallback && (await storageFileExists(replayPath))) {
-        await enqueueRenderJob({
-          matchId: entry.doc.id,
-          leagueId: entry.leagueId,
-          seasonId,
-          replayPath,
-          videoPath,
-        });
-        await entry.doc.ref.update({
-          videoMissing: true,
-          videoError: FieldValue.delete(),
-          'video.storagePath': videoPath,
-          'video.type': 'mp4-v1',
-          'video.source': 'render-fallback',
-          'video.uploaded': false,
-          'video.updatedAt': FieldValue.serverTimestamp(),
-          'video.renderQueuedAt': FieldValue.serverTimestamp(),
-        });
-        renderQueued += 1;
-      }
-    } catch (error: any) {
-      failed += 1;
-      functions.logger.warn('[backfillLiveLeagueMedia] item failed', {
-        fixtureId: entry.doc.id,
-        leagueId: entry.leagueId,
-        matchId,
-        error: error?.message || String(error),
-      });
-    }
+    const result = await backfillLiveLeagueMediaEntry(entry, now);
+    checked += Number(result.checked || 0);
+    replaySynced += Number(result.replaySynced || 0);
+    videoHealed += Number(result.videoHealed || 0);
+    resultRecovered += Number(result.resultRecovered || 0);
+    renderQueued += Number(result.renderQueued || 0);
+    fallbackApplied += Number(result.fallbackApplied || 0);
+    fallbackFailed += Number(result.fallbackFailed || 0);
+    failed += Number(result.failed || 0);
   }
 
   await updateHeartbeat(day, {
@@ -820,19 +1066,27 @@ async function backfillLiveLeagueMediaInternal(now = new Date()) {
   };
 }
 
-async function loadExactKickoffFixtures(targetTs: Timestamp) {
+async function loadExactKickoffFixtures(
+  targetTs: Timestamp,
+  fieldPath: 'date' | 'recovery.reservedKickoffAt' = 'date',
+) {
   try {
-    const snap = await db
-      .collectionGroup('fixtures')
-      .where('status', '==', 'scheduled')
-      .where('date', '==', targetTs)
-      .get();
-    return snap.docs;
+    const query =
+      fieldPath === 'date'
+        ? db
+            .collectionGroup('fixtures')
+            .where('status', '==', 'scheduled')
+            .where(fieldPath, '==', targetTs)
+        : db
+            .collectionGroup('fixtures')
+            .where(fieldPath, '==', targetTs);
+    const snap = await query.get();
+    return snap.docs.filter((doc) => (doc.data() as any)?.status === 'scheduled');
   } catch {
     const leagues = await db.collection('leagues').get();
     const docs: FirebaseFirestore.QueryDocumentSnapshot[] = [];
     for (const league of leagues.docs) {
-      const fixtures = await league.ref.collection('fixtures').where('date', '==', targetTs).get();
+      const fixtures = await league.ref.collection('fixtures').where(fieldPath, '==', targetTs).get();
       docs.push(...fixtures.docs.filter((doc) => (doc.data() as any)?.status === 'scheduled'));
     }
     return docs;
@@ -843,9 +1097,11 @@ async function loadFixturesByExactKickoffTargets(targetKickoffs: Date[]) {
   const dedupe = new Map<string, FirebaseFirestore.QueryDocumentSnapshot>();
   for (const kickoffAt of targetKickoffs) {
     const targetTs = Timestamp.fromDate(kickoffAt);
-    const docs = await loadExactKickoffFixtures(targetTs);
-    for (const doc of docs) {
-      dedupe.set(doc.ref.path, doc);
+    for (const fieldPath of ['date', 'recovery.reservedKickoffAt'] as const) {
+      const docs = await loadExactKickoffFixtures(targetTs, fieldPath);
+      for (const doc of docs) {
+        dedupe.set(doc.ref.path, doc);
+      }
     }
   }
   return Array.from(dedupe.values());
@@ -937,6 +1193,207 @@ function resolveKickoffTargets(baseDate = new Date(), options: KickoffResolveOpt
     });
 }
 
+async function prepareFixtureForLeagueKickoff(
+  entry: FixtureEntry,
+  options: KickoffResolveOptions = {},
+  explicitKickoffAt?: Date | null,
+) {
+  const { doc, fixture, leagueId } = entry;
+  if (!leagueId) {
+    return { status: 'skipped' as const, reason: 'missing_league_id' };
+  }
+
+  if (fixture?.live?.matchId && !isTerminalLiveState(fixture?.live?.state)) {
+    return { status: 'reused' as const, matchId: String(fixture.live.matchId) };
+  }
+
+  const matchId = doc.id;
+  try {
+    const seasonId = String(fixture.seasonId ?? fixture.season ?? 'default');
+    const { homeTeamId, awayTeamId } = await resolveFixtureTeams(leagueId, fixture);
+    if (!homeTeamId || !awayTeamId) {
+      await doc.ref.update({
+        ...liveStatePatch('prepare_failed', {
+          'live.reason': 'missing_team_ids',
+        }),
+      });
+      return { status: 'skipped' as const, reason: 'missing_team_ids' };
+    }
+
+    const [home, away] = await Promise.all([
+      loadTeamBundle(homeTeamId),
+      loadTeamBundle(awayTeamId),
+    ]);
+    if (!home || !away) {
+      await doc.ref.update({
+        ...liveStatePatch('prepare_failed', {
+          'live.reason': 'missing_team_docs',
+        }),
+      });
+      return { status: 'skipped' as const, reason: 'missing_team_docs' };
+    }
+
+    const reservationKickoffAt = resolveFixtureReservationKickoffAt(
+      fixture,
+      options,
+      new Date(),
+      explicitKickoffAt,
+    );
+    await ensureMatchPlanSnapshot(
+      matchId,
+      leagueId,
+      seasonId,
+      fixture,
+      home,
+      away,
+      reservationKickoffAt,
+    );
+    const media = await createMediaBundle(leagueId, seasonId, matchId);
+    const requestToken = buildRequestToken(matchId, seasonId);
+    const kickoffAtIso = reservationKickoffAt ? reservationKickoffAt.toISOString() : null;
+
+    const response = await callMatchControlJson<{
+      matchId: string;
+      state: string;
+      nodeId?: string;
+      allocatedNodeId?: string;
+      serverIp?: string;
+      serverPort?: number;
+      reused?: boolean;
+    }>('/v1/league/prepare-slot', {
+      method: 'POST',
+      body: JSON.stringify({
+        matchId,
+        leagueId,
+        fixtureId: doc.id,
+        seasonId,
+        homeTeamId,
+        awayTeamId,
+        homeUserId: home.ownerUid,
+        awayUserId: away.ownerUid,
+        kickoffAt: kickoffAtIso,
+        homeTeamPayload: home.payload,
+        awayTeamPayload: away.payload,
+        resultUploadUrl: media.resultUploadUrl,
+        replayUploadUrl: media.replayUploadUrl,
+        videoUploadUrl: media.videoUploadUrl,
+        requestToken,
+      }),
+    });
+
+    await doc.ref.set({
+      live: {
+        matchId: response.matchId || matchId,
+        nodeId: response.nodeId || response.allocatedNodeId || null,
+        serverIp: response.serverIp || null,
+        serverPort: Number.isFinite(response.serverPort) ? Number(response.serverPort) : null,
+        state: response.state || 'warm',
+        prewarmedAt: FieldValue.serverTimestamp(),
+        lastLifecycleAt: FieldValue.serverTimestamp(),
+        homeUserId: home.ownerUid,
+        awayUserId: away.ownerUid,
+        retryCount: fixture?.live?.retryCount || 0,
+      },
+      ...(reservationKickoffAt
+        ? {
+            recovery: {
+              ...(fixture?.recovery || {}),
+              reservedKickoffAt: Timestamp.fromDate(reservationKickoffAt),
+              updatedAt: FieldValue.serverTimestamp(),
+            },
+          }
+        : {}),
+      videoMissing: true,
+      videoError: FieldValue.delete(),
+      video: {
+        storagePath: media.videoPath,
+        type: 'mp4-v1',
+        source: 'live',
+        uploaded: false,
+        updatedAt: FieldValue.serverTimestamp(),
+      },
+    }, { merge: true });
+
+    return {
+      status: response.reused ? ('reused' as const) : ('prepared' as const),
+      matchId: response.matchId || matchId,
+      liveState: response.state || 'warm',
+    };
+  } catch (error: any) {
+    functions.logger.error('[prepareLeagueKickoffWindow] fixture failed', {
+      leagueId,
+      fixtureId: doc.id,
+      error: error?.message || String(error),
+    });
+    await doc.ref.update({
+      ...liveStatePatch('prepare_failed', {
+        'live.reason': error?.message || 'prepare_failed',
+      }),
+    });
+    return {
+      status: 'failed' as const,
+      reason: error?.message || String(error),
+    };
+  }
+}
+
+async function kickoffPreparedLeagueFixture(entry: FixtureEntry) {
+  const { doc, fixture } = entry;
+  const live = fixture?.live || {};
+  if (!live?.matchId) {
+    return { status: 'skipped' as const, reason: 'missing_match_id' };
+  }
+  if (String(fixture?.status || '').toLowerCase() === 'played') {
+    return { status: 'skipped' as const, reason: 'already_played' };
+  }
+
+  try {
+    const response = await callMatchControlJson<{
+      matchId: string;
+      state: string;
+      nodeId?: string;
+      serverIp?: string;
+      serverPort?: number;
+    }>('/v1/league/kickoff-slot', {
+      method: 'POST',
+      body: JSON.stringify({ matchId: live.matchId }),
+    });
+
+    await doc.ref.set({
+      live: {
+        ...live,
+        state: response.state || 'starting',
+        nodeId: response.nodeId || live.nodeId || null,
+        serverIp: response.serverIp || live.serverIp || null,
+        serverPort: Number.isFinite(response.serverPort)
+          ? Number(response.serverPort)
+          : live.serverPort ?? null,
+        kickoffAttemptedAt: FieldValue.serverTimestamp(),
+        lastLifecycleAt: FieldValue.serverTimestamp(),
+      },
+    }, { merge: true });
+    return {
+      status: 'started' as const,
+      matchId: response.matchId || String(live.matchId),
+      liveState: response.state || 'starting',
+    };
+  } catch (error: any) {
+    functions.logger.error('[kickoffPreparedLeagueMatches] fixture failed', {
+      fixtureId: doc.id,
+      error: error?.message || String(error),
+    });
+    await doc.ref.update({
+      ...liveStatePatch('kickoff_failed', {
+        'live.reason': error?.message || 'kickoff_failed',
+      }),
+    });
+    return {
+      status: 'failed' as const,
+      reason: error?.message || String(error),
+    };
+  }
+}
+
 async function prepareLeagueKickoffWindowInternal(baseDate = new Date(), options: KickoffResolveOptions = {}) {
   const day = dayKeyTR(baseDate);
   const kickoffTargets = resolvePrepareKickoffTargets(baseDate, options);
@@ -948,120 +1405,15 @@ async function prepareLeagueKickoffWindowInternal(baseDate = new Date(), options
   let failed = 0;
 
   for (const doc of docs) {
-    const fixture = doc.data() as any;
-    const leagueId = doc.ref.parent.parent?.id;
-    if (!leagueId) {
-      skipped += 1;
-      continue;
-    }
-
-    if (fixture?.live?.matchId && !isTerminalLiveState(fixture?.live?.state)) {
-      reused += 1;
-      continue;
-    }
-
-    const matchId = doc.id;
-    try {
-      const seasonId = String(fixture.seasonId ?? fixture.season ?? 'default');
-      const { homeTeamId, awayTeamId } = await resolveFixtureTeams(leagueId, fixture);
-      if (!homeTeamId || !awayTeamId) {
-        skipped += 1;
-        await doc.ref.update({
-          ...liveStatePatch('prepare_failed', {
-            'live.reason': 'missing_team_ids',
-          }),
-        });
-        continue;
-      }
-
-      const [home, away] = await Promise.all([
-        loadTeamBundle(homeTeamId),
-        loadTeamBundle(awayTeamId),
-      ]);
-      if (!home || !away) {
-        skipped += 1;
-        await doc.ref.update({
-          ...liveStatePatch('prepare_failed', {
-            'live.reason': 'missing_team_docs',
-          }),
-        });
-        continue;
-      }
-
-      await ensureMatchPlanSnapshot(matchId, leagueId, seasonId, fixture, home, away);
-      const media = await createMediaBundle(leagueId, seasonId, matchId);
-      const requestToken = buildRequestToken(matchId, seasonId);
-      const kickoffAt = fixture?.date?.toDate?.() as Date | undefined;
-      const kickoffAtIso = kickoffAt ? kickoffAt.toISOString() : null;
-
-      const response = await callMatchControlJson<{
-        matchId: string;
-        state: string;
-        nodeId?: string;
-        allocatedNodeId?: string;
-        serverIp?: string;
-        serverPort?: number;
-        reused?: boolean;
-      }>('/v1/league/prepare-slot', {
-        method: 'POST',
-        body: JSON.stringify({
-          matchId,
-          leagueId,
-          fixtureId: doc.id,
-          seasonId,
-          homeTeamId,
-          awayTeamId,
-          homeUserId: home.ownerUid,
-          awayUserId: away.ownerUid,
-          kickoffAt: kickoffAtIso,
-          homeTeamPayload: home.payload,
-          awayTeamPayload: away.payload,
-          resultUploadUrl: media.resultUploadUrl,
-          replayUploadUrl: media.replayUploadUrl,
-          videoUploadUrl: media.videoUploadUrl,
-          requestToken,
-        }),
-      });
-
-      await doc.ref.set({
-        live: {
-          matchId: response.matchId || matchId,
-          nodeId: response.nodeId || response.allocatedNodeId || null,
-          serverIp: response.serverIp || null,
-          serverPort: Number.isFinite(response.serverPort) ? Number(response.serverPort) : null,
-          state: response.state || 'warm',
-          prewarmedAt: FieldValue.serverTimestamp(),
-          lastLifecycleAt: FieldValue.serverTimestamp(),
-          homeUserId: home.ownerUid,
-          awayUserId: away.ownerUid,
-          retryCount: fixture?.live?.retryCount || 0,
-        },
-        videoMissing: true,
-        videoError: FieldValue.delete(),
-        video: {
-          storagePath: media.videoPath,
-          type: 'mp4-v1',
-          source: 'live',
-          uploaded: false,
-          updatedAt: FieldValue.serverTimestamp(),
-        },
-      }, { merge: true });
-
-      if (response.reused) reused += 1;
-      else prepared += 1;
-    } catch (error: any) {
-      failed += 1;
-      functions.logger.error('[prepareLeagueKickoffWindow] fixture failed', {
-        leagueId,
-        fixtureId: doc.id,
-        error: error?.message || String(error),
-      });
-      await doc.ref.update({
-        ...liveStatePatch('prepare_failed', {
-          'live.reason': error?.message || 'prepare_failed',
-        }),
-      });
-    }
+    const result = await prepareFixtureForLeagueKickoff({
+      doc,
+      leagueId: doc.ref.parent.parent?.id || '',
+      fixture: doc.data() as any,
+    }, options);
+    if (result.status === 'prepared') prepared += 1;
+    else if (result.status === 'reused') reused += 1;
+    else if (result.status === 'skipped') skipped += 1;
+    else failed += 1;
   }
 
   await updateHeartbeat(day, {
@@ -1086,53 +1438,14 @@ async function kickoffPreparedLeagueMatchesInternal(baseDate = new Date(), optio
   let failed = 0;
 
   for (const doc of docs) {
-    const fixture = doc.data() as any;
-    const live = fixture?.live || {};
-    if (!live?.matchId) {
-      skipped += 1;
-      continue;
-    }
-    if (String(fixture?.status || '').toLowerCase() === 'played') {
-      skipped += 1;
-      continue;
-    }
-
-    try {
-      const response = await callMatchControlJson<{
-        matchId: string;
-        state: string;
-        nodeId?: string;
-        serverIp?: string;
-        serverPort?: number;
-      }>('/v1/league/kickoff-slot', {
-        method: 'POST',
-        body: JSON.stringify({ matchId: live.matchId }),
-      });
-
-      await doc.ref.set({
-        live: {
-          ...live,
-          state: response.state || 'starting',
-          nodeId: response.nodeId || live.nodeId || null,
-          serverIp: response.serverIp || live.serverIp || null,
-          serverPort: Number.isFinite(response.serverPort) ? Number(response.serverPort) : live.serverPort ?? null,
-          kickoffAttemptedAt: FieldValue.serverTimestamp(),
-          lastLifecycleAt: FieldValue.serverTimestamp(),
-        },
-      }, { merge: true });
-      started += 1;
-    } catch (error: any) {
-      failed += 1;
-      functions.logger.error('[kickoffPreparedLeagueMatches] fixture failed', {
-        fixtureId: doc.id,
-        error: error?.message || String(error),
-      });
-      await doc.ref.update({
-        ...liveStatePatch('kickoff_failed', {
-          'live.reason': error?.message || 'kickoff_failed',
-        }),
-      });
-    }
+    const result = await kickoffPreparedLeagueFixture({
+      doc,
+      leagueId: doc.ref.parent.parent?.id || '',
+      fixture: doc.data() as any,
+    });
+    if (result.status === 'started') started += 1;
+    else if (result.status === 'skipped') skipped += 1;
+    else failed += 1;
   }
 
   await updateHeartbeat(day, {
@@ -1150,15 +1463,27 @@ async function loadFixturesForReconcile(now = new Date()) {
   const leagues = await db.collection('leagues').where('state', 'in', ['scheduled', 'active']).get();
   const minDate = new Date(now.getTime() - 6 * 60 * 60 * 1000);
   const maxDate = new Date(now.getTime() + 24 * 60 * 60 * 1000);
-  const fixtures: Array<{ doc: FirebaseFirestore.QueryDocumentSnapshot; leagueId: string; fixture: any }> = [];
+  const fixtures: FixtureEntry[] = [];
 
   for (const league of leagues.docs) {
-    const snap = await league.ref
-      .collection('fixtures')
-      .where('date', '>=', Timestamp.fromDate(minDate))
-      .where('date', '<=', Timestamp.fromDate(maxDate))
-      .get();
-    for (const doc of snap.docs) {
+    const [dateSnap, reservedSnap] = await Promise.all([
+      league.ref
+        .collection('fixtures')
+        .where('date', '>=', Timestamp.fromDate(minDate))
+        .where('date', '<=', Timestamp.fromDate(maxDate))
+        .get(),
+      league.ref
+        .collection('fixtures')
+        .where('recovery.reservedKickoffAt', '>=', Timestamp.fromDate(minDate))
+        .where('recovery.reservedKickoffAt', '<=', Timestamp.fromDate(maxDate))
+        .get()
+        .catch(() => ({ docs: [] as FirebaseFirestore.QueryDocumentSnapshot[] })),
+    ]);
+    const dedupedDocs = new Map<string, FirebaseFirestore.QueryDocumentSnapshot>();
+    for (const doc of [...dateSnap.docs, ...reservedSnap.docs]) {
+      dedupedDocs.set(doc.ref.path, doc);
+    }
+    for (const doc of dedupedDocs.values()) {
       const fixture = doc.data() as any;
       if (!fixture?.live?.matchId) continue;
       fixtures.push({ doc, leagueId: league.id, fixture });
@@ -1166,6 +1491,120 @@ async function loadFixturesForReconcile(now = new Date()) {
   }
 
   return fixtures;
+}
+
+async function reconcileLeagueLiveFixtureEntry(
+  entry: FixtureEntry,
+  now = new Date(),
+  runningTimeoutMinutes = Math.max(10, Number(LEAGUE_RUNNING_TIMEOUT_MINUTES || 120)),
+) {
+  const fixture = entry.fixture;
+  const live = fixture?.live || {};
+  const matchId = String(live.matchId || '').trim();
+  if (!matchId) {
+    return { checked: 0, updated: 0, failed: 0 };
+  }
+
+  try {
+    const status = await callMatchControlJson<MatchControlStatus>(`/v1/matches/${encodeURIComponent(matchId)}/status`, {
+      method: 'GET',
+    });
+    const effectiveState = String(status.state || '').trim() || String(live.state || '').trim();
+    const fixtureStatus = String(fixture.status || 'scheduled').trim().toLowerCase();
+    const patch: Record<string, unknown> = {
+      'live.state': effectiveState,
+      'live.nodeId': live.nodeId || null,
+      'live.serverIp': status.serverIp || live.serverIp || null,
+      'live.serverPort': Number.isFinite(status.serverPort) ? Number(status.serverPort) : live.serverPort ?? null,
+      'live.lastLifecycleAt': FieldValue.serverTimestamp(),
+    };
+
+    if (fixtureStatus === 'played' && effectiveState !== 'ended') {
+      patch['live.state'] = 'ended';
+      patch['live.endedAt'] = live?.endedAt || FieldValue.serverTimestamp();
+      patch['live.resultMissing'] = false;
+      patch['live.reason'] = FieldValue.delete();
+    }
+
+    if ((effectiveState === 'server_started' || effectiveState === 'running') && !live.startedAt) {
+      patch['live.startedAt'] = FieldValue.serverTimestamp();
+    }
+    if (effectiveState === 'ended') {
+      patch['live.endedAt'] = FieldValue.serverTimestamp();
+      patch['live.resultMissing'] = fixture.status !== 'played';
+    }
+
+    const nextStatus = mapLifecycleToFixtureStatus(effectiveState, fixtureStatus);
+    if (nextStatus !== fixture.status) {
+      patch.status = nextStatus;
+    }
+
+    const kickoffDate = resolveFixtureKickoffReferenceDate(fixture);
+    const overdueWarm =
+      effectiveState === 'warm' &&
+      kickoffDate &&
+      now.getTime() - kickoffDate.getTime() > 2 * 60 * 1000;
+    if (overdueWarm) {
+      const retryCount = Number(live.retryCount || 0);
+      if (retryCount < 3) {
+        await callMatchControlJson(`/v1/league/kickoff-slot`, {
+          method: 'POST',
+          body: JSON.stringify({ matchId }),
+        });
+        patch['live.retryCount'] = retryCount + 1;
+        patch['live.kickoffAttemptedAt'] = FieldValue.serverTimestamp();
+      } else {
+        patch['live.state'] = 'failed';
+        patch['live.reason'] = 'kickoff_retry_exhausted';
+        patch.status = fixture.status === 'played' ? fixture.status : 'failed';
+      }
+    }
+
+    const staleRunning =
+      (effectiveState === 'running' || effectiveState === 'server_started') &&
+      kickoffDate &&
+      now.getTime() - kickoffDate.getTime() > runningTimeoutMinutes * 60 * 1000 &&
+      fixture.status !== 'played';
+    if (staleRunning) {
+      patch['live.state'] = 'failed';
+      patch['live.reason'] = 'running_timeout';
+      patch.status = 'failed';
+    }
+
+    const missingVideo =
+      fixture.status === 'played' &&
+      fixture.videoMissing === true &&
+      live?.endedAt?.toDate?.() &&
+      now.getTime() - live.endedAt.toDate().getTime() > 30 * 60 * 1000;
+    if (missingVideo) {
+      patch.videoError = 'upload_timeout';
+    }
+
+    await entry.doc.ref.update(patch);
+    return { checked: 1, updated: 1, failed: 0 };
+  } catch (error: any) {
+    functions.logger.warn('[reconcileLeagueLiveMatches] status sync failed', {
+      fixtureId: entry.doc.id,
+      matchId,
+      error: error?.message || String(error),
+    });
+
+    const kickoffDate = resolveFixtureKickoffReferenceDate(fixture);
+    const shouldFail =
+      kickoffDate &&
+      now.getTime() - kickoffDate.getTime() > runningTimeoutMinutes * 60 * 1000 &&
+      fixture.status !== 'played';
+    if (shouldFail) {
+      await entry.doc.ref.update({
+        ...liveStatePatch('failed', {
+          'live.reason': 'status_poll_timeout',
+        }),
+        status: 'failed',
+      });
+    }
+
+    return { checked: 1, updated: 0, failed: 1 };
+  }
 }
 
 async function reconcileLeagueLiveMatchesInternal(now = new Date()) {
@@ -1177,112 +1616,10 @@ async function reconcileLeagueLiveMatchesInternal(now = new Date()) {
   const runningTimeoutMinutes = Math.max(10, Number(LEAGUE_RUNNING_TIMEOUT_MINUTES || 120));
 
   for (const entry of fixtures) {
-    const fixture = entry.fixture;
-    const live = fixture?.live || {};
-    const matchId = String(live.matchId || '').trim();
-    if (!matchId) continue;
-    checked += 1;
-
-    try {
-      const status = await callMatchControlJson<MatchControlStatus>(`/v1/matches/${encodeURIComponent(matchId)}/status`, {
-        method: 'GET',
-      });
-      const effectiveState = String(status.state || '').trim() || String(live.state || '').trim();
-      const fixtureStatus = String(fixture.status || 'scheduled').trim().toLowerCase();
-      const patch: Record<string, unknown> = {
-        'live.state': effectiveState,
-        'live.nodeId': live.nodeId || null,
-        'live.serverIp': status.serverIp || live.serverIp || null,
-        'live.serverPort': Number.isFinite(status.serverPort) ? Number(status.serverPort) : live.serverPort ?? null,
-        'live.lastLifecycleAt': FieldValue.serverTimestamp(),
-      };
-
-      // Storage/result finalize can mark fixture played while live state remains stale.
-      if (fixtureStatus === 'played' && effectiveState !== 'ended') {
-        patch['live.state'] = 'ended';
-        patch['live.endedAt'] = live?.endedAt || FieldValue.serverTimestamp();
-        patch['live.resultMissing'] = false;
-        patch['live.reason'] = FieldValue.delete();
-      }
-
-      if ((effectiveState === 'server_started' || effectiveState === 'running') && !live.startedAt) {
-        patch['live.startedAt'] = FieldValue.serverTimestamp();
-      }
-      if (effectiveState === 'ended') {
-        patch['live.endedAt'] = FieldValue.serverTimestamp();
-        patch['live.resultMissing'] = fixture.status !== 'played';
-      }
-
-      const nextStatus = mapLifecycleToFixtureStatus(effectiveState, fixtureStatus);
-      if (nextStatus !== fixture.status) {
-        patch.status = nextStatus;
-      }
-
-      const kickoffDate = fixture?.date?.toDate?.() as Date | undefined;
-      const overdueWarm =
-        effectiveState === 'warm' &&
-        kickoffDate &&
-        now.getTime() - kickoffDate.getTime() > 2 * 60 * 1000;
-      if (overdueWarm) {
-        const retryCount = Number(live.retryCount || 0);
-        if (retryCount < 3) {
-          await callMatchControlJson(`/v1/league/kickoff-slot`, {
-            method: 'POST',
-            body: JSON.stringify({ matchId }),
-          });
-          patch['live.retryCount'] = retryCount + 1;
-          patch['live.kickoffAttemptedAt'] = FieldValue.serverTimestamp();
-        } else {
-          patch['live.state'] = 'failed';
-          patch['live.reason'] = 'kickoff_retry_exhausted';
-          patch.status = fixture.status === 'played' ? fixture.status : 'failed';
-        }
-      }
-
-      const staleRunning =
-        (effectiveState === 'running' || effectiveState === 'server_started') &&
-        kickoffDate &&
-        now.getTime() - kickoffDate.getTime() > runningTimeoutMinutes * 60 * 1000 &&
-        fixture.status !== 'played';
-      if (staleRunning) {
-        patch['live.state'] = 'failed';
-        patch['live.reason'] = 'running_timeout';
-        patch.status = 'failed';
-      }
-
-      const missingVideo =
-        fixture.status === 'played' &&
-        fixture.videoMissing === true &&
-        live?.endedAt?.toDate?.() &&
-        now.getTime() - live.endedAt.toDate().getTime() > 30 * 60 * 1000;
-      if (missingVideo) {
-        patch.videoError = 'upload_timeout';
-      }
-
-      await entry.doc.ref.update(patch);
-      updated += 1;
-    } catch (error: any) {
-      failed += 1;
-      functions.logger.warn('[reconcileLeagueLiveMatches] status sync failed', {
-        fixtureId: entry.doc.id,
-        matchId,
-        error: error?.message || String(error),
-      });
-
-      const kickoffDate = fixture?.date?.toDate?.() as Date | undefined;
-      const shouldFail =
-        kickoffDate &&
-        now.getTime() - kickoffDate.getTime() > runningTimeoutMinutes * 60 * 1000 &&
-        fixture.status !== 'played';
-      if (shouldFail) {
-        await entry.doc.ref.update({
-          ...liveStatePatch('failed', {
-            'live.reason': 'status_poll_timeout',
-          }),
-          status: 'failed',
-        });
-      }
-    }
+    const result = await reconcileLeagueLiveFixtureEntry(entry, now, runningTimeoutMinutes);
+    checked += Number(result.checked || 0);
+    updated += Number(result.updated || 0);
+    failed += Number(result.failed || 0);
   }
 
   await updateHeartbeat(day, {
@@ -1311,22 +1648,29 @@ function isAutoReschedulableFailure(reason: string) {
   return AUTO_RESCHEDULE_REASON_TOKENS.some((token) => normalized.includes(token));
 }
 
-function resolveNextKickoffDate(now: Date, fixtureDate: Date) {
-  const minDelayMinutes = Math.max(1, Number(LEAGUE_FAILED_RESCHEDULE_MIN_DELAY_MINUTES || 5));
-  const earliestMs = Math.max(now.getTime() + minDelayMinutes * 60_000, fixtureDate.getTime() + 60_000);
-
-  for (let dayOffset = 0; dayOffset <= 7; dayOffset += 1) {
-    const dayProbe = new Date(earliestMs);
-    dayProbe.setUTCDate(dayProbe.getUTCDate() + dayOffset);
-    for (const hour of LEAGUE_KICKOFF_HOURS_TR) {
-      const kickoffAt = kickoffDateAtHour(dayProbe, hour);
-      if (kickoffAt.getTime() >= earliestMs) {
-        return kickoffAt;
-      }
-    }
+function isAutoRescheduleEligibleFixtureStatus(status: string, liveState: string) {
+  const normalizedStatus = String(status || '').trim().toLowerCase();
+  const normalizedLiveState = String(liveState || '').trim().toLowerCase();
+  if (normalizedStatus === 'failed') {
+    return true;
   }
+  if (normalizedStatus !== 'scheduled') {
+    return false;
+  }
+  return (
+    normalizedLiveState === 'prepare_failed' ||
+    normalizedLiveState === 'kickoff_failed' ||
+    normalizedLiveState === 'failed'
+  );
+}
 
-  throw new Error('next_kickoff_slot_not_found');
+function resolveNextSameDayKickoffDate(now: Date, fixtureDate: Date) {
+  return resolveSameDayRetryKickoffAt(
+    fixtureDate,
+    now,
+    LEAGUE_KICKOFF_HOURS_TR,
+    Math.max(1, Number(LEAGUE_FAILED_RESCHEDULE_MIN_DELAY_MINUTES || 5)),
+  );
 }
 
 async function autoRescheduleFailedLeagueFixturesInternal(now = new Date()) {
@@ -1354,7 +1698,8 @@ async function autoRescheduleFailedLeagueFixturesInternal(now = new Date()) {
     const fixture = entry.fixture || {};
     const live = fixture?.live || {};
     const status = String(fixture?.status || '').trim().toLowerCase();
-    if (status !== 'failed') continue;
+    const liveState = String(live?.state || '').trim().toLowerCase();
+    if (!isAutoRescheduleEligibleFixtureStatus(status, liveState)) continue;
     checked += 1;
 
     const reason = String(live?.reason || '').trim().toLowerCase();
@@ -1392,16 +1737,15 @@ async function autoRescheduleFailedLeagueFixturesInternal(now = new Date()) {
 
     try {
       const fixtureDate = fixture?.date?.toDate?.() instanceof Date ? fixture.date.toDate() : now;
-      const nextKickoff = resolveNextKickoffDate(now, fixtureDate);
+      const nextKickoff = resolveNextSameDayKickoffDate(now, fixtureDate);
       const previousMatchId = String(live?.matchId || '').trim() || null;
 
       await entry.doc.ref.update({
-        date: Timestamp.fromDate(nextKickoff),
         status: 'scheduled',
-        score: FieldValue.delete(),
+        score: null,
         replayPath: FieldValue.delete(),
         video: FieldValue.delete(),
-        videoMissing: true,
+        videoMissing: FieldValue.delete(),
         videoError: FieldValue.delete(),
         'live.state': 'rescheduled',
         'live.reason': `auto_rescheduled:${reason || 'failed'}`,
@@ -1425,9 +1769,21 @@ async function autoRescheduleFailedLeagueFixturesInternal(now = new Date()) {
         'live.resultPayload': FieldValue.delete(),
         'live.rescheduledAt': FieldValue.serverTimestamp(),
         'live.rescheduleCount': previousReschedules + 1,
+        'recovery.state': FieldValue.delete(),
+        'recovery.waveId': FieldValue.delete(),
+        'recovery.lockedAt': FieldValue.delete(),
+        'recovery.lockExpiresAt': FieldValue.delete(),
+        'recovery.nextRetryAt': FieldValue.delete(),
+        'recovery.lastError': FieldValue.delete(),
+        'recovery.reservedKickoffAt': nextKickoff
+          ? Timestamp.fromDate(nextKickoff)
+          : FieldValue.delete(),
+        'recovery.updatedAt': nextKickoff
+          ? FieldValue.serverTimestamp()
+          : FieldValue.delete(),
       });
       const leagueId = entry.doc.ref.parent.parent?.id;
-      if (leagueId) {
+      if (leagueId && nextKickoff) {
         try {
           await enqueueLeagueMatchReminder(leagueId, entry.doc.id, nextKickoff);
         } catch (error: any) {
@@ -1513,6 +1869,998 @@ async function recoverLeagueKickoffSlotsInternal(baseDate = new Date()) {
     slotResults,
   };
 }
+
+function recoveryFieldPatch(state: string, extra: Record<string, unknown> = {}) {
+  return {
+    'recovery.state': state,
+    'recovery.updatedAt': FieldValue.serverTimestamp(),
+    ...extra,
+  };
+}
+
+async function acquireHistoricalRecoveryRunnerLock(now = new Date()) {
+  const runtimeRef = getHistoricalRecoveryRuntimeRef();
+  const lockUntil = new Date(now.getTime() + NIGHTLY_RECOVERY_RUNNER_LOCK_MINUTES * 60_000);
+  let acquired = false;
+
+  await db.runTransaction(async (tx) => {
+    const runtimeSnap = await tx.get(runtimeRef);
+    const runtime = runtimeSnap.exists ? (runtimeSnap.data() as any) : {};
+    const currentLockMs = toTimestampMillis(runtime?.runnerLockUntil);
+    if (currentLockMs != null && currentLockMs > now.getTime()) {
+      return;
+    }
+    acquired = true;
+    tx.set(runtimeRef, {
+      runnerLockUntil: Timestamp.fromDate(lockUntil),
+      lastRunAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
+  });
+
+  return acquired;
+}
+
+async function releaseHistoricalRecoveryRunnerLock() {
+  await getHistoricalRecoveryRuntimeRef().set({
+    runnerLockUntil: FieldValue.delete(),
+    lastRunAt: FieldValue.serverTimestamp(),
+    updatedAt: FieldValue.serverTimestamp(),
+  }, { merge: true });
+}
+
+async function loadHistoricalRecoveryEntriesByPaths(paths: string[]) {
+  const dedupedPaths = Array.from(new Set(paths.filter(Boolean)));
+  const snaps = await Promise.all(dedupedPaths.map((path) => db.doc(path).get()));
+  const entries: FixtureEntry[] = [];
+  for (const snap of snaps) {
+    if (!snap.exists) continue;
+    const leagueId = snap.ref.parent.parent?.id;
+    if (!leagueId) continue;
+    entries.push({
+      doc: snap as FirebaseFirestore.QueryDocumentSnapshot,
+      leagueId,
+      fixture: snap.data() as any,
+    });
+  }
+  entries.sort((left, right) => compareHistoricalFixtureDates(left.fixture, right.fixture));
+  return entries;
+}
+
+async function loadHistoricalRecoveryCandidatesInternal(
+  now = new Date(),
+  options: HistoricalRecoveryScanOptions = {},
+) {
+  const includeChampions = options.includeChampions !== false;
+  const fromDateMs = options.fromDate ? options.fromDate.getTime() : null;
+  const limit = Math.max(1, Math.min(Number(options.limit || NIGHTLY_RECOVERY_BATCH_SIZE), 100));
+  const scanLimit = Math.max(limit * 4, NIGHTLY_RECOVERY_SCAN_LIMIT);
+  const candidates: FixtureEntry[] = [];
+  let scanned = 0;
+  let usedFallback = false;
+
+  const finalizeEntries = (docs: FirebaseFirestore.QueryDocumentSnapshot[]) => {
+    scanned = docs.length;
+    for (const doc of docs) {
+      const leagueId = doc.ref.parent.parent?.id;
+      if (!leagueId) continue;
+      const fixture = doc.data() as any;
+      const fixtureDateMs = toTimestampMillis(fixture?.date);
+      if (fixtureDateMs == null || fixtureDateMs >= now.getTime()) continue;
+      if (fromDateMs != null && fixtureDateMs < fromDateMs) continue;
+      if (!includeChampions && isChampionsLeagueFixture(fixture)) continue;
+      const candidateKind = resolveHistoricalRecoveryCandidateKind(
+        fixture,
+        now,
+        HISTORICAL_RECOVERY_RUNNING_TIMEOUT_MINUTES,
+      );
+      if (!candidateKind) continue;
+      candidates.push({ doc, leagueId, fixture });
+    }
+  };
+
+  try {
+    const snap = await db
+      .collectionGroup('fixtures')
+      .where('status', 'in', ['scheduled', 'failed', 'running'])
+      .where('date', '<', Timestamp.fromDate(now))
+      .orderBy('date', 'asc')
+      .limit(scanLimit)
+      .get();
+    finalizeEntries(snap.docs);
+  } catch (error: any) {
+    usedFallback = true;
+    functions.logger.warn('[historicalRecovery] collectionGroup scan failed, falling back to per-league', {
+      error: error?.message || String(error),
+    });
+
+    const leagueSnap = await db.collection('leagues').get();
+    const docs: FirebaseFirestore.QueryDocumentSnapshot[] = [];
+    for (const league of leagueSnap.docs) {
+      const scheduledSnap = await league.ref
+        .collection('fixtures')
+        .where('status', 'in', ['scheduled', 'failed', 'running'])
+        .get();
+      docs.push(...scheduledSnap.docs);
+    }
+    finalizeEntries(docs);
+  }
+
+  candidates.sort((left, right) => compareHistoricalFixtureDates(left.fixture, right.fixture));
+
+  return {
+    entries: candidates.slice(0, limit),
+    scanned,
+    usedFallback,
+    hasMore: candidates.length > limit,
+  };
+}
+
+async function reserveHistoricalRecoveryWave(
+  entries: FixtureEntry[],
+  now = new Date(),
+  options: HistoricalRecoveryScanOptions = {},
+) {
+  if (!entries.length) {
+    return null;
+  }
+
+  const waveId = `historical_${formatInTimeZone(now, TZ, 'yyyyMMdd_HHmmss')}_${randomUUID().slice(0, 8)}`;
+  const runtimeRef = getHistoricalRecoveryRuntimeRef();
+  const waveRef = getHistoricalRecoveryWaveRef(waveId);
+  const lockExpiresAt = new Date(now.getTime() + NIGHTLY_RECOVERY_WAVE_LOCK_MINUTES * 60_000);
+
+  await db.runTransaction(async (tx) => {
+    const runtimeSnap = await tx.get(runtimeRef);
+    const runtime = runtimeSnap.exists ? (runtimeSnap.data() as any) : {};
+    const activeWaveId = String(runtime?.activeWaveId || '').trim();
+    if (activeWaveId) {
+      throw new Error('historical_recovery_wave_already_active');
+    }
+
+    tx.set(waveRef, {
+      waveId,
+      status: HISTORICAL_RECOVERY_ACTIVE_STATE,
+      fixturePaths: entries.map((entry) => entry.doc.ref.path),
+      includeChampions: options.includeChampions !== false,
+      limit: entries.length,
+      fromDate: options.fromDate ? Timestamp.fromDate(options.fromDate) : null,
+      createdAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+    } satisfies HistoricalRecoveryWaveDoc, { merge: true });
+
+    tx.set(runtimeRef, {
+      activeWaveId: waveId,
+      updatedAt: FieldValue.serverTimestamp(),
+      lastRunAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
+
+    for (const entry of entries) {
+      tx.update(entry.doc.ref, {
+        ...recoveryFieldPatch('queued', {
+          'recovery.waveId': waveId,
+          'recovery.lockedAt': FieldValue.serverTimestamp(),
+          'recovery.lockExpiresAt': Timestamp.fromDate(lockExpiresAt),
+          'recovery.nextRetryAt': FieldValue.delete(),
+        }),
+      });
+    }
+  });
+
+  return { waveId, waveRef };
+}
+
+async function clearHistoricalRecoveryWave(waveId: string, status = 'completed') {
+  const runtimeRef = getHistoricalRecoveryRuntimeRef();
+  const waveRef = getHistoricalRecoveryWaveRef(waveId);
+  await db.runTransaction(async (tx) => {
+    const runtimeSnap = await tx.get(runtimeRef);
+    const runtime = runtimeSnap.exists ? (runtimeSnap.data() as any) : {};
+    if (String(runtime?.activeWaveId || '').trim() === waveId) {
+      tx.set(runtimeRef, {
+        activeWaveId: FieldValue.delete(),
+        updatedAt: FieldValue.serverTimestamp(),
+        lastRunAt: FieldValue.serverTimestamp(),
+      }, { merge: true });
+    }
+    tx.set(waveRef, {
+      status,
+      completedAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
+  });
+}
+
+async function rollOverHistoricalRecoveryWave(
+  waveId: string,
+  wave: HistoricalRecoveryWaveDoc,
+  now = new Date(),
+) {
+  const entries = await loadHistoricalRecoveryEntriesByPaths(wave.fixturePaths || []);
+  const deferredUntil = resolveHistoricalRetryAt(now, NIGHTLY_RECOVERY_RETRY_DELAY_MINUTES);
+
+  for (const entry of entries) {
+    const status = String(entry.fixture?.status || '').trim().toLowerCase();
+    if (status === 'played' || isHistoricalRecoverySettled(entry.fixture)) {
+      continue;
+    }
+
+    await entry.doc.ref.update({
+      ...recoveryFieldPatch('deferred', {
+        'recovery.waveId': FieldValue.delete(),
+        'recovery.nextRetryAt': Timestamp.fromDate(deferredUntil),
+        'recovery.lockExpiresAt': FieldValue.delete(),
+        'recovery.lastError': String(
+          entry.fixture?.recovery?.lastError || entry.fixture?.live?.reason || 'wave_rollover',
+        ),
+      }),
+    });
+  }
+
+  await clearHistoricalRecoveryWave(waveId, 'rolled_over');
+  return {
+    rolledOver: entries.length,
+    nextRetryAt: deferredUntil.toISOString(),
+  };
+}
+
+async function loadActiveHistoricalRecoveryWave() {
+  const runtimeSnap = await getHistoricalRecoveryRuntimeRef().get();
+  if (!runtimeSnap.exists) {
+    return null;
+  }
+
+  const runtime = runtimeSnap.data() as any;
+  const activeWaveId = String(runtime?.activeWaveId || '').trim();
+  if (!activeWaveId) {
+    return null;
+  }
+
+  const waveSnap = await getHistoricalRecoveryWaveRef(activeWaveId).get();
+  if (!waveSnap.exists) {
+    await getHistoricalRecoveryRuntimeRef().set({
+      activeWaveId: FieldValue.delete(),
+      updatedAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
+    return null;
+  }
+
+  return {
+    waveId: activeWaveId,
+    wave: waveSnap.data() as HistoricalRecoveryWaveDoc,
+  };
+}
+
+function resolveHistoricalRecoveryAttemptKickoffAt(fixture: any, now = new Date()) {
+  const fixtureKickoffAt = fixture?.date?.toDate?.() as Date | undefined;
+  return (
+    resolveReservationKickoffAt(fixtureKickoffAt, { allForDay: true }, now) ||
+    new Date(now.getTime() + 30 * 60_000)
+  );
+}
+
+function isHistoricalRecoveryWaveStale(wave: HistoricalRecoveryWaveDoc | null | undefined, now = new Date()) {
+  const createdAtMs = toTimestampMillis((wave?.createdAt ?? null) as any);
+  if (createdAtMs == null) {
+    return false;
+  }
+  return now.getTime() - createdAtMs >= NIGHTLY_RECOVERY_WAVE_STALE_MINUTES * 60_000;
+}
+
+async function markHistoricalRecoverySettled(entry: FixtureEntry, waveId: string, state = 'settled') {
+  await entry.doc.ref.update({
+    ...recoveryFieldPatch(state, {
+      'recovery.waveId': waveId,
+      'recovery.lockExpiresAt': FieldValue.delete(),
+      'recovery.nextRetryAt': FieldValue.delete(),
+      'recovery.reservedKickoffAt': FieldValue.delete(),
+      'recovery.lastError': FieldValue.delete(),
+    }),
+  });
+}
+
+async function requeueHistoricalRecoveryFixture(
+  entry: FixtureEntry,
+  now: Date,
+  waveId: string,
+  reason: string,
+) {
+  const previousMatchId =
+    String(entry.fixture?.live?.matchId || '').trim() ||
+    String(entry.fixture?.recovery?.lastMatchId || '').trim() ||
+    null;
+  const nextRetryAt = resolveHistoricalRetryAt(now, NIGHTLY_RECOVERY_RETRY_DELAY_MINUTES);
+  const lockExpiresAt = new Date(now.getTime() + NIGHTLY_RECOVERY_WAVE_LOCK_MINUTES * 60_000);
+
+  await entry.doc.ref.update({
+    status: 'scheduled',
+    score: FieldValue.delete(),
+    replayPath: FieldValue.delete(),
+    video: FieldValue.delete(),
+    videoMissing: true,
+    videoError: FieldValue.delete(),
+    'live.state': 'recovery_queued',
+    'live.reason': `nightly_requeue:${reason || 'unknown'}`,
+    'live.previousReason': reason || null,
+    'live.previousMatchId': previousMatchId,
+    'live.matchId': FieldValue.delete(),
+    'live.nodeId': FieldValue.delete(),
+    'live.serverIp': FieldValue.delete(),
+    'live.serverPort': FieldValue.delete(),
+    'live.prewarmedAt': FieldValue.delete(),
+    'live.kickoffAttemptedAt': FieldValue.delete(),
+    'live.startedAt': FieldValue.delete(),
+    'live.endedAt': FieldValue.delete(),
+    'live.homeUserId': FieldValue.delete(),
+    'live.awayUserId': FieldValue.delete(),
+    'live.retryCount': 0,
+    'live.resultMissing': false,
+    'live.minute': FieldValue.delete(),
+    'live.minuteUpdatedAt': FieldValue.delete(),
+    'live.resultPayload': FieldValue.delete(),
+    ...recoveryFieldPatch('retry_wait', {
+      'recovery.waveId': waveId,
+      'recovery.lockedAt': FieldValue.serverTimestamp(),
+      'recovery.lockExpiresAt': Timestamp.fromDate(lockExpiresAt),
+      'recovery.nextRetryAt': Timestamp.fromDate(nextRetryAt),
+      'recovery.lastError': reason || 'unknown',
+      'recovery.lastMatchId': previousMatchId,
+      'recovery.reservedKickoffAt': FieldValue.delete(),
+    }),
+  });
+}
+
+async function fallbackHistoricalRecoveryFixture(
+  entry: FixtureEntry,
+  now: Date,
+  waveId: string,
+  reason: string,
+) {
+  const previousMatchId =
+    String(entry.fixture?.live?.matchId || '').trim() ||
+    String(entry.fixture?.recovery?.lastMatchId || '').trim() ||
+    null;
+
+  try {
+    const fallback = await finalizeFixtureWithFallbackResult({
+      leagueId: entry.leagueId,
+      fixtureId: entry.doc.id,
+      matchId: previousMatchId || undefined,
+      reason,
+    });
+
+    if (fallback.status === 'applied') {
+      const alreadyAlerted = toTimestampMillis(entry.fixture?.recovery?.alertedAt) != null;
+      if (!alreadyAlerted) {
+        await queueHistoricalRecoveryAlert({
+          leagueId: entry.leagueId,
+          fixtureId: entry.doc.id,
+          fixturePath: entry.doc.ref.path,
+          competitionType: entry.fixture?.competitionType || null,
+          waveId,
+          reason,
+          attemptCount: getHistoricalRecoveryAttemptCount(entry.fixture),
+          lastMatchId: previousMatchId,
+        });
+      }
+
+      await entry.doc.ref.update({
+        ...recoveryFieldPatch('fallback_applied', {
+          'recovery.waveId': waveId,
+          'recovery.lockExpiresAt': FieldValue.delete(),
+          'recovery.nextRetryAt': FieldValue.delete(),
+          'recovery.lastError': reason,
+          'recovery.lastMatchId': previousMatchId,
+          'recovery.reservedKickoffAt': FieldValue.delete(),
+          ...(alreadyAlerted ? {} : { 'recovery.alertedAt': FieldValue.serverTimestamp() }),
+        }),
+      });
+
+      return {
+        prepared: 0,
+        started: 0,
+        active: 0,
+        requeued: 0,
+        settled: 1,
+        fallbackApplied: 1,
+        alertPending: alreadyAlerted ? 0 : 1,
+        failed: 0,
+      };
+    }
+
+    await markHistoricalRecoverySettled(entry, waveId);
+    return {
+      prepared: 0,
+      started: 0,
+      active: 0,
+      requeued: 0,
+      settled: 1,
+      fallbackApplied: 0,
+      alertPending: 0,
+      failed: 0,
+    };
+  } catch (error: any) {
+    const fallbackFailureReason = `fallback_failed:${error?.message || String(error)}`;
+    const alreadyAlerted = toTimestampMillis(entry.fixture?.recovery?.alertedAt) != null;
+    let shouldMarkAlerted = false;
+
+    if (!alreadyAlerted) {
+      try {
+        const alertResult = await queueHistoricalRecoveryAlert({
+          leagueId: entry.leagueId,
+          fixtureId: entry.doc.id,
+          fixturePath: entry.doc.ref.path,
+          competitionType: entry.fixture?.competitionType || null,
+          waveId,
+          reason: fallbackFailureReason,
+          attemptCount: getHistoricalRecoveryAttemptCount(entry.fixture),
+          lastMatchId: previousMatchId,
+        });
+        shouldMarkAlerted = alertResult.queued || alertResult.duplicate;
+      } catch (alertError: any) {
+        functions.logger.warn('[fallbackHistoricalRecoveryFixture] alert queue failed', {
+          fixtureId: entry.doc.id,
+          leagueId: entry.leagueId,
+          error: alertError?.message || String(alertError),
+        });
+      }
+    }
+
+    await requeueHistoricalRecoveryFixture(
+      entry,
+      now,
+      waveId,
+      fallbackFailureReason,
+    );
+
+    if (shouldMarkAlerted) {
+      await entry.doc.ref.update({
+        'recovery.alertedAt': FieldValue.serverTimestamp(),
+      }).catch(() => undefined);
+    }
+
+    return {
+      prepared: 0,
+      started: 0,
+      active: 0,
+      requeued: 1,
+      settled: 0,
+      fallbackApplied: 0,
+      alertPending: 0,
+      failed: 1,
+    };
+  }
+}
+
+async function startHistoricalRecoveryFixtureAttempt(
+  entry: FixtureEntry,
+  now: Date,
+  waveId: string,
+) {
+  const currentAttemptCount = getHistoricalRecoveryAttemptCount(entry.fixture);
+  if (shouldFallbackAfterHistoricalAttempts(currentAttemptCount, NIGHTLY_RECOVERY_MAX_ATTEMPTS)) {
+    return fallbackHistoricalRecoveryFixture(
+      entry,
+      now,
+      waveId,
+      String(entry.fixture?.live?.reason || entry.fixture?.recovery?.lastError || 'attempts_exhausted'),
+    );
+  }
+
+  const nextAttemptCount = currentAttemptCount + 1;
+  const kickoffAt = resolveHistoricalRecoveryAttemptKickoffAt(entry.fixture, now);
+  const lockExpiresAt = new Date(now.getTime() + NIGHTLY_RECOVERY_WAVE_LOCK_MINUTES * 60_000);
+
+  await entry.doc.ref.update({
+    ...recoveryFieldPatch('preparing', {
+      'recovery.waveId': waveId,
+      'recovery.attemptCount': nextAttemptCount,
+      'recovery.lockedAt': FieldValue.serverTimestamp(),
+      'recovery.lockExpiresAt': Timestamp.fromDate(lockExpiresAt),
+      'recovery.nextRetryAt': FieldValue.delete(),
+      'recovery.lastError': FieldValue.delete(),
+      'recovery.reservedKickoffAt': Timestamp.fromDate(kickoffAt),
+    }),
+  });
+
+  const prepareResult = await prepareFixtureForLeagueKickoff(entry, { allForDay: true }, kickoffAt);
+  if (prepareResult.status === 'failed' || prepareResult.status === 'skipped') {
+    if (shouldFallbackAfterHistoricalAttempts(nextAttemptCount, NIGHTLY_RECOVERY_MAX_ATTEMPTS)) {
+      return fallbackHistoricalRecoveryFixture(
+        entry,
+        now,
+        waveId,
+        prepareResult.reason || 'prepare_failed',
+      );
+    }
+    await requeueHistoricalRecoveryFixture(entry, now, waveId, prepareResult.reason || 'prepare_failed');
+    return {
+      prepared: 0,
+      started: 0,
+      active: 0,
+      requeued: 1,
+      fallbackApplied: 0,
+      alertPending: 0,
+      settled: 0,
+      failed: prepareResult.status === 'failed' ? 1 : 0,
+    };
+  }
+
+  const preparedEntries = await loadHistoricalRecoveryEntriesByPaths([entry.doc.ref.path]);
+  const preparedEntry = preparedEntries[0];
+  if (!preparedEntry) {
+    await requeueHistoricalRecoveryFixture(entry, now, waveId, 'prepared_entry_missing');
+    return {
+      prepared: 0,
+      started: 0,
+      active: 0,
+      requeued: 1,
+      fallbackApplied: 0,
+      alertPending: 0,
+      settled: 0,
+      failed: 1,
+    };
+  }
+
+  const kickoffResult = await kickoffPreparedLeagueFixture(preparedEntry);
+  if (kickoffResult.status === 'failed' || kickoffResult.status === 'skipped') {
+    if (shouldFallbackAfterHistoricalAttempts(nextAttemptCount, NIGHTLY_RECOVERY_MAX_ATTEMPTS)) {
+      return fallbackHistoricalRecoveryFixture(
+        preparedEntry,
+        now,
+        waveId,
+        kickoffResult.reason || 'kickoff_failed',
+      );
+    }
+    await requeueHistoricalRecoveryFixture(
+      preparedEntry,
+      now,
+      waveId,
+      kickoffResult.reason || 'kickoff_failed',
+    );
+    return {
+      prepared: prepareResult.status === 'prepared' ? 1 : 0,
+      started: 0,
+      active: 0,
+      requeued: 1,
+      fallbackApplied: 0,
+      alertPending: 0,
+      settled: 0,
+      failed: kickoffResult.status === 'failed' ? 1 : 0,
+    };
+  }
+
+  await preparedEntry.doc.ref.update({
+    ...recoveryFieldPatch('started', {
+      'recovery.waveId': waveId,
+      'recovery.lockExpiresAt': Timestamp.fromDate(lockExpiresAt),
+      'recovery.lastMatchId': kickoffResult.matchId || prepareResult.matchId || entry.doc.id,
+    }),
+  });
+
+  return {
+    prepared: prepareResult.status === 'prepared' ? 1 : 0,
+    started: 1,
+    active: 1,
+    requeued: 0,
+    fallbackApplied: 0,
+    alertPending: 0,
+    settled: 0,
+    failed: 0,
+  };
+}
+
+async function processHistoricalRecoveryWaveEntry(
+  entry: FixtureEntry,
+  now: Date,
+  waveId: string,
+) {
+  let prepared = 0;
+  let started = 0;
+  let active = 0;
+  let requeued = 0;
+  let fallbackApplied = 0;
+  let alertPending = 0;
+  let settled = 0;
+  let failed = 0;
+
+  const media = await backfillLiveLeagueMediaEntry(entry, now, { allowFallback: false });
+  failed += Number(media.failed || 0);
+
+  let [currentEntry] = await loadHistoricalRecoveryEntriesByPaths([entry.doc.ref.path]);
+  if (!currentEntry) {
+    return { prepared, started, active, requeued, fallbackApplied, alertPending, settled, failed };
+  }
+
+  if (String(currentEntry.fixture?.status || '').toLowerCase() === 'played') {
+    await markHistoricalRecoverySettled(currentEntry, waveId);
+    return { prepared, started, active, requeued, fallbackApplied, alertPending, settled: 1, failed };
+  }
+
+  if (Number(media.resultRecovered || 0) > 0) {
+    await currentEntry.doc.ref.update({
+      ...recoveryFieldPatch('awaiting_result', {
+        'recovery.waveId': waveId,
+        'recovery.lockExpiresAt': Timestamp.fromDate(
+          new Date(now.getTime() + NIGHTLY_RECOVERY_WAVE_LOCK_MINUTES * 60_000),
+        ),
+      }),
+    });
+    return { prepared, started, active: 1, requeued, fallbackApplied, alertPending, settled, failed };
+  }
+
+  const hasLiveMatchId = String(currentEntry.fixture?.live?.matchId || '').trim().length > 0;
+  if (hasLiveMatchId) {
+    const reconcile = await reconcileLeagueLiveFixtureEntry(
+      currentEntry,
+      now,
+      Math.max(10, Number(LEAGUE_RUNNING_TIMEOUT_MINUTES || 120)),
+    );
+    failed += Number(reconcile.failed || 0);
+    [currentEntry] = await loadHistoricalRecoveryEntriesByPaths([entry.doc.ref.path]);
+    if (!currentEntry) {
+      return { prepared, started, active, requeued, fallbackApplied, alertPending, settled, failed };
+    }
+    if (String(currentEntry.fixture?.status || '').toLowerCase() === 'played') {
+      await markHistoricalRecoverySettled(currentEntry, waveId);
+      return { prepared, started, active, requeued, fallbackApplied, alertPending, settled: 1, failed };
+    }
+  }
+
+  const candidateKind = resolveHistoricalRecoveryCandidateKind(
+    currentEntry.fixture,
+    now,
+    HISTORICAL_RECOVERY_RUNNING_TIMEOUT_MINUTES,
+  );
+
+  if (!candidateKind) {
+    if (String(currentEntry.fixture?.live?.matchId || '').trim()) {
+      await currentEntry.doc.ref.update({
+        ...recoveryFieldPatch('running', {
+          'recovery.waveId': waveId,
+          'recovery.lockExpiresAt': Timestamp.fromDate(
+            new Date(now.getTime() + NIGHTLY_RECOVERY_WAVE_LOCK_MINUTES * 60_000),
+          ),
+        }),
+      });
+      active += 1;
+    }
+    return { prepared, started, active, requeued, fallbackApplied, alertPending, settled, failed };
+  }
+
+  const attemptCount = getHistoricalRecoveryAttemptCount(currentEntry.fixture);
+  if (shouldFallbackAfterHistoricalAttempts(attemptCount, NIGHTLY_RECOVERY_MAX_ATTEMPTS)) {
+    const fallback = await fallbackHistoricalRecoveryFixture(
+      currentEntry,
+      now,
+      waveId,
+      String(currentEntry.fixture?.live?.reason || candidateKind),
+    );
+    fallbackApplied += Number(fallback.fallbackApplied || 0);
+    alertPending += Number(fallback.alertPending || 0);
+    settled += Number(fallback.settled || 0);
+    failed += Number(fallback.failed || 0);
+    return { prepared, started, active, requeued, fallbackApplied, alertPending, settled, failed };
+  }
+
+  const startedAttempt = await startHistoricalRecoveryFixtureAttempt(currentEntry, now, waveId);
+  prepared += Number(startedAttempt.prepared || 0);
+  started += Number(startedAttempt.started || 0);
+  active += Number(startedAttempt.active || 0);
+  requeued += Number(startedAttempt.requeued || 0);
+  fallbackApplied += Number(startedAttempt.fallbackApplied || 0);
+  alertPending += Number(startedAttempt.alertPending || 0);
+  settled += Number(startedAttempt.settled || 0);
+  failed += Number(startedAttempt.failed || 0);
+
+  return { prepared, started, active, requeued, fallbackApplied, alertPending, settled, failed };
+}
+
+async function runHistoricalRecoveryWaveInternal(
+  waveId: string,
+  wave: HistoricalRecoveryWaveDoc,
+  now = new Date(),
+) {
+  const entries = await loadHistoricalRecoveryEntriesByPaths(wave.fixturePaths || []);
+  let prepared = 0;
+  let started = 0;
+  let active = 0;
+  let requeued = 0;
+  let fallbackApplied = 0;
+  let alertPending = 0;
+  let settled = 0;
+  let failed = 0;
+
+  if (!entries.length) {
+    await clearHistoricalRecoveryWave(waveId, 'completed');
+    return {
+      waveId,
+      prepared,
+      started,
+      active,
+      requeued,
+      fallbackApplied,
+      alertPending,
+      settled,
+      failed,
+      completed: true,
+    };
+  }
+
+  for (const entry of entries) {
+    const result = await processHistoricalRecoveryWaveEntry(entry, now, waveId);
+    prepared += Number(result.prepared || 0);
+    started += Number(result.started || 0);
+    active += Number(result.active || 0);
+    requeued += Number(result.requeued || 0);
+    fallbackApplied += Number(result.fallbackApplied || 0);
+    alertPending += Number(result.alertPending || 0);
+    settled += Number(result.settled || 0);
+    failed += Number(result.failed || 0);
+  }
+
+  const refreshedEntries = await loadHistoricalRecoveryEntriesByPaths(wave.fixturePaths || []);
+  const completed = refreshedEntries.every((entry) => {
+    const status = String(entry.fixture?.status || '').trim().toLowerCase();
+    return status === 'played' || isHistoricalRecoverySettled(entry.fixture);
+  });
+
+  await getHistoricalRecoveryWaveRef(waveId).set({
+    updatedAt: FieldValue.serverTimestamp(),
+  }, { merge: true });
+
+  if (completed) {
+    await clearHistoricalRecoveryWave(waveId, 'completed');
+  }
+
+  return {
+    waveId,
+    prepared,
+    started,
+    active,
+    requeued,
+    fallbackApplied,
+    alertPending,
+    settled,
+    failed,
+    completed,
+  };
+}
+
+async function recoverHistoricalFixturesNightlyInternal(
+  now = new Date(),
+  options: HistoricalRecoveryScanOptions & { forceWave?: boolean; dryRun?: boolean } = {},
+) {
+  const day = dayKeyTR(now);
+  const dryRun = options.dryRun === true;
+  const forceWave = options.forceWave === true;
+  const includeChampions = options.includeChampions !== false;
+  const limit = Math.max(1, Math.min(Number(options.limit || NIGHTLY_RECOVERY_BATCH_SIZE), 100));
+  let previousWaveRollOver:
+    | { waveId: string; rolledOver: number; nextRetryAt: string }
+    | null = null;
+
+  const activeWave = await loadActiveHistoricalRecoveryWave();
+  if (activeWave) {
+    const result = dryRun
+      ? {
+          waveId: activeWave.waveId,
+          prepared: 0,
+          started: 0,
+          active: activeWave.wave.fixturePaths?.length || 0,
+          requeued: 0,
+          fallbackApplied: 0,
+          alertPending: 0,
+          settled: 0,
+          failed: 0,
+          completed: false,
+        }
+      : await runHistoricalRecoveryWaveInternal(activeWave.waveId, activeWave.wave, now);
+    const shouldRollOver = !dryRun && !result.completed && isHistoricalRecoveryWaveStale(activeWave.wave, now);
+
+    let rollover: { rolledOver: number; nextRetryAt: string } | null = null;
+    if (shouldRollOver) {
+      rollover = await rollOverHistoricalRecoveryWave(activeWave.waveId, activeWave.wave, now);
+    }
+
+    await updateHeartbeat(day, {
+      nightlyRecoveryPrepared: FieldValue.increment(Number(result.prepared || 0)),
+      nightlyRecoveryStarted: FieldValue.increment(Number(result.started || 0)),
+      nightlyRecoveryRequeued: FieldValue.increment(Number(result.requeued || 0)),
+      nightlyRecoveryFallbackFinalized: FieldValue.increment(Number(result.fallbackApplied || 0)),
+      nightlyRecoveryActiveWaveId:
+        result.completed || shouldRollOver ? FieldValue.delete() : activeWave.waveId,
+      nightlyRecoveryLastRunAt: FieldValue.serverTimestamp(),
+    });
+
+    if (!result.completed && !shouldRollOver) {
+      return {
+        ok: true,
+        activeWaveId: activeWave.waveId,
+        usedFallback: false,
+        scanned: 0,
+        queued: 0,
+        hasMoreBacklog: false,
+        ...result,
+      };
+    }
+
+    if (shouldRollOver) {
+      functions.logger.info('[recoverHistoricalFixturesNightly] rolled over stale wave', {
+        waveId: activeWave.waveId,
+        ...rollover,
+      });
+      previousWaveRollOver = rollover
+        ? { waveId: activeWave.waveId, ...rollover }
+        : null;
+    }
+
+    if (result.completed) {
+      return {
+        ok: true,
+        activeWaveId: activeWave.waveId,
+        usedFallback: false,
+        scanned: 0,
+        queued: 0,
+        hasMoreBacklog: false,
+        ...result,
+      };
+    }
+
+  }
+
+  if (!forceWave && !shouldOpenHistoricalRecoveryWave(now)) {
+    await updateHeartbeat(day, {
+      nightlyRecoveryLastRunAt: FieldValue.serverTimestamp(),
+      nightlyRecoveryActiveWaveId: FieldValue.delete(),
+    });
+    return {
+      ok: true,
+      skipped: 'outside_open_window',
+      scanned: 0,
+      queued: 0,
+      prepared: 0,
+      started: 0,
+      requeued: 0,
+      fallbackApplied: 0,
+      hasMoreBacklog: false,
+    };
+  }
+
+  const scan = await loadHistoricalRecoveryCandidatesInternal(now, {
+    limit,
+    includeChampions,
+    fromDate: options.fromDate || null,
+  });
+
+  await updateHeartbeat(day, {
+    nightlyRecoveryScanned: FieldValue.increment(scan.scanned),
+    nightlyRecoveryHasMoreBacklog: scan.hasMore,
+    nightlyRecoveryLastRunAt: FieldValue.serverTimestamp(),
+  });
+
+  if (dryRun || !scan.entries.length) {
+    return {
+      ok: true,
+      scanned: scan.scanned,
+      queued: 0,
+      prepared: 0,
+      started: 0,
+      requeued: 0,
+      fallbackApplied: 0,
+      hasMoreBacklog: scan.hasMore,
+      usedFallback: scan.usedFallback,
+      activeWaveId: null,
+      previousWaveRollOver,
+    };
+  }
+
+  const reserved = await reserveHistoricalRecoveryWave(scan.entries, now, {
+    includeChampions,
+    limit,
+    fromDate: options.fromDate || null,
+  });
+  if (!reserved) {
+    return {
+      ok: true,
+      scanned: scan.scanned,
+      queued: 0,
+      prepared: 0,
+      started: 0,
+      requeued: 0,
+      fallbackApplied: 0,
+      hasMoreBacklog: scan.hasMore,
+      usedFallback: scan.usedFallback,
+      activeWaveId: null,
+    };
+  }
+
+  await updateHeartbeat(day, {
+    nightlyRecoveryQueued: FieldValue.increment(scan.entries.length),
+    nightlyRecoveryActiveWaveId: reserved.waveId,
+    nightlyRecoveryHasMoreBacklog: scan.hasMore,
+    nightlyRecoveryLastRunAt: FieldValue.serverTimestamp(),
+  });
+
+  const waveResult = dryRun
+    ? {
+        waveId: reserved.waveId,
+        prepared: 0,
+        started: 0,
+        active: scan.entries.length,
+        requeued: 0,
+        fallbackApplied: 0,
+        alertPending: 0,
+        settled: 0,
+        failed: 0,
+        completed: false,
+      }
+    : await runHistoricalRecoveryWaveInternal(reserved.waveId, {
+      waveId: reserved.waveId,
+      status: HISTORICAL_RECOVERY_ACTIVE_STATE,
+      fixturePaths: scan.entries.map((entry) => entry.doc.ref.path),
+    }, now);
+
+  await updateHeartbeat(day, {
+    nightlyRecoveryPrepared: FieldValue.increment(Number(waveResult.prepared || 0)),
+    nightlyRecoveryStarted: FieldValue.increment(Number(waveResult.started || 0)),
+    nightlyRecoveryRequeued: FieldValue.increment(Number(waveResult.requeued || 0)),
+    nightlyRecoveryFallbackFinalized: FieldValue.increment(Number(waveResult.fallbackApplied || 0)),
+    nightlyRecoveryActiveWaveId: waveResult.completed ? FieldValue.delete() : reserved.waveId,
+    nightlyRecoveryLastRunAt: FieldValue.serverTimestamp(),
+  });
+
+  return {
+    ok: true,
+    scanned: scan.scanned,
+    queued: scan.entries.length,
+    hasMoreBacklog: scan.hasMore,
+    usedFallback: scan.usedFallback,
+    activeWaveId: reserved.waveId,
+    previousWaveRollOver,
+    ...waveResult,
+  };
+}
+
+function parseOptionalFromDate(raw: unknown) {
+  if (raw == null || raw === '') {
+    return null;
+  }
+  const text = String(raw).trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) {
+    throw new Error('fromDate must be YYYY-MM-DD');
+  }
+  const parsed = new Date(`${text}T00:00:00+03:00`);
+  if (Number.isNaN(parsed.getTime())) {
+    throw new Error('invalid fromDate');
+  }
+  return parsed;
+}
+
+export const recoverHistoricalFixturesNightly = functions
+  .runWith({ timeoutSeconds: 540, memory: '1GB' })
+  .region(REGION)
+  .pubsub.schedule('0,30 0-9 * * *')
+  .timeZone(TZ)
+  .onRun(async () => {
+    const now = new Date();
+    const acquired = await acquireHistoricalRecoveryRunnerLock(now);
+    if (!acquired) {
+      functions.logger.info('[recoverHistoricalFixturesNightly] skipped, runner lock active');
+      return null;
+    }
+
+    try {
+      const result = await recoverHistoricalFixturesNightlyInternal(now, {
+        limit: NIGHTLY_RECOVERY_BATCH_SIZE,
+        includeChampions: true,
+      });
+      functions.logger.info('[recoverHistoricalFixturesNightly] done', result);
+      return null;
+    } finally {
+      await releaseHistoricalRecoveryRunnerLock().catch(() => undefined);
+    }
+  });
 
 export const prepareLeagueKickoffWindow = functions
   .runWith({ timeoutSeconds: 540, memory: '1GB' })
@@ -1646,6 +2994,52 @@ export const runLeagueCatchupForDateHttp = functions
       res.json(result);
     } catch (error: any) {
       res.status(400).json({ ok: false, error: error?.message || 'invalid_request' });
+    }
+  });
+
+export const recoverHistoricalFixturesHttp = functions
+  .runWith({ timeoutSeconds: 540, memory: '1GB' })
+  .region(REGION)
+  .https.onRequest(async (req, res) => {
+    if (applyCors(req, res)) return;
+    if (req.method !== 'POST') {
+      res.status(405).json({ ok: false, error: 'method_not_allowed' });
+      return;
+    }
+    if (!requireAdminSecret(req, res)) return;
+
+    const body = readRequestBody(req);
+    const limitRaw = body.limit ?? req.query?.limit;
+    const forceWaveRaw = body.forceWave ?? req.query?.forceWave;
+    const includeChampionsRaw = body.includeChampions ?? req.query?.includeChampions;
+    const dryRunRaw = body.dryRun ?? req.query?.dryRun;
+    const fromDateRaw = body.fromDate ?? req.query?.fromDate;
+    const limit = Math.max(1, Math.min(Number(limitRaw || NIGHTLY_RECOVERY_BATCH_SIZE), 100));
+    const now = new Date();
+
+    if (!parseOptionalBoolean(dryRunRaw, false)) {
+      const acquired = await acquireHistoricalRecoveryRunnerLock(now);
+      if (!acquired) {
+        res.status(409).json({ ok: false, error: 'historical_recovery_lock_active' });
+        return;
+      }
+    }
+
+    try {
+      const result = await recoverHistoricalFixturesNightlyInternal(now, {
+        limit,
+        dryRun: parseOptionalBoolean(dryRunRaw, false),
+        forceWave: parseOptionalBoolean(forceWaveRaw, false),
+        includeChampions: parseOptionalBoolean(includeChampionsRaw, true),
+        fromDate: parseOptionalFromDate(fromDateRaw),
+      });
+      res.json(result);
+    } catch (error: any) {
+      res.status(400).json({ ok: false, error: error?.message || 'invalid_request' });
+    } finally {
+      if (!parseOptionalBoolean(dryRunRaw, false)) {
+        await releaseHistoricalRecoveryRunnerLock().catch(() => undefined);
+      }
     }
   });
 

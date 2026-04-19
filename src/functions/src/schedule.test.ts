@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { formatInTimeZone } from 'date-fns-tz';
 
 type DocData = Record<string, any>;
 
@@ -230,16 +231,19 @@ vi.mock('./notify/matchReminder.js', () => ({
   }),
 }));
 
-function makeLeague(leagueId: string, capacity: number, name: string) {
-  fakeDb.seedDoc(`leagues/${leagueId}`, {
+function makeLeague(leagueId: string, capacity: number, name: string, kickoffHourTR?: number | null) {
+  const data: Record<string, any> = {
     name,
     season: 1,
     timezone: 'Europe/Istanbul',
-    kickoffHourTR: 19,
     capacity,
     state: 'active',
     createdAt: new FakeTimestamp(new Date('2026-03-01T00:00:00.000Z')),
-  });
+  };
+  if (kickoffHourTR != null) {
+    data.kickoffHourTR = kickoffHourTR;
+  }
+  fakeDb.seedDoc(`leagues/${leagueId}`, data);
 }
 
 function makeTeam(teamId: string, leagueId: string) {
@@ -274,6 +278,7 @@ function makeLeagueSlots(leagueId: string, humans: string[], totalSlots: number)
 describe('resetSeasonMonthlyInternal', () => {
   beforeEach(() => {
     fakeDb = new FakeFirestore();
+    process.env.LEAGUE_KICKOFF_HOURS_TR = '12,15,16,17,18,19';
     vi.resetModules();
   });
 
@@ -342,5 +347,52 @@ describe('resetSeasonMonthlyInternal', () => {
     const second = await resetSeasonMonthlyInternal({ targetMonth: '2026-04' });
     expect(second.createdLeagues).toBe(0);
     expect(fakeDb.getCollectionDocs('leagues')).toHaveLength(3);
+  });
+
+  it('writes reset start dates and fixtures with each league kickoff hour', async () => {
+    makeLeague('league-1', 14, 'Lig 1', 12);
+    makeLeague('league-2', 14, 'Lig 2', 18);
+
+    const leagueOneHumans = Array.from({ length: 14 }, (_, index) => `e${index + 1}`);
+    const leagueTwoHumans = Array.from({ length: 14 }, (_, index) => `f${index + 1}`);
+
+    leagueOneHumans.forEach((teamId) => makeTeam(teamId, 'league-1'));
+    leagueTwoHumans.forEach((teamId) => makeTeam(teamId, 'league-2'));
+
+    makeLeagueSlots('league-1', leagueOneHumans, 14);
+    makeLeagueSlots('league-2', leagueTwoHumans, 14);
+
+    const { resetSeasonMonthlyInternal } = await import('./schedule');
+    await resetSeasonMonthlyInternal({ targetMonth: '2026-04' });
+
+    const leagueOneStartDate = fakeDb.getDoc('leagues/league-1')?.startDate?.toDate();
+    const leagueTwoStartDate = fakeDb.getDoc('leagues/league-2')?.startDate?.toDate();
+    const leagueOneFixtureDate = fakeDb.getCollectionDocs('leagues/league-1/fixtures')[0]?.data()?.date?.toDate();
+    const leagueTwoFixtureDate = fakeDb.getCollectionDocs('leagues/league-2/fixtures')[0]?.data()?.date?.toDate();
+
+    expect(formatInTimeZone(leagueOneStartDate, 'Europe/Istanbul', 'HH:mm')).toBe('12:00');
+    expect(formatInTimeZone(leagueTwoStartDate, 'Europe/Istanbul', 'HH:mm')).toBe('18:00');
+    expect(formatInTimeZone(leagueOneFixtureDate, 'Europe/Istanbul', 'HH:mm')).toBe('12:00');
+    expect(formatInTimeZone(leagueTwoFixtureDate, 'Europe/Istanbul', 'HH:mm')).toBe('18:00');
+  });
+
+  it('backfills missing kickoff hours from the configured hour pool during reset', async () => {
+    makeLeague('league-1', 14, 'Lig 1', null);
+    makeLeague('league-2', 14, 'Lig 2', null);
+
+    const leagueOneHumans = Array.from({ length: 14 }, (_, index) => `g${index + 1}`);
+    const leagueTwoHumans = Array.from({ length: 14 }, (_, index) => `h${index + 1}`);
+
+    leagueOneHumans.forEach((teamId) => makeTeam(teamId, 'league-1'));
+    leagueTwoHumans.forEach((teamId) => makeTeam(teamId, 'league-2'));
+
+    makeLeagueSlots('league-1', leagueOneHumans, 14);
+    makeLeagueSlots('league-2', leagueTwoHumans, 14);
+
+    const { resetSeasonMonthlyInternal } = await import('./schedule');
+    await resetSeasonMonthlyInternal({ targetMonth: '2026-04' });
+
+    expect(fakeDb.getDoc('leagues/league-1')?.kickoffHourTR).toBe(12);
+    expect(fakeDb.getDoc('leagues/league-2')?.kickoffHourTR).toBe(15);
   });
 });

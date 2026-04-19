@@ -1,4 +1,4 @@
-type TeamPlanPayload = {
+export type TeamPlanPayload = {
   formation?: string;
   shape?: string;
   tactics?: Record<string, any>;
@@ -10,7 +10,7 @@ type TeamPlanPayload = {
   customFormations?: Record<string, Record<string, { x?: number; y?: number; position?: string }>>;
 };
 
-type TeamSlotAssignmentPayload = {
+export type TeamSlotAssignmentPayload = {
   playerId: string;
   slotIndex: number;
   position: string;
@@ -44,7 +44,7 @@ type UnityRuntimeKitPayload = {
   gkSecondary: string;
 };
 
-type FormationSlot = {
+export type FormationSlot = {
   position: string;
   x: number;
   y: number;
@@ -85,17 +85,6 @@ const UNITY_SOCK_ACCESSORY_COLORS = ['None', 'Black', 'Gray', 'White'] as const;
 type EnumValues<T extends readonly string[]> = T[number];
 
 export type UnityRuntimeTeamPayload = {
-  id: string;
-  teamId: string;
-  name: string;
-  clubName: string;
-  manager?: string;
-  isBot?: boolean;
-  botId?: string;
-  badge?: unknown;
-  logo?: unknown;
-  players?: any[];
-  plan?: TeamPlanPayload;
   teamKey: string;
   teamName: string;
   formation: string;
@@ -104,6 +93,7 @@ export type UnityRuntimeTeamPayload = {
   lineup: UnityRuntimePlayerPayload[];
   bench: UnityRuntimePlayerPayload[];
   slotAssignments?: TeamSlotAssignmentPayload[];
+  plan?: TeamPlanPayload;
 };
 
 const FORMATION_SLOTS: Record<string, FormationSlot[]> = {
@@ -226,7 +216,7 @@ const FORMATION_SLOTS: Record<string, FormationSlot[]> = {
   ],
 };
 
-function normalizePositionKey(value: string): string {
+export function normalizePositionKey(value: string): string {
   return value
     .trim()
     .normalize('NFD')
@@ -235,7 +225,7 @@ function normalizePositionKey(value: string): string {
     .replace(/[^A-Z]/g, '');
 }
 
-function canonicalizePosition(value: unknown, fallback = 'CM'): string {
+export function canonicalizePosition(value: unknown, fallback = 'CM'): string {
   if (typeof value !== 'string' || !value.trim()) {
     return fallback;
   }
@@ -304,7 +294,7 @@ function clampPercentage(value: unknown): number {
   return Number(Math.max(0, Math.min(100, numeric)).toFixed(4));
 }
 
-function findFormationSlots(formation?: string | null): FormationSlot[] {
+export function findFormationSlots(formation?: string | null): FormationSlot[] {
   const normalized = String(formation || '').trim();
   return FORMATION_SLOTS[normalized] || FORMATION_SLOTS['4-2-3-1'];
 }
@@ -324,7 +314,7 @@ function sanitizeManualAssignment(
   };
 }
 
-function buildResolvedSlotAssignments(args: {
+export function buildResolvedSlotAssignments(args: {
   formation?: string | null;
   players: any[];
   starters: string[];
@@ -791,7 +781,7 @@ function resolveShape(data: any): string | undefined {
   return trimmed || undefined;
 }
 
-function normalizeSlotAssignments(values: unknown): TeamSlotAssignmentPayload[] | undefined {
+export function normalizeSlotAssignments(values: unknown): TeamSlotAssignmentPayload[] | undefined {
   if (!Array.isArray(values) || values.length === 0) {
     return undefined;
   }
@@ -918,7 +908,7 @@ export function buildUnityRuntimeTeamPayload(teamId: string, data: any): UnityRu
     benchPlayers = allPlayers.filter(
       (player) =>
         !selectedIds.has(String(player?.id ?? player?.uniqueId ?? '')) &&
-        player?.squadRole !== 'starting',
+        player?.squadRole === 'bench',
     );
   } else {
     benchPlayers = benchPlayers.filter(
@@ -943,32 +933,30 @@ export function buildUnityRuntimeTeamPayload(teamId: string, data: any): UnityRu
 
   const benchSelectedIds = new Set(selectedIds);
   for (const player of allPlayers) {
+    if (benchPlayers.length >= 12) break;
     const playerId = String(player?.id ?? player?.uniqueId ?? '');
     if (benchSelectedIds.has(playerId)) continue;
     benchPlayers.push(player);
     benchSelectedIds.add(playerId);
   }
 
+  while (benchPlayers.length < 12) {
+    benchPlayers.push(
+      createFallbackPlayer(`bot_bench_${benchPlayers.length}`, `Sub ${benchPlayers.length + 1}`, 'bench'),
+    );
+  }
+
   const seed = `${teamId}:${teamName}`;
+  const plan = resolvePlan(data);
   return {
-    id: teamId,
-    teamId,
-    name: teamName,
-    clubName: String(data?.clubName || data?.name || teamId),
-    manager: data?.manager,
-    isBot: data?.isBot,
-    botId: data?.botId,
-    badge: data?.badge,
-    logo: data?.logo ?? null,
-    players: Array.isArray(data?.players) ? data.players : undefined,
-    plan: resolvePlan(data),
     teamKey: teamId,
     teamName,
     formation,
     ...(shape ? { shape } : {}),
     kit: deriveKitColors(seed),
     lineup: lineupPlayers.slice(0, 11).map((player, index) => toUnityPlayerPayload(player, index, seed)),
-    bench: benchPlayers.map((player, index) => toUnityPlayerPayload(player, 11 + index, seed)),
+    bench: benchPlayers.slice(0, 12).map((player, index) => toUnityPlayerPayload(player, 11 + index, seed)),
     ...(slotAssignments ? { slotAssignments } : {}),
+    ...(plan ? { plan } : {}),
   };
 }
