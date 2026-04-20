@@ -107,6 +107,10 @@ const App = () => {
       void unityBridge
         .onUnityEvent((event) => {
           const type = String(event?.type || '').trim().toLowerCase();
+          const reason = String(event?.reason || event?.message || '').trim().toLowerCase();
+          if (type === 'closed' && reason.includes('manual_launch_force_close_stale_host')) {
+            return;
+          }
           if (type === 'closed' || type === 'connection_failed' || type === 'error') {
             navigateShellHome();
           }

@@ -21,6 +21,7 @@ import {
 } from '@/services/matchControl';
 import {
   clearFriendlyLaunchClaim,
+  clearFriendlyLaunchState,
   FriendlyLaunchError,
   describeFriendlyLaunchPhase,
   getFriendlyLaunchFailureMessage,
@@ -215,6 +216,11 @@ export default function FriendlyMatchPage() {
       (!!targetRequestId && recent.requestId === targetRequestId) ||
       (!!targetMatchId && recent.matchId === targetMatchId)
     );
+  }, []);
+
+  const isStaleNativeCloseEvent = useCallback((event: { message?: string; reason?: string } | null | undefined) => {
+    const reason = String(event?.reason || event?.message || '').trim().toLowerCase();
+    return reason.includes('manual_launch_force_close_stale_host');
   }, []);
 
   const resolveFriendlyBootstrapFailureMessage = useCallback(async (
@@ -645,8 +651,10 @@ export default function FriendlyMatchPage() {
       if (disposed) return;
 
       const type = String(event?.type || '').toLowerCase();
+      const staleNativeClose = isStaleNativeCloseEvent(event);
       if (type === 'error' || type === 'connection_failed') {
         recentUnityClosedRef.current = null;
+        clearFriendlyLaunchState();
         clearFriendlyLaunchClaim({
           requestId: requestId || undefined,
           matchId: String(event?.matchId || '').trim() || matchId || undefined,
@@ -680,6 +688,17 @@ export default function FriendlyMatchPage() {
       }
 
       if (type === 'closed') {
+        if (staleNativeClose) {
+          console.info('[FriendlyMatchPage] ignoring stale native close before manual relaunch', {
+            requestId: requestId || null,
+            matchId: String(event?.matchId || '').trim() || matchId || null,
+            reason: event?.reason || event?.message || null,
+          });
+          recentUnityClosedRef.current = null;
+          return;
+        }
+
+        clearFriendlyLaunchState();
         recentUnityClosedRef.current = {
           requestId: requestId || null,
           matchId: String(event?.matchId || '').trim() || matchId || null,
@@ -717,7 +736,7 @@ export default function FriendlyMatchPage() {
       delayedHistoryRefreshTimersRef.current.forEach((timerId) => window.clearTimeout(timerId));
       delayedHistoryRefreshTimersRef.current = [];
     };
-  }, [hideUnityLaunchOverlay, logFriendlyToast, matchId, refreshHistory, resolveFriendlyBootstrapFailureMessage, scheduleDelayedHistoryRefreshes, syncLists]);
+  }, [hideUnityLaunchOverlay, isStaleNativeCloseEvent, logFriendlyToast, matchId, refreshHistory, requestId, resolveFriendlyBootstrapFailureMessage, scheduleDelayedHistoryRefreshes, syncLists]);
 
   useEffect(() => {
     if (!canRunApiFlow || !user?.id) {

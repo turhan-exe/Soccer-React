@@ -29,6 +29,10 @@ public final class UnityBridgeState {
   private static final Queue<JSObject> pendingEvents = new ArrayDeque<>();
   private static boolean pendingShellReturn;
   private static boolean unityLaunchInFlight;
+  private static long launchGeneration;
+  private static String activeHostMatchId;
+  private static String activeHostServerIp;
+  private static Integer activeHostServerPort;
 
   private UnityBridgeState() {}
 
@@ -48,10 +52,14 @@ public final class UnityBridgeState {
     }
   }
 
-  static void setActiveUnityHost(Activity activity) {
+  static void setActiveUnityHost(
+      Activity activity, String matchId, String serverIp, Integer serverPort) {
     synchronized (LOCK) {
       unityLaunchInFlight = false;
       activeUnityHostRef = new WeakReference<>(activity);
+      activeHostMatchId = sanitize(matchId);
+      activeHostServerIp = sanitize(serverIp);
+      activeHostServerPort = sanitizePort(serverPort);
     }
   }
 
@@ -60,6 +68,9 @@ public final class UnityBridgeState {
       Activity current = activeUnityHostRef.get();
       if (current == activity) {
         activeUnityHostRef = new WeakReference<>(null);
+        activeHostMatchId = null;
+        activeHostServerIp = null;
+        activeHostServerPort = null;
       }
 
       unityLaunchInFlight = false;
@@ -86,6 +97,7 @@ public final class UnityBridgeState {
         return false;
       }
 
+      launchGeneration += 1L;
       unityLaunchInFlight = true;
       return true;
     }
@@ -101,15 +113,32 @@ public final class UnityBridgeState {
     final Activity activeHost;
     final boolean inFlight;
     final boolean shellReturnPending;
+    final long currentLaunchGeneration;
+    final String hostMatchId;
+    final String hostServerIp;
+    final Integer hostServerPort;
     synchronized (LOCK) {
       activeHost = activeUnityHostRef.get();
       inFlight = unityLaunchInFlight;
       shellReturnPending = pendingShellReturn;
+      currentLaunchGeneration = launchGeneration;
+      hostMatchId = activeHostMatchId;
+      hostServerIp = activeHostServerIp;
+      hostServerPort = activeHostServerPort;
     }
 
     final Activity currentUnityActivity = resolveCurrentUnityActivity();
     final boolean hostActive = activeHost != null;
     final boolean embeddedActivityActive = isUnityActivity(currentUnityActivity);
+    final String currentActivityMatchId = getIntentExtraString(currentUnityActivity, EXTRA_MATCH_ID);
+    final String currentActivityServerIp = getIntentExtraString(currentUnityActivity, EXTRA_SERVER_IP);
+    final Integer currentActivityServerPort = getIntentExtraInt(currentUnityActivity, EXTRA_SERVER_PORT);
+    final String resolvedActiveMatchId =
+        !isBlank(currentActivityMatchId) ? currentActivityMatchId : hostMatchId;
+    final String resolvedServerIp =
+        !isBlank(currentActivityServerIp) ? currentActivityServerIp : hostServerIp;
+    final Integer resolvedServerPort =
+        currentActivityServerPort != null ? currentActivityServerPort : hostServerPort;
 
     JSObject out = new JSObject();
     out.put("ok", true);
@@ -118,11 +147,25 @@ public final class UnityBridgeState {
     out.put("hostActive", hostActive);
     out.put("embeddedActivityActive", embeddedActivityActive);
     out.put("pendingShellReturn", shellReturnPending);
+    out.put("launchGeneration", currentLaunchGeneration);
 
     if (currentUnityActivity != null) {
       out.put("activeActivityClass", currentUnityActivity.getClass().getName());
     } else if (activeHost != null) {
       out.put("activeActivityClass", activeHost.getClass().getName());
+    }
+
+    if (!isBlank(hostMatchId)) {
+      out.put("hostMatchId", hostMatchId);
+    }
+    if (!isBlank(resolvedActiveMatchId)) {
+      out.put("activeMatchId", resolvedActiveMatchId);
+    }
+    if (!isBlank(resolvedServerIp)) {
+      out.put("hostServerIp", resolvedServerIp);
+    }
+    if (resolvedServerPort != null) {
+      out.put("hostServerPort", resolvedServerPort);
     }
 
     return out;
@@ -149,6 +192,19 @@ public final class UnityBridgeState {
         });
 
     return true;
+  }
+
+  public static boolean requestReturnToMainShell(String reason) {
+    final String matchId;
+    final String serverIp;
+    final Integer serverPort;
+    synchronized (LOCK) {
+      matchId = activeHostMatchId;
+      serverIp = activeHostServerIp;
+      serverPort = activeHostServerPort;
+    }
+
+    return requestReturnToMainShellInternal(reason, matchId, serverIp, serverPort);
   }
 
   public static boolean requestReturnToMainShell(
@@ -317,6 +373,7 @@ public final class UnityBridgeState {
     event.put("type", type == null ? "unknown" : type);
     if (message != null && !message.isEmpty()) {
       event.put("message", message);
+      event.put("reason", message);
     }
     if (matchId != null && !matchId.isEmpty()) {
       event.put("matchId", matchId);
@@ -358,6 +415,57 @@ public final class UnityBridgeState {
         break;
       }
       plugin.dispatchUnityEvent(event);
+    }
+  }
+
+  private static boolean isBlank(String value) {
+    return value == null || value.trim().isEmpty();
+  }
+
+  private static String sanitize(String value) {
+    return isBlank(value) ? null : value.trim();
+  }
+
+  private static Integer sanitizePort(Integer value) {
+    if (value == null || value.intValue() <= 0) {
+      return null;
+    }
+
+    return value;
+  }
+
+  private static String getIntentExtraString(Activity activity, String key) {
+    if (activity == null || key == null || key.isEmpty()) {
+      return null;
+    }
+
+    try {
+      Intent intent = activity.getIntent();
+      if (intent == null) {
+        return null;
+      }
+
+      return sanitize(intent.getStringExtra(key));
+    } catch (Throwable ignored) {
+      return null;
+    }
+  }
+
+  private static Integer getIntentExtraInt(Activity activity, String key) {
+    if (activity == null || key == null || key.isEmpty()) {
+      return null;
+    }
+
+    try {
+      Intent intent = activity.getIntent();
+      if (intent == null || !intent.hasExtra(key)) {
+        return null;
+      }
+
+      int value = intent.getIntExtra(key, 0);
+      return sanitizePort(Integer.valueOf(value));
+    } catch (Throwable ignored) {
+      return null;
     }
   }
 }

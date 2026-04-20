@@ -82,9 +82,12 @@ public class UnityMatchPlugin extends Plugin {
 
   @PluginMethod
   public void closeMatch(PluginCall call) {
-    boolean closed =
-        UnityBridgeState.requestReturnToMainShell(
-            "UnityMatchPlugin.closeMatch", null, null, (Integer) null);
+    String reason = trim(call.getString("reason"));
+    if (reason.isEmpty()) {
+      reason = "UnityMatchPlugin.closeMatch";
+    }
+
+    boolean closed = UnityBridgeState.requestReturnToMainShell(reason);
     if (!closed) {
       closed = UnityBridgeState.requestCloseActiveUnityHost();
     }

@@ -43,6 +43,11 @@ export type UnityLaunchStatus = {
   embeddedActivityActive?: boolean;
   pendingShellReturn?: boolean;
   activeActivityClass?: string | null;
+  activeMatchId?: string | null;
+  hostMatchId?: string | null;
+  hostServerIp?: string | null;
+  hostServerPort?: number | null;
+  launchGeneration?: number | null;
 };
 
 type UnityMatchPluginOpenPayload = {
@@ -58,7 +63,7 @@ type UnityMatchPluginOpenPayload = {
 
 type UnityMatchPlugin = {
   openMatch(payload: UnityMatchPluginOpenPayload): Promise<UnityLaunchResult>;
-  closeMatch(): Promise<{ ok: boolean }>;
+  closeMatch(payload?: { reason?: string }): Promise<{ ok: boolean }>;
   getLaunchStatus(): Promise<UnityLaunchStatus>;
   addListener(
     eventName: 'unityEvent',
@@ -190,13 +195,17 @@ export const unityBridge = {
     return launchWebMock(ip, port, matchRequest);
   },
 
-  async closeMatchActivity(): Promise<void> {
+  async closeMatchActivity(reason?: string): Promise<void> {
     if (!isAndroidNativePlatform()) {
       console.log('[UnityBridge] closeMatchActivity() ignored on non-Android platform.');
       return;
     }
 
-    await UnityMatch.closeMatch();
+    await UnityMatch.closeMatch(
+      reason && reason.trim().length > 0
+        ? { reason: reason.trim() }
+        : undefined,
+    );
   },
 
   async getLaunchStatus(): Promise<UnityLaunchStatus> {
@@ -209,6 +218,11 @@ export const unityBridge = {
         embeddedActivityActive: false,
         pendingShellReturn: false,
         activeActivityClass: null,
+        activeMatchId: null,
+        hostMatchId: null,
+        hostServerIp: null,
+        hostServerPort: null,
+        launchGeneration: 0,
       };
     }
 

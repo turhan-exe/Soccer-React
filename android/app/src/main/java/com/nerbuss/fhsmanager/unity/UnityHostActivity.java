@@ -33,13 +33,12 @@ public class UnityHostActivity extends Activity {
   protected void onCreate(@Nullable Bundle savedInstanceState) {
     super.onCreate(savedInstanceState);
     enableImmersiveMode();
-    UnityBridgeState.setActiveUnityHost(this);
-    logUnityBuildFingerprint("onCreate");
-
     Intent source = getIntent();
     matchId = source != null ? source.getStringExtra(UnityBridgeState.EXTRA_MATCH_ID) : null;
     serverIp = source != null ? source.getStringExtra(UnityBridgeState.EXTRA_SERVER_IP) : null;
     serverPort = source != null ? source.getIntExtra(UnityBridgeState.EXTRA_SERVER_PORT, 0) : 0;
+    UnityBridgeState.setActiveUnityHost(this, matchId, serverIp, Integer.valueOf(serverPort));
+    logUnityBuildFingerprint("onCreate");
 
     UnityBridgeState.emit("ready", "Unity host activity opened.", matchId, serverIp, serverPort);
     launchUnityChildOrFail();

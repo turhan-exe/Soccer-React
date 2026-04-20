@@ -19,6 +19,8 @@ const REQUEST_READY_TIMEOUT_MS = 60_000;
 const JOIN_TICKET_TIMEOUT_MS = 15_000;
 const UNITY_HANDOFF_TIMEOUT_MS = 20_000;
 const REQUEST_POLL_MS = 1_000;
+const NATIVE_LAUNCH_CLOSE_TIMEOUT_MS = 8_000;
+const NATIVE_LAUNCH_CLOSE_POLL_MS = 250;
 
 export type FriendlyLaunchPhase =
   | 'locating_request'
@@ -410,6 +412,95 @@ function shouldWaitForNativeUnityHandoff(): boolean {
   return Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'android';
 }
 
+function getActiveNativeMatchId(
+  status: Awaited<ReturnType<typeof unityBridge.getLaunchStatus>> | null | undefined,
+): string {
+  return String(status?.activeMatchId || status?.hostMatchId || '').trim();
+}
+
+async function waitForNativeLaunchInactive(
+  timeoutMs = NATIVE_LAUNCH_CLOSE_TIMEOUT_MS,
+): Promise<void> {
+  if (!shouldWaitForNativeUnityHandoff()) {
+    return;
+  }
+
+  const deadline = now() + timeoutMs;
+  while (now() <= deadline) {
+    let status: Awaited<ReturnType<typeof unityBridge.getLaunchStatus>> | null = null;
+    try {
+      status = await unityBridge.getLaunchStatus();
+    } catch {
+      return;
+    }
+
+    if (!status?.active && !status?.inFlight) {
+      return;
+    }
+
+    await pause(NATIVE_LAUNCH_CLOSE_POLL_MS);
+  }
+
+  throw new Error('native_launch_close_timeout');
+}
+
+async function prepareManualNativeLaunch(
+  args: FriendlyLaunchStartArgs,
+  resolvedMatchId: string,
+): Promise<void> {
+  if (!shouldWaitForNativeUnityHandoff() || (args.trigger || 'manual') !== 'manual' || !activeContext) {
+    return;
+  }
+
+  let nativeLaunchStatus: Awaited<ReturnType<typeof unityBridge.getLaunchStatus>> | null = null;
+  try {
+    nativeLaunchStatus = await unityBridge.getLaunchStatus();
+  } catch (error) {
+    logFriendlyLaunch('manual_launch_native_status_failed', activeContext, {
+      requestedMatchId: resolvedMatchId || null,
+      message: error instanceof Error ? error.message : String(error || 'unknown'),
+    });
+    return;
+  }
+
+  const activeMatchId = getActiveNativeMatchId(nativeLaunchStatus);
+  const launchMetadata = {
+    requestedMatchId: resolvedMatchId || null,
+    activeMatchId: activeMatchId || null,
+    activeActivityClass: nativeLaunchStatus?.activeActivityClass || null,
+    launchGeneration: nativeLaunchStatus?.launchGeneration ?? null,
+    inFlight: Boolean(nativeLaunchStatus?.inFlight),
+    hostActive: Boolean(nativeLaunchStatus?.hostActive),
+    embeddedActivityActive: Boolean(nativeLaunchStatus?.embeddedActivityActive),
+  };
+
+  if (!nativeLaunchStatus?.active && !nativeLaunchStatus?.inFlight) {
+    clearFriendlyLaunchClaim({
+      requestId: args.requestId || activeContext.requestId,
+      matchId: resolvedMatchId || args.matchId,
+    });
+    logFriendlyLaunch('manual_launch_stale_state_cleared', activeContext, launchMetadata);
+    return;
+  }
+
+  if (resolvedMatchId && activeMatchId && activeMatchId === resolvedMatchId) {
+    logFriendlyLaunch('native_launch_already_active_same_match', activeContext, launchMetadata);
+    return;
+  }
+
+  logFriendlyLaunch('native_launch_already_active_different_match', activeContext, launchMetadata);
+  logFriendlyLaunch('manual_launch_force_close_stale_host', activeContext, launchMetadata);
+
+  await unityBridge.closeMatchActivity('manual_launch_force_close_stale_host');
+  await waitForNativeLaunchInactive();
+
+  clearFriendlyLaunchClaim({
+    requestId: args.requestId || activeContext.requestId,
+    matchId: activeMatchId || resolvedMatchId || args.matchId,
+  });
+  logFriendlyLaunch('manual_launch_retry_after_close', activeContext, launchMetadata);
+}
+
 async function waitForUnityLaunchHandoff(
   matchId: string,
   timeoutMs: number,
@@ -621,6 +712,8 @@ async function runFriendlyLaunch(args: FriendlyLaunchStartArgs): Promise<Friendl
       throw createFriendlyLaunchError('match_not_ready', 'Dostluk maci icin match id alinmadi.');
     }
 
+    updateActiveContext({ matchId: resolvedMatchId });
+    await prepareManualNativeLaunch(args, resolvedMatchId);
     updateActiveContext({ matchId: resolvedMatchId, phase: 'requesting_join_ticket' });
     logFriendlyLaunch('friendly_launch_join_ticket_started', activeContext);
 
