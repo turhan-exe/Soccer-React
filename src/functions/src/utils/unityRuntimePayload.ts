@@ -358,6 +358,10 @@ function normalizeZoneId(value: unknown): string | null {
   return LEGACY_ZONE_ID_MAP[trimmed] ?? null;
 }
 
+const KEEPER_ZONE_MAX_VISUAL_X = 9;
+const KEEPER_ZONE_MIN_VISUAL_Y = 37;
+const KEEPER_ZONE_MAX_VISUAL_Y = 63;
+
 function resolveZoneIdFromCoordinates(x: number, y: number): string {
   const visualX = 100 - y;
   const visualY = x;
@@ -374,7 +378,11 @@ function resolveZoneIdFromCoordinates(x: number, y: number): string {
     return 'sağ kanat';
   }
 
-  if (visualX < 14) return 'kaleci';
+  if (
+    visualX < KEEPER_ZONE_MAX_VISUAL_X &&
+    visualY >= KEEPER_ZONE_MIN_VISUAL_Y &&
+    visualY <= KEEPER_ZONE_MAX_VISUAL_Y
+  ) return 'kaleci';
   if (visualX < 28) return visualY <= 50 ? 'stoper sol' : 'stoper sağ';
   if (visualX < 38) return 'ön libero';
   if (visualX < 45) {

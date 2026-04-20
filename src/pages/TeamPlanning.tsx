@@ -89,6 +89,7 @@ import {
   getLineupReadinessIssues,
   getPlayerMotivation,
   getPlayerPower,
+  getFormationPlaceholderSlotIndices,
   getMetricLabel,
   getPositionLabel,
   getRenameAdAvailability,
@@ -109,6 +110,7 @@ import {
 } from "@/features/team-planning/teamPlanningUtils";
 import { AlternativePlayerBubble } from "@/features/team-planning/components/AlternativePlayerBubble";
 import { buildBestLineupForFormation } from "@/features/team-planning/bestLineup";
+import { buildStableSlotAssignments } from "@/features/team-planning/pitchSlotLayout";
 import {
   getZoneDefinition,
   recommendPlayers,
@@ -143,6 +145,12 @@ type DragSlotHighlight = {
   slotIndex: number;
   fitLevel: SlotFitLevel;
 };
+
+type PitchLayoutIssue =
+  | "overlap"
+  | "goalkeeperMismatch"
+  | "goalkeeperFull"
+  | "goalkeeperInvalid";
 
 function TeamPlanningContent() {
   const navigate = useNavigate();
@@ -1227,12 +1235,11 @@ const handleListForTransfer = (playerId: string) => {
       startersSet.has(player.id)
     );
     if (
-      hasFreeFormationOverlap(resolvedCurrentSlotAssignments) ||
-      countGoalkeeperZoneAssignments(resolvedCurrentSlotAssignments) !== 1
+      getPitchLayoutIssueForAssignments(resolvedCurrentSlotAssignments) !== null
     ) {
-      toast.error(t("teamPlanning.errors.positionUpdateFailed"), {
-        description: "Dizilişte üst üste binen oyuncu ya da geçersiz kaleci yerleşimi var.",
-      });
+      showPitchLayoutIssueToast(
+        getPitchLayoutIssueForAssignments(resolvedCurrentSlotAssignments)!
+      );
       return;
     }
 
@@ -1417,23 +1424,6 @@ const activeUserId = user?.id ?? null;
   }, [activeUserId, bootstrappedUserId, user]);
 
   useEffect(() => {
-    if (players.length === 0) {
-      if (focusedPlayerId !== null) {
-        setFocusedPlayerId(null);
-      }
-      return;
-    }
-    if (focusedPlayerId && players.some((p) => p.id === focusedPlayerId)) {
-      return;
-    }
-    const fallback =
-      players.find((p) => p.squadRole === "starting") ?? players[0];
-    if (fallback && fallback.id !== focusedPlayerId) {
-      setFocusedPlayerId(fallback.id);
-    }
-  }, [players, focusedPlayerId]);
-
-  useEffect(() => {
     if (renamePlayer) {
       setRenameInput(renamePlayer.name);
     } else {
@@ -1589,6 +1579,33 @@ const activeUserId = user?.id ?? null;
       }),
     [effectiveManualFormation, selectedFormation, startingDisplayPlayers]
   );
+  const playerById = useMemo(
+    () => new Map(players.map((player) => [player.id, player] as const)),
+    [players]
+  );
+  const resolvedAssignmentByPlayerId = useMemo(
+    () =>
+      new Map(
+        resolvedCurrentSlotAssignments.map((assignment) => [
+          assignment.playerId,
+          assignment,
+        ] as const)
+      ),
+    [resolvedCurrentSlotAssignments]
+  );
+  const occupiedTemplateSlotIndices = useMemo(
+    () =>
+      buildStableSlotAssignments({
+        slots: currentFormationSlotTemplates,
+        players: startingDisplayPlayers,
+        manualLayout: effectiveManualFormation,
+      }).map((assignment) => assignment.slot.slotIndex),
+    [
+      currentFormationSlotTemplates,
+      effectiveManualFormation,
+      startingDisplayPlayers,
+    ]
+  );
   const formationPositions: PitchSlot[] = useMemo(() => {
     const startingById = new Map(
       startingDisplayPlayers.map((player) => [player.id, player] as const)
@@ -1607,11 +1624,22 @@ const activeUserId = user?.id ?? null;
       player: startingById.get(assignment.playerId) ?? null,
     }));
 
+    const placeholderIndices = new Set(
+      getFormationPlaceholderSlotIndices({
+        templateSlots: currentFormationSlotTemplates,
+        occupiedTemplateSlotIndices,
+        hasGoalkeeperAssignment: resolvedCurrentSlotAssignments.some(
+          (assignment) => assignment.zoneId === "kaleci"
+        ),
+      })
+    );
+
     const placeholders = currentFormationSlotTemplates
-      .slice(starterSlots.length)
+      .filter((slot) => placeholderIndices.has(slot.slotIndex))
       .map((slot) => ({
         ...slot,
-        slotKey: `${slot.slotIndex}-${slot.slotKey ?? "template"}`,
+        slotIndex: 1000 + slot.slotIndex,
+        slotKey: `placeholder-${slot.slotIndex}`,
       }));
 
     return [...starterSlots, ...placeholders];
@@ -1619,6 +1647,7 @@ const activeUserId = user?.id ?? null;
     currentFormation.positions,
     currentFormationSlotTemplates,
     effectiveManualFormation,
+    occupiedTemplateSlotIndices,
     resolvedCurrentSlotAssignments,
     startingDisplayPlayers,
   ]);
@@ -1626,6 +1655,34 @@ const activeUserId = user?.id ?? null;
     () => formationPositions.filter((slot) => !slot.player),
     [formationPositions]
   );
+  const hasEmptySlotSelection = useMemo(() => {
+    if (!selectedSlotMeta) {
+      return false;
+    }
+    const matchingSlot = formationPositions.find(
+      (slot) => slot.slotIndex === selectedSlotMeta.slotIndex
+    );
+    return Boolean(matchingSlot && !matchingSlot.player);
+  }, [formationPositions, selectedSlotMeta]);
+  useEffect(() => {
+    if (players.length === 0) {
+      if (focusedPlayerId !== null) {
+        setFocusedPlayerId(null);
+      }
+      return;
+    }
+    if (focusedPlayerId && players.some((p) => p.id === focusedPlayerId)) {
+      return;
+    }
+    if (!focusedPlayerId && hasEmptySlotSelection) {
+      return;
+    }
+    const fallback =
+      players.find((p) => p.squadRole === "starting") ?? players[0];
+    if (fallback && fallback.id !== focusedPlayerId) {
+      setFocusedPlayerId(fallback.id);
+    }
+  }, [players, focusedPlayerId, hasEmptySlotSelection]);
   const dragSlotHighlights = useMemo<DragSlotHighlight[]>(() => [], []);
   const autoFillAssignments = useMemo<AutoFillAssignment[]>(() => {
     if (emptyFormationSlots.length === 0) {
@@ -1848,10 +1905,10 @@ const activeUserId = user?.id ?? null;
       }
 
       dropHandledRef.current = true;
-      placePlayerOnPitch(playerId, coordinates);
+      commitPitchDrop(playerId, coordinates);
       setDraggedPlayerId(null);
     },
-    [draggedPlayerId, getPitchCoordinates, placePlayerOnPitch]
+    [commitPitchDrop, draggedPlayerId, getPitchCoordinates]
   );
 
   const handlePlayerDragEnd = useCallback(
@@ -1871,10 +1928,294 @@ const activeUserId = user?.id ?? null;
         return;
       }
 
-      placePlayerOnPitch(player.id, coordinates);
+      commitPitchDrop(player.id, coordinates);
     },
-    [getPitchCoordinates, placePlayerOnPitch]
+    [commitPitchDrop, getPitchCoordinates]
   );
+
+  function getPitchLayoutIssueForAssignments(
+    assignments: Array<
+      Pick<
+        (typeof resolvedCurrentSlotAssignments)[number],
+        "playerId" | "slotIndex" | "x" | "y" | "position" | "zoneId"
+      >
+    >
+  ): PitchLayoutIssue | null {
+    if (hasFreeFormationOverlap(assignments)) {
+      return "overlap";
+    }
+
+    for (const assignment of assignments) {
+      const player = playerById.get(assignment.playerId);
+      if (!player) {
+        continue;
+      }
+
+      const targetIsGoalkeeper = assignment.zoneId === "kaleci";
+      if (isPlayerGoalkeeper(player) && !targetIsGoalkeeper) {
+        return "goalkeeperMismatch";
+      }
+      if (!isPlayerGoalkeeper(player) && targetIsGoalkeeper) {
+        return "goalkeeperFull";
+      }
+    }
+
+    if (countGoalkeeperZoneAssignments(assignments) !== 1) {
+      return "goalkeeperInvalid";
+    }
+
+    return null;
+  }
+
+  function showPitchLayoutIssueToast(issue: PitchLayoutIssue) {
+    switch (issue) {
+      case "overlap":
+        toast.error(t("teamPlanning.errors.positionUpdateFailed"), {
+          description: t("teamPlanning.errors.formationOverlap"),
+        });
+        return;
+      case "goalkeeperMismatch":
+        toast.warning(t("teamPlanning.errors.goalkeeperMismatch"));
+        return;
+      case "goalkeeperFull":
+        toast.warning(t("teamPlanning.errors.goalkeeperFull"));
+        return;
+      case "goalkeeperInvalid":
+        toast.error(t("teamPlanning.errors.positionUpdateFailed"), {
+          description: t("teamPlanning.errors.invalidGoalkeeperLayout"),
+        });
+        return;
+    }
+  }
+
+  function resolveDropTargetForPoint(
+    playerId: string,
+    point: FormationPlayerPosition,
+    sourceAssignment?: (typeof resolvedCurrentSlotAssignments)[number] | null,
+    slot?: PitchSlot | null
+  ): string | null {
+    if (slot?.player && slot.player.id !== playerId) {
+      return slot.player.id;
+    }
+
+    const overlappingTarget =
+      findOverlappingAssignment(point, resolvedCurrentSlotAssignments, {
+        ignorePlayerId: playerId,
+      })?.playerId ?? null;
+    if (overlappingTarget) {
+      return overlappingTarget;
+    }
+
+    const draggedPlayer = playerById.get(playerId);
+    const keeperOccupant =
+      resolvedCurrentSlotAssignments.find(
+        (assignment) =>
+          assignment.playerId !== playerId && assignment.zoneId === "kaleci"
+      ) ?? null;
+
+    if (point.zoneId === "kaleci" && keeperOccupant) {
+      return keeperOccupant.playerId;
+    }
+
+    if (
+      sourceAssignment?.zoneId === "kaleci" &&
+      draggedPlayer &&
+      !isPlayerGoalkeeper(draggedPlayer)
+    ) {
+      const goalkeeperAssignment =
+        resolvedCurrentSlotAssignments.find((assignment) => {
+          if (assignment.playerId === playerId) {
+            return false;
+          }
+          const assignmentPlayer = playerById.get(assignment.playerId);
+          return assignmentPlayer ? isPlayerGoalkeeper(assignmentPlayer) : false;
+        }) ?? null;
+
+      if (goalkeeperAssignment) {
+        return goalkeeperAssignment.playerId;
+      }
+    }
+
+    return null;
+  }
+
+  function commitPitchDrop(
+    playerId: string,
+    point: FormationPlayerPosition,
+    slot?: PitchSlot | null
+  ): boolean {
+    const player = playerById.get(playerId);
+    if (!player) {
+      return false;
+    }
+
+    const normalizedPoint = normalizeFreeFormationPoint(point);
+    const sourceAssignment = resolvedAssignmentByPlayerId.get(playerId) ?? null;
+    const targetPlayerId = resolveDropTargetForPoint(
+      playerId,
+      normalizedPoint,
+      sourceAssignment,
+      slot
+    );
+    const targetAssignment = targetPlayerId
+      ? resolvedAssignmentByPlayerId.get(targetPlayerId) ?? null
+      : null;
+
+    if (player.squadRole === "starting") {
+      if (!sourceAssignment) {
+        return false;
+      }
+
+      const candidateAssignments = resolvedCurrentSlotAssignments.map((assignment) => {
+        if (assignment.playerId === playerId) {
+          return {
+            ...assignment,
+            x: normalizedPoint.x,
+            y: normalizedPoint.y,
+            position: normalizedPoint.position,
+            zoneId: normalizedPoint.zoneId,
+          };
+        }
+
+        if (targetAssignment && assignment.playerId === targetAssignment.playerId) {
+          return {
+            ...assignment,
+            x: sourceAssignment.x,
+            y: sourceAssignment.y,
+            position: sourceAssignment.position,
+            zoneId: sourceAssignment.zoneId,
+          };
+        }
+
+        return assignment;
+      });
+
+      const issue = getPitchLayoutIssueForAssignments(candidateAssignments);
+      if (issue) {
+        showPitchLayoutIssueToast(issue);
+        return false;
+      }
+
+      setPlayers((prev) =>
+        normalizePlayers(
+          prev.map((current) => {
+            if (current.id === playerId) {
+              return { ...current, position: normalizedPoint.position };
+            }
+            if (targetAssignment && current.id === targetAssignment.playerId) {
+              return { ...current, position: sourceAssignment.position };
+            }
+            return current;
+          })
+        )
+      );
+
+      applyManualPosition(playerId, normalizedPoint);
+      if (targetAssignment) {
+        applyManualPosition(targetAssignment.playerId, sourceAssignment);
+      }
+      setFocusedPlayerId(playerId);
+      toast.success(
+        targetAssignment
+          ? t("teamPlanning.toasts.swapSuccess")
+          : t("teamPlanning.toasts.repositionSuccess")
+      );
+      return true;
+    }
+
+    const starters = players.filter(
+      (current) => current.squadRole === "starting"
+    ).length;
+    if (!targetAssignment && starters >= 11) {
+      toast.error(t("teamPlanning.errors.positionUpdateFailed"), {
+        description: t("teamPlanning.errors.startingLineupFull"),
+      });
+      return false;
+    }
+
+    const candidateAssignments = targetAssignment
+      ? [
+          ...resolvedCurrentSlotAssignments.filter(
+            (assignment) => assignment.playerId !== targetAssignment.playerId
+          ),
+          {
+            playerId,
+            slotIndex:
+              targetAssignment.slotIndex ??
+              slot?.slotIndex ??
+              resolvedCurrentSlotAssignments.length,
+            x: normalizedPoint.x,
+            y: normalizedPoint.y,
+            position: normalizedPoint.position,
+            zoneId: normalizedPoint.zoneId,
+          },
+        ]
+      : [
+          ...resolvedCurrentSlotAssignments,
+          {
+            playerId,
+            slotIndex: slot?.slotIndex ?? resolvedCurrentSlotAssignments.length,
+            x: normalizedPoint.x,
+            y: normalizedPoint.y,
+            position: normalizedPoint.position,
+            zoneId: normalizedPoint.zoneId,
+          },
+        ];
+
+    const issue = getPitchLayoutIssueForAssignments(candidateAssignments);
+    if (issue) {
+      showPitchLayoutIssueToast(issue);
+      return false;
+    }
+
+    let errorMessage: string | null = null;
+    let updated = false;
+    let swappedPlayerId: string | null = null;
+
+    setPlayers((prev) => {
+      const promotion = promotePlayerToStartingRoster(
+        prev,
+        playerId,
+        normalizedPoint.position,
+        targetAssignment
+          ? { targetPlayerId: targetAssignment.playerId }
+          : undefined
+      );
+      if (promotion.error) {
+        errorMessage = promotion.error;
+        return prev;
+      }
+      if (!promotion.updated) {
+        return prev;
+      }
+      updated = true;
+      swappedPlayerId = promotion.swappedPlayerId ?? null;
+      return promotion.players;
+    });
+
+    if (errorMessage) {
+      toast.error(t("teamPlanning.errors.playerAddFailed"), {
+        description: errorMessage,
+      });
+      return false;
+    }
+
+    if (!updated) {
+      return false;
+    }
+
+    applyManualPosition(playerId, normalizedPoint);
+    if (swappedPlayerId) {
+      removePlayerFromCustomFormations(swappedPlayerId);
+    }
+    setFocusedPlayerId(playerId);
+    toast.success(
+      targetAssignment
+        ? t("teamPlanning.toasts.swapSuccess")
+        : t("teamPlanning.toasts.placeSuccess")
+    );
+    return true;
+  }
 
   const derivedFormationShape = useMemo(
     () => deriveFormationShape(formationPositions),
@@ -2238,7 +2579,7 @@ const activeUserId = user?.id ?? null;
       } satisfies FormationPlayerPosition);
 
     dropHandledRef.current = true;
-    if (!placePlayerOnPitch(playerId, dropCoordinates)) {
+    if (!commitPitchDrop(playerId, dropCoordinates, slot)) {
       setDraggedPlayerId(null);
       return;
     }
@@ -2345,19 +2686,34 @@ const activeUserId = user?.id ?? null;
       <div className="flex h-screen flex-col overflow-hidden bg-gradient-to-br from-slate-900 via-slate-950 to-black text-white">
         <header
           id="tp-topbar"
-          className="flex flex-shrink-0 items-center justify-between border-b border-white/10 bg-black/30 px-5 py-0 backdrop-blur"
+          className="flex flex-shrink-0 flex-wrap items-center justify-between gap-3 border-b border-white/10 bg-black/30 px-5 py-0 backdrop-blur"
         >
-          <div className="flex items-center gap-2.5">
+          <div
+            id="tp-topbar-left"
+            className="flex min-w-0 items-start gap-2.5"
+          >
             <BackButton onClick={handleBackNavigation} />
-            <div>
-              <h1 className="text-base font-semibold sm:text-lg">
+            <div id="tp-topbar-intro" className="min-w-0">
+              <h1
+                id="tp-topbar-title"
+                className="text-base font-semibold sm:text-lg"
+              >
                 {t("teamPlanning.page.title")}
               </h1>
-              <p className="text-[11px] text-orange-100/70 sm:text-xs">
+              <p
+                id="tp-topbar-subtitle"
+                className="text-[11px] text-orange-100/70 sm:text-xs"
+              >
                 {t("teamPlanning.page.subtitle")}
               </p>
-              <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
-                <div className="grid grid-cols-2 gap-1.5 sm:flex sm:flex-wrap">
+              <div
+                id="tp-topbar-controls"
+                className="mt-2 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center"
+              >
+                <div
+                  id="tp-topbar-metrics"
+                  className="grid grid-cols-2 gap-1.5 sm:flex sm:flex-wrap"
+                >
                   {metricOptions.map((option) => {
                     const isActive = selectedMetric === option.key;
                     return (
@@ -2366,7 +2722,7 @@ const activeUserId = user?.id ?? null;
                         type="button"
                         onClick={() => setSelectedMetric(option.key)}
                         className={cn(
-                          "rounded-full border px-3 py-1 text-[10px] font-semibold tracking-wide transition sm:text-[11px]",
+                          "tp-topbar-metric rounded-full border px-3 py-1 text-[10px] font-semibold tracking-wide transition sm:text-[11px]",
                           isActive
                             ? "border-emerald-300 bg-emerald-400/20 text-emerald-50 shadow-[0_10px_30px_rgba(52,211,153,0.18)]"
                             : "border-white/15 bg-white/5 text-orange-50/80 hover:bg-white/10 hover:text-white"
@@ -2380,20 +2736,23 @@ const activeUserId = user?.id ?? null;
                 <Button
                   type="button"
                   onClick={handleBestLineupAutoArrange}
-                  className="h-8 self-start rounded-full border border-cyan-300/40 bg-cyan-400/15 px-3 text-[10px] font-semibold tracking-wide text-cyan-50 shadow-[0_10px_30px_rgba(34,211,238,0.16)] transition hover:bg-cyan-400/25 sm:text-[11px]"
+                  className="tp-topbar-bestlineup h-8 self-start rounded-full border border-cyan-300/40 bg-cyan-400/15 px-3 text-[10px] font-semibold tracking-wide text-cyan-50 shadow-[0_10px_30px_rgba(34,211,238,0.16)] transition hover:bg-cyan-400/25 sm:text-[11px]"
                 >
                   {t("teamPlanning.page.bestLineup")}
                 </Button>
               </div>
             </div>
           </div>
-          <div className="flex items-center gap-1.5">
+          <div
+            id="tp-topbar-actions"
+            className="flex items-center gap-1.5"
+          >
             <div className="flex items-center">
               <Select
                 value={selectedFormation}
                 onValueChange={handleFormationSelect}
               >
-                <SelectTrigger className="h-9 border-white/30 bg-white/10 px-3 text-xs text-white shadow-sm transition hover:bg-white/20 hover:text-white sm:text-sm w-[140px]">
+                <SelectTrigger className="tp-topbar-select h-9 w-[140px] border-white/30 bg-white/10 px-3 text-xs text-white shadow-sm transition hover:bg-white/20 hover:text-white sm:text-sm">
                   <div className="flex min-w-0 items-center">
                     <Eye className="mr-1.5 h-3.5 w-3.5" />
                     <span className="truncate">

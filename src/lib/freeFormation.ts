@@ -13,6 +13,10 @@ import type {
 } from "@/types";
 
 export const FREE_FORMATION_MIN_DISTANCE = 8;
+export const FREE_FORMATION_COLLISION_WIDTH = 5.5;
+export const FREE_FORMATION_COLLISION_HEIGHT_ABOVE = 3.25;
+export const FREE_FORMATION_COLLISION_HEIGHT_BELOW = 5.25;
+export const FREE_FORMATION_COLLISION_PADDING = 0.4;
 
 export type FreeFormationPoint = {
   x: number;
@@ -23,6 +27,13 @@ export type FreeFormationPoint = {
 
 export type FreeFormationAssignment = ResolvedTeamSlotAssignment & {
   zoneId: ZoneId;
+};
+
+export type FreeFormationCollisionRect = {
+  left: number;
+  right: number;
+  top: number;
+  bottom: number;
 };
 
 type RawFormationPoint = Partial<{
@@ -153,14 +164,33 @@ export const buildFreeFormationLayoutRecord = (
     ]),
   );
 
-const squaredDistance = (
-  left: Pick<FreeFormationPoint, "x" | "y">,
-  right: Pick<FreeFormationPoint, "x" | "y">,
-): number => {
-  const dx = left.x - right.x;
-  const dy = left.y - right.y;
-  return dx * dx + dy * dy;
+const buildCollisionRect = (
+  point: Pick<FreeFormationPoint, "x" | "y">,
+  minDistance = FREE_FORMATION_MIN_DISTANCE,
+): FreeFormationCollisionRect => {
+  const extraPadding = Math.max(
+    0,
+    (minDistance - FREE_FORMATION_MIN_DISTANCE) / 2,
+  );
+  const padding = FREE_FORMATION_COLLISION_PADDING + extraPadding;
+  const halfWidth = FREE_FORMATION_COLLISION_WIDTH / 2;
+
+  return {
+    left: point.y - halfWidth - padding,
+    right: point.y + halfWidth + padding,
+    top: point.x - FREE_FORMATION_COLLISION_HEIGHT_ABOVE - padding,
+    bottom: point.x + FREE_FORMATION_COLLISION_HEIGHT_BELOW + padding,
+  };
 };
+
+const collisionRectsIntersect = (
+  left: FreeFormationCollisionRect,
+  right: FreeFormationCollisionRect,
+): boolean =>
+  left.left < right.right &&
+  left.right > right.left &&
+  left.top < right.bottom &&
+  left.bottom > right.top;
 
 export const findOverlappingAssignment = (
   point: Pick<FreeFormationPoint, "x" | "y">,
@@ -171,7 +201,7 @@ export const findOverlappingAssignment = (
   },
 ): Pick<FreeFormationAssignment, "playerId" | "x" | "y"> | null => {
   const minDistance = options?.minDistance ?? FREE_FORMATION_MIN_DISTANCE;
-  const threshold = minDistance * minDistance;
+  const pointRect = buildCollisionRect(point, minDistance);
 
   return (
     assignments.find((assignment) => {
@@ -182,7 +212,10 @@ export const findOverlappingAssignment = (
         return false;
       }
 
-      return squaredDistance(point, assignment) < threshold;
+      return collisionRectsIntersect(
+        pointRect,
+        buildCollisionRect(assignment, minDistance),
+      );
     }) ?? null
   );
 };

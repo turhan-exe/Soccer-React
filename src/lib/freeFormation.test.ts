@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { buildFreeFormationAssignments, hasFreeFormationOverlap } from "./freeFormation";
+import {
+  buildFreeFormationAssignments,
+  findOverlappingAssignment,
+  hasFreeFormationOverlap,
+} from "./freeFormation";
 
 const createPlayer = (id: string, position: string) => ({
   id,
@@ -52,5 +56,32 @@ describe("freeFormation", () => {
         { playerId: "b", slotIndex: 1, x: 46, y: 21, position: "ST" as any, zoneId: "santrafor" },
       ]),
     ).toBe(true);
+  });
+
+  it("detects visual marker overlap even when center distance is slightly beyond the old radial threshold", () => {
+    expect(
+      findOverlappingAssignment(
+        { x: 45, y: 20 },
+        [
+          {
+            playerId: "b",
+            slotIndex: 1,
+            x: 51.5,
+            y: 25.5,
+            position: "ST" as any,
+            zoneId: "santrafor",
+          },
+        ],
+      ),
+    ).not.toBeNull();
+  });
+
+  it("allows clearly separated markers to coexist", () => {
+    expect(
+      hasFreeFormationOverlap([
+        { playerId: "a", slotIndex: 0, x: 45, y: 20, position: "ST" as any, zoneId: "santrafor" },
+        { playerId: "b", slotIndex: 1, x: 54, y: 28, position: "ST" as any, zoneId: "santrafor" },
+      ]),
+    ).toBe(false);
   });
 });

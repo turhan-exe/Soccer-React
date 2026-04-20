@@ -241,7 +241,7 @@ const PitchPlayerMarker: React.FC<PitchPlayerMarkerProps> = ({
       onPointerCancel={handlePressEnd}
       data-pressed={isPressing ? 'true' : undefined}
       className={cn(
-        'touch-none relative flex cursor-grab flex-col items-center justify-center transition-transform duration-150 ease-out',
+        'touch-none select-none relative flex cursor-grab flex-col items-center justify-center transition-transform duration-150 ease-out',
         isSelected ? 'scale-110' : 'hover:scale-105'
       )}
       style={{ width: PITCH_MARKER_SIZE, height: PITCH_MARKER_SIZE }}
@@ -545,6 +545,54 @@ const Pitch = forwardRef<HTMLDivElement, PitchProps>((props, forwardedRef) => {
 
               const y_raw = slot.x;
               const horizY = y_raw; // Pure 0-100 mapping
+              const bounds =
+                slot.rect ?? buildFormationSlotRect(slot.position, slot.x, slot.y);
+
+              if (!slot.player) {
+                return (
+                  <div
+                    key={slot.slotKey ?? slot.slotIndex}
+                    className="absolute z-10 cursor-pointer select-none"
+                    style={{
+                      left: `${bounds.left}%`,
+                      top: `${bounds.top}%`,
+                      width: `${bounds.width}%`,
+                      height: `${bounds.height}%`,
+                    }}
+                    onDragOver={event => {
+                      handleDragOver(event);
+                      if (draggedPlayerId) {
+                        setActiveDropSlotIndex(slot.slotIndex);
+                      }
+                    }}
+                    onDrop={event => {
+                      setActiveDropSlotIndex(null);
+                      onPositionDrop(event, slot);
+                    }}
+                    onPointerDown={event => {
+                      if (event.button !== 0) {
+                        return;
+                      }
+                      event.preventDefault();
+                      event.stopPropagation();
+                      onSelectSlot?.(slot);
+                    }}
+                    onMouseDown={event => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                    }}
+                  >
+                    <div className="flex h-full w-full items-center justify-center">
+                      <div
+                        className="pointer-events-none relative z-10 flex h-[3.5rem] w-[3.5rem] items-center justify-center rounded-full border-2 border-dashed border-white/30 bg-white/5 px-1.5 text-[10px] font-bold uppercase tracking-wider text-orange-100/50"
+                        style={{ transform: `scale(${markerScale})`, transformOrigin: 'center' }}
+                      >
+                        {getZoneShortCode(resolveFormationSlotZoneId(slot))}
+                      </div>
+                    </div>
+                  </div>
+                );
+              }
 
               return (
                 <div
@@ -566,34 +614,25 @@ const Pitch = forwardRef<HTMLDivElement, PitchProps>((props, forwardedRef) => {
                     onSelectSlot?.(slot);
                   }}
                 >
-                  {slot.player ? (
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <div className="relative z-10" style={{ transform: `scale(${markerScale})`, transformOrigin: 'center' }}>
-                          <PitchPlayerMarker
-                            player={slot.player}
-                            value={getMetricValue(slot.player, selectedMetric)}
-                            metric={selectedMetric}
-                            isFocused={slot.player.id === focusedPlayerId}
-                            onSelect={() => onSelectPlayer(slot.player!.id)}
-                            onDragStart={event => onPlayerDragStart(slot.player!, event)}
-                            onDragEnd={event => onPlayerDragEnd(slot.player!, event)}
-                            onTouchDragPreview={updateTouchDragPreview}
-                          />
-                        </div>
-                      </TooltipTrigger>
-                      <TooltipContent className="z-50 w-56 space-y-2">
-                        {renderTooltip(slot.player)}
-                      </TooltipContent>
-                    </Tooltip>
-                  ) : (
-                    <div
-                      className="relative z-10 flex h-[3.5rem] w-[3.5rem] items-center justify-center rounded-full border-2 border-dashed border-white/30 bg-white/5 px-1.5 text-[10px] font-bold uppercase tracking-wider text-orange-100/50"
-                      style={{ transform: `scale(${markerScale})`, transformOrigin: 'center' }}
-                    >
-                      {getZoneShortCode(resolveFormationSlotZoneId(slot))}
-                    </div>
-                  )}
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div className="relative z-10" style={{ transform: `scale(${markerScale})`, transformOrigin: 'center' }}>
+                        <PitchPlayerMarker
+                          player={slot.player}
+                          value={getMetricValue(slot.player, selectedMetric)}
+                          metric={selectedMetric}
+                          isFocused={slot.player.id === focusedPlayerId}
+                          onSelect={() => onSelectPlayer(slot.player!.id)}
+                          onDragStart={event => onPlayerDragStart(slot.player!, event)}
+                          onDragEnd={event => onPlayerDragEnd(slot.player!, event)}
+                          onTouchDragPreview={updateTouchDragPreview}
+                        />
+                      </div>
+                    </TooltipTrigger>
+                    <TooltipContent className="z-50 w-56 space-y-2">
+                      {renderTooltip(slot.player)}
+                    </TooltipContent>
+                  </Tooltip>
                 </div>
               );
             })}

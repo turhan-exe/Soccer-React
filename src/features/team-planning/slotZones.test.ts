@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { resolveFormationSlotZoneId, resolveSlotZoneId } from "./slotZones";
+import {
+  resolveFormationSlotZoneId,
+  resolveSlotZoneId,
+  resolveZoneIdFromCoordinates,
+} from "./slotZones";
 
 describe("resolveFormationSlotZoneId", () => {
   it("keeps default 4-4-2 centre back slots in the stopper band", () => {
@@ -83,5 +87,15 @@ describe("resolveSlotZoneId", () => {
     expect(resolveSlotZoneId({ position: "CM", x: 60, y: 45 })).toBe(
       "merkez orta saha"
     );
+  });
+});
+
+describe("resolveZoneIdFromCoordinates", () => {
+  it("keeps the goalkeeper area as a narrow central band", () => {
+    expect(resolveZoneIdFromCoordinates({ x: 50, y: 93 })).toBe("kaleci");
+  });
+
+  it("keeps left penalty-area stopper drops out of the goalkeeper zone", () => {
+    expect(resolveZoneIdFromCoordinates({ x: 42, y: 88 })).toBe("stoper sol");
   });
 });

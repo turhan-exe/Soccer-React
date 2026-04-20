@@ -4,6 +4,7 @@ import type { Player } from '@/types';
 
 import {
   LINEUP_VITAL_THRESHOLD,
+  getFormationPlaceholderSlotIndices,
   getLineupReadinessIssues,
 } from './teamPlanningUtils';
 
@@ -84,5 +85,61 @@ describe('getLineupReadinessIssues', () => {
       'condition',
       'motivation',
     ]);
+  });
+});
+
+describe('getFormationPlaceholderSlotIndices', () => {
+  const templateSlots = [
+    { slotIndex: 0, position: 'GK' as const },
+    { slotIndex: 1, position: 'LB' as const },
+    { slotIndex: 2, position: 'CB' as const },
+    { slotIndex: 3, position: 'CB' as const },
+    { slotIndex: 4, position: 'RB' as const },
+    { slotIndex: 5, position: 'CM' as const },
+    { slotIndex: 6, position: 'CM' as const },
+    { slotIndex: 7, position: 'LW' as const },
+    { slotIndex: 8, position: 'CAM' as const },
+    { slotIndex: 9, position: 'RW' as const },
+    { slotIndex: 10, position: 'ST' as const },
+  ];
+
+  it('prioritizes goalkeeper placeholder when keeper zone is empty', () => {
+    expect(
+      getFormationPlaceholderSlotIndices({
+        templateSlots,
+        occupiedTemplateSlotIndices: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+        hasGoalkeeperAssignment: false,
+      }),
+    ).toEqual([0]);
+  });
+
+  it('shows the real empty preset slots instead of only trailing placeholders', () => {
+    expect(
+      getFormationPlaceholderSlotIndices({
+        templateSlots,
+        occupiedTemplateSlotIndices: [0, 1, 3, 4, 5, 6, 7, 8, 9],
+        hasGoalkeeperAssignment: true,
+      }),
+    ).toEqual([2, 10]);
+  });
+
+  it('shows both goalkeeper and interior stopper gaps when both are empty', () => {
+    expect(
+      getFormationPlaceholderSlotIndices({
+        templateSlots,
+        occupiedTemplateSlotIndices: [1, 3, 4, 5, 6, 7, 8, 9, 10],
+        hasGoalkeeperAssignment: false,
+      }),
+    ).toEqual([0, 2]);
+  });
+
+  it('shows goalkeeper placeholder even when eleven players exist but keeper zone is empty', () => {
+    expect(
+      getFormationPlaceholderSlotIndices({
+        templateSlots,
+        occupiedTemplateSlotIndices: templateSlots.map((slot) => slot.slotIndex),
+        hasGoalkeeperAssignment: false,
+      }),
+    ).toEqual([0]);
   });
 });

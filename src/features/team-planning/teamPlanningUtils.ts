@@ -830,6 +830,55 @@ export const deriveFormationShape = (
   return counts.join("-");
 };
 
+export const getFormationPlaceholderSlotIndices = (args: {
+  templateSlots: Array<Pick<PitchSlot, "slotIndex" | "position">>;
+  occupiedTemplateSlotIndices?: number[];
+  hasGoalkeeperAssignment: boolean;
+}): number[] => {
+  const uniqueTemplateSlots = Array.from(
+    new Map(
+      args.templateSlots.map((slot) => [slot.slotIndex, slot] as const)
+    ).values()
+  ).sort((left, right) => left.slotIndex - right.slotIndex);
+
+  if (uniqueTemplateSlots.length === 0) {
+    return [];
+  }
+
+  const occupiedSlotIndices = new Set(
+    (args.occupiedTemplateSlotIndices ?? [])
+      .filter((slotIndex) => Number.isFinite(slotIndex) && slotIndex >= 0)
+      .map((slotIndex) => Math.floor(slotIndex))
+  );
+
+  const placeholderIndices: number[] = [];
+  const usedIndices = new Set<number>();
+  const goalkeeperSlot = uniqueTemplateSlots.find(
+    (slot) => canonicalPosition(slot.position) === "GK"
+  );
+
+  if (
+    !args.hasGoalkeeperAssignment &&
+    goalkeeperSlot &&
+    !usedIndices.has(goalkeeperSlot.slotIndex)
+  ) {
+    placeholderIndices.push(goalkeeperSlot.slotIndex);
+    usedIndices.add(goalkeeperSlot.slotIndex);
+  }
+
+  const emptyTemplateSlots = uniqueTemplateSlots.filter(
+    (slot) =>
+      !occupiedSlotIndices.has(slot.slotIndex) && !usedIndices.has(slot.slotIndex)
+  );
+
+  for (const slot of emptyTemplateSlots) {
+    placeholderIndices.push(slot.slotIndex);
+    usedIndices.add(slot.slotIndex);
+  }
+
+  return placeholderIndices;
+};
+
 export function getPlayerCondition(player: Player): number {
   return clampPerformanceGauge(player.condition, DEFAULT_GAUGE_VALUE);
 }

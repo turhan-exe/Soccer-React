@@ -114,4 +114,32 @@ describe('buildUnityRuntimeTeamPayload', () => {
       assignments?.filter((assignment) => assignment.zoneId === 'santrafor').length,
     ).toBeGreaterThanOrEqual(2);
   });
+
+  it('keeps the narrow goalkeeper band aligned with the editor zone rules', () => {
+    const players = Array.from({ length: 11 }, (_, index) =>
+      createPlayer(index + 1, 'starting'),
+    );
+
+    const assignments = buildResolvedSlotAssignments({
+      formation: '4-4-2',
+      players,
+      starters: players.map((player) => player.id),
+      customFormations: {
+        '4-4-2': {
+          p1: { x: 50, y: 93, position: 'GK' },
+          p2: { x: 42, y: 88, position: 'CB' },
+        },
+      },
+    });
+
+    expect(assignments?.find((assignment) => assignment.playerId === 'p1')?.zoneId).toBe(
+      'kaleci',
+    );
+    expect(assignments?.find((assignment) => assignment.playerId === 'p2')?.zoneId).toBe(
+      'stoper sol',
+    );
+    expect(assignments?.find((assignment) => assignment.playerId === 'p2')?.position).toBe(
+      'CB',
+    );
+  });
 });

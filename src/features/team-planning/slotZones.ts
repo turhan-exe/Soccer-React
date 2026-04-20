@@ -191,9 +191,9 @@ const ZONE_OVERLAY_BOUNDS: Record<ZoneId, ZoneOverlayBounds> = {
   "sol bek": { left: 0, top: 0, width: 35, height: 20 },
   "sol kanat": { left: 35, top: 0, width: 25, height: 20 },
   "sol açık": { left: 60, top: 0, width: 40, height: 20 },
-  kaleci: { left: 0, top: 20, width: 14, height: 60 },
-  "stoper sol": { left: 14, top: 20, width: 14, height: 30 },
-  "stoper sağ": { left: 14, top: 50, width: 14, height: 30 },
+  kaleci: { left: 0, top: 37, width: 9, height: 26 },
+  "stoper sol": { left: 9, top: 20, width: 19, height: 30 },
+  "stoper sağ": { left: 9, top: 50, width: 19, height: 30 },
   "ön libero": { left: 28, top: 20, width: 10, height: 60 },
   "defansif orta saha sol": { left: 38, top: 20, width: 7, height: 30 },
   "defansif orta saha sağ": { left: 38, top: 50, width: 7, height: 30 },
@@ -230,6 +230,10 @@ const normalizeZoneIdValue = (zoneId: string): ZoneId | null => {
 
   return LEGACY_ZONE_ID_MAP[zoneId] ?? null;
 };
+
+const KEEPER_ZONE_MAX_VISUAL_X = 9;
+const KEEPER_ZONE_MIN_VISUAL_Y = 37;
+const KEEPER_ZONE_MAX_VISUAL_Y = 63;
 
 export const getZoneLabel = (
   zoneId: ZoneId | string,
@@ -270,7 +274,11 @@ const resolveZoneIdFromVisualCoordinates = (
     return "sağ kanat";
   }
 
-  if (visualX < 14) {
+  if (
+    visualX < KEEPER_ZONE_MAX_VISUAL_X &&
+    visualY >= KEEPER_ZONE_MIN_VISUAL_Y &&
+    visualY <= KEEPER_ZONE_MAX_VISUAL_Y
+  ) {
     return "kaleci";
   }
   if (visualX < 28) {
