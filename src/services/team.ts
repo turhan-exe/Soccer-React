@@ -402,8 +402,24 @@ export const saveTeamPlayers = async (userId: string, players: Player[], plan?: 
             typeof rawPosition === 'string' && positions.includes(rawPosition.toUpperCase() as Player['position'])
               ? (rawPosition.toUpperCase() as Player['position'])
               : 'CM';
+          const rawZoneId = (value as { zoneId?: unknown }).zoneId;
+          const rawSlotIndex = (value as { slotIndex?: unknown }).slotIndex;
+          const normalizedSlotIndex =
+            typeof rawSlotIndex === 'number' &&
+            Number.isFinite(rawSlotIndex) &&
+            rawSlotIndex >= 0
+              ? Math.floor(rawSlotIndex)
+              : undefined;
 
-          sanitizedLayout[key] = { x, y, position: normalizedPosition };
+          sanitizedLayout[key] = {
+            x,
+            y,
+            position: normalizedPosition,
+            ...(typeof rawZoneId === 'string' && rawZoneId.trim()
+              ? { zoneId: rawZoneId.trim() }
+              : {}),
+            ...(normalizedSlotIndex != null ? { slotIndex: normalizedSlotIndex } : {}),
+          };
         });
 
         if (Object.keys(sanitizedLayout).length > 0) {

@@ -548,7 +548,7 @@ const Pitch = forwardRef<HTMLDivElement, PitchProps>((props, forwardedRef) => {
 
               return (
                 <div
-                  key={slot.slotIndex}
+                  key={slot.slotKey ?? slot.slotIndex}
                   className="absolute flex -translate-x-1/2 -translate-y-1/2 flex-col items-center"
                   style={{ left: `${horizX}% `, top: `${horizY}% ` }}
                   onDragOver={event => {

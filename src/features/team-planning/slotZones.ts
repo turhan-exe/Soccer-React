@@ -347,19 +347,19 @@ export const resolveFormationSlotZoneId = (
     zoneId?: string;
   }
 ): ZoneId => {
+  if (slot.zoneId) {
+    const normalizedZoneId = normalizeZoneIdValue(slot.zoneId);
+    if (normalizedZoneId) {
+      return normalizedZoneId;
+    }
+  }
+
   if (slot.slotSource === "manual") {
     return resolveZoneIdFromCoordinates(slot);
   }
 
   if (slot.slotSource === "template") {
     return resolveSlotZoneId(slot);
-  }
-
-  if (slot.zoneId) {
-    const normalizedZoneId = normalizeZoneIdValue(slot.zoneId);
-    if (normalizedZoneId) {
-      return normalizedZoneId;
-    }
   }
 
   return resolveSlotZoneId(slot);

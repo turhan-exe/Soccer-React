@@ -231,9 +231,13 @@ public class MainActivity extends BridgeActivity {
   public void markBootVisualReady() {
     runOnUiThread(
         () -> {
+          if (bootVisualReadyReceived && !isSnapshotGuardVisible()) {
+            return;
+          }
+
           bootVisualReadyReceived = true;
           clearSnapshotGuardCallbacks();
-          if (snapshotGuardView == null) {
+          if (!isSnapshotGuardVisible()) {
             return;
           }
 
@@ -243,7 +247,7 @@ public class MainActivity extends BridgeActivity {
   }
 
   private void requestSnapshotGuardHide() {
-    if (snapshotGuardView == null) {
+    if (!isSnapshotGuardVisible()) {
       return;
     }
 
@@ -320,6 +324,10 @@ public class MainActivity extends BridgeActivity {
     if (snapshotGuardView != null) {
       snapshotGuardView.setVisibility(View.GONE);
     }
+  }
+
+  private boolean isSnapshotGuardVisible() {
+    return snapshotGuardView != null && snapshotGuardView.getVisibility() == View.VISIBLE;
   }
 
   private void clearSnapshotGuardCallbacks() {

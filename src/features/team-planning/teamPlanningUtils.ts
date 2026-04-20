@@ -115,6 +115,8 @@ export type FormationPlayerPosition = {
   x: number;
   y: number;
   position: Player["position"];
+  zoneId?: string;
+  slotIndex?: number;
 };
 
 export type CustomFormationState = CustomFormationMap;
@@ -524,11 +526,25 @@ export const sanitizeCustomFormationState = (
             typeof rawPosition === "string"
               ? canonicalPosition(rawPosition)
               : "CM";
+          const rawZoneId = (value as { zoneId?: unknown }).zoneId;
+          const rawSlotIndex = (value as { slotIndex?: unknown }).slotIndex;
+          const normalizedSlotIndex =
+            typeof rawSlotIndex === "number" &&
+            Number.isFinite(rawSlotIndex) &&
+            rawSlotIndex >= 0
+              ? Math.floor(rawSlotIndex)
+              : undefined;
 
           sanitizedLayout[String(playerId)] = {
             x,
             y,
             position: normalizedPosition,
+            ...(typeof rawZoneId === "string" && rawZoneId.trim()
+              ? { zoneId: rawZoneId.trim() }
+              : {}),
+            ...(normalizedSlotIndex != null
+              ? { slotIndex: normalizedSlotIndex }
+              : {}),
           };
         }
       );
@@ -759,6 +775,7 @@ export type FormationSnapshot = {
   player: Player | null;
   x: number;
   y: number;
+  zoneId?: string;
 };
 
 const LINE_GROUP_TOLERANCE = 10;
@@ -769,7 +786,9 @@ export const deriveFormationShape = (
   const outfieldY = positions
     .filter(
       (entry) =>
-        entry.player && canonicalPosition(entry.player.position) !== "GK"
+        entry.player &&
+        entry.zoneId !== "kaleci" &&
+        canonicalPosition(entry.player.position) !== "GK"
     )
     .map((entry) => clampPercentageValue(entry.y))
     .sort((a, b) => b - a);

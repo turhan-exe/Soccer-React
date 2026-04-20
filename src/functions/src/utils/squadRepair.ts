@@ -19,7 +19,7 @@ type PlayerContract = {
 
 type ManualFormationMap = Record<
   string,
-  Record<string, { x?: number; y?: number; position?: string }>
+  Record<string, { x?: number; y?: number; position?: string; zoneId?: string }>
 >;
 
 export type SquadRepairPlayer = {

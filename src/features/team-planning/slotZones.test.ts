@@ -62,6 +62,17 @@ describe("resolveFormationSlotZoneId", () => {
       })
     ).toBe("sağ bek");
   });
+  it("prefers explicit zone ids even for manual slot renders", () => {
+    expect(
+      resolveFormationSlotZoneId({
+        position: "CM",
+        x: 48,
+        y: 58,
+        slotSource: "manual",
+        zoneId: "merkez orta saha",
+      })
+    ).toBe("merkez orta saha");
+  });
 });
 
 describe("resolveSlotZoneId", () => {

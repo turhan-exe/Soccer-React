@@ -54,6 +54,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import {
+  openWhatsAppSupportWindow,
+  WHATSAPP_SUPPORT_PHONE,
+} from '@/services/support';
 
 // ... imports
 
@@ -63,10 +67,6 @@ const CLUB_RENAME_COST = 300;
 const STADIUM_RENAME_COST = 220;
 const MIN_RENAME_LENGTH = 3;
 const MAX_RENAME_LENGTH = 32;
-const WHATSAPP_SUPPORT_PHONE = '+90 542 693 20 70';
-const WHATSAPP_SUPPORT_HREF =
-  'https://wa.me/905426932070?text=Merhaba%2C%20oyun%20icinde%20bir%20sorun%20yasadim%20ve%20destek%20almak%20istiyorum.';
-
 export default function SettingsPage() {
   const [isCleaningLeagues, setIsCleaningLeagues] = useState(false);
   const handleCleanLeagues = async () => {
@@ -468,12 +468,9 @@ export default function SettingsPage() {
   };
 
   const handleOpenWhatsAppSupport = () => {
-    if (typeof window === 'undefined') {
+    if (!openWhatsAppSupportWindow()) {
       toast.error(t('settings.toasts.whatsappUnavailable'));
-      return;
     }
-
-    window.open(WHATSAPP_SUPPORT_HREF, '_blank', 'noopener,noreferrer');
   };
 
   const handleOpenAdPrivacyOptions = async () => {

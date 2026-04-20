@@ -38,12 +38,14 @@ function normalizeSlotAssignments(values: any, allowedIds: Set<string>) {
       const x = Number(value.x);
       const y = Number(value.y);
       const position = typeof value.position === 'string' && value.position.trim() ? value.position.trim() : 'CM';
+      const zoneId = typeof value.zoneId === 'string' && value.zoneId.trim() ? value.zoneId.trim() : undefined;
       return {
         playerId,
         slotIndex: Math.floor(slotIndex),
         position,
         x: Number.isFinite(x) ? x : 0,
         y: Number.isFinite(y) ? y : 0,
+        ...(zoneId ? { zoneId } : {}),
       };
     })
     .filter(
@@ -55,6 +57,7 @@ function normalizeSlotAssignments(values: any, allowedIds: Set<string>) {
         position: string;
         x: number;
         y: number;
+        zoneId?: string;
       } => value !== null,
     )
     .sort((left, right) => left.slotIndex - right.slotIndex);

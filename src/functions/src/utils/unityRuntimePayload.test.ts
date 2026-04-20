@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { buildUnityRuntimeTeamPayload } from './unityRuntimePayload';
+import {
+  buildResolvedSlotAssignments,
+  buildUnityRuntimeTeamPayload,
+} from './unityRuntimePayload';
 
 function createPlayer(index: number, squadRole: 'starting' | 'bench' = 'bench') {
   return {
@@ -76,5 +79,39 @@ describe('buildUnityRuntimeTeamPayload', () => {
     expect('clubName' in payload).toBe(false);
     expect('manager' in payload).toBe(false);
     expect('logo' in payload).toBe(false);
+  });
+
+  it('preserves free-coordinate roles including shadow striker and extra striker counts', () => {
+    const players = Array.from({ length: 11 }, (_, index) =>
+      createPlayer(index + 1, 'starting'),
+    );
+
+    const assignments = buildResolvedSlotAssignments({
+      formation: '4-4-2',
+      players,
+      starters: players.map((player) => player.id),
+      customFormations: {
+        '4-4-2': {
+          p1: { x: 45, y: 95, position: 'GK', zoneId: 'kaleci' },
+          p9: { x: 42, y: 18, position: 'ST', zoneId: 'santrafor' },
+          p10: { x: 50, y: 28, position: 'CAM' },
+          p11: { x: 58, y: 18, position: 'ST', zoneId: 'santrafor' },
+        },
+      },
+    });
+
+    expect(assignments).toHaveLength(11);
+    expect(assignments?.map((assignment) => assignment.slotIndex)).toEqual(
+      Array.from({ length: 11 }, (_, index) => index),
+    );
+    expect(assignments?.find((assignment) => assignment.playerId === 'p10')?.zoneId).toBe(
+      'gizli forvet',
+    );
+    expect(assignments?.find((assignment) => assignment.playerId === 'p10')?.position).toBe(
+      'CAM',
+    );
+    expect(
+      assignments?.filter((assignment) => assignment.zoneId === 'santrafor').length,
+    ).toBeGreaterThanOrEqual(2);
   });
 });

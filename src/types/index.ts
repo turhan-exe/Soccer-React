@@ -112,6 +112,8 @@ export type CustomFormationLayout = Record<
     x: number;
     y: number;
     position: Position;
+    zoneId?: string;
+    slotIndex?: number;
   }
 >;
 
@@ -123,6 +125,7 @@ export type ResolvedTeamSlotAssignment = {
   position: Position;
   x: number;
   y: number;
+  zoneId?: string;
 };
 
 export interface ClubTeam {

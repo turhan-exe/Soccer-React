@@ -24,7 +24,11 @@ import {
   type FriendlyRequestListItem,
 } from '@/services/matchControl';
 import { unityBridge } from '@/services/unityBridge';
-import { markBootVisualReady } from '@/services/uiState';
+import {
+  hasMarkedBootVisualReady,
+  markBootVisualReadyOnce,
+  shouldDelayBootVisualStabilization,
+} from '@/services/uiState';
 import {
   FriendlyLaunchError,
   getFriendlyLaunchFailureMessage,
@@ -307,7 +311,9 @@ export default function MainMenu() {
   const [isRewardingClubBalance, setIsRewardingClubBalance] = useState(false);
   const [activeKit, setActiveKit] = useState<KitType | null>(null);
   const [isUsageOpen, setIsUsageOpen] = useState(false);
-  const [vipRenderReady, setVipRenderReady] = useState(false);
+  const [vipRenderReady, setVipRenderReady] = useState(
+    () => isHydrated && isVipReady && hasMarkedBootVisualReady(),
+  );
   const showVipButton = isHydrated && isVipReady && vipRenderReady;
   const showVipHighlight = showVipButton && vipActive;
   const formattedClubBalance = useMemo(
@@ -338,6 +344,14 @@ export default function MainMenu() {
       return;
     }
 
+    if (!shouldDelayBootVisualStabilization({ isHydrated, isVipReady })) {
+      setVipRenderReady(true);
+      bootVisualReadyRef.current = true;
+      return;
+    }
+
+    bootVisualReadyRef.current = false;
+
     const timeoutId = window.setTimeout(() => {
       setVipRenderReady(true);
     }, VIP_RENDER_STABILIZATION_MS);
@@ -358,7 +372,7 @@ export default function MainMenu() {
     rafA = window.requestAnimationFrame(() => {
       rafB = window.requestAnimationFrame(() => {
         bootVisualReadyRef.current = true;
-        void markBootVisualReady();
+        void markBootVisualReadyOnce();
       });
     });
 

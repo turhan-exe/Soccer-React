@@ -21,8 +21,9 @@ import {
   loadRememberedCredentials,
   saveRememberedCredentials,
 } from '@/services/rememberedCredentials';
+import { openWhatsAppSupportWindow, WHATSAPP_SUPPORT_PHONE } from '@/services/support';
 import { toast } from 'sonner';
-import { Loader2, Chrome } from 'lucide-react';
+import { Loader2, Chrome, MessageCircle } from 'lucide-react';
 import { FirebaseError } from 'firebase/app';
 
 const getRegisterErrorMessage = (error: unknown): string => {
@@ -159,6 +160,12 @@ export default function Auth() {
   const [isResetDialogOpen, setIsResetDialogOpen] = useState(false);
   const [resetEmail, setResetEmail] = useState('');
   const [isSendingReset, setIsSendingReset] = useState(false);
+
+  const handleOpenWhatsAppSupport = () => {
+    if (!openWhatsAppSupportWindow()) {
+      toast.error('WhatsApp baglantisi su anda acilamadi.');
+    }
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -322,6 +329,16 @@ export default function Auth() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-green-50 via-emerald-50 to-teal-50 dark:from-green-950 dark:via-emerald-950 dark:to-teal-950 p-4">
+      <Button
+        type="button"
+        size="icon"
+        className="fixed bottom-5 right-5 z-20 h-12 w-12 rounded-full bg-emerald-500 text-white shadow-lg shadow-emerald-900/30 hover:bg-emerald-400"
+        onClick={handleOpenWhatsAppSupport}
+        aria-label="WhatsApp destek hattini ac"
+        title={`WhatsApp Destek (${WHATSAPP_SUPPORT_PHONE})`}
+      >
+        <MessageCircle className="h-5 w-5" />
+      </Button>
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-3 text-center">
           <AppLogo size="md" className="mx-auto" />

@@ -7,7 +7,10 @@ export type TeamPlanPayload = {
   reserves?: string[];
   bench?: string[];
   slotAssignments?: TeamSlotAssignmentPayload[];
-  customFormations?: Record<string, Record<string, { x?: number; y?: number; position?: string }>>;
+  customFormations?: Record<
+    string,
+    Record<string, { x?: number; y?: number; position?: string; zoneId?: string }>
+  >;
 };
 
 export type TeamSlotAssignmentPayload = {
@@ -16,6 +19,7 @@ export type TeamSlotAssignmentPayload = {
   position: string;
   x: number;
   y: number;
+  zoneId?: string;
 };
 
 type UnityRuntimePlayerPayload = {
@@ -50,7 +54,10 @@ export type FormationSlot = {
   y: number;
 };
 
-type ManualFormationMap = Record<string, { x?: number; y?: number; position?: string }>;
+type ManualFormationMap = Record<
+  string,
+  { x?: number; y?: number; position?: string; zoneId?: string }
+>;
 
 const UNITY_SKIN_COLORS = ['Bright', 'White', 'Brown', 'Black'] as const;
 const UNITY_HAIR_STYLES = [
@@ -294,6 +301,93 @@ function clampPercentage(value: unknown): number {
   return Number(Math.max(0, Math.min(100, numeric)).toFixed(4));
 }
 
+const ZONE_POSITION_MAP: Record<string, string> = {
+  'santrafor': 'ST',
+  'gizli forvet': 'CAM',
+  'sol açık': 'LW',
+  'sağ açık': 'RW',
+  'sol kanat': 'LM',
+  'sağ kanat': 'RM',
+  'ofansif orta saha': 'CAM',
+  'merkez orta saha': 'CM',
+  'defansif orta saha sol': 'CM',
+  'defansif orta saha sağ': 'CM',
+  'ön libero': 'CM',
+  'sol bek': 'LB',
+  'sağ bek': 'RB',
+  'stoper sol': 'CB',
+  'stoper sağ': 'CB',
+  'kaleci': 'GK',
+};
+
+const LEGACY_ZONE_ID_MAP: Record<string, string> = {
+  'sol aÃ§Ä±k': 'sol açık',
+  'sol aÃƒÂ§Ã„Â±k': 'sol açık',
+  'sol aÃƒÆ’Ã‚Â§Ãƒâ€Ã‚Â±k': 'sol açık',
+  'saÄŸ açık': 'sağ açık',
+  'saÃ„Å¸ aÃƒÂ§Ã„Â±k': 'sağ açık',
+  'saÃƒâ€Ã…Â¸ aÃƒÆ’Ã‚Â§Ãƒâ€Ã‚Â±k': 'sağ açık',
+  'saÄŸ kanat': 'sağ kanat',
+  'saÃ„Å¸ kanat': 'sağ kanat',
+  'saÃƒâ€Ã…Â¸ kanat': 'sağ kanat',
+  'defansif orta saha sağ': 'defansif orta saha sağ',
+  'defansif orta saha saÃ„Å¸': 'defansif orta saha sağ',
+  'defansif orta saha saÃƒâ€Ã…Â¸': 'defansif orta saha sağ',
+  'ön libero': 'ön libero',
+  'Ã¶n libero': 'ön libero',
+  'ÃƒÂ¶n libero': 'ön libero',
+  'ÃƒÆ’Ã‚Â¶n libero': 'ön libero',
+  'sağ bek': 'sağ bek',
+  'saÃ„Å¸ bek': 'sağ bek',
+  'saÃƒâ€Ã…Â¸ bek': 'sağ bek',
+  'stoper sağ': 'stoper sağ',
+  'stoper saÃ„Å¸': 'stoper sağ',
+  'stoper saÃƒâ€Ã…Â¸': 'stoper sağ',
+};
+
+function normalizeZoneId(value: unknown): string | null {
+  if (typeof value !== 'string' || !value.trim()) {
+    return null;
+  }
+
+  const trimmed = value.trim();
+  if (trimmed in ZONE_POSITION_MAP) {
+    return trimmed;
+  }
+
+  return LEGACY_ZONE_ID_MAP[trimmed] ?? null;
+}
+
+function resolveZoneIdFromCoordinates(x: number, y: number): string {
+  const visualX = 100 - y;
+  const visualY = x;
+
+  if (visualY <= 20) {
+    if (visualX < 35) return 'sol bek';
+    if (visualX > 60) return 'sol açık';
+    return 'sol kanat';
+  }
+
+  if (visualY >= 80) {
+    if (visualX < 35) return 'sağ bek';
+    if (visualX > 60) return 'sağ açık';
+    return 'sağ kanat';
+  }
+
+  if (visualX < 14) return 'kaleci';
+  if (visualX < 28) return visualY <= 50 ? 'stoper sol' : 'stoper sağ';
+  if (visualX < 38) return 'ön libero';
+  if (visualX < 45) {
+    return visualY <= 50
+      ? 'defansif orta saha sol'
+      : 'defansif orta saha sağ';
+  }
+  if (visualX < 58) return 'merkez orta saha';
+  if (visualX < 70) return 'ofansif orta saha';
+  if (visualX < 75) return 'gizli forvet';
+  return 'santrafor';
+}
+
 export function findFormationSlots(formation?: string | null): FormationSlot[] {
   const normalized = String(formation || '').trim();
   return FORMATION_SLOTS[normalized] || FORMATION_SLOTS['4-2-3-1'];
@@ -302,15 +396,22 @@ export function findFormationSlots(formation?: string | null): FormationSlot[] {
 function sanitizeManualAssignment(
   value: unknown,
   fallback: string,
-): { x: number; y: number; position: string } | null {
+): { x: number; y: number; position: string; zoneId?: string } | null {
   if (!value || typeof value !== 'object') {
     return null;
   }
 
+  const x = clampPercentage((value as { x?: unknown }).x);
+  const y = clampPercentage((value as { y?: unknown }).y);
+  const explicitZoneId = normalizeZoneId((value as { zoneId?: unknown }).zoneId);
+  const derivedZoneId = explicitZoneId ?? resolveZoneIdFromCoordinates(x, y);
+  const zonePosition = ZONE_POSITION_MAP[derivedZoneId] || fallback;
+
   return {
-    x: clampPercentage((value as { x?: unknown }).x),
-    y: clampPercentage((value as { y?: unknown }).y),
-    position: canonicalizePosition((value as { position?: unknown }).position, fallback),
+    x,
+    y,
+    position: canonicalizePosition(zonePosition, fallback),
+    ...(derivedZoneId ? { zoneId: derivedZoneId } : {}),
   };
 }
 
@@ -335,105 +436,36 @@ export function buildResolvedSlotAssignments(args: {
     return undefined;
   }
 
-  const remainingPlayerIds = new Set(starterIds);
   const manualFormation =
     args.customFormations && args.formation
       ? args.customFormations[String(args.formation).trim()] || {}
       : {};
-  const slotAssignments = new Map<number, { player: any; manual: ReturnType<typeof sanitizeManualAssignment> }>();
-
-  for (const [playerId, manual] of Object.entries(manualFormation)) {
-    const player = playersById.get(String(playerId));
-    if (!player || !remainingPlayerIds.has(String(playerId))) {
-      continue;
-    }
-
-    const sanitizedManual = sanitizeManualAssignment(manual, canonicalizePosition(player?.position, 'CM'));
-    const targetIndex = slots.findIndex((slot, index) => {
-      if (slotAssignments.has(index)) {
-        return false;
-      }
-
-      return canonicalizePosition(sanitizedManual?.position, slot.position) === canonicalizePosition(slot.position, slot.position);
-    });
-
-    if (targetIndex === -1) {
-      continue;
-    }
-
-    slotAssignments.set(targetIndex, { player, manual: sanitizedManual });
-    remainingPlayerIds.delete(String(playerId));
-  }
-
-  slots.forEach((slot, index) => {
-    if (slotAssignments.has(index)) {
-      return;
-    }
-
-    const canonicalSlot = canonicalizePosition(slot.position, slot.position);
-    const matchingPlayerId = starterIds.find((playerId) => {
-      if (!remainingPlayerIds.has(playerId)) {
-        return false;
-      }
-
+  const resolved = starterIds
+    .map((playerId, index) => {
       const player = playersById.get(playerId);
       if (!player) {
-        return false;
-      }
-
-      if (canonicalizePosition(player?.position, slot.position) === canonicalSlot) {
-        return true;
-      }
-
-      return Array.isArray(player?.roles) && player.roles.some((role: unknown) => canonicalizePosition(role, slot.position) === canonicalSlot);
-    });
-
-    if (!matchingPlayerId) {
-      return;
-    }
-
-    const player = playersById.get(matchingPlayerId);
-    if (!player) {
-      return;
-    }
-
-    slotAssignments.set(index, { player, manual: null });
-    remainingPlayerIds.delete(matchingPlayerId);
-  });
-
-  slots.forEach((slot, index) => {
-    if (slotAssignments.has(index) || remainingPlayerIds.size === 0) {
-      return;
-    }
-
-    const nextPlayerId = starterIds.find((playerId) => remainingPlayerIds.has(playerId));
-    if (!nextPlayerId) {
-      return;
-    }
-
-    const player = playersById.get(nextPlayerId);
-    if (!player) {
-      remainingPlayerIds.delete(nextPlayerId);
-      return;
-    }
-
-    slotAssignments.set(index, { player, manual: null });
-    remainingPlayerIds.delete(nextPlayerId);
-  });
-
-  const resolved = slots
-    .map((slot, index) => {
-      const assigned = slotAssignments.get(index);
-      if (!assigned) {
         return null;
       }
 
+      const fallbackSlot = slots[index] ?? slots[slots.length - 1];
+      const manual = sanitizeManualAssignment(
+        manualFormation[playerId],
+        canonicalizePosition(player?.position, canonicalizePosition(fallbackSlot?.position, 'CM')),
+      );
+      const x = manual?.x ?? clampPercentage(fallbackSlot?.x ?? 50);
+      const y = manual?.y ?? clampPercentage(fallbackSlot?.y ?? 50);
+      const zoneId = manual?.zoneId ?? resolveZoneIdFromCoordinates(x, y);
+
       return {
-        playerId: String(assigned.player?.id ?? assigned.player?.uniqueId ?? ''),
+        playerId: String(player?.id ?? player?.uniqueId ?? ''),
         slotIndex: index,
-        position: assigned.manual?.position || canonicalizePosition(slot.position, slot.position),
-        x: assigned.manual?.x ?? clampPercentage(slot.x),
-        y: assigned.manual?.y ?? clampPercentage(slot.y),
+        position: canonicalizePosition(
+          ZONE_POSITION_MAP[zoneId] || manual?.position || fallbackSlot?.position || 'CM',
+          'CM',
+        ),
+        x,
+        y,
+        ...(zoneId ? { zoneId } : {}),
       } satisfies TeamSlotAssignmentPayload;
     })
     .filter((value): value is TeamSlotAssignmentPayload => value !== null && !!value.playerId);
@@ -801,6 +833,7 @@ export function normalizeSlotAssignments(values: unknown): TeamSlotAssignmentPay
       const position = String((value as { position?: unknown }).position || '').trim() || 'CM';
       const x = Number((value as { x?: unknown }).x);
       const y = Number((value as { y?: unknown }).y);
+      const rawZoneId = normalizeZoneId((value as { zoneId?: unknown }).zoneId);
 
       return {
         playerId,
@@ -808,6 +841,7 @@ export function normalizeSlotAssignments(values: unknown): TeamSlotAssignmentPay
         position,
         x: Number.isFinite(x) ? x : 0,
         y: Number.isFinite(y) ? y : 0,
+        ...(rawZoneId ? { zoneId: rawZoneId } : {}),
       } satisfies TeamSlotAssignmentPayload;
     })
     .filter((value): value is TeamSlotAssignmentPayload => value !== null)

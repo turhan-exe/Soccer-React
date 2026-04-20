@@ -44,7 +44,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { buildFormationSlotRect, formations } from "@/lib/formations";
+import { formations } from "@/lib/formations";
+import {
+  buildFreeFormationAssignments,
+  buildFreeFormationLayoutRecord,
+  countGoalkeeperZoneAssignments,
+  findOverlappingAssignment,
+  hasFreeFormationOverlap,
+  normalizeFreeFormationPoint,
+} from "@/lib/freeFormation";
 import {
   normalizeRatingTo100,
   calculatePowerIndex,
@@ -97,18 +105,15 @@ import {
   sanitizeCustomFormationState,
   squadRoleWeight,
   deriveFormationShape,
-  PromoteToStartingResult,
   negotiationConfidenceFromOffer,
 } from "@/features/team-planning/teamPlanningUtils";
 import { AlternativePlayerBubble } from "@/features/team-planning/components/AlternativePlayerBubble";
 import { buildBestLineupForFormation } from "@/features/team-planning/bestLineup";
 import {
   getZoneDefinition,
-  getSlotFitLevel,
   recommendPlayers,
   resolveFormationSlotZoneId,
   resolveSlotZoneId,
-  resolveZoneIdFromCoordinates,
   positionAffinity,
   type SlotFitLevel,
   type ZoneId,
@@ -162,7 +167,7 @@ function TeamPlanningContent() {
     "role"
   );
   const [focusedPlayerId, setFocusedPlayerId] = useState<string | null>(null);
-  const [savedFormationShape, setSavedFormationShape] = useState<string | null>(
+  const [, setSavedFormationShape] = useState<string | null>(
     null
   );
   const [renamePlayerId, setRenamePlayerId] = useState<string | null>(null);
@@ -397,6 +402,9 @@ function TeamPlanningContent() {
             x: clampPercentageValue(value.x),
             y: clampPercentageValue(value.y),
             position: value.position,
+            ...(typeof value.zoneId === "string" && value.zoneId.trim()
+              ? { zoneId: value.zoneId.trim() }
+              : {}),
           },
         ])
       ) as Record<string, FormationPlayerPosition>;
@@ -409,7 +417,8 @@ function TeamPlanningContent() {
               current &&
               current.x === nextValue.x &&
               current.y === nextValue.y &&
-              current.position === nextValue.position
+              current.position === nextValue.position &&
+              current.zoneId === nextValue.zoneId
             );
           })
         ) {
@@ -531,6 +540,9 @@ function TeamPlanningContent() {
           x: clampPercentageValue(data.x),
           y: clampPercentageValue(data.y),
           position: data.position,
+          ...(typeof data.zoneId === "string" && data.zoneId.trim()
+            ? { zoneId: data.zoneId.trim() }
+            : {}),
         };
 
         const existing = currentFormation[playerId];
@@ -538,7 +550,8 @@ function TeamPlanningContent() {
           existing &&
           existing.x === normalized.x &&
           existing.y === normalized.y &&
-          existing.position === normalized.position
+          existing.position === normalized.position &&
+          existing.zoneId === normalized.zoneId
         ) {
           return prev;
         }
@@ -1077,6 +1090,9 @@ const handleExtendContract = (playerId: string) => {
         x: clampPercentageValue(data.x),
         y: clampPercentageValue(data.y),
         position: data.position,
+        ...(typeof data.zoneId === "string" && data.zoneId.trim()
+          ? { zoneId: data.zoneId.trim() }
+          : {}),
       };
       updatePlayerManualPosition(formationName, playerId, normalized);
       setManualSlotPositions((prev) => {
@@ -1085,7 +1101,8 @@ const handleExtendContract = (playerId: string) => {
           current &&
           current.x === normalized.x &&
           current.y === normalized.y &&
-          current.position === normalized.position
+          current.position === normalized.position &&
+          current.zoneId === normalized.zoneId
         ) {
           return prev;
         }
@@ -1206,37 +1223,59 @@ const handleListForTransfer = (playerId: string) => {
     );
 
     const startersSet = new Set(starters);
+    const starterPlayersForSave = displayPlayers.filter((player) =>
+      startersSet.has(player.id)
+    );
+    if (
+      hasFreeFormationOverlap(resolvedCurrentSlotAssignments) ||
+      countGoalkeeperZoneAssignments(resolvedCurrentSlotAssignments) !== 1
+    ) {
+      toast.error(t("teamPlanning.errors.positionUpdateFailed"), {
+        description: "Dizilişte üst üste binen oyuncu ya da geçersiz kaleci yerleşimi var.",
+      });
+      return;
+    }
+
     const customForSave = Object.fromEntries(
       Object.entries(customFormations).flatMap(([formationKey, layout]) => {
         if (!layout || typeof layout !== "object") {
           return [];
         }
-        const filteredEntries = Object.entries(layout).filter(([playerId]) =>
-          startersSet.has(playerId)
-        );
-        if (filteredEntries.length === 0) {
+
+        const filteredLayout = Object.fromEntries(
+          Object.entries(layout).filter(([playerId]) => startersSet.has(playerId))
+        ) as Record<string, FormationPlayerPosition>;
+        const isSelectedFormation = formationKey === selectedFormation;
+        const effectiveLayout = isSelectedFormation
+          ? {
+              ...filteredLayout,
+              ...manualSlotPositions,
+            }
+          : filteredLayout;
+
+        if (
+          starterPlayersForSave.length === 0 ||
+          Object.keys(effectiveLayout).length === 0
+        ) {
           return [];
         }
-        const sanitizedLayout = Object.fromEntries(
-          filteredEntries.map(([playerId, value]) => [
-            playerId,
-            {
-              x: clampPercentageValue(value.x),
-              y: clampPercentageValue(value.y),
-              position: value.position,
-            },
-          ])
-        );
+
+        const normalizedAssignments = buildFreeFormationAssignments({
+          formation: formationKey,
+          players: starterPlayersForSave,
+          starters: starterPlayersForSave.map((player) => player.id),
+          manualLayout: effectiveLayout,
+        });
+        if (normalizedAssignments.length === 0) {
+          return [];
+        }
+
+        const sanitizedLayout = buildFreeFormationLayoutRecord(normalizedAssignments);
         return [[formationKey, sanitizedLayout]];
       })
     ) as CustomFormationState;
 
-    const fallbackShape =
-      (selectedFormation && selectedFormation.trim().length > 0
-        ? selectedFormation
-        : savedFormationShape && savedFormationShape.trim().length > 0
-        ? savedFormationShape
-        : derivedFormationShape) ?? selectedFormation;
+    const fallbackShape = derivedFormationShape ?? selectedFormation;
     const shapeForSave = fallbackShape.trim();
 
     await saveTeamPlayers(user.id, players, {
@@ -1247,6 +1286,7 @@ const handleListForTransfer = (playerId: string) => {
         bench,
         reserves,
       },
+      slotAssignments: resolvedCurrentSlotAssignments,
       customFormations:
         Object.keys(customForSave).length > 0 ? customForSave : undefined,
     });
@@ -1512,192 +1552,81 @@ const activeUserId = user?.id ?? null;
     () => customFormations[selectedFormation] ?? {},
     [customFormations, selectedFormation]
   );
+  const currentFormationSlotTemplates = useMemo(
+    () =>
+      currentFormation.positions.map((slot, slotIndex) => ({
+        ...slot,
+        slotIndex,
+        slotSource: "template" as const,
+        zoneId: resolveSlotZoneId(slot),
+        player: null,
+      })),
+    [currentFormation]
+  );
+  const effectiveManualFormation = useMemo(
+    () => ({
+      ...manualFormation,
+      ...manualSlotPositions,
+    }),
+    [manualFormation, manualSlotPositions]
+  );
+  const startingDisplayPlayers = useMemo(
+    () => displayPlayers.filter((player) => player.squadRole === "starting"),
+    [displayPlayers]
+  );
 
   useEffect(() => {
     syncManualSlotsForFormation(selectedFormation);
   }, [selectedFormation, syncManualSlotsForFormation]);
 
+  const resolvedCurrentSlotAssignments = useMemo(
+    () =>
+      buildFreeFormationAssignments({
+        formation: selectedFormation,
+        players: startingDisplayPlayers,
+        starters: startingDisplayPlayers.map((player) => player.id),
+        manualLayout: effectiveManualFormation,
+      }),
+    [effectiveManualFormation, selectedFormation, startingDisplayPlayers]
+  );
   const formationPositions: PitchSlot[] = useMemo(() => {
-    const starters = displayPlayers.filter((p) => p.squadRole === "starting");
-    const slots = currentFormation.positions;
-
-    if (starters.length === 0) {
-      return slots.map((slot, idx) => ({
-        ...slot,
-        slotSource: "template" as const,
-        player: null,
-        slotIndex: idx,
-      }));
-    }
-
-    const startersById = new Map(
-      starters.map((player) => [player.id, player] as const)
+    const startingById = new Map(
+      startingDisplayPlayers.map((player) => [player.id, player] as const)
     );
-    const remainingPlayerIds = new Set(starters.map((player) => player.id));
-    const slotAssignments = new Map<
-      number,
-      { player: Player; manual: FormationPlayerPosition | null }
-    >();
+    const starterSlots = resolvedCurrentSlotAssignments.map((assignment) => ({
+      slotIndex: assignment.slotIndex,
+      slotKey: `${assignment.slotIndex}-${assignment.playerId}`,
+      position: assignment.position,
+      x: assignment.x,
+      y: assignment.y,
+      slotSource: effectiveManualFormation[assignment.playerId]
+        ? ("manual" as const)
+        : ("template" as const),
+      zoneId: assignment.zoneId,
+      rect: currentFormation.positions[assignment.slotIndex]?.rect,
+      player: startingById.get(assignment.playerId) ?? null,
+    }));
 
-    Object.entries(manualFormation).forEach(([playerId, manual]) => {
-      const player = startersById.get(playerId);
-      if (!player) {
-        return;
-      }
-
-      const targetIndex = slots.findIndex((slot, idx) => {
-        if (slotAssignments.has(idx)) {
-          return false;
-        }
-        const canonicalSlot = canonicalPosition(slot.position);
-        const manualPosition = manual?.position ?? player.position;
-        return canonicalPosition(manualPosition) === canonicalSlot;
-      });
-
-      if (targetIndex === -1) {
-        return;
-      }
-
-      slotAssignments.set(targetIndex, { player, manual });
-      remainingPlayerIds.delete(playerId);
-    });
-
-    slots.forEach((slot, idx) => {
-      if (slotAssignments.has(idx)) {
-        return;
-      }
-
-      const canonicalSlot = canonicalPosition(slot.position);
-      const matchingEntry = Array.from(remainingPlayerIds).find((playerId) => {
-        const candidate = startersById.get(playerId);
-        if (!candidate) return false;
-        const playerPosition = canonicalPosition(candidate.position);
-        if (playerPosition === canonicalSlot) {
-          return true;
-        }
-        return (candidate.roles ?? []).some(
-          (role) => canonicalPosition(role) === canonicalSlot
-        );
-      });
-
-      if (!matchingEntry) {
-        return;
-      }
-
-      const player = startersById.get(matchingEntry);
-      if (!player) {
-        return;
-      }
-
-      slotAssignments.set(idx, { player, manual: null });
-      remainingPlayerIds.delete(matchingEntry);
-    });
-
-    slots.forEach((slot, idx) => {
-      if (slotAssignments.has(idx) || remainingPlayerIds.size === 0) {
-        return;
-      }
-
-      const iterator = remainingPlayerIds.values().next();
-      if (iterator.done) {
-        return;
-      }
-
-      const player = startersById.get(iterator.value);
-      remainingPlayerIds.delete(iterator.value);
-      if (!player) {
-        return;
-      }
-
-      slotAssignments.set(idx, { player, manual: null });
-    });
-
-    return slots.map((slot, idx) => {
-      const assigned = slotAssignments.get(idx);
-      if (!assigned) {
-        return {
-          ...slot,
-          slotSource: "template" as const,
-          zoneId: resolveSlotZoneId(slot),
-          player: null,
-          slotIndex: idx,
-        };
-      }
-
-      const { player, manual } = assigned;
-      const manualOverride = manualSlotPositions[player.id];
-      if (manualOverride) {
-        const nextPosition = manualOverride.position ?? slot.position;
-        const nextX = clampPercentageValue(manualOverride.x);
-        const nextY = clampPercentageValue(manualOverride.y);
-        return {
-          ...slot,
-          position: nextPosition,
-          x: nextX,
-          y: nextY,
-          slotSource: "manual" as const,
-          zoneId: undefined,
-          rect: buildFormationSlotRect(nextPosition, nextX, nextY),
-          player,
-          slotIndex: idx,
-        };
-      }
-
-      if (!manual) {
-        return {
-          ...slot,
-          slotSource: "template" as const,
-          zoneId: resolveSlotZoneId(slot),
-          player,
-          slotIndex: idx,
-        };
-      }
-
-      const nextPosition = manual.position ?? slot.position;
-      const nextX = clampPercentageValue(manual.x);
-      const nextY = clampPercentageValue(manual.y);
-      return {
+    const placeholders = currentFormationSlotTemplates
+      .slice(starterSlots.length)
+      .map((slot) => ({
         ...slot,
-        position: nextPosition,
-        x: nextX,
-        y: nextY,
-        slotSource: "manual" as const,
-        zoneId: undefined,
-        rect: buildFormationSlotRect(nextPosition, nextX, nextY),
-        player,
-        slotIndex: idx,
-      };
-    });
-  }, [currentFormation, manualFormation, displayPlayers, manualSlotPositions]);
+        slotKey: `${slot.slotIndex}-${slot.slotKey ?? "template"}`,
+      }));
+
+    return [...starterSlots, ...placeholders];
+  }, [
+    currentFormation.positions,
+    currentFormationSlotTemplates,
+    effectiveManualFormation,
+    resolvedCurrentSlotAssignments,
+    startingDisplayPlayers,
+  ]);
   const emptyFormationSlots = useMemo(
     () => formationPositions.filter((slot) => !slot.player),
     [formationPositions]
   );
-  const draggedDisplayPlayer = useMemo(
-    () =>
-      draggedPlayerId
-        ? displayPlayers.find((player) => player.id === draggedPlayerId) ?? null
-        : null,
-    [displayPlayers, draggedPlayerId]
-  );
-  const dragSlotHighlights = useMemo<DragSlotHighlight[]>(() => {
-    if (!draggedDisplayPlayer) {
-      return [];
-    }
-
-    return formationPositions
-      .map((slot) => {
-        const fitLevel = getSlotFitLevel(draggedDisplayPlayer, slot);
-        if (fitLevel === "invalid") {
-          return null;
-        }
-        return {
-          slotIndex: slot.slotIndex,
-          fitLevel,
-        };
-      })
-      .filter((entry): entry is DragSlotHighlight => entry !== null);
-  }, [draggedDisplayPlayer, formationPositions]);
+  const dragSlotHighlights = useMemo<DragSlotHighlight[]>(() => [], []);
   const autoFillAssignments = useMemo<AutoFillAssignment[]>(() => {
     if (emptyFormationSlots.length === 0) {
       return [];
@@ -1763,200 +1692,173 @@ const activeUserId = user?.id ?? null;
 
     return assignments;
   }, [displayPlayers, emptyFormationSlots]);
-  const findNearbyStartingPlayer = useCallback(
-    (
-      coords: { x: number; y: number },
-      excludePlayerId?: string | null
-    ): PitchSlot | null => {
-      if (!formationPositions.length) return null;
-      let best: PitchSlot | null = null;
-      let bestDist = Number.POSITIVE_INFINITY;
-      formationPositions.forEach((slot) => {
-        if (!slot.player || slot.player.id === excludePlayerId) {
-          return;
-        }
-        const dx = slot.x - coords.x;
-        const dy = slot.y - coords.y;
-        const dist = dx * dx + dy * dy;
-        if (dist < bestDist) {
-          bestDist = dist;
-          best = slot;
-        }
-      });
-      return bestDist <= 64 ? best : null;
-    },
+  const getCurrentPitchSlotForPlayer = useCallback(
+    (playerId: string) =>
+      formationPositions.find((entry) => entry.player?.id === playerId) ?? null,
     [formationPositions]
   );
+  const isPlayerGoalkeeper = useCallback(
+    (player: Player) => {
+      const naturalPosition = playerBaselineRef.current[player.id]?.naturalPosition;
+      return (
+        canonicalPosition(naturalPosition ?? player.position) === "GK" ||
+        (player.roles ?? []).some((role) => canonicalPosition(role) === "GK")
+      );
+    },
+    []
+  );
 
-  const handlePitchDrop = (e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    const playerId = e.dataTransfer.getData("text/plain") || draggedPlayerId;
-    if (!playerId) {
-      return;
-    }
+  const validatePitchPlacement = useCallback(
+    (player: Player, point: FormationPlayerPosition) => {
+      const normalizedPoint = normalizeFreeFormationPoint(point);
+      const otherAssignments = resolvedCurrentSlotAssignments.filter(
+        (assignment) => assignment.playerId !== player.id
+      );
+      const overlap = findOverlappingAssignment(normalizedPoint, otherAssignments, {
+        ignorePlayerId: player.id,
+      });
 
-    const player = players.find((p) => p.id === playerId);
-    if (!player) {
-      return;
-    }
-
-    const coordinates = getPitchCoordinates(e.clientX, e.clientY);
-    if (!coordinates) {
-      setDraggedPlayerId(null);
-      return;
-    }
-
-    // GK LOCK LOGIC (Strict No-Swap):
-    const isGK = canonicalPosition(player.position) === "GK";
-    const targetZoneId = resolveZoneIdFromCoordinates(coordinates);
-    const finalPosition = getZoneDefinition(targetZoneId).slotPosition;
-    const nearbyTargetSlot = findNearbyStartingPlayer(coordinates, playerId);
-    const targetPlayer = nearbyTargetSlot?.player ?? null;
-    const isTargetSlotGK = canonicalPosition(finalPosition) === "GK";
-    const isTargetOccupied = !!targetPlayer;
-    const previousRole = player.squadRole;
-
-    // Rule 1: If Target is GK Slot AND Occupied -> BLOCK (No Swap allowed)
-    if (isTargetSlotGK && isTargetOccupied && targetPlayer?.id !== player.id) {
-      toast.warning(t("teamPlanning.errors.goalkeeperFull"));
-      setDraggedPlayerId(null);
-      return;
-    }
-
-    // Rule 2: Strict Type Matching
-    if (isGK !== !!isTargetSlotGK) {
-      if (isGK) {
-        toast.warning(t("teamPlanning.errors.goalkeeperMismatch"));
-      } else {
-        toast.warning(t("teamPlanning.errors.goalkeeperFull"));
-      }
-      setDraggedPlayerId(null);
-      return;
-    }
-
-    dropHandledRef.current = true;
-
-    if (player.squadRole === "starting") {
-      if (targetPlayer && targetPlayer.id !== player.id) {
-        const originSlot = formationPositions.find(
-          (entry) => entry.player?.id === player.id
-        );
-        setPlayers((prev) =>
-          normalizePlayers(
-            prev.map((current) => {
-              if (current.id === player.id)
-                return { ...current, position: finalPosition };
-              if (current.id === targetPlayer.id)
-                return {
-                  ...current,
-                  position: originSlot?.position ?? player.position,
-                };
-              return current;
-            })
-          )
-        );
-
-        applyManualPosition(playerId, {
-          x: coordinates.x,
-          y: coordinates.y,
-          position: finalPosition,
+      if (overlap) {
+        toast.error(t("teamPlanning.errors.positionUpdateFailed"), {
+          description: "Oyuncular üst üste gelemez.",
         });
-        if (originSlot) {
-          applyManualPosition(targetPlayer.id, {
-            x: originSlot.x,
-            y: originSlot.y,
-            position: originSlot.position,
-          });
-        }
-
-        setFocusedPlayerId(playerId);
-        toast.success(t("teamPlanning.toasts.swapSuccess"));
-        setDraggedPlayerId(null);
-        return;
+        return null;
       }
 
-      if (finalPosition !== player.position) {
+      const targetIsGoalkeeper = normalizedPoint.zoneId === "kaleci";
+      if (isPlayerGoalkeeper(player) !== targetIsGoalkeeper) {
+        if (isPlayerGoalkeeper(player)) {
+          toast.warning(t("teamPlanning.errors.goalkeeperMismatch"));
+        } else {
+          toast.warning(t("teamPlanning.errors.goalkeeperFull"));
+        }
+        return null;
+      }
+
+      const goalkeeperCount = countGoalkeeperZoneAssignments([
+        ...otherAssignments,
+        {
+          playerId: player.id,
+          slotIndex: otherAssignments.length,
+          x: normalizedPoint.x,
+          y: normalizedPoint.y,
+          position: normalizedPoint.position,
+          zoneId: normalizedPoint.zoneId,
+        },
+      ]);
+      if (goalkeeperCount !== 1) {
+        toast.warning(t("teamPlanning.errors.goalkeeperFull"));
+        return null;
+      }
+
+      return normalizedPoint;
+    },
+    [isPlayerGoalkeeper, resolvedCurrentSlotAssignments, t]
+  );
+
+  const placePlayerOnPitch = useCallback(
+    (playerId: string, point: FormationPlayerPosition) => {
+      const player = players.find((current) => current.id === playerId);
+      if (!player) {
+        return false;
+      }
+
+      const normalizedPoint = validatePitchPlacement(player, point);
+      if (!normalizedPoint) {
+        return false;
+      }
+
+      if (player.squadRole === "starting") {
         setPlayers((prev) =>
           normalizePlayers(
             prev.map((current) =>
               current.id === playerId
-                ? { ...current, position: finalPosition }
+                ? { ...current, position: normalizedPoint.position }
                 : current
             )
           )
         );
+        applyManualPosition(playerId, normalizedPoint);
+        setFocusedPlayerId(playerId);
+        toast.success(t("teamPlanning.toasts.repositionSuccess"));
+        return true;
       }
-      applyManualPosition(playerId, {
-        x: coordinates.x,
-        y: coordinates.y,
-        position: finalPosition,
-      });
-      setFocusedPlayerId(playerId);
-      toast.success(t("teamPlanning.toasts.repositionSuccess"));
-      setDraggedPlayerId(null);
-      return;
-    }
 
-    let errorMessage: string | null = null;
-    let updated = false;
-    let result: PromoteToStartingResult | null = null;
+      const starters = players.filter(
+        (current) => current.squadRole === "starting"
+      ).length;
+      if (starters >= 11) {
+        toast.error(t("teamPlanning.errors.positionUpdateFailed"), {
+          description: t("teamPlanning.errors.startingLineupFull"),
+        });
+        return false;
+      }
 
-    setPlayers((prev) => {
-      const promotion = promotePlayerToStartingRoster(
-        prev,
-        playerId,
-        finalPosition,
-        {
-          targetPlayerId: targetPlayer?.id,
+      let errorMessage: string | null = null;
+      let updated = false;
+
+      setPlayers((prev) => {
+        const promotion = promotePlayerToStartingRoster(
+          prev,
+          playerId,
+          normalizedPoint.position
+        );
+        if (promotion.error) {
+          errorMessage = promotion.error;
+          return prev;
         }
-      );
-      result = promotion;
-      if (promotion.error) {
-        errorMessage = promotion.error;
-        return prev;
-      }
-      if (!promotion.updated) {
-        return prev;
-      }
-      updated = true;
-      return promotion.players;
-    });
-
-    if (errorMessage) {
-      toast.error(t("teamPlanning.errors.playerAddFailed"), { description: errorMessage });
-    } else if (updated) {
-      applyManualPosition(playerId, {
-        x: coordinates.x,
-        y: coordinates.y,
-        position: finalPosition,
-      });
-      if (result?.swappedPlayerId) {
-        if (nearbyTargetSlot && previousRole === "starting") {
-          applyManualPosition(result.swappedPlayerId, {
-            x: nearbyTargetSlot.x,
-            y: nearbyTargetSlot.y,
-            position: nearbyTargetSlot.position,
-          });
-        } else {
-          removePlayerFromCustomFormations(result.swappedPlayerId);
+        if (!promotion.updated) {
+          return prev;
         }
+        updated = true;
+        return promotion.players;
+      });
+
+      if (errorMessage) {
+        toast.error(t("teamPlanning.errors.playerAddFailed"), {
+          description: errorMessage,
+        });
+        return false;
       }
+
+      if (!updated) {
+        return false;
+      }
+
+      applyManualPosition(playerId, normalizedPoint);
       setFocusedPlayerId(playerId);
       toast.success(t("teamPlanning.toasts.placeSuccess"));
-    }
+      return true;
+    },
+    [applyManualPosition, players, t, validatePitchPlacement]
+  );
 
-    setDraggedPlayerId(null);
-  };
+  const handlePitchDrop = useCallback(
+    (event: React.DragEvent<HTMLDivElement>) => {
+      event.preventDefault();
+      const playerId = event.dataTransfer.getData("text/plain") || draggedPlayerId;
+      if (!playerId) {
+        return;
+      }
+
+      const coordinates = getPitchCoordinates(event.clientX, event.clientY);
+      if (!coordinates) {
+        setDraggedPlayerId(null);
+        return;
+      }
+
+      dropHandledRef.current = true;
+      placePlayerOnPitch(playerId, coordinates);
+      setDraggedPlayerId(null);
+    },
+    [draggedPlayerId, getPitchCoordinates, placePlayerOnPitch]
+  );
 
   const handlePlayerDragEnd = useCallback(
     (player: Player, event: React.DragEvent<HTMLDivElement>) => {
       setDraggedPlayerId(null);
       if (dropHandledRef.current) {
         dropHandledRef.current = false;
-        return;
-      }
-
-      if (player.squadRole !== "starting") {
         return;
       }
 
@@ -1969,94 +1871,25 @@ const activeUserId = user?.id ?? null;
         return;
       }
 
-      const targetZoneId = resolveZoneIdFromCoordinates(coordinates);
-      const finalPosition = getZoneDefinition(targetZoneId).slotPosition;
-      const nearbyTargetSlot = findNearbyStartingPlayer(coordinates, player.id);
-      const targetPlayer = nearbyTargetSlot?.player ?? null;
-
-      // GK LOCK LOGIC (Strict No-Swap via DragEnd Fallback)
-      const isGK = canonicalPosition(player.position) === "GK";
-      const isTargetSlotGK = canonicalPosition(finalPosition) === "GK";
-      const isTargetOccupied = !!targetPlayer;
-
-      // Rule 1: If Target is GK Slot AND Occupied (by someone else) -> BLOCK
-      if (
-        isTargetSlotGK &&
-        isTargetOccupied &&
-        targetPlayer?.id !== player.id
-      ) {
-        toast.warning(t("teamPlanning.errors.goalkeeperFull"));
-        setDraggedPlayerId(null);
-        return;
-      }
-
-      // Rule 2: Strict Type Matching
-      if (isGK !== !!isTargetSlotGK) {
-        if (isGK) {
-          toast.warning(t("teamPlanning.errors.goalkeeperMismatch"));
-        } else {
-          toast.warning(t("teamPlanning.errors.goalkeeperFull"));
-        }
-        setDraggedPlayerId(null);
-        return;
-      }
-
-      if (targetPlayer && targetPlayer.id !== player.id) {
-        const originSlot = formationPositions.find(
-          (entry) => entry.player?.id === player.id
-        );
-        setPlayers((prev) =>
-          normalizePlayers(
-            prev.map((current) => {
-              if (current.id === player.id)
-                return { ...current, position: finalPosition };
-              if (current.id === targetPlayer.id)
-                return {
-                  ...current,
-                  position: originSlot?.position ?? player.position,
-                };
-              return current;
-            })
-          )
-        );
-        if (originSlot) {
-          applyManualPosition(targetPlayer.id, {
-            x: originSlot.x,
-            y: originSlot.y,
-            position: originSlot.position,
-          });
-        }
-      } else if (finalPosition !== player.position) {
-        setPlayers((prev) =>
-          normalizePlayers(
-            prev.map((current) =>
-              current.id === player.id
-                ? { ...current, position: finalPosition }
-                : current
-            )
-          )
-        );
-      }
-
-      applyManualPosition(player.id, {
-        x: coordinates.x,
-        y: coordinates.y,
-        position: finalPosition,
-      });
+      placePlayerOnPitch(player.id, coordinates);
     },
-    [
-      applyManualPosition,
-      findNearbyStartingPlayer,
-      formationPositions,
-      getPitchCoordinates,
-      setPlayers,
-    ]
+    [getPitchCoordinates, placePlayerOnPitch]
   );
 
   const derivedFormationShape = useMemo(
     () => deriveFormationShape(formationPositions),
     [formationPositions]
   );
+  const formationTriggerLabel = useMemo(() => {
+    if (
+      derivedFormationShape &&
+      derivedFormationShape.trim() &&
+      derivedFormationShape !== selectedFormation
+    ) {
+      return `Serbest: ${derivedFormationShape}`;
+    }
+    return selectedFormation || t("teamPlanning.page.formationPlaceholder");
+  }, [derivedFormationShape, selectedFormation, t]);
 
   const selectedPlayer = useMemo(() => {
     if (!focusedPlayerId) return null;
@@ -2391,196 +2224,24 @@ const activeUserId = user?.id ?? null;
     e.preventDefault();
     e.stopPropagation();
     const playerId = e.dataTransfer.getData("text/plain") || draggedPlayerId;
-    if (!playerId) return;
-
-    const draggedPlayer = players.find((p) => p.id === playerId);
-    if (!draggedPlayer) {
-      setDraggedPlayerId(null);
+    if (!playerId) {
       return;
     }
 
-    const targetPlayer = slot.player ?? null;
-
-    // GK LOCK LOGIC (Strict No-Swap)
-    const isGK = canonicalPosition(draggedPlayer.position) === "GK";
-    const isTargetSlotGK = canonicalPosition(slot.position) === "GK";
-    const isTargetOccupied = !!targetPlayer;
-
-    // Rule 1: If Target is GK Slot AND Occupied -> BLOCK (No Swap allowed)
-    if (
-      isTargetSlotGK &&
-      isTargetOccupied &&
-      targetPlayer?.id !== draggedPlayer.id
-    ) {
-      toast.warning(t("teamPlanning.errors.goalkeeperFull"));
-      setDraggedPlayerId(null);
-      return;
-    }
-
-    // Rule 2: Strict Type Matching
-    if (isGK !== isTargetSlotGK) {
-      if (isGK) {
-        toast.warning(t("teamPlanning.errors.goalkeeperMismatch"));
-      } else {
-        toast.warning(t("teamPlanning.errors.goalkeeperFull"));
-      }
-      setDraggedPlayerId(null);
-      return;
-    }
-
-    if (targetPlayer && targetPlayer.id === draggedPlayer.id) {
-      dropHandledRef.current = true;
-      applyManualPosition(playerId, {
+    const dropCoordinates =
+      getPitchCoordinates(e.clientX, e.clientY) ??
+      ({
         x: slot.x,
         y: slot.y,
         position: slot.position,
-      });
-      setFocusedPlayerId(playerId);
+        zoneId: slot.zoneId,
+      } satisfies FormationPlayerPosition);
+
+    dropHandledRef.current = true;
+    if (!placePlayerOnPitch(playerId, dropCoordinates)) {
       setDraggedPlayerId(null);
       return;
     }
-
-    const previousRole = draggedPlayer.squadRole;
-    if (!targetPlayer && previousRole !== "starting") {
-      const startingCount = players.filter(
-        (player) => player.squadRole === "starting"
-      ).length;
-      if (startingCount >= 11) {
-        toast.error(t("teamPlanning.errors.positionUpdateFailed"), {
-          description: t("teamPlanning.errors.startingLineupFull"),
-        });
-        setDraggedPlayerId(null);
-        return;
-      }
-    }
-
-    const originSlot =
-      formationPositions.find(
-        (entry) => entry.player?.id === draggedPlayer.id
-      ) ?? null;
-
-    let errorMessage: string | null = null;
-    let updated = false;
-
-    setPlayers((prev) => {
-      const draggedState = prev.find((player) => player.id === playerId);
-      if (!draggedState) {
-        errorMessage = t("teamPlanning.errors.playerNotFound");
-        return prev;
-      }
-
-      const targetState = targetPlayer
-        ? prev.find((player) => player.id === targetPlayer.id) ?? null
-        : null;
-
-      if (targetPlayer && !targetState) {
-        errorMessage = t("teamPlanning.errors.playerNotFound");
-        return prev;
-      }
-
-      if (!targetState && draggedState.squadRole !== "starting") {
-        const starters = prev.filter(
-          (player) => player.squadRole === "starting"
-        ).length;
-        if (starters >= 11) {
-          errorMessage = t("teamPlanning.errors.startingLineupFull");
-          return prev;
-        }
-      }
-
-      const next: Player[] = [];
-
-      prev.forEach((current) => {
-        if (current.id === draggedState.id) {
-          if (targetState) {
-            if (draggedState.squadRole === "starting") {
-              const updatedTarget: Player = {
-                ...targetState,
-                squadRole: "starting",
-                position: originSlot?.position ?? draggedState.position,
-              };
-              next.push(updatedTarget);
-            } else {
-              const updatedTarget: Player = {
-                ...targetState,
-                squadRole: draggedState.squadRole,
-              };
-              next.push(updatedTarget);
-            }
-          } else {
-            const updatedDragged: Player = {
-              ...current,
-              squadRole: "starting",
-              position: slot.position,
-            };
-            next.push(updatedDragged);
-          }
-          updated = true;
-          return;
-        }
-
-        if (targetState && current.id === targetState.id) {
-          const updatedDragged: Player = {
-            ...draggedState,
-            squadRole: "starting",
-            position: slot.position,
-          };
-          next.push(updatedDragged);
-          return;
-        }
-
-        next.push(current);
-      });
-
-      if (!updated) {
-        errorMessage = t("teamPlanning.errors.positionUpdateFailed");
-        return prev;
-      }
-
-      return normalizePlayers(next);
-    });
-
-    if (errorMessage) {
-      toast.error(t("teamPlanning.errors.positionUpdateFailed"), {
-        description: errorMessage,
-      });
-      setDraggedPlayerId(null);
-      return;
-    }
-
-    if (updated) {
-      dropHandledRef.current = true;
-      applyManualPosition(playerId, {
-        x: slot.x,
-        y: slot.y,
-        position: slot.position,
-      });
-
-      if (targetPlayer) {
-        if (previousRole === "starting") {
-          if (originSlot) {
-            applyManualPosition(targetPlayer.id, {
-              x: originSlot.x,
-              y: originSlot.y,
-              position: originSlot.position,
-            });
-          } else {
-            removePlayerFromCustomFormations(targetPlayer.id);
-          }
-        } else {
-          removePlayerFromCustomFormations(targetPlayer.id);
-        }
-      }
-
-      setFocusedPlayerId(playerId);
-      const successMessage = targetPlayer
-        ? t("teamPlanning.toasts.swapSuccess")
-        : previousRole === "starting"
-        ? t("teamPlanning.toasts.repositionSuccess")
-        : t("teamPlanning.toasts.placeSuccess");
-      toast.success(successMessage);
-    }
-
     setDraggedPlayerId(null);
   };
 
@@ -2652,6 +2313,7 @@ const activeUserId = user?.id ?? null;
         {
           ...layout,
           position: replacementPosition,
+          zoneId: selectedSlotMeta.zoneId,
         },
         formation
       );
@@ -2670,6 +2332,7 @@ const activeUserId = user?.id ?? null;
       x: selectedSlotMeta.x,
       y: selectedSlotMeta.y,
       position: replacementPosition,
+      zoneId: selectedSlotMeta.zoneId,
     });
 
     setFocusedPlayerId(alternativeId);
@@ -2734,7 +2397,7 @@ const activeUserId = user?.id ?? null;
                   <div className="flex min-w-0 items-center">
                     <Eye className="mr-1.5 h-3.5 w-3.5" />
                     <span className="truncate">
-                      {selectedFormation || t("teamPlanning.page.formationPlaceholder")}
+                      {formationTriggerLabel}
                     </span>
                   </div>
                 </SelectTrigger>

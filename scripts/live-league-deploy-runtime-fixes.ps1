@@ -102,7 +102,8 @@ function Invoke-SafeSsh {
     [string]$TargetHost,
     [string]$RemoteScript
   )
-  $remoteBytes = [System.Text.Encoding]::UTF8.GetBytes($RemoteScript)
+  $normalizedRemoteScript = $RemoteScript -replace "`r`n", "`n" -replace "`r", "`n"
+  $remoteBytes = [System.Text.Encoding]::UTF8.GetBytes($normalizedRemoteScript)
   $remoteB64 = [Convert]::ToBase64String($remoteBytes)
   $remoteCmd = "printf '%s' '$remoteB64' | base64 -d | bash -se"
 
