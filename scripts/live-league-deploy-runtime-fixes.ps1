@@ -118,6 +118,7 @@ function Invoke-SafeSsh {
 }
 
 $mcIndex = Join-Path $RepoRoot "services/match-control-api/src/index.js"
+$mcRewardedMatchEntry = Join-Path $RepoRoot "services/match-control-api/src/rewardedMatchEntry.js"
 $mcService = Join-Path $RepoRoot "services/systemd/match-control-api.service"
 $naIndex = Join-Path $RepoRoot "services/node-agent/src/index.js"
 $naService = Join-Path $RepoRoot "services/systemd/node-agent.service"
@@ -176,6 +177,9 @@ if (-not $SkipUnityBuildGuard) {
 
 if (!(Test-Path $mcIndex)) {
   throw "missing file: $mcIndex"
+}
+if (!(Test-Path $mcRewardedMatchEntry)) {
+  throw "missing file: $mcRewardedMatchEntry"
 }
 if (!(Test-Path $mcService)) {
   throw "missing file: $mcService"
@@ -240,6 +244,7 @@ if (-not $SkipUnityRuntimeSync) {
 if (-not $SkipControl) {
   Write-Host "== Deploy match-control-api to $ControlHost =="
   Invoke-SafeScp $mcIndex "$ControlHost`:/opt/football-manager-ui/services/match-control-api/src/index.js"
+  Invoke-SafeScp $mcRewardedMatchEntry "$ControlHost`:/opt/football-manager-ui/services/match-control-api/src/rewardedMatchEntry.js"
   Invoke-SafeScp $mcService "$ControlHost`:/tmp/match-control-api.service"
 
   $controlRemote = @'
