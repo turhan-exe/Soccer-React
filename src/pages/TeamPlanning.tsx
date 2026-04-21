@@ -126,6 +126,7 @@ import "./TeamPlanningSizing.css";
 
 type SelectedSlotMeta = {
   slotIndex: number;
+  slotKey?: string;
   zoneId: ZoneId;
   x: number;
   y: number;
@@ -139,6 +140,7 @@ type AutoFillAssignment = {
   position: Player["position"];
   x: number;
   y: number;
+  targetPlayerId?: string | null;
 };
 
 type DragSlotHighlight = {
@@ -478,43 +480,6 @@ function TeamPlanningContent() {
       return next;
     });
   };
-
-  const removePlayerFromFormationLayout = useCallback(
-    (playerId: string, formationName = selectedFormation) => {
-      setCustomFormations((prev) => {
-        const currentFormation = prev[formationName];
-        if (!currentFormation || !(playerId in currentFormation)) {
-          return prev;
-        }
-
-        const { [playerId]: _removed, ...rest } = currentFormation;
-        if (Object.keys(rest).length === 0) {
-          const next = { ...prev };
-          delete next[formationName];
-          return next;
-        }
-
-        return {
-          ...prev,
-          [formationName]: rest as Record<string, FormationPlayerPosition>,
-        };
-      });
-
-      if (formationName !== selectedFormation) {
-        return;
-      }
-
-      setManualSlotPositions((prev) => {
-        if (!(playerId in prev)) {
-          return prev;
-        }
-        const next = { ...prev };
-        delete next[playerId];
-        return next;
-      });
-    },
-    [selectedFormation]
-  );
 
   const clearFormationManualLayout = useCallback(
     (formationName = selectedFormation) => {
@@ -1076,8 +1041,8 @@ const handleExtendContract = (playerId: string) => {
       // Pure 0-100 Mapping (No Padding)
       // Game coordinates directly match visual percentages now.
 
-      let gameY = 100 - relativeX;
-      let gameX = relativeY;
+      const gameY = 100 - relativeX;
+      const gameX = relativeY;
 
       return {
         x: clampPercentageValue(gameX),
@@ -1659,9 +1624,16 @@ const activeUserId = user?.id ?? null;
     if (!selectedSlotMeta) {
       return false;
     }
-    const matchingSlot = formationPositions.find(
-      (slot) => slot.slotIndex === selectedSlotMeta.slotIndex
-    );
+    const matchingSlot = formationPositions.find((slot) => {
+      if (selectedSlotMeta.slotKey) {
+        return slot.slotKey === selectedSlotMeta.slotKey;
+      }
+      return (
+        slot.slotIndex === selectedSlotMeta.slotIndex &&
+        slot.x === selectedSlotMeta.x &&
+        slot.y === selectedSlotMeta.y
+      );
+    });
     return Boolean(matchingSlot && !matchingSlot.player);
   }, [formationPositions, selectedSlotMeta]);
   useEffect(() => {
@@ -1709,26 +1681,83 @@ const activeUserId = user?.id ?? null;
       return [];
     }
 
-    const slotCandidates = emptyFormationSlots
+    const startingCount = startingDisplayPlayers.length;
+    const isNaturalGoalkeeper = (player: DisplayPlayer): boolean => {
+      const naturalPosition =
+        playerBaselineRef.current[player.id]?.naturalPosition ?? player.position;
+      return (
+        canonicalPosition(naturalPosition) === "GK" ||
+        (player.roles ?? []).some((role) => canonicalPosition(role) === "GK")
+      );
+    };
+    const fallbackPlayerForFullKeeperSlot =
+      startingCount >= 11
+        ? startingDisplayPlayers
+            .filter((player) => !isNaturalGoalkeeper(player))
+            .sort((left, right) => {
+              const powerDelta = getPlayerPower(left) - getPlayerPower(right);
+              if (powerDelta !== 0) {
+                return powerDelta;
+              }
+              return left.id.localeCompare(right.id);
+            })[0] ?? null
+        : null;
+    const maxFillCount =
+      Math.max(0, 11 - startingCount) +
+      (startingCount >= 11 && fallbackPlayerForFullKeeperSlot ? 1 : 0);
+
+    if (maxFillCount === 0) {
+      return [];
+    }
+
+    const rawSlotCandidates = emptyFormationSlots
       .map((slot) => {
         const zoneId = resolveFormationSlotZoneId(slot);
+        const canUseSlot =
+          startingCount < 11 || (zoneId === "kaleci" && fallbackPlayerForFullKeeperSlot);
+        if (!canUseSlot) {
+          return { slot, zoneId, candidates: [] as DisplayPlayer[] };
+        }
         const candidates = recommendPlayers(zoneId, eligiblePlayers, {
           limit: eligiblePlayers.length,
         });
         return { slot, zoneId, candidates };
-      })
-      .sort((left, right) => {
-        const countDelta = left.candidates.length - right.candidates.length;
-        if (countDelta !== 0) {
-          return countDelta;
-        }
-        return left.slot.slotIndex - right.slot.slotIndex;
       });
+
+    const keeperSlotCandidates = rawSlotCandidates.filter(
+      (entry) => entry.zoneId === "kaleci"
+    );
+    if (
+      keeperSlotCandidates.length > 0 &&
+      keeperSlotCandidates.every((entry) => entry.candidates.length === 0)
+    ) {
+      return [];
+    }
+
+    const slotCandidates = [
+      ...keeperSlotCandidates,
+      ...rawSlotCandidates.filter((entry) => entry.zoneId !== "kaleci"),
+    ].sort((left, right) => {
+      if (left.zoneId === "kaleci" && right.zoneId !== "kaleci") {
+        return -1;
+      }
+      if (left.zoneId !== "kaleci" && right.zoneId === "kaleci") {
+        return 1;
+      }
+      const countDelta = left.candidates.length - right.candidates.length;
+      if (countDelta !== 0) {
+        return countDelta;
+      }
+      return left.slot.slotIndex - right.slot.slotIndex;
+    });
 
     const usedPlayerIds = new Set<string>();
     const assignments: AutoFillAssignment[] = [];
 
     slotCandidates.forEach(({ slot, zoneId, candidates }) => {
+      if (assignments.length >= maxFillCount) {
+        return;
+      }
       const candidate = candidates.find(
         (player) => !usedPlayerIds.has(player.id)
       );
@@ -1744,11 +1773,15 @@ const activeUserId = user?.id ?? null;
         position: slot.position,
         x: slot.x,
         y: slot.y,
+        targetPlayerId:
+          zoneId === "kaleci" && startingCount >= 11
+            ? fallbackPlayerForFullKeeperSlot?.id ?? null
+            : null,
       });
     });
 
     return assignments;
-  }, [displayPlayers, emptyFormationSlots]);
+  }, [displayPlayers, emptyFormationSlots, startingDisplayPlayers]);
   const getCurrentPitchSlotForPlayer = useCallback(
     (playerId: string) =>
       formationPositions.find((entry) => entry.player?.id === playerId) ?? null,
@@ -2344,16 +2377,20 @@ const activeUserId = user?.id ?? null;
     if (!selectedSlotMeta) {
       return [];
     }
-    return recommendPlayers(selectedSlotMeta.zoneId, displayPlayers, {
+    const recommendationPool = hasEmptySlotSelection
+      ? displayPlayers.filter((player) => player.squadRole !== "starting")
+      : displayPlayers;
+    return recommendPlayers(selectedSlotMeta.zoneId, recommendationPool, {
       excludeIds: selectedPlayer ? [selectedPlayer.id] : undefined,
       limit: 6,
     });
-  }, [displayPlayers, selectedPlayer, selectedSlotMeta]);
+  }, [displayPlayers, hasEmptySlotSelection, selectedPlayer, selectedSlotMeta]);
 
   const handleSlotSelect = useCallback(
     (slot: PitchSlot) => {
       setSelectedSlotMeta({
         slotIndex: slot.slotIndex,
+        slotKey: slot.slotKey,
         zoneId: resolveFormationSlotZoneId(slot),
         x: slot.x,
         y: slot.y,
@@ -2382,7 +2419,7 @@ const activeUserId = user?.id ?? null;
           // Note: affinity returns 0.5 for mismatch, 1.2 for exact match.
           // The user requested "80 becomes 40", so direct multiplier is good.
           // So 0.5 is key.
-          const affinity = positionAffinity(player as any, zone);
+          const affinity = positionAffinity(player, zone);
           value = value * affinity;
         }
       } else {
@@ -2414,11 +2451,18 @@ const activeUserId = user?.id ?? null;
       return;
     }
     setSelectedSlotMeta((prev) => {
-      if (prev && prev.slotIndex === slot.slotIndex) {
+      if (
+        prev &&
+        prev.slotIndex === slot.slotIndex &&
+        prev.slotKey === slot.slotKey &&
+        prev.x === slot.x &&
+        prev.y === slot.y
+      ) {
         return prev;
       }
       return {
         slotIndex: slot.slotIndex,
+        slotKey: slot.slotKey,
         zoneId: resolveFormationSlotZoneId(slot),
         x: slot.x,
         y: slot.y,
@@ -2432,9 +2476,16 @@ const activeUserId = user?.id ?? null;
       if (!prev) {
         return prev;
       }
-      const slot = formationPositions.find(
-        (entry) => entry.slotIndex === prev.slotIndex
-      );
+      const slot = formationPositions.find((entry) => {
+        if (prev.slotKey) {
+          return entry.slotKey === prev.slotKey;
+        }
+        return (
+          entry.slotIndex === prev.slotIndex &&
+          entry.x === prev.x &&
+          entry.y === prev.y
+        );
+      });
       if (!slot) {
         return null;
       }
@@ -2449,6 +2500,7 @@ const activeUserId = user?.id ?? null;
       }
       return {
         slotIndex: slot.slotIndex,
+        slotKey: slot.slotKey,
         zoneId: nextZone,
         x: slot.x,
         y: slot.y,
@@ -2486,7 +2538,10 @@ const activeUserId = user?.id ?? null;
       const result = promotePlayerToStartingRoster(
         nextPlayers,
         assignment.playerId,
-        assignment.position
+        assignment.position,
+        assignment.targetPlayerId
+          ? { targetPlayerId: assignment.targetPlayerId }
+          : undefined
       );
       if (result.error || !result.updated) {
         return;
@@ -2502,9 +2557,20 @@ const activeUserId = user?.id ?? null;
 
     setPlayers(nextPlayers);
     appliedAssignments.forEach((assignment) => {
-      removePlayerFromFormationLayout(assignment.playerId);
+      applyManualPosition(assignment.playerId, {
+        x: assignment.x,
+        y: assignment.y,
+        position: assignment.position,
+        zoneId: assignment.zoneId,
+        slotIndex: assignment.slotIndex,
+      });
+      if (assignment.targetPlayerId) {
+        removePlayerFromCustomFormations(assignment.targetPlayerId);
+      }
     });
 
+    setFocusedPlayerId(appliedAssignments[0]?.playerId ?? null);
+    setSelectedSlotMeta(null);
     setActiveTab("starting");
 
     const remainingSlots = Math.max(
@@ -2524,9 +2590,10 @@ const activeUserId = user?.id ?? null;
     toast.success(t("teamPlanning.toasts.emptyFilledAll"));
   }, [
     autoFillAssignments,
+    applyManualPosition,
     emptyFormationSlots.length,
     players,
-    removePlayerFromFormationLayout,
+    removePlayerFromCustomFormations,
     t,
   ]);
 
@@ -2569,14 +2636,13 @@ const activeUserId = user?.id ?? null;
       return;
     }
 
-    const dropCoordinates =
-      getPitchCoordinates(e.clientX, e.clientY) ??
-      ({
-        x: slot.x,
-        y: slot.y,
-        position: slot.position,
-        zoneId: slot.zoneId,
-      } satisfies FormationPlayerPosition);
+    const dropCoordinates = {
+      x: slot.x,
+      y: slot.y,
+      position: slot.position,
+      zoneId: resolveFormationSlotZoneId(slot),
+      slotIndex: slot.slotIndex,
+    } satisfies FormationPlayerPosition;
 
     dropHandledRef.current = true;
     if (!commitPitchDrop(playerId, dropCoordinates, slot)) {
