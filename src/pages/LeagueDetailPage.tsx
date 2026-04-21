@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { useTranslation } from '@/contexts/LanguageContext';
 import { listenStandings, getLeagueTeams } from '@/services/leagues';
 import type { Standing } from '@/types';
@@ -8,6 +8,7 @@ import { Shield } from 'lucide-react';
 
 export default function LeagueDetailPage() {
   const { leagueId } = useParams();
+  const navigate = useNavigate();
   const { t } = useTranslation();
   const [rows, setRows] = useState<Standing[]>([]);
 
@@ -51,6 +52,14 @@ export default function LeagueDetailPage() {
     }
 
     return raw;
+  };
+
+  const canOpenTeamDetail = (row: Standing) =>
+    typeof row.teamId === 'string' && row.teamId.trim().length > 0 && !row.teamId.startsWith('slot-');
+
+  const openTeamDetail = (row: Standing) => {
+    if (!canOpenTeamDetail(row)) return;
+    navigate(`/teams/${encodeURIComponent(row.teamId)}`);
   };
 
   return (
@@ -100,7 +109,20 @@ export default function LeagueDetailPage() {
                 <tr
                   key={r.id}
                   data-testid={`standings-row-${r.teamId}`}
-                  className="group transition-colors hover:bg-white/5"
+                  role={canOpenTeamDetail(r) ? 'button' : undefined}
+                  tabIndex={canOpenTeamDetail(r) ? 0 : undefined}
+                  title={canOpenTeamDetail(r) ? t('friends.actions.viewTeam') : undefined}
+                  onClick={() => openTeamDetail(r)}
+                  onKeyDown={(event) => {
+                    if (!canOpenTeamDetail(r)) return;
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault();
+                      openTeamDetail(r);
+                    }
+                  }}
+                  className={`group transition-colors hover:bg-white/5 ${
+                    canOpenTeamDetail(r) ? 'cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/70' : ''
+                  }`}
                 >
                   <td className="px-2 py-3 text-center font-medium text-slate-500 group-hover:text-slate-300 sm:px-3 md:px-4">
                     {idx + 1}
@@ -110,7 +132,7 @@ export default function LeagueDetailPage() {
                       <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-white/5 bg-slate-800 sm:h-8 sm:w-8">
                         <Shield className="h-3.5 w-3.5 text-purple-400 opacity-80 sm:h-4 sm:w-4" />
                       </div>
-                      <span className="block truncate">{formatName(r)}</span>
+                      <span className="block truncate group-hover:text-emerald-200">{formatName(r)}</span>
                     </div>
                   </td>
                   <td className="px-1 py-3 text-center font-medium text-slate-300 group-hover:text-white sm:px-2 md:px-3">{r.P}</td>
