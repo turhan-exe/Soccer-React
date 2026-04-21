@@ -22,6 +22,7 @@ export const trFriends: TranslationDictionary = {
     actions: {
       chat: 'Chat Ac',
       friendly: 'Dostluk Maci',
+      viewTeam: 'Takimi Gor',
       remove: 'Arkadasi Sil',
       you: 'Sen',
       accept: 'Kabul Et',

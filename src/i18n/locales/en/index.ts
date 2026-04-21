@@ -11,6 +11,7 @@ import { enMatchPreview } from './matchPreview';
 import { enSettings } from './settings';
 import { enShared } from './shared';
 import { enTeamPlanning } from './teamPlanning';
+import { enTeamDetail } from './teamDetail';
 import { enTraining } from './training';
 import { enTransfer } from './transfer';
 import { enYouth } from './youth';
@@ -27,6 +28,7 @@ export const enTranslations: TranslationDictionary = {
   ...enMainMenu,
   ...enMatchPreview,
   ...enSettings,
+  ...enTeamDetail,
   ...enTeamPlanning,
   ...enTraining,
   ...enTransfer,

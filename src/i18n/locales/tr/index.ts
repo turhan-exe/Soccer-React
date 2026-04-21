@@ -11,6 +11,7 @@ import { trMatchPreview } from './matchPreview';
 import { trSettings } from './settings';
 import { trShared } from './shared';
 import { trTeamPlanning } from './teamPlanning';
+import { trTeamDetail } from './teamDetail';
 import { trTraining } from './training';
 import { trTransfer } from './transfer';
 import { trYouth } from './youth';
@@ -27,6 +28,7 @@ export const trTranslations: TranslationDictionary = {
   ...trMainMenu,
   ...trMatchPreview,
   ...trSettings,
+  ...trTeamDetail,
   ...trTeamPlanning,
   ...trTraining,
   ...trTransfer,

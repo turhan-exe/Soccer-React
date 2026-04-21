@@ -25,6 +25,7 @@ import {
      Inbox,
      Check,
      X,
+     Eye,
      Clock
 } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
@@ -52,6 +53,7 @@ export default function FriendsPage() {
      const [searchQuery, setSearchQuery] = useState('');
      const [selectedFriendForChat, setSelectedFriendForChat] = useState<Friend | null>(null);
      const [loading, setLoading] = useState(false);
+     const initialTab = searchParams.get('tab') === 'requests' ? 'requests' : 'list';
 
      const loadData = useCallback(async () => {
           if (!user) return;
@@ -195,6 +197,10 @@ export default function FriendsPage() {
           navigate(`/friendly-match?${query.toString()}`);
      };
 
+     const handleViewTeam = (teamId: string) => {
+          navigate(`/teams/${encodeURIComponent(teamId)}`);
+     };
+
      // Chat Açma ve Okundu İşaretleme
      const handleOpenChat = (friend: Friend) => {
           setSelectedFriendForChat(friend);
@@ -217,7 +223,7 @@ export default function FriendsPage() {
                </div>
 
                <div className="max-w-4xl mx-auto">
-                    <Tabs defaultValue="list" className="w-full">
+                    <Tabs defaultValue={initialTab} className="w-full">
                          <TabsList className="grid w-full grid-cols-3 bg-slate-900 p-1 rounded-xl mb-6">
                               <TabsTrigger value="list" className="data-[state=active]:bg-slate-800 data-[state=active]:text-white text-slate-400 py-3 rounded-lg transition-all">
                                    <Users className="w-4 h-4 mr-2" />
@@ -252,7 +258,19 @@ export default function FriendsPage() {
                               ) : (
                                    <div className="grid gap-4 sm:grid-cols-2">
                                         {friends.map((friend) => (
-                                             <Card key={friend.id} className="bg-slate-900 border-slate-800 hover:border-slate-700 transition-all">
+                                             <Card
+                                                  key={friend.id}
+                                                  className="bg-slate-900 border-slate-800 hover:border-slate-700 transition-all cursor-pointer"
+                                                  role="button"
+                                                  tabIndex={0}
+                                                  onClick={() => handleViewTeam(friend.id)}
+                                                  onKeyDown={(event) => {
+                                                       if (event.key === 'Enter' || event.key === ' ') {
+                                                            event.preventDefault();
+                                                            handleViewTeam(friend.id);
+                                                       }
+                                                  }}
+                                             >
                                                   <CardContent className="p-4 flex items-center gap-4">
                                                        <Avatar className="h-12 w-12 border-2 border-slate-700">
                                                             <AvatarImage src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${friend.avatar || friend.managerName}`} />
@@ -270,7 +288,10 @@ export default function FriendsPage() {
                                                                       size="icon"
                                                                       variant="secondary"
                                                                       className="h-8 w-8 bg-blue-500/10 text-blue-400 hover:bg-blue-500/20"
-                                                                      onClick={() => handleOpenChat(friend)}
+                                                                      onClick={(event) => {
+                                                                           event.stopPropagation();
+                                                                           handleOpenChat(friend);
+                                                                      }}
                                                                       title={t('friends.actions.chat')}
                                                                  >
                                                                       <MessageCircle size={14} />
@@ -279,17 +300,35 @@ export default function FriendsPage() {
                                                                       size="icon"
                                                                       variant="secondary"
                                                                       className="h-8 w-8 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20"
-                                                                      onClick={() => handleFriendlyMatch(friend)}
+                                                                      onClick={(event) => {
+                                                                           event.stopPropagation();
+                                                                           handleFriendlyMatch(friend);
+                                                                      }}
                                                                       title={t('friends.actions.friendly')}
                                                                  >
                                                                       <Swords size={14} />
+                                                                 </Button>
+                                                                 <Button
+                                                                      size="icon"
+                                                                      variant="secondary"
+                                                                      className="h-8 w-8 bg-amber-500/10 text-amber-300 hover:bg-amber-500/20"
+                                                                      onClick={(event) => {
+                                                                           event.stopPropagation();
+                                                                           handleViewTeam(friend.id);
+                                                                      }}
+                                                                      title={t('friends.actions.viewTeam')}
+                                                                 >
+                                                                      <Eye size={14} />
                                                                  </Button>
                                                             </div>
                                                             <Button
                                                                  size="icon"
                                                                  variant="ghost"
                                                                  className="h-6 w-full text-slate-600 hover:text-red-400 hover:bg-red-950/30"
-                                                                 onClick={() => handleRemoveFriend(friend.id, friend.teamName)}
+                                                                 onClick={(event) => {
+                                                                      event.stopPropagation();
+                                                                      handleRemoveFriend(friend.id, friend.teamName);
+                                                                 }}
                                                                  title={t('friends.actions.remove')}
                                                             >
                                                                  <Trash2 size={12} />
@@ -374,16 +413,20 @@ export default function FriendsPage() {
                                    <div className="grid gap-3">
                                         {searchResults.map((result) => (
                                              <div key={result.id} className="flex items-center justify-between p-4 rounded-xl bg-slate-900 border border-slate-800">
-                                                  <div className="flex items-center gap-3">
+                                                  <button
+                                                       type="button"
+                                                       className="flex min-w-0 flex-1 items-center gap-3 text-left"
+                                                       onClick={() => handleViewTeam(result.id)}
+                                                  >
                                                        <Avatar className="h-10 w-10 border border-slate-700">
                                                             <AvatarImage src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${result.username || result.teamName}`} />
                                                             <AvatarFallback>U</AvatarFallback>
                                                        </Avatar>
-                                                       <div>
-                                                            <p className="font-bold text-slate-200">{result.teamName}</p>
+                                                       <div className="min-w-0">
+                                                            <p className="truncate font-bold text-slate-200">{result.teamName}</p>
                                                             <p className="text-xs text-slate-500">{result.username}</p>
                                                        </div>
-                                                  </div>
+                                                  </button>
 
                                                   {/* Duruma göre buton */}
                                                   {result.friendStatus === 'friend' ? (
@@ -406,7 +449,10 @@ export default function FriendsPage() {
                                                                  size="sm"
                                                                  variant="ghost"
                                                                  className="bg-purple-500/10 text-purple-400 hover:bg-purple-500/20 border border-purple-500/20"
-                                                                 onClick={() => handleSendRequest(result)}
+                                                                 onClick={(event) => {
+                                                                      event.stopPropagation();
+                                                                      handleSendRequest(result);
+                                                                 }}
                                                             >
                                                                  <UserPlus size={16} className="mr-2" />
                                                                  {t('friends.actions.sendRequest')}

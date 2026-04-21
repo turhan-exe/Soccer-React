@@ -22,6 +22,7 @@ export const enFriends: TranslationDictionary = {
     actions: {
       chat: 'Open Chat',
       friendly: 'Friendly Match',
+      viewTeam: 'View Team',
       remove: 'Remove Friend',
       you: 'You',
       accept: 'Accept',

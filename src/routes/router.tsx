@@ -4,6 +4,7 @@ import RootLayout from '@/layouts/RootLayout';
 // Pages
 import MainMenu from '@/pages/MainMenu';
 import FriendsPage from '@/pages/FriendsPage';
+import TeamDetailPage from '@/pages/TeamDetailPage';
 import TeamPlanning from '@/pages/TeamPlanning';
 import TransferMarket from '@/pages/TransferMarket';
 import Youth from '@/pages/Youth';
@@ -46,6 +47,7 @@ export const router = createBrowserRouter(
         { path: '/team-planning', element: <TeamPlanning /> },
         { path: '/youth', element: <Youth /> },
         { path: '/friends', element: <FriendsPage /> },
+        { path: '/teams/:teamId', element: <TeamDetailPage /> },
         { path: '/transfer-market', element: <TransferMarket /> },
         { path: '/fixtures', element: <MyFixturesPage /> },
         { path: '/my-matches', element: <MyFixturesPage /> },
