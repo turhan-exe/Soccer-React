@@ -1,4 +1,5 @@
 import type { FirebaseTimestamp } from '@/types';
+import { normalizeFixtureScore } from './fixtureScore';
 
 type TimestampLike =
   | FirebaseTimestamp
@@ -11,6 +12,7 @@ type FixtureLiveLike = {
   matchId?: string | null;
   state?: string | null;
   reason?: string | null;
+  resultMissing?: boolean | null;
   prewarmedAt?: TimestampLike;
   kickoffAttemptedAt?: TimestampLike;
   startedAt?: TimestampLike;
@@ -21,6 +23,7 @@ type FixtureLiveLike = {
 type FixtureLiveAware = {
   status?: string | null;
   date?: Date | TimestampLike;
+  score?: unknown;
   live?: FixtureLiveLike;
 };
 
@@ -41,6 +44,7 @@ export type FixtureLivePresentationState =
   | 'preparing'
   | 'queued'
   | 'preparing_delayed'
+  | 'result_pending'
   | 'finished'
   | 'error';
 
@@ -131,7 +135,8 @@ export function resolveEffectiveFixtureLiveState(fixture: FixtureLiveAware, nowM
   const fixtureStatus = normalizeFixtureStatus(fixture.status);
   const liveState = normalizeFixtureStatus(fixture.live?.state);
 
-  if (fixtureStatus === 'played') return 'ended';
+  if (liveState === 'result_pending') return 'result_pending';
+  if (fixtureStatus === 'played' && normalizeFixtureScore(fixture.score)) return 'ended';
   if (fixtureStatus === 'failed' && LIVE_JOINABLE_STATES.has(liveState)) return 'failed';
   if (!hasActiveFixtureLiveSignal(fixture, nowMs)) return '';
   return liveState;
@@ -147,6 +152,11 @@ export function resolveFixtureLivePresentationState(
   const liveState = effectiveLiveState || rawLiveState;
   const hasMatchId = String(fixture.live?.matchId || '').trim().length > 0;
   const kickoffReached = isKickoffReached(fixture, nowMs);
+  const hasScore = normalizeFixtureScore(fixture.score) != null;
+  const resultPending =
+    rawLiveState === 'result_pending' ||
+    fixture.live?.resultMissing === true ||
+    ((fixtureStatus === 'played' || rawLiveState === 'ended') && !hasScore);
   const queuedFailure =
     kickoffReached
     && hasQueueReason(fixture)
@@ -156,7 +166,11 @@ export function resolveFixtureLivePresentationState(
       || rawLiveState === 'kickoff_failed'
     );
 
-  if (fixtureStatus === 'played' || liveState === 'ended') {
+  if (resultPending) {
+    return 'result_pending';
+  }
+
+  if ((fixtureStatus === 'played' && hasScore) || liveState === 'ended') {
     return 'finished';
   }
 
@@ -241,6 +255,5 @@ export function isFixtureLiveJoinable(fixture: FixtureLiveAware, nowMs = Date.no
 
   if (!matchId) return false;
   if (fixtureStatus !== 'running') return false;
-  if (fixtureStatus === 'played' || fixtureStatus === 'failed') return false;
   return LIVE_JOINABLE_STATES.has(liveState);
 }

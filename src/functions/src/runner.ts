@@ -5,8 +5,7 @@ import * as pubsub from 'firebase-functions/v1/pubsub';
 import { dayKeyTR, dayRangeTR } from './utils/schedule.js';
 import { requireAppCheck, requireAuth } from './mw/auth.js';
 import {
-  applyLeagueMatchRevenueInTx,
-  applyStandingResultInTx,
+  applyLeagueResultSideEffectsInTx,
   resolveFixtureRevenueTeamIds,
 } from './utils/leagueMatchFinalize.js';
 
@@ -128,6 +127,10 @@ async function processMatch(
       return;
     }
     const score = { home: homeScore, away: awayScore };
+    await applyLeagueResultSideEffectsInTx(tx, doc.ref, cur, {
+      score,
+      resolvedTeamIds,
+    });
     tx.update(doc.ref, {
       status: 'played',
       score,
@@ -135,8 +138,6 @@ async function processMatch(
       endedAt: FieldValue.serverTimestamp(),
       playedAt: FieldValue.serverTimestamp(),
     });
-    await applyStandingResultInTx(tx, doc.ref, cur, score);
-    await applyLeagueMatchRevenueInTx(tx, doc.ref, cur, resolvedTeamIds);
   });
 }
 
@@ -415,6 +416,10 @@ async function processSlotMatch(
       return;
     }
     const score = { home: homeScore, away: awayScore };
+    await applyLeagueResultSideEffectsInTx(tx, doc.ref, cur, {
+      score,
+      resolvedTeamIds,
+    });
     tx.update(doc.ref, {
       status: 'played',
       score,
@@ -422,8 +427,6 @@ async function processSlotMatch(
       endedAt: FieldValue.serverTimestamp(),
       playedAt: FieldValue.serverTimestamp(),
     });
-    await applyStandingResultInTx(tx, doc.ref, cur, score);
-    await applyLeagueMatchRevenueInTx(tx, doc.ref, cur, resolvedTeamIds);
   });
 }
 

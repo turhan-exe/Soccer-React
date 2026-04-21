@@ -9,6 +9,7 @@ export type FixtureLiveStatus =
   | 'server_started'
   | 'running'
   | 'ended'
+  | 'result_pending'
   | 'failed'
   | 'prepare_failed'
   | 'kickoff_failed'
@@ -31,6 +32,7 @@ export interface FixtureLiveDoc {
   resultMissing?: boolean;
   reason?: string;
   resultSource?: 'simulation' | 'fallback';
+  resultPayload?: Record<string, unknown> | null;
   fallbackReason?: string;
   fallbackStrength?: { home: number; away: number };
   fallbackAppliedAt?: FirebaseTimestamp;
@@ -47,7 +49,7 @@ export interface FixtureDoc {
   participants: string[];     // [home, away]
   date: FirebaseTimestamp;    // each round at 19:00 TRT (stored as Timestamp)
   status: FixtureStatus;
-  score?: { h: number; a: number };
+  score?: { home: number; away: number } | { h: number; a: number } | null;
   replayPath?: string;        // replays/{season}/{league}/{match}.json
   video?: MatchVideoMeta;
   videoMissing?: boolean;

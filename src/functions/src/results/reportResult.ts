@@ -3,10 +3,10 @@ import '../_firebase.js';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import {
   applyLeagueLineupMotivationEffects,
-  applyLeagueMatchRevenueInTx,
-  applyStandingResultInTx,
+  applyLeagueResultSideEffectsInTx,
   resolveFixtureRevenueTeamIds,
 } from '../utils/leagueMatchFinalize.js';
+import { hasCanonicalFixtureScore } from '../utils/fixtureScore.js';
 
 
 const db = getFirestore();
@@ -53,7 +53,7 @@ export const reportResult = functions.region('europe-west1').https.onRequest(asy
       const snap = await tx.get(fixtureRef);
       if (!snap.exists) throw new Error('fixture not found');
       const cur = (snap.data() as Record<string, unknown>) ?? {};
-      const currentStatus = String(cur.status || 'scheduled');
+      const currentStatus = String(cur.status || 'scheduled').trim().toLowerCase();
 
       const updatePatch: FirebaseFirestore.UpdateData<FirebaseFirestore.DocumentData> = {
         status: 'played',
@@ -69,12 +69,13 @@ export const reportResult = functions.region('europe-west1').https.onRequest(asy
         updatePatch.playedAt = FieldValue.serverTimestamp();
         updatePatch.endedAt = FieldValue.serverTimestamp();
       }
-      tx.update(fixtureRef, updatePatch);
 
-      if (currentStatus !== 'played') {
-        await applyStandingResultInTx(tx, fixtureRef, cur, score);
-      }
-      await applyLeagueMatchRevenueInTx(tx, fixtureRef, cur, resolvedTeamIds);
+      await applyLeagueResultSideEffectsInTx(tx, fixtureRef, cur, {
+        score,
+        resolvedTeamIds,
+        includeStandings: currentStatus !== 'played' || !hasCanonicalFixtureScore(cur.score),
+      });
+      tx.update(fixtureRef, updatePatch);
     });
 
     try {

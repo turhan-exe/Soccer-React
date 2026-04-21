@@ -4,14 +4,22 @@ import { getFirestore, FieldPath, FieldValue, Timestamp } from 'firebase-admin/f
 import { getStorage } from 'firebase-admin/storage';
 import { formatInTimeZone } from 'date-fns-tz';
 import { createHmac, randomUUID } from 'crypto';
+import { gunzipSync } from 'zlib';
 import { trAt, dayKeyTR } from './utils/schedule.js';
 import { ensureBotTeamDoc } from './utils/bots.js';
 import { buildUnityRuntimeTeamPayload, type UnityRuntimeTeamPayload } from './utils/unityRuntimePayload.js';
 import {
-  applyLeagueMatchRevenueInTx,
-  applyStandingResultInTx,
+  applyLeagueLineupMotivationEffects,
+  applyLeagueResultSideEffectsInTx,
   resolveFixtureRevenueTeamIds,
 } from './utils/leagueMatchFinalize.js';
+import {
+  deriveReplayPayloadScore,
+  hasCanonicalFixtureScore,
+  normalizeCanonicalFixtureScore,
+  type CanonicalFixtureScore,
+} from './utils/fixtureScore.js';
+import { resolveLiveLeagueTerminalResolution } from './utils/liveLeagueResultState.js';
 import { finalizeFixtureWithFallbackResult } from './utils/matchResultFallback.js';
 import { enqueueRenderJob } from './replay/renderJob.js';
 import { enqueueLeagueMatchReminder } from './notify/matchReminder.js';
@@ -33,6 +41,7 @@ import {
   resolveHistoricalRecoveryCandidateKind,
   resolveHistoricalRecoveryKickoffAt,
   resolveHistoricalRetryAt,
+  shouldCleanupHistoricalPlayedFixtureState,
   shouldFallbackAfterHistoricalAttempts,
   toTimestampMillis,
 } from './utils/historicalRecovery.js';
@@ -746,59 +755,184 @@ function deriveVideoPath(seasonId: string, matchId: string, match?: MatchControl
   );
 }
 
+function deriveResultPath(leagueId: string, seasonId: string, fixtureId: string, fixture?: any) {
+  return String(
+    fixture?.resultPath ||
+    `results/${seasonId}/${leagueId}/${fixtureId}.json`,
+  );
+}
+
 function normalizeScore(match?: MatchControlInternalMatch | null) {
   const result = match?.resultPayload || {};
-  const direct = result?.score || result?.result || null;
-  if (typeof direct?.home === 'number' && typeof direct?.away === 'number') {
-    return { home: direct.home, away: direct.away };
+  return (
+    normalizeCanonicalFixtureScore(result?.score) ||
+    normalizeCanonicalFixtureScore(result?.result) ||
+    normalizeCanonicalFixtureScore(result) ||
+    (
+      typeof match?.homeScore === 'number' && typeof match?.awayScore === 'number'
+        ? { home: match.homeScore, away: match.awayScore }
+        : null
+    )
+  );
+}
+
+function readJsonBuffer(buffer: Buffer) {
+  try {
+    return JSON.parse(buffer.toString('utf8'));
+  } catch {
+    const inflated = gunzipSync(buffer);
+    return JSON.parse(inflated.toString('utf8'));
   }
-  if (typeof direct?.h === 'number' && typeof direct?.a === 'number') {
-    return { home: direct.h, away: direct.a };
+}
+
+async function readStorageJson(path: string | null | undefined) {
+  const normalizedPath = String(path || '').trim();
+  if (!normalizedPath) {
+    return null;
   }
-  if (typeof match?.homeScore === 'number' && typeof match?.awayScore === 'number') {
-    return { home: match.homeScore, away: match.awayScore };
+
+  try {
+    const candidatePaths = normalizedPath.endsWith('.gz')
+      ? [normalizedPath]
+      : [normalizedPath, `${normalizedPath}.gz`];
+
+    for (const candidatePath of candidatePaths) {
+      const file = bucket.file(candidatePath);
+      const [exists] = await file.exists();
+      if (!exists) {
+        continue;
+      }
+      const [buffer] = await file.download();
+      return readJsonBuffer(buffer);
+    }
+    return null;
+  } catch (error: any) {
+    functions.logger.warn('[liveLeague] storage json read failed', {
+      path: normalizedPath,
+      error: error?.message || String(error),
+    });
+    return null;
   }
-  if (typeof result?.homeGoals === 'number' && typeof result?.awayGoals === 'number') {
-    return { home: result.homeGoals, away: result.awayGoals };
+}
+
+function resolveBackfillScoreSource(source: string): 'simulation' | 'fallback' {
+  return source === 'fallback' ? 'fallback' : 'simulation';
+}
+
+async function resolveRecoveredFixtureScore(
+  entry: FixtureEntry,
+  match: MatchControlInternalMatch | null,
+) {
+  const fixture = entry.fixture;
+  const fixtureScore = normalizeCanonicalFixtureScore(fixture?.score);
+  if (fixtureScore) {
+    return { score: fixtureScore, source: 'fixture_score' as const };
   }
+
+  const liveResultPayload = fixture?.live?.resultPayload;
+  const livePayloadScore =
+    normalizeCanonicalFixtureScore(liveResultPayload?.score) ||
+    normalizeCanonicalFixtureScore(liveResultPayload?.result) ||
+    normalizeCanonicalFixtureScore(liveResultPayload);
+  if (livePayloadScore) {
+    return { score: livePayloadScore, source: 'live_result_payload' as const };
+  }
+
+  const matchControlScore = normalizeScore(match);
+  if (matchControlScore) {
+    return { score: matchControlScore, source: 'match_control' as const };
+  }
+
+  const seasonId = deriveSeasonId(fixture, match);
+  const resultJson = await readStorageJson(deriveResultPath(entry.leagueId, seasonId, entry.doc.id, fixture));
+  const resultJsonScore =
+    normalizeCanonicalFixtureScore(resultJson?.score) ||
+    normalizeCanonicalFixtureScore(resultJson?.result) ||
+    normalizeCanonicalFixtureScore(resultJson);
+  if (resultJsonScore) {
+    return { score: resultJsonScore, source: 'storage_result' as const };
+  }
+
+  const replayJson = await readStorageJson(
+    deriveReplayPath(entry.leagueId, seasonId, match?.id || entry.doc.id, match, fixture),
+  );
+  const replayScore = deriveReplayPayloadScore(replayJson);
+  if (replayScore) {
+    return { score: replayScore, source: 'replay' as const };
+  }
+
   return null;
 }
 
-async function writeSyntheticResult(
-  leagueId: string,
-  fixtureId: string,
-  fixture: any,
-  match: MatchControlInternalMatch,
+async function finalizeFixtureWithRecoveredScore(
+  entry: FixtureEntry,
+  score: CanonicalFixtureScore,
+  source: string,
 ) {
-  const seasonId = deriveSeasonId(fixture, match);
-  const score = normalizeScore(match);
-  if (!score) {
-    return 'missing_score' as const;
+  const fixtureRef = entry.doc.ref;
+  const fixtureBeforeSnap = await fixtureRef.get();
+  if (!fixtureBeforeSnap.exists) {
+    return { applied: false, alreadyFinalized: false };
   }
 
-  const resultPath = `results/${seasonId}/${leagueId}/${fixtureId}.json`;
-  const alreadyExists = await storageFileExists(resultPath);
-  if (alreadyExists) {
-    return 'result_exists' as const;
-  }
+  const fixtureBefore = (fixtureBeforeSnap.data() as Record<string, unknown>) ?? {};
+  const resolvedTeamIds = await resolveFixtureRevenueTeamIds(entry.leagueId, fixtureBefore);
+  let applied = false;
 
-  const replayPath = deriveReplayPath(leagueId, seasonId, fixtureId, match, fixture);
-  const payload = {
-    requestToken: buildRequestToken(fixtureId, seasonId),
-    score,
-    replay: { path: replayPath },
-    source: 'match-control-backfill',
-    extra: {
-      source: 'match-control-backfill',
-      endedReason: match.endedReason || null,
-      recoveredAt: new Date().toISOString(),
-    },
-  };
+  await db.runTransaction(async (tx) => {
+    const currentSnap = await tx.get(fixtureRef);
+    if (!currentSnap.exists) {
+      return;
+    }
 
-  await bucket.file(resultPath).save(JSON.stringify(payload), {
-    contentType: 'application/json; charset=utf-8',
+    const currentFixture = (currentSnap.data() as Record<string, unknown>) ?? {};
+    const currentStatus = String(currentFixture.status || 'scheduled').trim().toLowerCase();
+    const alreadyHasScore = hasCanonicalFixtureScore(currentFixture.score);
+    if (currentStatus === 'played' && alreadyHasScore) {
+      return;
+    }
+
+    const currentLive = (currentFixture.live as Record<string, unknown> | undefined) ?? undefined;
+    const updatePatch: FirebaseFirestore.UpdateData<FirebaseFirestore.DocumentData> = {
+      status: 'played',
+      score,
+      'live.state': 'ended',
+      'live.endedAt': currentLive?.endedAt || FieldValue.serverTimestamp(),
+      'live.lastLifecycleAt': FieldValue.serverTimestamp(),
+      'live.resultMissing': false,
+      'live.reason': FieldValue.delete(),
+      'live.resultSource': resolveBackfillScoreSource(source),
+    };
+
+    if (currentStatus !== 'played') {
+      updatePatch.playedAt = FieldValue.serverTimestamp();
+      updatePatch.endedAt = FieldValue.serverTimestamp();
+    }
+
+    await applyLeagueResultSideEffectsInTx(tx, fixtureRef, currentFixture, {
+      score,
+      resolvedTeamIds,
+    });
+    tx.set(fixtureRef, updatePatch, { merge: true });
+    applied = true;
   });
-  return 'recovered' as const;
+
+  if (applied) {
+    try {
+      await applyLeagueLineupMotivationEffects(entry.leagueId, entry.doc.id);
+    } catch (error: any) {
+      functions.logger.warn('[liveLeague] recovered score lineup motivation skipped', {
+        fixtureId: entry.doc.id,
+        leagueId: entry.leagueId,
+        error: error?.message || String(error),
+      });
+    }
+  }
+
+  return {
+    applied,
+    alreadyFinalized: !applied,
+  };
 }
 
 async function backfillLiveLeagueMediaEntry(
@@ -809,43 +943,24 @@ async function backfillLiveLeagueMediaEntry(
   const fixture = entry.fixture;
   const live = fixture?.live || {};
   const matchId = String(live.matchId || '').trim();
-  if (!matchId) {
-    return {
-      checked: 0,
-      replaySynced: 0,
-      videoHealed: 0,
-      resultRecovered: 0,
-      missingScore: 0,
-      renderQueued: 0,
-      fallbackApplied: 0,
-      fallbackFailed: 0,
-      failed: 0,
-    };
-  }
 
   try {
-    const match = await getInternalMatchDetails(matchId);
-    if (!match) {
-      return {
-        checked: 1,
-        replaySynced: 0,
-        videoHealed: 0,
-        resultRecovered: 0,
-        missingScore: 0,
-        renderQueued: 0,
-        fallbackApplied: 0,
-        fallbackFailed: 0,
-        failed: 0,
-      };
-    }
+    const match = matchId ? await getInternalMatchDetails(matchId) : null;
 
     const seasonId = deriveSeasonId(fixture, match);
-    const replayPath = deriveReplayPath(entry.leagueId, seasonId, entry.doc.id, match, fixture);
+    const replayPath = deriveReplayPath(
+      entry.leagueId,
+      seasonId,
+      match?.id || entry.doc.id,
+      match,
+      fixture,
+    );
     const videoPath = deriveVideoPath(seasonId, entry.doc.id, match, fixture);
     const patch: Record<string, unknown> = {};
     let replaySynced = 0;
     let videoHealed = 0;
     let resultRecovered = 0;
+    let replayScoreRecovered = 0;
     let missingScore = 0;
     let renderQueued = 0;
     let fallbackApplied = 0;
@@ -871,22 +986,49 @@ async function backfillLiveLeagueMediaEntry(
       if (patch['video.uploaded']) videoHealed += 1;
     }
 
-    const endedAtMs = live?.endedAt?.toDate?.()?.getTime?.() || 0;
+    const endedAtMs =
+      toTimestampMillis(live?.endedAt) ??
+      toTimestampMillis(fixture?.endedAt) ??
+      (match?.endedAt ? Date.parse(match.endedAt) : null) ??
+      0;
     const endedLongEnoughAgo = endedAtMs > 0 && now.getTime() - endedAtMs > 10 * 60 * 1000;
+    const fixtureStatus = String(fixture.status || '').trim().toLowerCase();
+    const rawLiveState = String(live?.state || '').trim().toLowerCase();
+    const scoreMissing = !hasCanonicalFixtureScore(fixture?.score);
+    const isResultPending =
+      live?.resultMissing === true ||
+      rawLiveState === 'result_pending' ||
+      ((fixtureStatus === 'played' || rawLiveState === 'ended') && scoreMissing);
 
     if (
       endedLongEnoughAgo &&
-      match.status === 'ended' &&
-      String(fixture.status || '').toLowerCase() !== 'played'
+      (
+        isResultPending ||
+        scoreMissing ||
+        fixtureStatus !== 'played'
+      ) &&
+      (
+        String(match?.status || '').toLowerCase() === 'ended' ||
+        rawLiveState === 'ended' ||
+        rawLiveState === 'result_pending' ||
+        !matchId
+      )
     ) {
-      const recoveryStatus = await writeSyntheticResult(entry.leagueId, entry.doc.id, fixture, match);
-      if (recoveryStatus === 'recovered') {
-        resultRecovered += 1;
+      const recovered = await resolveRecoveredFixtureScore(entry, match);
+      if (recovered) {
+        const finalizeResult = await finalizeFixtureWithRecoveredScore(entry, recovered.score, recovered.source);
+        if (finalizeResult.applied) {
+          resultRecovered += 1;
+          if (recovered.source === 'replay') {
+            replayScoreRecovered += 1;
+          }
+        }
         return {
           checked: 1,
           replaySynced,
           videoHealed,
           resultRecovered,
+          replayScoreRecovered,
           missingScore,
           renderQueued,
           fallbackApplied,
@@ -894,62 +1036,65 @@ async function backfillLiveLeagueMediaEntry(
           failed: 0,
         };
       }
-      if (recoveryStatus === 'missing_score') {
-        if (options.allowFallback === false) {
-          missingScore += 1;
-          return {
-            checked: 1,
-            replaySynced,
-            videoHealed,
-            resultRecovered,
-            missingScore,
-            renderQueued,
-            fallbackApplied,
-            fallbackFailed,
-            failed: 0,
-          };
+
+      if (options.allowFallback === false) {
+        missingScore += 1;
+        return {
+          checked: 1,
+          replaySynced,
+          videoHealed,
+          resultRecovered,
+          replayScoreRecovered,
+          missingScore,
+          renderQueued,
+          fallbackApplied,
+          fallbackFailed,
+          failed: 0,
+        };
+      }
+
+      try {
+        const fallback = await finalizeFixtureWithFallbackResult({
+          leagueId: entry.leagueId,
+          fixtureId: entry.doc.id,
+          matchId: matchId || undefined,
+          reason: match?.endedReason || String(live?.reason || 'backfill_missing_score'),
+        });
+        if (fallback.status === 'applied') {
+          fallbackApplied += 1;
         }
-        try {
-          const fallback = await finalizeFixtureWithFallbackResult({
-            leagueId: entry.leagueId,
-            fixtureId: entry.doc.id,
-            matchId,
-            reason: match.endedReason || 'backfill_missing_score',
-          });
-          if (fallback.status === 'applied') {
-            fallbackApplied += 1;
-          }
-          return {
-            checked: 1,
-            replaySynced,
-            videoHealed,
-            resultRecovered,
-            missingScore,
-            renderQueued,
-            fallbackApplied,
-            fallbackFailed,
-            failed: 0,
-          };
-        } catch (error: any) {
-          fallbackFailed += 1;
-          functions.logger.warn('[backfillLiveLeagueMedia] fallback failed', {
-            fixtureId: entry.doc.id,
-            leagueId: entry.leagueId,
-            matchId,
-            error: error?.message || String(error),
-          });
-          return {
-            checked: 1,
-            replaySynced,
-            videoHealed,
-            resultRecovered,
-            missingScore,
-            renderQueued,
-            fallbackApplied,
-            fallbackFailed,
-            failed: 1,
-          };
-        }
+        return {
+          checked: 1,
+          replaySynced,
+          videoHealed,
+          resultRecovered,
+          replayScoreRecovered,
+          missingScore,
+          renderQueued,
+          fallbackApplied,
+          fallbackFailed,
+          failed: 0,
+        };
+      } catch (error: any) {
+        fallbackFailed += 1;
+        functions.logger.warn('[backfillLiveLeagueMedia] fallback failed', {
+          fixtureId: entry.doc.id,
+          leagueId: entry.leagueId,
+          matchId,
+          error: error?.message || String(error),
+        });
+        return {
+          checked: 1,
+          replaySynced,
+          videoHealed,
+          resultRecovered,
+          replayScoreRecovered,
+          missingScore,
+          renderQueued,
+          fallbackApplied,
+          fallbackFailed,
+          failed: 1,
+        };
       }
     }
 
@@ -960,7 +1105,7 @@ async function backfillLiveLeagueMediaEntry(
       !fixture?.video?.renderQueuedAt &&
       (
         fixture.videoError === 'upload_timeout' ||
-        String(match.videoStatus || '').toLowerCase() === 'failed' ||
+        String(match?.videoStatus || '').toLowerCase() === 'failed' ||
         !(await storageFileExists(videoPath))
       );
 
@@ -990,6 +1135,7 @@ async function backfillLiveLeagueMediaEntry(
       replaySynced,
       videoHealed,
       resultRecovered,
+      replayScoreRecovered,
       missingScore,
       renderQueued,
       fallbackApplied,
@@ -1008,6 +1154,7 @@ async function backfillLiveLeagueMediaEntry(
       replaySynced: 0,
       videoHealed: 0,
       resultRecovered: 0,
+      replayScoreRecovered: 0,
       missingScore: 0,
       renderQueued: 0,
       fallbackApplied: 0,
@@ -1024,17 +1171,29 @@ async function backfillLiveLeagueMediaInternal(now = new Date()) {
   let replaySynced = 0;
   let videoHealed = 0;
   let resultRecovered = 0;
+  let replayScoreRecovered = 0;
+  let resultPending = 0;
   let renderQueued = 0;
   let fallbackApplied = 0;
   let fallbackFailed = 0;
   let failed = 0;
 
   for (const entry of fixtures) {
+    const rawLiveState = String(entry.fixture?.live?.state || '').trim().toLowerCase();
+    const fixtureStatus = String(entry.fixture?.status || '').trim().toLowerCase();
+    if (
+      entry.fixture?.live?.resultMissing === true ||
+      rawLiveState === 'result_pending' ||
+      ((fixtureStatus === 'played' || rawLiveState === 'ended') && !hasCanonicalFixtureScore(entry.fixture?.score))
+    ) {
+      resultPending += 1;
+    }
     const result = await backfillLiveLeagueMediaEntry(entry, now);
     checked += Number(result.checked || 0);
     replaySynced += Number(result.replaySynced || 0);
     videoHealed += Number(result.videoHealed || 0);
     resultRecovered += Number(result.resultRecovered || 0);
+    replayScoreRecovered += Number(result.replayScoreRecovered || 0);
     renderQueued += Number(result.renderQueued || 0);
     fallbackApplied += Number(result.fallbackApplied || 0);
     fallbackFailed += Number(result.fallbackFailed || 0);
@@ -1047,6 +1206,11 @@ async function backfillLiveLeagueMediaInternal(now = new Date()) {
     leagueMediaBackfillReplaySynced: replaySynced,
     leagueMediaBackfillVideoHealed: videoHealed,
     leagueMediaBackfillResultRecovered: resultRecovered,
+    leagueResultPending: resultPending,
+    leagueResultRecovered: resultRecovered,
+    leagueResultReplayRecovered: replayScoreRecovered,
+    leagueResultFallbackApplied: FieldValue.increment(fallbackApplied),
+    leagueResultRepairFailed: failed + fallbackFailed,
     leagueMediaBackfillRenderQueued: renderQueued,
     leagueMediaBackfillFailed: failed,
     leagueFallbackApplied: FieldValue.increment(fallbackApplied),
@@ -1059,6 +1223,8 @@ async function backfillLiveLeagueMediaInternal(now = new Date()) {
     replaySynced,
     videoHealed,
     resultRecovered,
+    replayScoreRecovered,
+    resultPending,
     renderQueued,
     fallbackApplied,
     fallbackFailed,
@@ -1122,21 +1288,16 @@ function liveStatePatch(state: string, extra: Record<string, unknown> = {}) {
   };
 }
 
-function mapLifecycleToFixtureStatus(state: string, currentStatus: string) {
-  switch (state) {
-    case 'warm':
-    case 'starting':
-      return currentStatus === 'played' ? currentStatus : 'scheduled';
-    case 'server_started':
-    case 'running':
-      return currentStatus === 'played' ? currentStatus : 'running';
-    case 'ended':
-      return 'played';
-    case 'failed':
-      return currentStatus === 'played' ? currentStatus : 'failed';
-    default:
-      return currentStatus;
-  }
+function mapLifecycleToFixtureStatus(
+  state: string,
+  currentStatus: string,
+  hasResolvedScore = false,
+) {
+  return resolveLiveLeagueTerminalResolution({
+    lifecycleState: state,
+    currentStatus,
+    hasResolvedScore,
+  }).fixtureStatus;
 }
 
 function isTerminalLiveState(value: unknown) {
@@ -1511,15 +1672,20 @@ async function reconcileLeagueLiveFixtureEntry(
     });
     const effectiveState = String(status.state || '').trim() || String(live.state || '').trim();
     const fixtureStatus = String(fixture.status || 'scheduled').trim().toLowerCase();
+    const terminalResolution = resolveLiveLeagueTerminalResolution({
+      lifecycleState: effectiveState,
+      currentStatus: fixtureStatus,
+      hasResolvedScore: hasCanonicalFixtureScore(fixture?.score),
+    });
     const patch: Record<string, unknown> = {
-      'live.state': effectiveState,
+      'live.state': terminalResolution.liveState,
       'live.nodeId': live.nodeId || null,
       'live.serverIp': status.serverIp || live.serverIp || null,
       'live.serverPort': Number.isFinite(status.serverPort) ? Number(status.serverPort) : live.serverPort ?? null,
       'live.lastLifecycleAt': FieldValue.serverTimestamp(),
     };
 
-    if (fixtureStatus === 'played' && effectiveState !== 'ended') {
+    if (fixtureStatus === 'played' && hasCanonicalFixtureScore(fixture?.score) && effectiveState !== 'ended') {
       patch['live.state'] = 'ended';
       patch['live.endedAt'] = live?.endedAt || FieldValue.serverTimestamp();
       patch['live.resultMissing'] = false;
@@ -1531,11 +1697,14 @@ async function reconcileLeagueLiveFixtureEntry(
     }
     if (effectiveState === 'ended') {
       patch['live.endedAt'] = FieldValue.serverTimestamp();
-      patch['live.resultMissing'] = fixture.status !== 'played';
+      patch['live.resultMissing'] = terminalResolution.resultMissing;
+      if (!terminalResolution.resultMissing) {
+        patch['live.reason'] = FieldValue.delete();
+      }
     }
 
-    const nextStatus = mapLifecycleToFixtureStatus(effectiveState, fixtureStatus);
-    if (nextStatus !== fixture.status) {
+    const nextStatus = terminalResolution.fixtureStatus;
+    if (nextStatus !== fixtureStatus) {
       patch.status = nextStatus;
     }
 
@@ -1878,6 +2047,32 @@ function recoveryFieldPatch(state: string, extra: Record<string, unknown> = {}) 
   };
 }
 
+function buildHistoricalRecoveryStalePlayedCleanupPatch(
+  waveId: string | null = null,
+  state: string | null = 'settled',
+) {
+  const patch: Record<string, unknown> = {
+    'live.state': 'ended',
+    'live.resultMissing': false,
+    'live.reason': FieldValue.delete(),
+    'recovery.lockedAt': FieldValue.delete(),
+    'recovery.lockExpiresAt': FieldValue.delete(),
+    'recovery.nextRetryAt': FieldValue.delete(),
+    'recovery.reservedKickoffAt': FieldValue.delete(),
+    'recovery.lastError': FieldValue.delete(),
+    'recovery.updatedAt': FieldValue.serverTimestamp(),
+  };
+  if (state) {
+    patch['recovery.state'] = state;
+  }
+  if (waveId) {
+    patch['recovery.waveId'] = waveId;
+  } else {
+    patch['recovery.waveId'] = FieldValue.delete();
+  }
+  return patch;
+}
+
 async function acquireHistoricalRecoveryRunnerLock(now = new Date()) {
   const runtimeRef = getHistoricalRecoveryRuntimeRef();
   const lockUntil = new Date(now.getTime() + NIGHTLY_RECOVERY_RUNNER_LOCK_MINUTES * 60_000);
@@ -1934,13 +2129,15 @@ async function loadHistoricalRecoveryCandidatesInternal(
   const includeChampions = options.includeChampions !== false;
   const fromDateMs = options.fromDate ? options.fromDate.getTime() : null;
   const limit = Math.max(1, Math.min(Number(options.limit || NIGHTLY_RECOVERY_BATCH_SIZE), 100));
-  const scanLimit = Math.max(limit * 4, NIGHTLY_RECOVERY_SCAN_LIMIT);
+  const maxScanDocs = Math.max(limit * 40, NIGHTLY_RECOVERY_SCAN_LIMIT * 20);
+  const pageSize = Math.min(250, maxScanDocs);
   const candidates: FixtureEntry[] = [];
   let scanned = 0;
   let usedFallback = false;
+  let exhausted = false;
 
-  const finalizeEntries = (docs: FirebaseFirestore.QueryDocumentSnapshot[]) => {
-    scanned = docs.length;
+  const collectCandidates = (docs: FirebaseFirestore.QueryDocumentSnapshot[]) => {
+    scanned += docs.length;
     for (const doc of docs) {
       const leagueId = doc.ref.parent.parent?.id;
       if (!leagueId) continue;
@@ -1960,14 +2157,35 @@ async function loadHistoricalRecoveryCandidatesInternal(
   };
 
   try {
-    const snap = await db
-      .collectionGroup('fixtures')
-      .where('status', 'in', ['scheduled', 'failed', 'running'])
-      .where('date', '<', Timestamp.fromDate(now))
-      .orderBy('date', 'asc')
-      .limit(scanLimit)
-      .get();
-    finalizeEntries(snap.docs);
+    let lastDoc: FirebaseFirestore.QueryDocumentSnapshot | null = null;
+    while (candidates.length <= limit && scanned < maxScanDocs) {
+      const remaining = maxScanDocs - scanned;
+      const batchLimit = Math.max(1, Math.min(pageSize, remaining));
+      let query = db
+        .collectionGroup('fixtures')
+        .where('status', 'in', ['scheduled', 'failed', 'running', 'played'])
+        .where('date', '<', Timestamp.fromDate(now))
+        .orderBy('date', 'asc')
+        .limit(batchLimit);
+
+      if (lastDoc) {
+        query = query.startAfter(lastDoc);
+      }
+
+      const snap = await query.get();
+      if (!snap.docs.length) {
+        exhausted = true;
+        break;
+      }
+
+      collectCandidates(snap.docs);
+      lastDoc = snap.docs[snap.docs.length - 1];
+
+      if (snap.docs.length < batchLimit) {
+        exhausted = true;
+        break;
+      }
+    }
   } catch (error: any) {
     usedFallback = true;
     functions.logger.warn('[historicalRecovery] collectionGroup scan failed, falling back to per-league', {
@@ -1979,11 +2197,12 @@ async function loadHistoricalRecoveryCandidatesInternal(
     for (const league of leagueSnap.docs) {
       const scheduledSnap = await league.ref
         .collection('fixtures')
-        .where('status', 'in', ['scheduled', 'failed', 'running'])
+        .where('status', 'in', ['scheduled', 'failed', 'running', 'played'])
         .get();
       docs.push(...scheduledSnap.docs);
     }
-    finalizeEntries(docs);
+    collectCandidates(docs);
+    exhausted = true;
   }
 
   candidates.sort((left, right) => compareHistoricalFixtureDates(left.fixture, right.fixture));
@@ -1992,7 +2211,90 @@ async function loadHistoricalRecoveryCandidatesInternal(
     entries: candidates.slice(0, limit),
     scanned,
     usedFallback,
+    hasMore: candidates.length > limit || !exhausted,
+  };
+}
+
+async function loadHistoricalRecoveryStalePlayedEntriesInternal(
+  options: HistoricalRecoveryScanOptions = {},
+) {
+  const includeChampions = options.includeChampions !== false;
+  const limit = Math.max(1, Math.min(Number(options.limit || NIGHTLY_RECOVERY_BATCH_SIZE), 500));
+  const candidates: FixtureEntry[] = [];
+  let scanned = 0;
+
+  const finalizeEntries = (docs: FirebaseFirestore.QueryDocumentSnapshot[]) => {
+    for (const doc of docs) {
+      scanned += 1;
+      const fixture = doc.data() as any;
+      const leagueId = doc.ref.parent.parent?.id || '';
+      if (!leagueId) continue;
+      if (!includeChampions && isChampionsLeagueFixture(fixture)) continue;
+      if (!shouldCleanupHistoricalPlayedFixtureState(fixture)) continue;
+      candidates.push({ doc, leagueId, fixture });
+    }
+  };
+
+  try {
+    const snap = await db
+      .collectionGroup('fixtures')
+      .where('status', '==', 'played')
+      .get();
+    finalizeEntries(snap.docs);
+  } catch (error: any) {
+    functions.logger.warn('[historicalRecovery] stale played cleanup scan fallback to per-league', {
+      error: error?.message || String(error),
+    });
+    const leagueSnap = await db.collection('leagues').get();
+    for (const league of leagueSnap.docs) {
+      const playedSnap = await league.ref
+        .collection('fixtures')
+        .where('status', '==', 'played')
+        .get();
+      finalizeEntries(playedSnap.docs);
+    }
+  }
+
+  candidates.sort((left, right) => compareHistoricalFixtureDates(left.fixture, right.fixture));
+
+  return {
+    entries: candidates.slice(0, limit),
+    scanned,
     hasMore: candidates.length > limit,
+  };
+}
+
+async function cleanupHistoricalRecoveryStalePlayedFixturesInternal(
+  now = new Date(),
+  options: HistoricalRecoveryScanOptions & { dryRun?: boolean } = {},
+) {
+  const scan = await loadHistoricalRecoveryStalePlayedEntriesInternal(options);
+  const dryRun = options.dryRun === true;
+  let cleaned = 0;
+  let failed = 0;
+
+  if (!dryRun) {
+    for (const entry of scan.entries) {
+      try {
+        await entry.doc.ref.update(buildHistoricalRecoveryStalePlayedCleanupPatch());
+        cleaned += 1;
+      } catch (error: any) {
+        failed += 1;
+        functions.logger.warn('[historicalRecovery] stale played cleanup failed', {
+          leagueId: entry.leagueId,
+          fixtureId: entry.doc.id,
+          error: error?.message || String(error),
+          at: now.toISOString(),
+        });
+      }
+    }
+  }
+
+  return {
+    scanned: scan.scanned,
+    cleaned: dryRun ? scan.entries.length : cleaned,
+    failed,
+    hasMore: scan.hasMore,
   };
 }
 
@@ -2081,7 +2383,10 @@ async function rollOverHistoricalRecoveryWave(
 
   for (const entry of entries) {
     const status = String(entry.fixture?.status || '').trim().toLowerCase();
-    if (status === 'played' || isHistoricalRecoverySettled(entry.fixture)) {
+    if (
+      (status === 'played' || isHistoricalRecoverySettled(entry.fixture)) &&
+      hasCanonicalFixtureScore(entry.fixture?.score)
+    ) {
       continue;
     }
 
@@ -2148,15 +2453,20 @@ function isHistoricalRecoveryWaveStale(wave: HistoricalRecoveryWaveDoc | null | 
 }
 
 async function markHistoricalRecoverySettled(entry: FixtureEntry, waveId: string, state = 'settled') {
-  await entry.doc.ref.update({
+  const patch = {
     ...recoveryFieldPatch(state, {
       'recovery.waveId': waveId,
+      'recovery.lockedAt': FieldValue.delete(),
       'recovery.lockExpiresAt': FieldValue.delete(),
       'recovery.nextRetryAt': FieldValue.delete(),
       'recovery.reservedKickoffAt': FieldValue.delete(),
       'recovery.lastError': FieldValue.delete(),
     }),
-  });
+    ...(shouldCleanupHistoricalPlayedFixtureState(entry.fixture)
+      ? buildHistoricalRecoveryStalePlayedCleanupPatch(waveId, state)
+      : {}),
+  };
+  await entry.doc.ref.update(patch);
 }
 
 async function requeueHistoricalRecoveryFixture(
@@ -2472,7 +2782,10 @@ async function processHistoricalRecoveryWaveEntry(
     return { prepared, started, active, requeued, fallbackApplied, alertPending, settled, failed };
   }
 
-  if (String(currentEntry.fixture?.status || '').toLowerCase() === 'played') {
+  if (
+    String(currentEntry.fixture?.status || '').toLowerCase() === 'played' &&
+    hasCanonicalFixtureScore(currentEntry.fixture?.score)
+  ) {
     await markHistoricalRecoverySettled(currentEntry, waveId);
     return { prepared, started, active, requeued, fallbackApplied, alertPending, settled: 1, failed };
   }
@@ -2501,7 +2814,10 @@ async function processHistoricalRecoveryWaveEntry(
     if (!currentEntry) {
       return { prepared, started, active, requeued, fallbackApplied, alertPending, settled, failed };
     }
-    if (String(currentEntry.fixture?.status || '').toLowerCase() === 'played') {
+    if (
+      String(currentEntry.fixture?.status || '').toLowerCase() === 'played' &&
+      hasCanonicalFixtureScore(currentEntry.fixture?.score)
+    ) {
       await markHistoricalRecoverySettled(currentEntry, waveId);
       return { prepared, started, active, requeued, fallbackApplied, alertPending, settled: 1, failed };
     }
@@ -2535,6 +2851,20 @@ async function processHistoricalRecoveryWaveEntry(
       now,
       waveId,
       String(currentEntry.fixture?.live?.reason || candidateKind),
+    );
+    fallbackApplied += Number(fallback.fallbackApplied || 0);
+    alertPending += Number(fallback.alertPending || 0);
+    settled += Number(fallback.settled || 0);
+    failed += Number(fallback.failed || 0);
+    return { prepared, started, active, requeued, fallbackApplied, alertPending, settled, failed };
+  }
+
+  if (candidateKind === 'played_result_missing') {
+    const fallback = await fallbackHistoricalRecoveryFixture(
+      currentEntry,
+      now,
+      waveId,
+      String(currentEntry.fixture?.live?.reason || 'played_result_missing'),
     );
     fallbackApplied += Number(fallback.fallbackApplied || 0);
     alertPending += Number(fallback.alertPending || 0);
@@ -2602,7 +2932,10 @@ async function runHistoricalRecoveryWaveInternal(
   const refreshedEntries = await loadHistoricalRecoveryEntriesByPaths(wave.fixturePaths || []);
   const completed = refreshedEntries.every((entry) => {
     const status = String(entry.fixture?.status || '').trim().toLowerCase();
-    return status === 'played' || isHistoricalRecoverySettled(entry.fixture);
+    return (
+      (status === 'played' || isHistoricalRecoverySettled(entry.fixture)) &&
+      hasCanonicalFixtureScore(entry.fixture?.score)
+    );
   });
 
   await getHistoricalRecoveryWaveRef(waveId).set({
@@ -2629,11 +2962,18 @@ async function runHistoricalRecoveryWaveInternal(
 
 async function recoverHistoricalFixturesNightlyInternal(
   now = new Date(),
-  options: HistoricalRecoveryScanOptions & { forceWave?: boolean; dryRun?: boolean } = {},
+  options: HistoricalRecoveryScanOptions & {
+    forceWave?: boolean;
+    dryRun?: boolean;
+    cleanupOnly?: boolean;
+    cleanupStalePlayed?: boolean;
+  } = {},
 ) {
   const day = dayKeyTR(now);
   const dryRun = options.dryRun === true;
   const forceWave = options.forceWave === true;
+  const cleanupOnly = options.cleanupOnly === true;
+  const cleanupStalePlayed = options.cleanupStalePlayed !== false;
   const includeChampions = options.includeChampions !== false;
   const limit = Math.max(1, Math.min(Number(options.limit || NIGHTLY_RECOVERY_BATCH_SIZE), 100));
   let previousWaveRollOver:
@@ -2680,6 +3020,7 @@ async function recoverHistoricalFixturesNightlyInternal(
         usedFallback: false,
         scanned: 0,
         queued: 0,
+        stalePlayedCleaned: 0,
         hasMoreBacklog: false,
         ...result,
       };
@@ -2702,11 +3043,50 @@ async function recoverHistoricalFixturesNightlyInternal(
         usedFallback: false,
         scanned: 0,
         queued: 0,
+        stalePlayedCleaned: 0,
         hasMoreBacklog: false,
         ...result,
       };
     }
 
+  }
+
+  let staleCleanup = {
+    scanned: 0,
+    cleaned: 0,
+    failed: 0,
+    hasMore: false,
+  };
+  if (cleanupStalePlayed) {
+    staleCleanup = await cleanupHistoricalRecoveryStalePlayedFixturesInternal(now, {
+      limit,
+      includeChampions,
+      dryRun,
+    });
+    await updateHeartbeat(day, {
+      nightlyRecoveryStalePlayedCleaned: FieldValue.increment(Number(staleCleanup.cleaned || 0)),
+      nightlyRecoveryLastRunAt: FieldValue.serverTimestamp(),
+    });
+  }
+
+  if (cleanupOnly) {
+    return {
+      ok: true,
+      cleanupOnly: true,
+      scanned: 0,
+      queued: 0,
+      prepared: 0,
+      started: 0,
+      requeued: 0,
+      fallbackApplied: 0,
+      hasMoreBacklog: false,
+      usedFallback: false,
+      activeWaveId: null,
+      stalePlayedCleaned: staleCleanup.cleaned,
+      stalePlayedScanned: staleCleanup.scanned,
+      stalePlayedHasMore: staleCleanup.hasMore,
+      stalePlayedFailed: staleCleanup.failed,
+    };
   }
 
   if (!forceWave && !shouldOpenHistoricalRecoveryWave(now)) {
@@ -2723,6 +3103,7 @@ async function recoverHistoricalFixturesNightlyInternal(
       started: 0,
       requeued: 0,
       fallbackApplied: 0,
+      stalePlayedCleaned: staleCleanup.cleaned,
       hasMoreBacklog: false,
     };
   }
@@ -2748,6 +3129,7 @@ async function recoverHistoricalFixturesNightlyInternal(
       started: 0,
       requeued: 0,
       fallbackApplied: 0,
+      stalePlayedCleaned: staleCleanup.cleaned,
       hasMoreBacklog: scan.hasMore,
       usedFallback: scan.usedFallback,
       activeWaveId: null,
@@ -2769,6 +3151,7 @@ async function recoverHistoricalFixturesNightlyInternal(
       started: 0,
       requeued: 0,
       fallbackApplied: 0,
+      stalePlayedCleaned: staleCleanup.cleaned,
       hasMoreBacklog: scan.hasMore,
       usedFallback: scan.usedFallback,
       activeWaveId: null,
@@ -2818,6 +3201,7 @@ async function recoverHistoricalFixturesNightlyInternal(
     usedFallback: scan.usedFallback,
     activeWaveId: reserved.waveId,
     previousWaveRollOver,
+    stalePlayedCleaned: staleCleanup.cleaned,
     ...waveResult,
   };
 }
@@ -3013,11 +3397,15 @@ export const recoverHistoricalFixturesHttp = functions
     const forceWaveRaw = body.forceWave ?? req.query?.forceWave;
     const includeChampionsRaw = body.includeChampions ?? req.query?.includeChampions;
     const dryRunRaw = body.dryRun ?? req.query?.dryRun;
+    const cleanupOnlyRaw = body.cleanupOnly ?? req.query?.cleanupOnly;
+    const cleanupStalePlayedRaw = body.cleanupStalePlayed ?? req.query?.cleanupStalePlayed;
     const fromDateRaw = body.fromDate ?? req.query?.fromDate;
     const limit = Math.max(1, Math.min(Number(limitRaw || NIGHTLY_RECOVERY_BATCH_SIZE), 100));
     const now = new Date();
+    const dryRun = parseOptionalBoolean(dryRunRaw, false);
+    const cleanupOnly = parseOptionalBoolean(cleanupOnlyRaw, false);
 
-    if (!parseOptionalBoolean(dryRunRaw, false)) {
+    if (!dryRun) {
       const acquired = await acquireHistoricalRecoveryRunnerLock(now);
       if (!acquired) {
         res.status(409).json({ ok: false, error: 'historical_recovery_lock_active' });
@@ -3028,16 +3416,18 @@ export const recoverHistoricalFixturesHttp = functions
     try {
       const result = await recoverHistoricalFixturesNightlyInternal(now, {
         limit,
-        dryRun: parseOptionalBoolean(dryRunRaw, false),
+        dryRun,
         forceWave: parseOptionalBoolean(forceWaveRaw, false),
         includeChampions: parseOptionalBoolean(includeChampionsRaw, true),
+        cleanupOnly,
+        cleanupStalePlayed: parseOptionalBoolean(cleanupStalePlayedRaw, true),
         fromDate: parseOptionalFromDate(fromDateRaw),
       });
       res.json(result);
     } catch (error: any) {
       res.status(400).json({ ok: false, error: error?.message || 'invalid_request' });
     } finally {
-      if (!parseOptionalBoolean(dryRunRaw, false)) {
+      if (!dryRun) {
         await releaseHistoricalRecoveryRunnerLock().catch(() => undefined);
       }
     }
@@ -3094,9 +3484,14 @@ export const ingestLeagueMatchLifecycleHttp = functions
         normalizeObjectPayload((body as any).result) ||
         normalizeObjectPayload((body as any).resultPayload);
       const inlineScore = extractInlineScore(body, resultPayload);
+      const terminalResolution = resolveLiveLeagueTerminalResolution({
+        lifecycleState: state,
+        currentStatus,
+        hasResolvedScore: inlineScore != null,
+      });
       const patch: Record<string, unknown> = {
         'live.matchId': matchId,
-        'live.state': state,
+        'live.state': terminalResolution.liveState,
         'live.nodeId': body.nodeId || fixture?.live?.nodeId || null,
         'live.serverIp': body.serverIp || fixture?.live?.serverIp || null,
         'live.serverPort': Number.isFinite(Number(body.serverPort))
@@ -3112,7 +3507,7 @@ export const ingestLeagueMatchLifecycleHttp = functions
         patch['live.resultPayload'] = resultPayload;
       }
 
-      const nextStatus = mapLifecycleToFixtureStatus(state, currentStatus);
+      const nextStatus = terminalResolution.fixtureStatus;
       if (nextStatus !== currentStatus) {
         patch.status = nextStatus;
       }
@@ -3121,7 +3516,10 @@ export const ingestLeagueMatchLifecycleHttp = functions
       }
       if (state === 'ended') {
         patch['live.endedAt'] = FieldValue.serverTimestamp();
-        patch['live.resultMissing'] = !inlineScore && currentStatus !== 'played';
+        patch['live.resultMissing'] = terminalResolution.resultMissing;
+        if (!terminalResolution.resultMissing) {
+          patch['live.reason'] = FieldValue.delete();
+        }
       }
       if (state === 'failed') {
         patch['live.reason'] = String(body.reason || 'failed');
@@ -3137,12 +3535,14 @@ export const ingestLeagueMatchLifecycleHttp = functions
           const currentSnap = await tx.get(fixtureRef!);
           if (!currentSnap.exists) return;
           const currentFixture = currentSnap.data() as any;
-          const currentFixtureStatus = String(currentFixture?.status || 'scheduled');
+          const currentFixtureStatus = String(currentFixture?.status || 'scheduled').trim().toLowerCase();
           const updatePatch: Record<string, unknown> = {
             ...patch,
             status: 'played',
             score: inlineScore,
+            'live.state': 'ended',
             'live.resultMissing': false,
+            'live.resultSource': 'simulation',
           };
           if (currentFixtureStatus !== 'played') {
             updatePatch.endedAt = FieldValue.serverTimestamp();
@@ -3150,10 +3550,12 @@ export const ingestLeagueMatchLifecycleHttp = functions
           }
 
           // Standings must be advanced here, otherwise later storage finalize is skipped by idempotency.
-          if (currentFixtureStatus !== 'played') {
-            await applyStandingResultInTx(tx, fixtureRef!, currentFixture, inlineScore);
-          }
-          await applyLeagueMatchRevenueInTx(tx, fixtureRef!, currentFixture, resolvedTeamIds);
+          await applyLeagueResultSideEffectsInTx(tx, fixtureRef!, currentFixture, {
+            score: inlineScore,
+            resolvedTeamIds,
+            includeStandings:
+              currentFixtureStatus !== 'played' || !hasCanonicalFixtureScore(currentFixture?.score),
+          });
           tx.set(fixtureRef!, updatePatch, { merge: true });
         });
       } else {

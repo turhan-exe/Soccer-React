@@ -18,11 +18,13 @@ export type HistoricalRecoveryLike = {
   lockExpiresAt?: TimestampLike;
   nextRetryAt?: TimestampLike;
   reservedKickoffAt?: TimestampLike;
+  lastError?: unknown;
 } | null | undefined;
 
 export type HistoricalRecoveryFixtureLike = {
   status?: unknown;
   date?: TimestampLike;
+  score?: unknown;
   videoMissing?: unknown;
   live?: {
     matchId?: unknown;
@@ -42,7 +44,8 @@ export type HistoricalRecoveryCandidateKind =
   | 'scheduled'
   | 'failed'
   | 'running_stale'
-  | 'result_missing';
+  | 'result_missing'
+  | 'played_result_missing';
 
 export function toTimestampMillis(value: TimestampLike): number | null {
   if (!value) return null;
@@ -67,6 +70,46 @@ function normalizeText(value: unknown): string {
 
 function readBoolean(value: unknown): boolean {
   return value === true;
+}
+
+function parseNonNegativeInt(value: unknown): number | null {
+  const numeric = typeof value === 'number' ? value : Number(value);
+  if (!Number.isFinite(numeric)) return null;
+  const normalized = Math.trunc(numeric);
+  return normalized >= 0 ? normalized : null;
+}
+
+function hasCanonicalScore(value: unknown) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return false;
+  }
+  const score = value as Record<string, unknown>;
+  const home = parseNonNegativeInt(score.home) ?? parseNonNegativeInt(score.h);
+  const away = parseNonNegativeInt(score.away) ?? parseNonNegativeInt(score.a);
+  return home != null && away != null;
+}
+
+export function shouldCleanupHistoricalPlayedFixtureState(
+  fixture: HistoricalRecoveryFixtureLike,
+) {
+  if (normalizeText(fixture.status) !== 'played' || !hasCanonicalScore(fixture.score)) {
+    return false;
+  }
+
+  const liveState = normalizeText(fixture.live?.state);
+  const hasLiveReason = normalizeText(fixture.live?.reason).length > 0;
+  const hasRecoveryArtifacts =
+    toTimestampMillis(fixture.recovery?.lockExpiresAt) != null ||
+    toTimestampMillis(fixture.recovery?.nextRetryAt) != null ||
+    toTimestampMillis(fixture.recovery?.reservedKickoffAt) != null ||
+    normalizeText(fixture.recovery?.lastError).length > 0;
+
+  return (
+    readBoolean(fixture.live?.resultMissing) ||
+    (liveState.length > 0 && liveState !== 'ended') ||
+    hasLiveReason ||
+    hasRecoveryArtifacts
+  );
 }
 
 export function normalizeHistoricalRecoveryState(value: unknown): string {
@@ -132,20 +175,25 @@ export function resolveHistoricalRecoveryCandidateKind(
     return null;
   }
 
-  if (isHistoricalRecoverySettled(fixture)) {
-    return null;
-  }
-
-  if (hasHistoricalRecoveryLock(fixture, now) && !isHistoricalRecoveryRetryDue(fixture, now)) {
-    return null;
-  }
-
   const status = normalizeText(fixture.status);
   const liveState = normalizeText(fixture.live?.state);
   const hasMatchId = String(fixture.live?.matchId || '').trim().length > 0;
   const resultMissing = readBoolean(fixture.live?.resultMissing);
   const videoMissing = readBoolean(fixture.videoMissing);
+  const hasScore = hasCanonicalScore(fixture.score);
   const retryDue = isHistoricalRecoveryRetryDue(fixture, now);
+
+  if (status === 'played') {
+    return !hasScore ? 'played_result_missing' : null;
+  }
+
+  if (isHistoricalRecoverySettled(fixture)) {
+    return null;
+  }
+
+  if (hasHistoricalRecoveryLock(fixture, now) && !retryDue) {
+    return null;
+  }
 
   if ((status === 'scheduled' || status === 'failed') && retryDue) {
     return status as HistoricalRecoveryCandidateKind;

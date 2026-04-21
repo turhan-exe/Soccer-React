@@ -21,10 +21,13 @@ export const trFixtures: TranslationDictionary = {
       preparing: 'HAZIRLANIYOR',
       queued: 'SIRADA',
       preparingDelayed: 'GECIKMELI HAZIRLANIYOR',
+      resultPending: 'SONUC ISLENIYOR',
+      resultPendingShort: 'Sonuc bekleniyor',
       finished: 'BITTI',
       error: 'HATA',
       queueHint: 'Mac kapasite sirasinda. Hazir olunca Izle acilacak.',
       preparingDelayedHint: 'Mac sunucusu hazirlaniyor. Birazdan Izle acilacak.',
+      resultPendingHint: 'Mac bitti, skor isleniyor. Birazdan sonuc gosterilecek.',
     },
     errors: {
       loginRequired: 'Canli maca baglanmak icin giris yapmalisin.',

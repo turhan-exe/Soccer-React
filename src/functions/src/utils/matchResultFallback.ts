@@ -3,10 +3,10 @@ import type { RevenueEligiblePlayer } from './leagueMatchRevenueModel.js';
 import { getTeamStrengthForRevenue } from './leagueMatchRevenueModel.js';
 import {
   applyLeagueLineupMotivationEffects,
-  applyLeagueMatchRevenueInTx,
-  applyStandingResultInTx,
+  applyLeagueResultSideEffectsInTx,
   resolveFixtureRevenueTeamIds,
 } from './leagueMatchFinalize.js';
+import { hasCanonicalFixtureScore } from './fixtureScore.js';
 
 const db = getFirestore();
 const FALLBACK_VERSION = 1 as const;
@@ -315,7 +315,10 @@ export async function finalizeFixtureWithFallbackResult(
   }
 
   const fixtureBefore = (fixtureBeforeSnap.data() as Record<string, unknown>) ?? {};
-  if (String(fixtureBefore.status || '').trim().toLowerCase() === 'played') {
+  if (
+    String(fixtureBefore.status || '').trim().toLowerCase() === 'played' &&
+    hasCanonicalFixtureScore(fixtureBefore.score)
+  ) {
     return {
       status: 'skipped_already_played',
       reason: normalizedReason,
@@ -368,7 +371,7 @@ export async function finalizeFixtureWithFallbackResult(
 
     const currentFixture = (currentSnap.data() as Record<string, unknown>) ?? {};
     const currentStatus = String(currentFixture.status || '').trim().toLowerCase();
-    if (currentStatus === 'played') {
+    if (currentStatus === 'played' && hasCanonicalFixtureScore(currentFixture.score)) {
       return;
     }
 
@@ -395,9 +398,11 @@ export async function finalizeFixtureWithFallbackResult(
       'live.fallbackVersion': FALLBACK_VERSION,
     };
 
+    await applyLeagueResultSideEffectsInTx(tx, fixtureRef, currentFixture, {
+      score: fallback.score,
+      resolvedTeamIds,
+    });
     tx.set(fixtureRef, updatePatch, { merge: true });
-    await applyStandingResultInTx(tx, fixtureRef, currentFixture, fallback.score);
-    await applyLeagueMatchRevenueInTx(tx, fixtureRef, currentFixture, resolvedTeamIds);
     applied = true;
   });
 

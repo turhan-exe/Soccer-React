@@ -1,9 +1,16 @@
 const DEFAULT_VITAL_GAUGE = 0.75;
 export const CONDITION_RECOVERY_INTERVAL_MS = 4 * 60 * 60 * 1000;
-export const CONDITION_RECOVERY_STEP = 0.01;
+const DEFAULT_HEALTHY_HEALTH = 1;
+const DEFAULT_INJURED_HEALTH = 0.5;
+export const CONDITION_RECOVERY_STEP = 0.02;
+export const MOTIVATION_RECOVERY_STEP = 0.015;
+export const HEALTH_RECOVERY_STEP = 0.01;
 
 export type ConditionRecoveryPendingToast = {
-  totalGain: number;
+  conditionGain?: number;
+  motivationGain?: number;
+  healthGain?: number;
+  totalGain?: number;
   totalPlayers: number;
   affectedPlayers: number;
   appliedTicks: number;
@@ -32,7 +39,9 @@ export type ApplyScheduledConditionRecoveryResult = {
   players: Record<string, unknown>[];
   changed: boolean;
   appliedTicks: number;
-  totalGain: number;
+  conditionGain: number;
+  motivationGain: number;
+  healthGain: number;
   totalPlayers: number;
   affectedPlayers: number;
   nextDueAt: string;
@@ -49,6 +58,15 @@ const clampGauge = (value: unknown, fallback = DEFAULT_VITAL_GAUGE): number => {
 
   return Math.max(0, Math.min(1, Number(numeric.toFixed(3))));
 };
+
+const clampHealthGauge = (
+  value: unknown,
+  injuryStatus: unknown,
+): number =>
+  clampGauge(
+    value,
+    injuryStatus === 'injured' ? DEFAULT_INJURED_HEALTH : DEFAULT_HEALTHY_HEALTH,
+  );
 
 export const parseConditionRecoveryIsoMs = (value: unknown): number | null => {
   if (typeof value !== 'string' || value.trim().length === 0) {
@@ -94,21 +112,51 @@ export const resolveConditionRecoveryDueAt = ({
 const mergeConditionRecoveryPendingToast = (
   currentPendingToast: ConditionRecoveryPendingToast | null | undefined,
   nextPartial: {
-    totalGain: number;
+    conditionGain: number;
+    motivationGain: number;
+    healthGain: number;
     totalPlayers: number;
     affectedPlayers: number;
     appliedTicks: number;
     updatedAt: string;
   },
 ): ConditionRecoveryPendingToast | null => {
-  if (nextPartial.totalGain <= 0 || nextPartial.totalPlayers <= 0) {
+  const currentConditionGain =
+    Number.isFinite(currentPendingToast?.conditionGain)
+      ? Number(currentPendingToast?.conditionGain)
+      : Number.isFinite(currentPendingToast?.totalGain)
+        ? Number(currentPendingToast?.totalGain)
+        : 0;
+  const currentMotivationGain = Number.isFinite(currentPendingToast?.motivationGain)
+    ? Number(currentPendingToast?.motivationGain)
+    : 0;
+  const currentHealthGain = Number.isFinite(currentPendingToast?.healthGain)
+    ? Number(currentPendingToast?.healthGain)
+    : 0;
+  const hasNextGain =
+    nextPartial.conditionGain > 0 ||
+    nextPartial.motivationGain > 0 ||
+    nextPartial.healthGain > 0;
+
+  if (!hasNextGain || nextPartial.totalPlayers <= 0) {
+    if (
+      currentConditionGain <= 0 &&
+      currentMotivationGain <= 0 &&
+      currentHealthGain <= 0
+    ) {
+      return null;
+    }
     return currentPendingToast ?? null;
   }
 
   return {
-    totalGain: roundGaugeValue(
-      (currentPendingToast?.totalGain ?? 0) + nextPartial.totalGain,
+    conditionGain: roundGaugeValue(
+      currentConditionGain + nextPartial.conditionGain,
     ),
+    motivationGain: roundGaugeValue(
+      currentMotivationGain + nextPartial.motivationGain,
+    ),
+    healthGain: roundGaugeValue(currentHealthGain + nextPartial.healthGain),
     totalPlayers: nextPartial.totalPlayers,
     affectedPlayers: Math.max(
       currentPendingToast?.affectedPlayers ?? 0,
@@ -133,7 +181,9 @@ export const applyScheduledConditionRecovery = ({
       players: safePlayers,
       changed: false,
       appliedTicks: 0,
-      totalGain: 0,
+      conditionGain: 0,
+      motivationGain: 0,
+      healthGain: 0,
       totalPlayers: safePlayers.length,
       affectedPlayers: 0,
       nextDueAt: dueAt,
@@ -143,27 +193,45 @@ export const applyScheduledConditionRecovery = ({
 
   const appliedTicks =
     Math.floor((nowMs - dueAtMs) / CONDITION_RECOVERY_INTERVAL_MS) + 1;
-  const grossGain = appliedTicks * CONDITION_RECOVERY_STEP;
+  const grossConditionGain = appliedTicks * CONDITION_RECOVERY_STEP;
+  const grossMotivationGain = appliedTicks * MOTIVATION_RECOVERY_STEP;
+  const grossHealthGain = appliedTicks * HEALTH_RECOVERY_STEP;
   let changed = false;
-  let totalGain = 0;
+  let conditionGain = 0;
+  let motivationGain = 0;
+  let healthGain = 0;
   let affectedPlayers = 0;
 
   const nextPlayers = safePlayers.map((player) => {
     const currentCondition = clampGauge(player.condition);
-    const nextCondition = clampGauge(currentCondition + grossGain);
-    const actualGain = roundGaugeValue(nextCondition - currentCondition);
+    const nextCondition = clampGauge(currentCondition + grossConditionGain);
+    const actualConditionGain = roundGaugeValue(nextCondition - currentCondition);
+    const currentMotivation = clampGauge(player.motivation);
+    const nextMotivation = clampGauge(currentMotivation + grossMotivationGain);
+    const actualMotivationGain = roundGaugeValue(nextMotivation - currentMotivation);
+    const currentHealth = clampHealthGauge(player.health, player.injuryStatus);
+    const nextHealth = clampHealthGauge(currentHealth + grossHealthGain, player.injuryStatus);
+    const actualHealthGain = roundGaugeValue(nextHealth - currentHealth);
 
-    if (actualGain <= 0) {
+    if (
+      actualConditionGain <= 0 &&
+      actualMotivationGain <= 0 &&
+      actualHealthGain <= 0
+    ) {
       return player;
     }
 
     changed = true;
-    totalGain = roundGaugeValue(totalGain + actualGain);
+    conditionGain = roundGaugeValue(conditionGain + actualConditionGain);
+    motivationGain = roundGaugeValue(motivationGain + actualMotivationGain);
+    healthGain = roundGaugeValue(healthGain + actualHealthGain);
     affectedPlayers += 1;
 
     return {
       ...player,
       condition: nextCondition,
+      motivation: nextMotivation,
+      health: nextHealth,
     };
   });
 
@@ -175,12 +243,16 @@ export const applyScheduledConditionRecovery = ({
     players: nextPlayers,
     changed,
     appliedTicks,
-    totalGain,
+    conditionGain,
+    motivationGain,
+    healthGain,
     totalPlayers: nextPlayers.length,
     affectedPlayers,
     nextDueAt,
     pendingToast: mergeConditionRecoveryPendingToast(pendingToast, {
-      totalGain,
+      conditionGain,
+      motivationGain,
+      healthGain,
       totalPlayers: nextPlayers.length,
       affectedPlayers,
       appliedTicks,

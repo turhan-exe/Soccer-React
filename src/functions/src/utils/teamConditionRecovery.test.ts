@@ -12,6 +12,7 @@ const createPlayer = (overrides: Record<string, unknown> = {}) => ({
   name: 'Recovery Test',
   condition: 0.8,
   motivation: 0.8,
+  health: 1,
   injuryStatus: 'healthy',
   squadRole: 'starting',
   ...overrides,
@@ -21,14 +22,18 @@ describe('teamConditionRecovery', () => {
   it('applies one tick when the due time is exactly reached', () => {
     const nowMs = Date.parse('2026-04-18T12:00:00.000Z');
     const result = applyScheduledConditionRecovery({
-      players: [createPlayer({ condition: 0.5 })],
+      players: [createPlayer({ condition: 0.5, motivation: 0.5, health: 0.5 })],
       dueAt: '2026-04-18T12:00:00.000Z',
       nowMs,
     });
 
     expect(result.appliedTicks).toBe(1);
-    expect(result.players[0]?.condition).toBe(0.51);
-    expect(result.totalGain).toBe(0.01);
+    expect(result.players[0]?.condition).toBe(0.52);
+    expect(result.players[0]?.motivation).toBe(0.515);
+    expect(result.players[0]?.health).toBe(0.51);
+    expect(result.conditionGain).toBe(0.02);
+    expect(result.motivationGain).toBe(0.015);
+    expect(result.healthGain).toBe(0.01);
     expect(result.nextDueAt).toBe(
       new Date(nowMs + CONDITION_RECOVERY_INTERVAL_MS).toISOString(),
     );
@@ -38,34 +43,71 @@ describe('teamConditionRecovery', () => {
     const dueAt = '2026-04-18T16:00:00.000Z';
     const nowMs = Date.parse('2026-04-18T22:00:00.000Z');
     const result = applyScheduledConditionRecovery({
-      players: [createPlayer({ condition: 0.5 })],
+      players: [createPlayer({ condition: 0.5, motivation: 0.5, health: 0.5 })],
       dueAt,
       nowMs,
     });
 
     expect(result.appliedTicks).toBe(2);
-    expect(result.players[0]?.condition).toBe(0.52);
+    expect(result.players[0]?.condition).toBe(0.54);
+    expect(result.players[0]?.motivation).toBe(0.53);
+    expect(result.players[0]?.health).toBe(0.52);
+    expect(result.conditionGain).toBe(0.04);
+    expect(result.motivationGain).toBe(0.03);
+    expect(result.healthGain).toBe(0.02);
     expect(result.nextDueAt).toBe(
       new Date(Date.parse(dueAt) + 2 * CONDITION_RECOVERY_INTERVAL_MS).toISOString(),
     );
   });
 
-  it('keeps gain at zero when the player is already capped', () => {
+  it('keeps gains at zero when the player is already capped on all vitals', () => {
     const result = applyScheduledConditionRecovery({
-      players: [createPlayer({ condition: 1 })],
+      players: [createPlayer({ condition: 1, motivation: 1, health: 1 })],
       dueAt: '2026-04-18T16:00:00.000Z',
       nowMs: Date.parse('2026-04-18T22:00:00.000Z'),
     });
 
     expect(result.appliedTicks).toBe(2);
     expect(result.players[0]?.condition).toBe(1);
-    expect(result.totalGain).toBe(0);
+    expect(result.players[0]?.motivation).toBe(1);
+    expect(result.players[0]?.health).toBe(1);
+    expect(result.conditionGain).toBe(0);
+    expect(result.motivationGain).toBe(0);
+    expect(result.healthGain).toBe(0);
     expect(result.pendingToast).toBeNull();
+  });
+
+  it('applies only missing vitals when some stats are already full', () => {
+    const result = applyScheduledConditionRecovery({
+      players: [createPlayer({ condition: 1, motivation: 0.5, health: 0.5 })],
+      dueAt: '2026-04-18T16:00:00.000Z',
+      nowMs: Date.parse('2026-04-18T19:00:00.000Z'),
+    });
+
+    expect(result.appliedTicks).toBe(1);
+    expect(result.players[0]?.condition).toBe(1);
+    expect(result.players[0]?.motivation).toBe(0.515);
+    expect(result.players[0]?.health).toBe(0.51);
+    expect(result.conditionGain).toBe(0);
+    expect(result.motivationGain).toBe(0.015);
+    expect(result.healthGain).toBe(0.01);
+  });
+
+  it('does not clear injury status while health increases', () => {
+    const result = applyScheduledConditionRecovery({
+      players: [createPlayer({ health: 0.4, injuryStatus: 'injured' })],
+      dueAt: '2026-04-18T16:00:00.000Z',
+      nowMs: Date.parse('2026-04-18T19:00:00.000Z'),
+    });
+
+    expect(result.players[0]?.health).toBe(0.41);
+    expect(result.players[0]?.injuryStatus).toBe('injured');
+    expect(result.healthGain).toBe(0.01);
   });
 
   it('does not apply the same due interval twice once the due time is advanced', () => {
     const first = applyScheduledConditionRecovery({
-      players: [createPlayer({ condition: 0.5 })],
+      players: [createPlayer({ condition: 0.5, motivation: 0.5, health: 0.5 })],
       dueAt: '2026-04-18T16:00:00.000Z',
       nowMs: Date.parse('2026-04-18T22:00:00.000Z'),
     });
@@ -78,8 +120,12 @@ describe('teamConditionRecovery', () => {
 
     expect(first.appliedTicks).toBe(2);
     expect(second.appliedTicks).toBe(0);
-    expect(second.totalGain).toBe(0);
-    expect(second.players[0]?.condition).toBe(0.52);
+    expect(second.conditionGain).toBe(0);
+    expect(second.motivationGain).toBe(0);
+    expect(second.healthGain).toBe(0);
+    expect(second.players[0]?.condition).toBe(0.54);
+    expect(second.players[0]?.motivation).toBe(0.53);
+    expect(second.players[0]?.health).toBe(0.52);
   });
 
   it('derives the new due time from the legacy conditionRecoveryAt value', () => {
@@ -110,7 +156,10 @@ describe('teamConditionRecovery', () => {
 
   it('accumulates pending toast totals across multiple offline ticks', () => {
     const first = applyScheduledConditionRecovery({
-      players: [createPlayer({ id: 'p1', condition: 0.5 }), createPlayer({ id: 'p2', condition: 0.5 })],
+      players: [
+        createPlayer({ id: 'p1', condition: 0.5, motivation: 0.5, health: 0.5 }),
+        createPlayer({ id: 'p2', condition: 0.5, motivation: 0.5, health: 0.5 }),
+      ],
       dueAt: '2026-04-18T12:00:00.000Z',
       nowMs: Date.parse('2026-04-18T12:00:00.000Z'),
     });
@@ -122,12 +171,16 @@ describe('teamConditionRecovery', () => {
     });
 
     expect(first.pendingToast).toMatchObject({
-      totalGain: 0.02,
+      conditionGain: 0.04,
+      motivationGain: 0.03,
+      healthGain: 0.02,
       totalPlayers: 2,
       appliedTicks: 1,
     });
     expect(second.pendingToast).toMatchObject({
-      totalGain: 0.04,
+      conditionGain: 0.08,
+      motivationGain: 0.06,
+      healthGain: 0.04,
       totalPlayers: 2,
       appliedTicks: 2,
     });

@@ -1,5 +1,8 @@
 export interface ConditionRecoveryPendingToast {
-  totalGain: number;
+  conditionGain?: number;
+  motivationGain?: number;
+  healthGain?: number;
+  totalGain?: number;
   totalPlayers: number;
   affectedPlayers: number;
   appliedTicks: number;

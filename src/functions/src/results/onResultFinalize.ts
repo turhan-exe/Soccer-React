@@ -8,11 +8,11 @@ import { sendSlack } from '../notify/slack.js';
 import { enqueueRenderJob } from '../replay/renderJob.js';
 import {
   applyLeagueLineupMotivationEffects,
-  applyLeagueMatchRevenueInTx,
-  applyStandingResultInTx,
+  applyLeagueResultSideEffectsInTx,
   resolveFixtureRevenueTeamIds,
 } from '../utils/leagueMatchFinalize.js';
 import { isKnockoutCompetition } from '../utils/competition.js';
+import { hasCanonicalFixtureScore } from '../utils/fixtureScore.js';
 
 
 const db = getFirestore();
@@ -107,7 +107,7 @@ export const onResultFinalize = functions
         const fxSnap = await tx.get(fxRef);
         if (!fxSnap.exists) return;
         const cur = (fxSnap.data() as Record<string, unknown>) ?? {};
-        const currentStatus = String(cur.status || 'scheduled');
+        const currentStatus = String(cur.status || 'scheduled').trim().toLowerCase();
         const currentVideo = (cur['video'] as Record<string, unknown> | undefined) ?? undefined;
         const updatePatch: FirebaseFirestore.UpdateData<FirebaseFirestore.DocumentData> = {
           status: 'played',
@@ -131,12 +131,13 @@ export const onResultFinalize = functions
           updatePatch.endedAt = FieldValue.serverTimestamp();
           updatePatch.playedAt = FieldValue.serverTimestamp();
         }
-        tx.update(fxRef, updatePatch);
 
-        if (score && currentStatus !== 'played') {
-          await applyStandingResultInTx(tx, fxRef, cur, score);
-        }
-        await applyLeagueMatchRevenueInTx(tx, fxRef, cur, resolvedTeamIds);
+        await applyLeagueResultSideEffectsInTx(tx, fxRef, cur, {
+          score,
+          resolvedTeamIds,
+          includeStandings: Boolean(score) && (currentStatus !== 'played' || !hasCanonicalFixtureScore(cur.score)),
+        });
+        tx.update(fxRef, updatePatch);
       });
 
       try {

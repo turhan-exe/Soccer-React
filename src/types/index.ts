@@ -245,6 +245,7 @@ export type FixtureLiveStatus =
   | 'server_started'
   | 'running'
   | 'ended'
+  | 'result_pending'
   | 'failed'
   | 'prepare_failed'
   | 'kickoff_failed'
@@ -266,6 +267,8 @@ export interface FixtureLive {
   retryCount?: number;
   resultMissing?: boolean;
   reason?: string;
+  resultSource?: 'simulation' | 'fallback';
+  resultPayload?: Record<string, unknown> | null;
 }
 
 export interface Team {

@@ -6,6 +6,7 @@ import {
   isHistoricalRecoveryRetryDue,
   resolveHistoricalRecoveryCandidateKind,
   resolveHistoricalRetryAt,
+  shouldCleanupHistoricalPlayedFixtureState,
   shouldFallbackAfterHistoricalAttempts,
 } from './historicalRecovery.js';
 
@@ -94,6 +95,82 @@ describe('historicalRecovery helpers', () => {
         now,
       ),
     ).toBe('result_missing');
+
+    expect(
+      resolveHistoricalRecoveryCandidateKind(
+        {
+          status: 'played',
+          date: timestamp('2026-04-18T18:00:00.000Z'),
+          score: null,
+        },
+        now,
+      ),
+    ).toBe('played_result_missing');
+
+    expect(
+      resolveHistoricalRecoveryCandidateKind(
+        {
+          status: 'played',
+          date: timestamp('2026-04-18T18:00:00.000Z'),
+          score: {
+            home: 2,
+            away: 1,
+          },
+          live: {
+            state: 'kickoff_failed',
+            resultMissing: true,
+          },
+        },
+        now,
+      ),
+    ).toBeNull();
+
+    expect(
+      resolveHistoricalRecoveryCandidateKind(
+        {
+          status: 'played',
+          date: timestamp('2026-04-18T18:00:00.000Z'),
+          score: null,
+          recovery: {
+            state: 'settled',
+          },
+        },
+        now,
+      ),
+    ).toBe('played_result_missing');
+  });
+
+  it('detects stale played fixtures that need silent cleanup', () => {
+    expect(
+      shouldCleanupHistoricalPlayedFixtureState({
+        status: 'played',
+        date: timestamp('2026-04-18T18:00:00.000Z'),
+        score: {
+          home: 1,
+          away: 0,
+        },
+        live: {
+          state: 'kickoff_failed',
+          resultMissing: true,
+          reason: 'allocation_not_found',
+        },
+      }),
+    ).toBe(true);
+
+    expect(
+      shouldCleanupHistoricalPlayedFixtureState({
+        status: 'played',
+        date: timestamp('2026-04-18T18:00:00.000Z'),
+        score: {
+          home: 1,
+          away: 0,
+        },
+        live: {
+          state: 'ended',
+          resultMissing: false,
+        },
+      }),
+    ).toBe(false);
   });
 
   it('respects recovery lock and retry timestamps', () => {

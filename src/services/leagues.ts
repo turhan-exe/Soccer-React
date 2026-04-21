@@ -20,6 +20,7 @@ import { auth, db, functions } from './firebase';
 import type { League, Fixture, Standing } from '@/types';
 import { formatInTimeZone } from 'date-fns-tz';
 import { shouldHideLeagueFromList } from '@/lib/competition';
+import { normalizeFixtureScore } from '@/lib/fixtureScore';
 
 export type LeagueBootstrapOptions = {
   forceReset?: boolean;
@@ -448,7 +449,7 @@ export async function getFixturesForTeam(
       awayTeamId: raw.awayTeamId,
       participants: raw.participants ?? [raw.homeTeamId, raw.awayTeamId],
       status: raw.status,
-      score: raw.score ?? null,
+      score: normalizeFixtureScore(raw.score),
       replayPath: raw.replayPath,
       video: raw.video ?? null,
       videoMissing: raw.videoMissing,
@@ -507,7 +508,7 @@ export async function getFixtureByIdAcrossLeagues(
     awayTeamId: raw.awayTeamId,
     participants: raw.participants ?? [raw.homeTeamId, raw.awayTeamId],
     status: raw.status,
-    score: raw.score ?? null,
+    score: normalizeFixtureScore(raw.score),
     replayPath: raw.replayPath,
     video: raw.video ?? null,
     videoMissing: raw.videoMissing,
@@ -585,7 +586,7 @@ export async function getFixturesForTeamSlotAware(
         awayTeamId: awayTid,
         participants: [homeTid, awayTid],
         status: raw.status,
-        score: raw.score ?? null,
+        score: normalizeFixtureScore(raw.score),
         replayPath: raw.replayPath,
         video: raw.video ?? null,
         videoMissing: raw.videoMissing,
@@ -1038,7 +1039,7 @@ export async function getFixturesByLeagueAndSlotMap(
         awayTeamId: awayTeamId || `slot-${raw.awaySlot}`,
         participants: [homeTeamId, awayTeamId].filter(Boolean) as string[],
         status: raw.status,
-        score: raw.score ?? null,
+        score: normalizeFixtureScore(raw.score),
         replayPath: raw.replayPath,
         video: raw.video ?? null,
         videoMissing: raw.videoMissing,

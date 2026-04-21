@@ -64,9 +64,10 @@ function getErrorMessage(error: unknown, fallback: string): string {
 
 function getLiveStateKey(
   fixture: DisplayFixture,
-): 'live' | 'preparing' | 'queued' | 'preparingDelayed' | 'finished' | 'error' | null {
+): 'live' | 'preparing' | 'queued' | 'preparingDelayed' | 'resultPending' | 'finished' | 'error' | null {
   const state = resolveFixtureLivePresentationState(fixture);
   if (state === 'preparing_delayed') return 'preparingDelayed';
+  if (state === 'result_pending') return 'resultPending';
   return state;
 }
 
@@ -84,6 +85,9 @@ function getWaitingMessage(
   }
   if (availability === 'preparing_delayed') {
     return t('fixtures.labels.preparingDelayedHint');
+  }
+  if (getLiveStateKey(fixture) === 'resultPending') {
+    return t('fixtures.labels.resultPendingHint');
   }
   return null;
 }
@@ -392,6 +396,9 @@ export default function MyFixturesPage() {
               const availability = resolveFixtureWatchAvailability(fixture);
               const joinable = availability === 'joinable';
               const waitingMessage = getWaitingMessage(fixture, t);
+              const resultPending = liveStateKey === 'resultPending';
+              const showActionButton =
+                joinable || availability === 'queued' || availability === 'preparing_delayed';
               const joining = joiningFixtureId === fixture.id;
               const myTeamName = user?.teamName || t('common.teamFallback');
 
@@ -477,10 +484,18 @@ export default function MyFixturesPage() {
                       <div className="flex min-w-[80px] items-center justify-end gap-3">
                         {renderStatusIndicator(fixture)}
                         <span
-                          className={`text-lg font-black ${fixture.status === 'played' ? 'text-white' : 'text-slate-500'}`}
+                          className={`text-lg font-black ${
+                            resultPending
+                              ? 'text-amber-300'
+                              : fixture.status === 'played'
+                                ? 'text-white'
+                                : 'text-slate-500'
+                          }`}
                         >
                           {fixture.status === 'played' && fixture.score
                             ? `${fixture.score.home} - ${fixture.score.away}`
+                            : resultPending
+                              ? t('fixtures.labels.resultPendingShort')
                             : formatDate(fixture.date, {
                                 hour: '2-digit',
                                 minute: '2-digit',
@@ -497,13 +512,15 @@ export default function MyFixturesPage() {
                               ? 'border-cyan-400/40 bg-cyan-500/10 text-cyan-200'
                               : liveStateKey === 'queued'
                                 ? 'border-amber-400/40 bg-amber-500/10 text-amber-200'
+                                : liveStateKey === 'resultPending'
+                                  ? 'border-orange-400/40 bg-orange-500/10 text-orange-200'
                                 : liveStateKey === 'preparingDelayed'
                                   ? 'border-orange-400/40 bg-orange-500/10 text-orange-200'
-                              : liveStateKey === 'preparing'
-                                ? 'border-amber-400/40 bg-amber-500/10 text-amber-200'
-                                : liveStateKey === 'error'
-                                  ? 'border-rose-400/40 bg-rose-500/10 text-rose-200'
-                                  : 'border-white/10 bg-white/5 text-slate-300'
+                                  : liveStateKey === 'preparing'
+                                    ? 'border-amber-400/40 bg-amber-500/10 text-amber-200'
+                                    : liveStateKey === 'error'
+                                      ? 'border-rose-400/40 bg-rose-500/10 text-rose-200'
+                                      : 'border-white/10 bg-white/5 text-slate-300'
                           }`}
                         >
                           <Radio className="h-3.5 w-3.5" />
@@ -517,7 +534,7 @@ export default function MyFixturesPage() {
                         </span>
                       ) : null}
 
-                      {joinable || waitingMessage ? (
+                      {showActionButton ? (
                         <Button
                           type="button"
                           size="sm"

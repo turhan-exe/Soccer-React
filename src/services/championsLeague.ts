@@ -2,6 +2,7 @@ import { collection, getDocs } from 'firebase/firestore';
 
 import type { ChampionsLeagueEntrantDoc, KnockoutMatchDoc, League } from '@/types';
 import { isChampionsLeagueCompetition } from '@/lib/competition';
+import { normalizeFixtureScore } from '@/lib/fixtureScore';
 import { db } from './firebase';
 import { resolveLiveTeamIdentities, type LiveTeamIdentity } from './teamIdentity';
 
@@ -67,7 +68,7 @@ function mapKnockoutMatch(id: string, raw: Record<string, unknown>): KnockoutMat
     loserTeamId: raw.loserTeamId ?? null,
     decidedBy: raw.decidedBy ?? null,
     penalties: raw.penalties ?? null,
-    score: raw.score ?? null,
+    score: normalizeFixtureScore(raw.score),
     isBye: raw.isBye ?? false,
     resolvedAt: toDate(raw.resolvedAt),
   };

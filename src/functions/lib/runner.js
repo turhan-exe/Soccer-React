@@ -3,7 +3,7 @@ import './_firebase.js';
 import { getFirestore, Timestamp, FieldValue } from 'firebase-admin/firestore';
 import { dayKeyTR, dayRangeTR } from './utils/schedule.js';
 import { requireAppCheck, requireAuth } from './mw/auth.js';
-import { applyLeagueMatchRevenueInTx, applyStandingResultInTx, resolveFixtureRevenueTeamIds, } from './utils/leagueMatchFinalize.js';
+import { applyLeagueResultSideEffectsInTx, resolveFixtureRevenueTeamIds, } from './utils/leagueMatchFinalize.js';
 const db = getFirestore();
 const REGION = 'europe-west1';
 const LEGACY_RUNNER_DISABLED = (process.env.LEGACY_RUNNER_DISABLED ?? functions.config()?.runner?.disabled ?? '1') !== '0';
@@ -97,6 +97,10 @@ async function processMatch(leagueRef, doc) {
             return;
         }
         const score = { home: homeScore, away: awayScore };
+        await applyLeagueResultSideEffectsInTx(tx, doc.ref, cur, {
+            score,
+            resolvedTeamIds,
+        });
         tx.update(doc.ref, {
             status: 'played',
             score,
@@ -104,8 +108,6 @@ async function processMatch(leagueRef, doc) {
             endedAt: FieldValue.serverTimestamp(),
             playedAt: FieldValue.serverTimestamp(),
         });
-        await applyStandingResultInTx(tx, doc.ref, cur, score);
-        await applyLeagueMatchRevenueInTx(tx, doc.ref, cur, resolvedTeamIds);
     });
 }
 // Slot-based variant for monthly leagues with even-capacity double round-robin.
@@ -351,6 +353,10 @@ async function processSlotMatch(leagueRef, doc) {
             return;
         }
         const score = { home: homeScore, away: awayScore };
+        await applyLeagueResultSideEffectsInTx(tx, doc.ref, cur, {
+            score,
+            resolvedTeamIds,
+        });
         tx.update(doc.ref, {
             status: 'played',
             score,
@@ -358,8 +364,6 @@ async function processSlotMatch(leagueRef, doc) {
             endedAt: FieldValue.serverTimestamp(),
             playedAt: FieldValue.serverTimestamp(),
         });
-        await applyStandingResultInTx(tx, doc.ref, cur, score);
-        await applyLeagueMatchRevenueInTx(tx, doc.ref, cur, resolvedTeamIds);
     });
 }
 function buildGoalTimeline(homeScore, awayScore, seed) {

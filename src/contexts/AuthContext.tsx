@@ -105,12 +105,24 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       try {
         const result = await claimTeamConditionRecoveryToast(firebaseUser.uid);
-        if (result.status === 'ok' && result.averageGainPct > 0) {
+        if (result.status === 'ok') {
+          const gainParts = [
+            result.averageConditionGainPct > 0
+              ? `+%${formatConditionRecoveryGainPercent(result.averageConditionGainPct)} kondisyon`
+              : null,
+            result.averageMotivationGainPct > 0
+              ? `+%${formatConditionRecoveryGainPercent(result.averageMotivationGainPct)} moral`
+              : null,
+            result.averageHealthGainPct > 0
+              ? `+%${formatConditionRecoveryGainPercent(result.averageHealthGainPct)} saglik`
+              : null,
+          ].filter((value): value is string => Boolean(value));
+
+          if (gainParts.length > 0) {
           toast.success(
-            `Oyuncular dinlendi: ortalama +%${formatConditionRecoveryGainPercent(
-              result.averageGainPct,
-            )} kondisyon kazandi.`,
+              `Oyuncular dinlendi: ortalama ${gainParts.join(', ')} kazandi.`,
           );
+          }
         }
       } catch (error) {
         console.warn(`[AuthContext] ${reason} condition recovery failed`, error);

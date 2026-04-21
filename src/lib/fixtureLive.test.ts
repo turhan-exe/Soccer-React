@@ -82,6 +82,26 @@ describe('fixtureLive helpers', () => {
     );
   });
 
+  it('shows result_pending instead of finished when score is missing', () => {
+    const fixture = {
+      status: 'played',
+      date: baseDate,
+      score: null,
+      live: {
+        state: 'result_pending',
+        resultMissing: true,
+        endedAt: new Date('2026-04-19T16:10:00.000Z'),
+      },
+    };
+
+    expect(resolveFixtureLivePresentationState(fixture, Date.parse('2026-04-19T16:20:00.000Z'))).toBe(
+      'result_pending',
+    );
+    expect(resolveFixtureWatchAvailability(fixture, Date.parse('2026-04-19T16:20:00.000Z'))).toBe(
+      'unavailable',
+    );
+  });
+
   it('uses the same prioritized league fixture selection across screens', () => {
     const selected = getLeagueActionableFixture(
       [

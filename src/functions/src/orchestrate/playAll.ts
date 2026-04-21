@@ -6,8 +6,7 @@ import { requireAppCheck, requireAuth } from '../mw/auth.js';
 import { startMatchInternal } from './startMatch.js';
 import { log } from '../logger.js';
 import {
-  applyLeagueMatchRevenueInTx,
-  applyStandingResultInTx,
+  applyLeagueResultSideEffectsInTx,
   resolveFixtureRevenueTeamIds,
 } from '../utils/leagueMatchFinalize.js';
 
@@ -96,14 +95,16 @@ async function finalizeInstantFixture(
       away: Math.floor(Math.random() * 5),
     };
 
+    await applyLeagueResultSideEffectsInTx(tx, fxRef, cur, {
+      score,
+      resolvedTeamIds,
+    });
     tx.update(fxRef, {
       status: 'played',
       score,
       endedAt: FieldValue.serverTimestamp(),
       playedAt: FieldValue.serverTimestamp(),
     });
-    await applyStandingResultInTx(tx, fxRef, cur, score);
-    await applyLeagueMatchRevenueInTx(tx, fxRef, cur, resolvedTeamIds);
   });
 }
 

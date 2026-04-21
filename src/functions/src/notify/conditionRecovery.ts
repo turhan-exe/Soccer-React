@@ -33,7 +33,9 @@ type ProcessTeamConditionRecoveryResult =
   | {
       status: 'applied';
       source: 'due' | 'legacy' | 'seeded';
-      totalGain: number;
+      conditionGain: number;
+      motivationGain: number;
+      healthGain: number;
       totalPlayers: number;
       affectedPlayers: number;
       appliedTicks: number;
@@ -114,7 +116,9 @@ const processTeamConditionRecovery = async (
     return {
       status: 'applied',
       source: dueResolution.source,
-      totalGain: recovery.totalGain,
+      conditionGain: recovery.conditionGain,
+      motivationGain: recovery.motivationGain,
+      healthGain: recovery.healthGain,
       totalPlayers: recovery.totalPlayers,
       affectedPlayers: recovery.affectedPlayers,
       appliedTicks: recovery.appliedTicks,
@@ -199,7 +203,9 @@ export const recoverTeamConditionCron = functions
 
     let appliedTeams = 0;
     let appliedTicks = 0;
-    let totalGain = 0;
+    let conditionGain = 0;
+    let motivationGain = 0;
+    let healthGain = 0;
     let affectedPlayers = 0;
     let failed = 0;
 
@@ -212,7 +218,9 @@ export const recoverTeamConditionCron = functions
 
         appliedTeams += 1;
         appliedTicks += result.appliedTicks;
-        totalGain = Number((totalGain + result.totalGain).toFixed(3));
+        conditionGain = Number((conditionGain + result.conditionGain).toFixed(3));
+        motivationGain = Number((motivationGain + result.motivationGain).toFixed(3));
+        healthGain = Number((healthGain + result.healthGain).toFixed(3));
         affectedPlayers += result.affectedPlayers;
       } catch (error) {
         failed += 1;
@@ -229,7 +237,9 @@ export const recoverTeamConditionCron = functions
       dueScanned: dueSnap.size,
       appliedTeams,
       appliedTicks,
-      totalGain,
+      conditionGain,
+      motivationGain,
+      healthGain,
       affectedPlayers,
       failed,
       migration,

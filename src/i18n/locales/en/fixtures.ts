@@ -21,10 +21,13 @@ export const enFixtures: TranslationDictionary = {
       preparing: 'PREPARING',
       queued: 'QUEUED',
       preparingDelayed: 'PREPARING (DELAYED)',
+      resultPending: 'RESULT PENDING',
+      resultPendingShort: 'Result pending',
       finished: 'FINISHED',
       error: 'ERROR',
       queueHint: 'The match is waiting for free capacity. Watch will open when it is ready.',
       preparingDelayedHint: 'The match server is preparing. Watch will open shortly.',
+      resultPendingHint: 'The match has ended and the score is still being processed.',
     },
     errors: {
       loginRequired: 'You need to sign in before joining a live match.',
