@@ -16,20 +16,28 @@ if (admobPropertiesFile.exists()) {
 
 def admobSampleAppId = "ca-app-pub-3940256099942544~3347511713"
 def admobSampleRewardedUnitId = "ca-app-pub-3940256099942544/5224354917"
+def admobSampleStadiumNativeUnitId = "ca-app-pub-3940256099942544/2247696110"
 def admobUseTestIds = admobProperties.getProperty("ADMOB_USE_TEST_IDS", "true").toBoolean()
 def configuredAdmobAppId = admobProperties.getProperty("ADMOB_APP_ID_ANDROID", "").trim()
 def configuredRewardedUnitId = admobProperties.getProperty("ADMOB_REWARDED_UNIT_ID_ANDROID", "").trim()
+def configuredStadiumNativeUnitId = admobProperties.getProperty("ADMOB_NATIVE_OVERLAY_STADIUM_UNIT_ID_ANDROID", "").trim()
 def admobAppId = admobUseTestIds
     ? admobSampleAppId
     : admobProperties.getProperty("ADMOB_APP_ID_ANDROID", admobSampleAppId)
 def admobRewardedUnitId = admobUseTestIds
     ? admobSampleRewardedUnitId
     : admobProperties.getProperty("ADMOB_REWARDED_UNIT_ID_ANDROID", admobSampleRewardedUnitId)
+def admobStadiumNativeUnitId = admobUseTestIds
+    ? admobSampleStadiumNativeUnitId
+    : (configuredStadiumNativeUnitId ? configuredStadiumNativeUnitId : admobSampleStadiumNativeUnitId)
 def hasRealAdmobIds =
     configuredAdmobAppId &&
     configuredRewardedUnitId &&
     configuredAdmobAppId != admobSampleAppId &&
     configuredRewardedUnitId != admobSampleRewardedUnitId
+def hasRealStadiumNativeUnitId =
+    configuredStadiumNativeUnitId &&
+    configuredStadiumNativeUnitId != admobSampleStadiumNativeUnitId
 def appVersionFile = rootProject.file("../app.version.json")
 def appVersionConfig = appVersionFile.exists()
     ? new JsonSlurper().parse(appVersionFile)
@@ -64,8 +72,8 @@ gradle.taskGraph.whenReady { taskGraph ->
         throw new GradleException("Release builds cannot use AdMob test IDs. Set ADMOB_USE_TEST_IDS=false.")
     }
 
-    if (!hasRealAdmobIds) {
-        throw new GradleException("Release builds require real AdMob app and rewarded unit IDs in android/admob.properties.")
+    if (!hasRealAdmobIds || !hasRealStadiumNativeUnitId) {
+        throw new GradleException("Release builds require real AdMob app, rewarded unit and stadium native overlay unit IDs in android/admob.properties.")
     }
 }
 
@@ -94,6 +102,7 @@ android {
         manifestPlaceholders = [admobAppId: admobAppId]
         buildConfigField "String", "ADMOB_APP_ID", "\"${admobAppId}\""
         buildConfigField "String", "ADMOB_REWARDED_AD_UNIT_ID", "\"${admobRewardedUnitId}\""
+        buildConfigField "String", "ADMOB_STADIUM_NATIVE_AD_UNIT_ID", "\"${admobStadiumNativeUnitId}\""
         buildConfigField "boolean", "ADMOB_USE_TEST_IDS", admobUseTestIds.toString()
         buildConfigField "String", "UNITY_EXPORT_BUILD_ID", "\"${unityExportBuildId}\""
         buildConfigField "String", "UNITY_EXPORT_RUNTIME_TYPE", "\"${unityExportRuntimeType}\""
