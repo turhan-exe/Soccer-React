@@ -1,9 +1,9 @@
 import type { ConditionRecoveryPendingToast } from '@/types';
 
 export const CONDITION_RECOVERY_INTERVAL_MS = 4 * 60 * 60 * 1000;
-export const CONDITION_RECOVERY_STEP = 0.02;
-export const MOTIVATION_RECOVERY_STEP = 0.015;
-export const HEALTH_RECOVERY_STEP = 0.01;
+export const CONDITION_RECOVERY_STEP = 0.05;
+export const MOTIVATION_RECOVERY_STEP = 0.03;
+export const HEALTH_RECOVERY_STEP = 0.02;
 export const CONDITION_RECOVERY_TRIGGER_COOLDOWN_MS = 1500;
 
 type ConditionRecoveryTriggerState = {

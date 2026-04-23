@@ -26,6 +26,7 @@ import {
   startImmediateUpdate,
   type PlayUpdateState,
 } from '@/services/playUpdate';
+import { markStartupTiming } from '@/services/startupTiming';
 
 type ForceUpdateGateProps = {
   children: ReactNode;
@@ -193,6 +194,7 @@ const ForceUpdateGate = ({ children }: ForceUpdateGateProps) => {
         return;
       }
 
+      markStartupTiming('force_update_check_started');
       const requestId = ++requestIdRef.current;
       const installedInfo = await getInstalledAppVersion();
       if (requestId !== requestIdRef.current) {
@@ -247,6 +249,7 @@ const ForceUpdateGate = ({ children }: ForceUpdateGateProps) => {
         installedVersionName: installedInfo.versionName,
         playUpdateState: FALLBACK_PLAY_STATE,
       });
+      markStartupTiming('force_update_check_finished');
     },
     [applyPolicy, commitGateState, targetPlatform],
   );
@@ -422,22 +425,6 @@ const ForceUpdateGate = ({ children }: ForceUpdateGateProps) => {
 
   if (gateState.phase === 'blocked') {
     return blockedContent;
-  }
-
-  if (gateState.phase === 'checking') {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-950 px-6 text-slate-100">
-        <div className="flex flex-col items-center gap-4 rounded-3xl border border-white/10 bg-slate-900/75 px-8 py-10 text-center shadow-2xl backdrop-blur-xl">
-          <Loader2 className="h-8 w-8 animate-spin text-emerald-300" />
-          <div>
-            <p className="text-lg font-semibold">{t('forceUpdateGate.checkingTitle')}</p>
-            <p className="mt-2 text-sm text-slate-400">
-              {t('forceUpdateGate.checkingMessage')}
-            </p>
-          </div>
-        </div>
-      </div>
-    );
   }
 
   return <>{children}</>;

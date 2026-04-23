@@ -12,7 +12,7 @@ export { renderMatchHttp } from './replay/renderJob.js';
 export { scheduleDailyMatches } from './replay/scheduleDailyMatches.js';
 export { recoverHistoricalFixturesNightly, recoverHistoricalFixturesHttp, prepareLeagueKickoffWindow, prepareLeagueKickoffWindowHttp, kickoffPreparedLeagueMatches, kickoffPreparedLeagueMatchesHttp, runLeagueCatchupForDateHttp, reconcileLeagueLiveMatches, recoverLeagueKickoffSlots, backfillLiveLeagueMedia, ingestLeagueMatchLifecycleHttp, } from './liveLeague.js';
 export { bootstrapChampionsLeagueMonthly, bootstrapChampionsLeagueMonthlyHttp, syncChampionsLeagueProgressHttp, syncChampionsLeagueProgressOnFixtureWrite, } from './championsLeague.js';
-export { marketCreateListing, marketCancelListing, marketPurchaseListing, expireStaleTransferListings, autoListExpiredContracts, } from './market.js';
+export { marketCreateListing, marketCancelListing, marketPurchaseListing, expireStaleTransferListings, autoListExpiredContracts, topUpTransferMarketDaily, topUpTransferMarketHttp, } from './market.js';
 // Plan 4: Sözleşmeler (React ⇄ Functions ⇄ Unity)
 // League onboarding & fixtures management
 export { assignTeamToLeague, assignTeamToLeagueHttp, requestJoinLeague, finalizeIfFull, generateRoundRobinFixturesFn, } from './league.js';

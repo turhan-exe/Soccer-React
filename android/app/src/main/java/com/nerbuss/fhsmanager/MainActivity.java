@@ -4,6 +4,8 @@ import android.content.Intent;
 import android.graphics.Color;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.SystemClock;
+import android.util.Log;
 import android.view.View;
 import android.view.Window;
 import android.webkit.WebSettings;
@@ -23,21 +25,24 @@ import com.nerbuss.fhsmanager.unity.UnityMatchPlugin;
 
 public class MainActivity extends BridgeActivity {
   private static final int APP_BACKGROUND_COLOR = Color.parseColor("#020617");
+  private static final String STARTUP_TAG = "FHSStartup";
   private static final String EXTRA_FORCE_SHELL_RETURN = "unity_force_shell_return";
   private static final String SHELL_RETURN_EVENT =
       "window.dispatchEvent(new CustomEvent('nativeUnityShellReturn', { detail: { reason: 'unity-intent' } }));";
-  private static final long SNAPSHOT_GUARD_INITIAL_HIDE_DELAY_MS = 10000L;
-  private static final long SNAPSHOT_GUARD_READY_HIDE_DELAY_MS = 750L;
+  private static final long SNAPSHOT_GUARD_INITIAL_HIDE_DELAY_MS = 4500L;
+  private static final long SNAPSHOT_GUARD_READY_HIDE_DELAY_MS = 150L;
   private static final long SNAPSHOT_GUARD_RESUME_HIDE_DELAY_MS = 1000L;
-  private static final long SNAPSHOT_GUARD_WEBVIEW_FADE_DELAY_MS = 300L;
-  private static final long SNAPSHOT_GUARD_WEBVIEW_FADE_DURATION_MS = 220L;
+  private static final long SNAPSHOT_GUARD_WEBVIEW_FADE_DELAY_MS = 80L;
+  private static final long SNAPSHOT_GUARD_WEBVIEW_FADE_DURATION_MS = 160L;
   private final Runnable requestSnapshotGuardHideRunnable = this::requestSnapshotGuardHide;
   private View snapshotGuardView;
   private long snapshotGuardVisualStateRequestId = 0L;
+  private final long startupStartedAtMs = SystemClock.elapsedRealtime();
   private boolean bootVisualReadyReceived = false;
 
   @Override
   protected void onCreate(Bundle savedInstanceState) {
+    logStartup("activity_on_create_start");
     registerPlugin(RewardedAdsPlugin.class);
     registerPlugin(SecureCredentialsPlugin.class);
     registerPlugin(PlayBillingPlugin.class);
@@ -45,6 +50,7 @@ public class MainActivity extends BridgeActivity {
     registerPlugin(UiStatePlugin.class);
     registerPlugin(UnityMatchPlugin.class);
     super.onCreate(savedInstanceState);
+    logStartup("activity_super_on_create_complete");
     installSnapshotGuard();
     showSnapshotGuard();
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -54,6 +60,7 @@ public class MainActivity extends BridgeActivity {
     enableImmersiveMode();
     dispatchPendingUnityShellReturn(getIntent());
     dispatchPendingUnityShellReturnFromBridgeState();
+    logStartup("activity_on_create_complete");
   }
 
   @Override
@@ -76,15 +83,19 @@ public class MainActivity extends BridgeActivity {
   public void onResume() {
     super.onResume();
     enableImmersiveMode();
-    showSnapshotGuard();
-    scheduleSnapshotGuardHide();
+    if (!bootVisualReadyReceived) {
+      showSnapshotGuard();
+      scheduleSnapshotGuardHide();
+    }
     dispatchPendingUnityShellReturn(getIntent());
     dispatchPendingUnityShellReturnFromBridgeState();
   }
 
   @Override
   public void onPause() {
-    showSnapshotGuard();
+    if (!bootVisualReadyReceived) {
+      showSnapshotGuard();
+    }
     super.onPause();
   }
 
@@ -203,9 +214,14 @@ public class MainActivity extends BridgeActivity {
             FrameLayout.LayoutParams.MATCH_PARENT,
             FrameLayout.LayoutParams.MATCH_PARENT));
     snapshotGuardView = overlay;
+    logStartup("snapshot_guard_installed");
   }
 
   private void showSnapshotGuard() {
+    if (bootVisualReadyReceived && !isSnapshotGuardVisible()) {
+      return;
+    }
+
     clearSnapshotGuardCallbacks();
     snapshotGuardVisualStateRequestId++;
     prepareWebViewForGuard();
@@ -231,6 +247,7 @@ public class MainActivity extends BridgeActivity {
   public void markBootVisualReady() {
     runOnUiThread(
         () -> {
+          logStartup("mark_boot_visual_ready");
           if (bootVisualReadyReceived && !isSnapshotGuardVisible()) {
             return;
           }
@@ -251,6 +268,7 @@ public class MainActivity extends BridgeActivity {
       return;
     }
 
+    logStartup("snapshot_guard_hide_requested");
     final WebView webView = getBridgeWebView();
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M || webView == null) {
       revealWebView(snapshotGuardVisualStateRequestId);
@@ -273,6 +291,7 @@ public class MainActivity extends BridgeActivity {
                     return;
                   }
 
+                  logStartup("webview_visual_state_complete");
                   revealWebView(id);
                 });
           }
@@ -315,6 +334,7 @@ public class MainActivity extends BridgeActivity {
                   }
 
                   hideSnapshotGuard();
+                  logStartup("webview_reveal_started");
                   webView.animate().alpha(1f).setDuration(SNAPSHOT_GUARD_WEBVIEW_FADE_DURATION_MS).start();
                 }),
         SNAPSHOT_GUARD_WEBVIEW_FADE_DELAY_MS);
@@ -323,7 +343,18 @@ public class MainActivity extends BridgeActivity {
   private void hideSnapshotGuard() {
     if (snapshotGuardView != null) {
       snapshotGuardView.setVisibility(View.GONE);
+      logStartup("snapshot_guard_hidden");
     }
+  }
+
+  private void logStartup(String label) {
+    if (!BuildConfig.DEBUG) {
+      return;
+    }
+
+    Log.i(
+        STARTUP_TAG,
+        label + " +" + (SystemClock.elapsedRealtime() - startupStartedAtMs) + "ms");
   }
 
   private boolean isSnapshotGuardVisible() {

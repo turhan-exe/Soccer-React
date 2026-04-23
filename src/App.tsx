@@ -13,51 +13,114 @@ import { InventoryProvider } from '@/contexts/InventoryContext';
 import { LanguageProvider } from '@/contexts/LanguageContext';
 import { unityBridge } from '@/services/unityBridge';
 import { initializeRewardedAds, isRewardedAdsSupported } from '@/services/rewardedAds';
+import { markBootVisualReadyOnce } from '@/services/uiState';
+import { markStartupTiming } from '@/services/startupTiming';
 import ForceUpdateGate from '@/components/system/ForceUpdateGate';
 import MatchControlPresenceHeartbeat from '@/components/system/MatchControlPresenceHeartbeat';
 import PushNotificationsBootstrap from '@/components/system/PushNotificationsBootstrap';
 import KeyboardViewportManager from '@/components/system/KeyboardViewportManager';
 import { useAuth } from '@/contexts/AuthContext';
-import { useInventory } from '@/contexts/InventoryContext';
 
 const queryClient = new QueryClient();
-const BOOT_UI_STABILIZATION_MS = 1000;
+const BOOT_SHELL_REVEAL_DELAY_MS = 0;
+const DEFERRED_BOOT_SERVICES_DELAY_MS = 1600;
 
 type ScreenOrientationWithLock = ScreenOrientation & {
   lock?: (orientation: string) => Promise<void>;
 };
 
-const NativeStartupSplashController = () => {
+const NativeStartupVisualController = () => {
   const { isAuthReady } = useAuth();
-  const { isHydrated } = useInventory();
-  const [isSplashHidden, setIsSplashHidden] = useState(!Capacitor.isNativePlatform());
+  const [isBootVisualReleased, setIsBootVisualReleased] = useState(!Capacitor.isNativePlatform());
 
   useEffect(() => {
-    if (!Capacitor.isNativePlatform() || isSplashHidden) {
+    if (isAuthReady) {
+      markStartupTiming('auth_ready');
+    }
+  }, [isAuthReady]);
+
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform() || isBootVisualReleased) {
       return;
     }
 
-    if (!isAuthReady || !isHydrated) {
-      return;
-    }
+    let rafA = 0;
+    let rafB = 0;
+    let timeoutId = 0;
 
-    const timeoutId = window.setTimeout(() => {
-      SplashScreen.hide({ fadeOutDuration: 200 })
-        .catch(() => undefined)
-        .finally(() => {
-          setIsSplashHidden(true);
-        });
-    }, BOOT_UI_STABILIZATION_MS);
+    rafA = window.requestAnimationFrame(() => {
+      rafB = window.requestAnimationFrame(() => {
+        timeoutId = window.setTimeout(() => {
+          markStartupTiming('shell_ready');
+          void markBootVisualReadyOnce().finally(() => {
+            markStartupTiming('boot_visual_ready_marked');
+          });
+          SplashScreen.hide({ fadeOutDuration: 120 })
+            .catch(() => undefined)
+            .finally(() => {
+              markStartupTiming('native_splash_hidden');
+              setIsBootVisualReleased(true);
+            });
+        }, BOOT_SHELL_REVEAL_DELAY_MS);
+      });
+    });
 
     return () => {
+      window.cancelAnimationFrame(rafA);
+      window.cancelAnimationFrame(rafB);
       window.clearTimeout(timeoutId);
     };
-  }, [isAuthReady, isHydrated, isSplashHidden]);
+  }, [isAuthReady, isBootVisualReleased]);
 
   return null;
 };
 
+const DeferredBootServices = () => {
+  const { isAuthReady } = useAuth();
+  const [enabled, setEnabled] = useState(false);
+
+  useEffect(() => {
+    if (!isAuthReady || enabled) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      markStartupTiming('deferred_services_enabled');
+      setEnabled(true);
+    }, DEFERRED_BOOT_SERVICES_DELAY_MS);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [enabled, isAuthReady]);
+
+  useEffect(() => {
+    if (!enabled || !isRewardedAdsSupported()) {
+      return;
+    }
+
+    void initializeRewardedAds().catch((error) => {
+      console.warn('[App] Rewarded ads initialization failed', error);
+    });
+  }, [enabled]);
+
+  if (!enabled) {
+    return null;
+  }
+
+  return (
+    <>
+      <MatchControlPresenceHeartbeat />
+      <PushNotificationsBootstrap />
+    </>
+  );
+};
+
 const App = () => {
+  useEffect(() => {
+    markStartupTiming('react_app_mounted');
+  }, []);
+
   useEffect(() => {
     const lockOrientation = async () => {
       const orientation = window.screen?.orientation as ScreenOrientationWithLock | undefined;
@@ -132,16 +195,6 @@ const App = () => {
     };
   }, []);
 
-  useEffect(() => {
-    if (!isRewardedAdsSupported()) {
-      return;
-    }
-
-    void initializeRewardedAds().catch((error) => {
-      console.warn('[App] Rewarded ads initialization failed', error);
-    });
-  }, []);
-
   return (
     <QueryClientProvider client={queryClient}>
       <LanguageProvider>
@@ -149,11 +202,10 @@ const App = () => {
           <ForceUpdateGate>
             <AuthProvider>
               <KeyboardViewportManager />
-              <MatchControlPresenceHeartbeat />
-              <PushNotificationsBootstrap />
+              <NativeStartupVisualController />
+              <DeferredBootServices />
               <DiamondProvider>
                 <InventoryProvider>
-                  <NativeStartupSplashController />
                   <TooltipProvider>
                     <Toaster />
                     <RouterProvider router={router} future={{ v7_startTransition: true }} />

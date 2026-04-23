@@ -28,12 +28,12 @@ describe('teamConditionRecovery', () => {
     });
 
     expect(result.appliedTicks).toBe(1);
-    expect(result.players[0]?.condition).toBe(0.52);
-    expect(result.players[0]?.motivation).toBe(0.515);
-    expect(result.players[0]?.health).toBe(0.51);
-    expect(result.conditionGain).toBe(0.02);
-    expect(result.motivationGain).toBe(0.015);
-    expect(result.healthGain).toBe(0.01);
+    expect(result.players[0]?.condition).toBe(0.55);
+    expect(result.players[0]?.motivation).toBe(0.53);
+    expect(result.players[0]?.health).toBe(0.52);
+    expect(result.conditionGain).toBe(0.05);
+    expect(result.motivationGain).toBe(0.03);
+    expect(result.healthGain).toBe(0.02);
     expect(result.nextDueAt).toBe(
       new Date(nowMs + CONDITION_RECOVERY_INTERVAL_MS).toISOString(),
     );
@@ -49,12 +49,12 @@ describe('teamConditionRecovery', () => {
     });
 
     expect(result.appliedTicks).toBe(2);
-    expect(result.players[0]?.condition).toBe(0.54);
-    expect(result.players[0]?.motivation).toBe(0.53);
-    expect(result.players[0]?.health).toBe(0.52);
-    expect(result.conditionGain).toBe(0.04);
-    expect(result.motivationGain).toBe(0.03);
-    expect(result.healthGain).toBe(0.02);
+    expect(result.players[0]?.condition).toBe(0.6);
+    expect(result.players[0]?.motivation).toBe(0.56);
+    expect(result.players[0]?.health).toBe(0.54);
+    expect(result.conditionGain).toBe(0.1);
+    expect(result.motivationGain).toBe(0.06);
+    expect(result.healthGain).toBe(0.04);
     expect(result.nextDueAt).toBe(
       new Date(Date.parse(dueAt) + 2 * CONDITION_RECOVERY_INTERVAL_MS).toISOString(),
     );
@@ -86,11 +86,11 @@ describe('teamConditionRecovery', () => {
 
     expect(result.appliedTicks).toBe(1);
     expect(result.players[0]?.condition).toBe(1);
-    expect(result.players[0]?.motivation).toBe(0.515);
-    expect(result.players[0]?.health).toBe(0.51);
+    expect(result.players[0]?.motivation).toBe(0.53);
+    expect(result.players[0]?.health).toBe(0.52);
     expect(result.conditionGain).toBe(0);
-    expect(result.motivationGain).toBe(0.015);
-    expect(result.healthGain).toBe(0.01);
+    expect(result.motivationGain).toBe(0.03);
+    expect(result.healthGain).toBe(0.02);
   });
 
   it('does not clear injury status while health increases', () => {
@@ -100,9 +100,9 @@ describe('teamConditionRecovery', () => {
       nowMs: Date.parse('2026-04-18T19:00:00.000Z'),
     });
 
-    expect(result.players[0]?.health).toBe(0.41);
+    expect(result.players[0]?.health).toBe(0.42);
     expect(result.players[0]?.injuryStatus).toBe('injured');
-    expect(result.healthGain).toBe(0.01);
+    expect(result.healthGain).toBe(0.02);
   });
 
   it('does not apply the same due interval twice once the due time is advanced', () => {
@@ -123,9 +123,9 @@ describe('teamConditionRecovery', () => {
     expect(second.conditionGain).toBe(0);
     expect(second.motivationGain).toBe(0);
     expect(second.healthGain).toBe(0);
-    expect(second.players[0]?.condition).toBe(0.54);
-    expect(second.players[0]?.motivation).toBe(0.53);
-    expect(second.players[0]?.health).toBe(0.52);
+    expect(second.players[0]?.condition).toBe(0.6);
+    expect(second.players[0]?.motivation).toBe(0.56);
+    expect(second.players[0]?.health).toBe(0.54);
   });
 
   it('derives the new due time from the legacy conditionRecoveryAt value', () => {
@@ -171,16 +171,16 @@ describe('teamConditionRecovery', () => {
     });
 
     expect(first.pendingToast).toMatchObject({
-      conditionGain: 0.04,
-      motivationGain: 0.03,
-      healthGain: 0.02,
+      conditionGain: 0.1,
+      motivationGain: 0.06,
+      healthGain: 0.04,
       totalPlayers: 2,
       appliedTicks: 1,
     });
     expect(second.pendingToast).toMatchObject({
-      conditionGain: 0.08,
-      motivationGain: 0.06,
-      healthGain: 0.04,
+      conditionGain: 0.2,
+      motivationGain: 0.12,
+      healthGain: 0.08,
       totalPlayers: 2,
       appliedTicks: 2,
     });

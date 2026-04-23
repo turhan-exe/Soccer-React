@@ -1,41 +1,53 @@
-﻿import { createBrowserRouter } from 'react-router-dom';
+import React, { lazy, Suspense } from 'react';
+import { createBrowserRouter } from 'react-router-dom';
 import RootLayout from '@/layouts/RootLayout';
-
-// Pages
 import MainMenu from '@/pages/MainMenu';
-import FriendsPage from '@/pages/FriendsPage';
-import TeamDetailPage from '@/pages/TeamDetailPage';
-import TeamPlanning from '@/pages/TeamPlanning';
-import TransferMarket from '@/pages/TransferMarket';
-import Youth from '@/pages/Youth';
-import MyFixturesPage from '@/pages/MyFixturesPage';
-import LeaguesListPage from '@/pages/LeaguesListPage';
-import LeagueDetailPage from '@/pages/LeagueDetailPage';
-import Training from '@/pages/Training';
-import MatchPreview from '@/pages/MatchPreview';
-import MatchSimulationLegacy from '@/pages/MatchSimulationLegacy';
-import MatchSimulationDemo from '@/pages/MatchSimulation';
-import MatchSimulationIframe from '@/pages/MatchSimulationIframe';
-import UnityAutoSeed from '@/pages/UnityAutoSeed';
-import LiveDebugPage from '@/pages/LiveDebugPage';
-import MatchWatcherPage from '@/pages/MatchWatcherPage';
-import Finance from '@/pages/Finance';
-import TeamAssetsPage from '@/pages/TeamAssets';
-import Settings from '@/pages/Settings';
-import ContactPage from '@/pages/Contact';
-import NotFound from '@/pages/NotFound';
-import DiamondsPage from '@/features/diamonds/DiamondsPage';
-import AcademyPage from '@/features/academy/AcademyPage';
-import StandingsPage from '@/pages/StandingsPage';
-import LegendPackPage from '@/features/legends/LegendPackPage';
-import VipStorePage from '@/pages/VipStore';
-import MatchesHistoryPage from '@/pages/MatchesHistoryPage';
-import MatchReplayPage from '@/pages/MatchReplayPage';
-import MatchVideoPage from '@/pages/MatchVideoPage';
-import FriendlyMatchPage from '@/pages/FriendlyMatchPage';
-import ChatModerationAdmin from '@/pages/ChatModerationAdmin';
-import ChampionsLeaguePage from '@/pages/ChampionsLeaguePage';
-import LiveLeagueOpsPage from '@/pages/LiveLeagueOpsPage';
+
+const FriendsPage = lazy(() => import('@/pages/FriendsPage'));
+const TeamDetailPage = lazy(() => import('@/pages/TeamDetailPage'));
+const TeamPlanning = lazy(() => import('@/pages/TeamPlanning'));
+const TransferMarket = lazy(() => import('@/pages/TransferMarket'));
+const Youth = lazy(() => import('@/pages/Youth'));
+const MyFixturesPage = lazy(() => import('@/pages/MyFixturesPage'));
+const LeaguesListPage = lazy(() => import('@/pages/LeaguesListPage'));
+const LeagueDetailPage = lazy(() => import('@/pages/LeagueDetailPage'));
+const Training = lazy(() => import('@/pages/Training'));
+const MatchPreview = lazy(() => import('@/pages/MatchPreview'));
+const MatchSimulationLegacy = lazy(() => import('@/pages/MatchSimulationLegacy'));
+const MatchSimulationDemo = lazy(() => import('@/pages/MatchSimulation'));
+const MatchSimulationIframe = lazy(() => import('@/pages/MatchSimulationIframe'));
+const UnityAutoSeed = lazy(() => import('@/pages/UnityAutoSeed'));
+const LiveDebugPage = lazy(() => import('@/pages/LiveDebugPage'));
+const MatchWatcherPage = lazy(() => import('@/pages/MatchWatcherPage'));
+const Finance = lazy(() => import('@/pages/Finance'));
+const TeamAssetsPage = lazy(() => import('@/pages/TeamAssets'));
+const Settings = lazy(() => import('@/pages/Settings'));
+const ContactPage = lazy(() => import('@/pages/Contact'));
+const NotFound = lazy(() => import('@/pages/NotFound'));
+const DiamondsPage = lazy(() => import('@/features/diamonds/DiamondsPage'));
+const AcademyPage = lazy(() => import('@/features/academy/AcademyPage'));
+const StandingsPage = lazy(() => import('@/pages/StandingsPage'));
+const LegendPackPage = lazy(() => import('@/features/legends/LegendPackPage'));
+const VipStorePage = lazy(() => import('@/pages/VipStore'));
+const MatchesHistoryPage = lazy(() => import('@/pages/MatchesHistoryPage'));
+const MatchReplayPage = lazy(() => import('@/pages/MatchReplayPage'));
+const MatchVideoPage = lazy(() => import('@/pages/MatchVideoPage'));
+const FriendlyMatchPage = lazy(() => import('@/pages/FriendlyMatchPage'));
+const ChatModerationAdmin = lazy(() => import('@/pages/ChatModerationAdmin'));
+const ChampionsLeaguePage = lazy(() => import('@/pages/ChampionsLeaguePage'));
+const LiveLeagueOpsPage = lazy(() => import('@/pages/LiveLeagueOpsPage'));
+
+const PageFallback = () => (
+  <div className="flex min-h-screen items-center justify-center bg-slate-950 px-6 text-slate-300">
+    <div className="rounded-2xl border border-white/10 bg-white/5 px-6 py-4 text-sm">
+      Yukleniyor...
+    </div>
+  </div>
+);
+
+const lazyPage = (element: React.ReactNode) => (
+  <Suspense fallback={<PageFallback />}>{element}</Suspense>
+);
 
 export const router = createBrowserRouter(
   [
@@ -43,47 +55,47 @@ export const router = createBrowserRouter(
       element: <RootLayout />,
       children: [
         { path: '/', element: <MainMenu /> },
-        { path: '/champions-league', element: <ChampionsLeaguePage /> },
-        { path: '/team-planning', element: <TeamPlanning /> },
-        { path: '/youth', element: <Youth /> },
-        { path: '/friends', element: <FriendsPage /> },
-        { path: '/teams/:teamId', element: <TeamDetailPage /> },
-        { path: '/transfer-market', element: <TransferMarket /> },
-        { path: '/fixtures', element: <MyFixturesPage /> },
-        { path: '/my-matches', element: <MyFixturesPage /> },
-        { path: '/standings', element: <StandingsPage /> },
-        { path: '/leagues', element: <LeaguesListPage /> },
-        { path: '/leagues/:leagueId', element: <LeagueDetailPage /> },
-        { path: '/training', element: <Training /> },
-        { path: '/match-preview', element: <MatchPreview /> },
-        { path: '/match-simulation', element: <MatchSimulationLegacy /> },
-        { path: '/match-simulation-demo', element: <MatchSimulationDemo /> },
-        { path: '/match-simulation-iframe', element: <MatchSimulationIframe /> },
-        { path: '/unity-auto-seed', element: <UnityAutoSeed /> },
-        { path: '/team-assets', element: <TeamAssetsPage /> },
-        { path: '/live-debug', element: <LiveDebugPage /> },
-        { path: '/match/:id', element: <MatchWatcherPage /> },
-        { path: '/match-history', element: <MyFixturesPage /> },
-        { path: '/matches-history', element: <MatchesHistoryPage /> },
-        { path: '/match-replay', element: <MatchReplayPage /> },
-        { path: '/match-video', element: <MatchVideoPage /> },
-        { path: '/friendly-match', element: <FriendlyMatchPage /> },
-        { path: '/finance', element: <Finance /> },
-        { path: '/settings', element: <Settings /> },
-        { path: '/contact', element: <ContactPage /> },
-        { path: '/store/diamonds', element: <DiamondsPage /> },
-        { path: '/store/vip', element: <VipStorePage /> },
-        { path: '/academy', element: <AcademyPage /> },
-        { path: '/legend-pack', element: <LegendPackPage /> },
-        { path: '/admin/chat-moderation', element: <ChatModerationAdmin /> },
-        { path: '/admin/live-league', element: <LiveLeagueOpsPage /> },
-        { path: '*', element: <NotFound /> },
+        { path: '/champions-league', element: lazyPage(<ChampionsLeaguePage />) },
+        { path: '/team-planning', element: lazyPage(<TeamPlanning />) },
+        { path: '/youth', element: lazyPage(<Youth />) },
+        { path: '/friends', element: lazyPage(<FriendsPage />) },
+        { path: '/teams/:teamId', element: lazyPage(<TeamDetailPage />) },
+        { path: '/transfer-market', element: lazyPage(<TransferMarket />) },
+        { path: '/fixtures', element: lazyPage(<MyFixturesPage />) },
+        { path: '/my-matches', element: lazyPage(<MyFixturesPage />) },
+        { path: '/standings', element: lazyPage(<StandingsPage />) },
+        { path: '/leagues', element: lazyPage(<LeaguesListPage />) },
+        { path: '/leagues/:leagueId', element: lazyPage(<LeagueDetailPage />) },
+        { path: '/training', element: lazyPage(<Training />) },
+        { path: '/match-preview', element: lazyPage(<MatchPreview />) },
+        { path: '/match-simulation', element: lazyPage(<MatchSimulationLegacy />) },
+        { path: '/match-simulation-demo', element: lazyPage(<MatchSimulationDemo />) },
+        { path: '/match-simulation-iframe', element: lazyPage(<MatchSimulationIframe />) },
+        { path: '/unity-auto-seed', element: lazyPage(<UnityAutoSeed />) },
+        { path: '/team-assets', element: lazyPage(<TeamAssetsPage />) },
+        { path: '/live-debug', element: lazyPage(<LiveDebugPage />) },
+        { path: '/match/:id', element: lazyPage(<MatchWatcherPage />) },
+        { path: '/match-history', element: lazyPage(<MyFixturesPage />) },
+        { path: '/matches-history', element: lazyPage(<MatchesHistoryPage />) },
+        { path: '/match-replay', element: lazyPage(<MatchReplayPage />) },
+        { path: '/match-video', element: lazyPage(<MatchVideoPage />) },
+        { path: '/friendly-match', element: lazyPage(<FriendlyMatchPage />) },
+        { path: '/finance', element: lazyPage(<Finance />) },
+        { path: '/settings', element: lazyPage(<Settings />) },
+        { path: '/contact', element: lazyPage(<ContactPage />) },
+        { path: '/store/diamonds', element: lazyPage(<DiamondsPage />) },
+        { path: '/store/vip', element: lazyPage(<VipStorePage />) },
+        { path: '/academy', element: lazyPage(<AcademyPage />) },
+        { path: '/legend-pack', element: lazyPage(<LegendPackPage />) },
+        { path: '/admin/chat-moderation', element: lazyPage(<ChatModerationAdmin />) },
+        { path: '/admin/live-league', element: lazyPage(<LiveLeagueOpsPage />) },
+        { path: '*', element: lazyPage(<NotFound />) },
       ],
     },
   ],
   {
     future: {
-      // createBrowserRouter için bu flag geçerli (TS hatası vermeyen)
+      // createBrowserRouter icin bu flag gecerli (TS hatasi vermeyen)
       v7_relativeSplatPath: true,
     },
   },

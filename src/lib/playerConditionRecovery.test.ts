@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
+  CONDITION_RECOVERY_STEP,
   CONDITION_RECOVERY_INTERVAL_MS,
+  HEALTH_RECOVERY_STEP,
+  MOTIVATION_RECOVERY_STEP,
   createConditionRecoveryDueAt,
   formatConditionRecoveryGainPercent,
   readConditionRecoveryToastAverageGainPct,
@@ -8,6 +11,12 @@ import {
 } from './playerConditionRecovery';
 
 describe('playerConditionRecovery', () => {
+  it('uses the balanced four-hour recovery rates', () => {
+    expect(CONDITION_RECOVERY_STEP).toBe(0.05);
+    expect(MOTIVATION_RECOVERY_STEP).toBe(0.03);
+    expect(HEALTH_RECOVERY_STEP).toBe(0.02);
+  });
+
   it('creates the next due timestamp four hours ahead', () => {
     const nowMs = Date.parse('2026-04-18T12:00:00.000Z');
     expect(createConditionRecoveryDueAt(nowMs)).toBe(

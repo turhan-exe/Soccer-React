@@ -13,6 +13,25 @@ const LISTINGS_PATH = 'transferListings';
 const FINANCE_DEFAULT_BALANCE = 50_000;
 
 const region = 'europe-west1';
+const TZ = 'Europe/Istanbul';
+const SYSTEM_MARKET_SELLER_ID = 'system-market';
+const SYSTEM_MARKET_SELLER_NAME = 'Transfer Pazari';
+export const TRANSFER_MARKET_TARGET_ACTIVE_LISTINGS = 100;
+export const MAX_SYSTEM_MARKET_TOP_UP_PER_RUN = 100;
+const TOP_UP_TRANSFER_MARKET_CRON = '1 0 * * *';
+export const TRANSFER_LISTING_TTL_DAYS = 14;
+export const TRANSFER_LISTING_TTL_MS = TRANSFER_LISTING_TTL_DAYS * 24 * 60 * 60 * 1000;
+const ADMIN_SECRETS = Array.from(
+  new Set(
+    [
+      process.env.ADMIN_SECRET || '',
+      (functions.config() as any)?.admin?.secret || '',
+      (functions.config() as any)?.scheduler?.secret || '',
+    ]
+      .map((value) => String(value || '').trim())
+      .filter(Boolean),
+  ),
+);
 
 const isString = (value: unknown): value is string =>
   typeof value === 'string' && value.trim().length > 0;
@@ -80,6 +99,9 @@ const sanitizePlayerForListing = (player: PlayerSnapshot, fallbackId: string) =>
     id: playerId,
   };
 };
+
+export const getTransferListingExpiresAtIso = (createdAtMs: number): string =>
+  new Date(createdAtMs + TRANSFER_LISTING_TTL_MS).toISOString();
 
 const getTransferBudget = (team?: TeamDoc | null): number => {
   if (!team) {
@@ -159,11 +181,16 @@ type ListingDoc = {
   pos?: string;
   overall?: number;
   sellerTeamName?: string;
-  status: 'active' | 'sold' | 'cancelled';
+  status: 'active' | 'sold' | 'cancelled' | 'expired';
+  expiresAt?: string;
   buyerUid?: string;
   buyerId?: string;
   buyerTeamId?: string;
   buyerTeamName?: string;
+  systemGenerated?: boolean;
+  autoListed?: boolean;
+  autoListReason?: string;
+  autoListedAt?: string;
 };
 
 type TeamDoc = {
@@ -235,6 +262,59 @@ const addFinanceHistoryEntry = (
     timestamp: FieldValue.serverTimestamp(),
   });
 };
+
+function applyCors(req: functions.https.Request, res: functions.Response<any>) {
+  res.set('Access-Control-Allow-Origin', '*');
+  res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-admin-secret');
+  res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  if (req.method === 'OPTIONS') {
+    res.status(204).send('');
+    return true;
+  }
+  return false;
+}
+
+function requireAdminSecret(req: functions.https.Request, res: functions.Response<any>) {
+  const headerSecret = String(req.headers['x-admin-secret'] || '').trim();
+  const bearerToken = String(req.headers.authorization || '').startsWith('Bearer ')
+    ? String(req.headers.authorization || '').slice(7).trim()
+    : '';
+  const queryToken = String(req.query?.secret || '').trim();
+  const body = req.body && typeof req.body === 'object' ? req.body : {};
+  const bodyToken = typeof (body as { secret?: unknown }).secret === 'string'
+    ? String((body as { secret?: unknown }).secret).trim()
+    : '';
+  const provided = headerSecret || bearerToken || queryToken || bodyToken;
+  if (ADMIN_SECRETS.length === 0 || !provided || !ADMIN_SECRETS.includes(provided)) {
+    res.status(401).json({ ok: false, error: 'unauthorized' });
+    return false;
+  }
+  return true;
+}
+
+function readRequestBody(req: functions.https.Request) {
+  if (req.body && typeof req.body === 'object') {
+    return req.body as Record<string, unknown>;
+  }
+  return {};
+}
+
+function parseBoolean(raw: unknown, fallback = false) {
+  if (raw == null || raw === '') return fallback;
+  const normalized = String(raw).trim().toLowerCase();
+  if (normalized === 'true' || normalized === '1') return true;
+  if (normalized === 'false' || normalized === '0') return false;
+  return fallback;
+}
+
+function parsePositiveInt(raw: unknown, fallback: number, max: number) {
+  if (raw == null || raw === '') return fallback;
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    throw new functions.https.HttpsError('invalid-argument', 'value must be a positive number');
+  }
+  return Math.min(Math.floor(parsed), max);
+}
 
 export const marketCreateListing = functions
   .region(region)
@@ -318,6 +398,8 @@ export const marketCreateListing = functions
 
       const sanitizedPlayer = sanitizePlayerForListing(playerData!, playerId);
       const sellerTeamName = teamData.name ?? 'Takımım';
+      const nowMs = Date.now();
+      const expiresAt = getTransferListingExpiresAtIso(nowMs);
       const finalPos =
         requestedPos ||
         (sanitizedPlayer.position ? String(sanitizedPlayer.position).toUpperCase() : undefined);
@@ -341,6 +423,7 @@ export const marketCreateListing = functions
         position: sanitizedPlayer.position,
         sellerTeamName,
         status: 'active',
+        expiresAt,
       };
 
       if (finalPos) {
@@ -479,7 +562,7 @@ export const marketPurchaseListing = functions
       const buyerFinanceRef = financeDoc(buyerTeamId);
       const purchaseRef = purchaseId ? db.collection('purchases').doc(purchaseId) : null;
 
-      const { soldAt } = await db.runTransaction(async tx => {
+      const purchaseResult = await db.runTransaction(async tx => {
         if (purchaseRef) {
           const purchaseSnap = await tx.get(purchaseRef);
           if (purchaseSnap.exists) {
@@ -505,9 +588,19 @@ export const marketPurchaseListing = functions
         if (!listingSnap.exists) {
           throw new functions.https.HttpsError('not-found', 'LISTING_NOT_FOUND');
         }
-        const listing = listingSnap.data() as ListingDoc;
+        const listing = listingSnap.data() as ListingDoc & { createdAt?: unknown };
+        const isSystemGeneratedListing = listing.systemGenerated === true;
         if (listing.status !== 'active') {
           throw new functions.https.HttpsError('failed-precondition', 'ALREADY_SOLD');
+        }
+        if (isTransferListingExpired(listing, Date.now())) {
+          await resetPlayerMarketState(tx, listing);
+          tx.update(listingRef, {
+            status: 'expired',
+            expiredAt: FieldValue.serverTimestamp(),
+            expiryReason: `stale_${TRANSFER_LISTING_TTL_DAYS}d`,
+          });
+          return { soldAt: '', expired: true };
         }
         if (listing.sellerUid === uid) {
           throw new functions.https.HttpsError('failed-precondition', 'SELF_PURCHASE');
@@ -556,7 +649,9 @@ export const marketPurchaseListing = functions
         const playerSnap = playerRef ? await tx.get(playerRef).catch(() => null) : null;
 
         let playerData: PlayerSnapshot | null = null;
-        if (playerSnap?.exists) {
+        if (isSystemGeneratedListing) {
+          playerData = sanitizePlayerForListing(listing.player ?? {}, String(listing.playerId ?? listingRef.id));
+        } else if (playerSnap?.exists) {
           const snapshotData = playerSnap.data() as PlayerSnapshot;
           if (!snapshotData.market?.active || snapshotData.market?.listingId !== listingId) {
             throw new functions.https.HttpsError('failed-precondition', 'PLAYER_NOT_ON_MARKET');
@@ -564,7 +659,7 @@ export const marketPurchaseListing = functions
           playerData = snapshotData;
         }
 
-        const sellerPlayers = sellerTeam?.players ? [...sellerTeam.players] : undefined;
+        const sellerPlayers = !isSystemGeneratedListing && sellerTeam?.players ? [...sellerTeam.players] : undefined;
         let sellerPlayerIndex = -1;
         if (sellerPlayers) {
           sellerPlayerIndex = sellerPlayers.findIndex(
@@ -627,6 +722,7 @@ export const marketPurchaseListing = functions
         });
 
         if (
+          !isSystemGeneratedListing &&
           sellerTeamRef &&
           sellerTeamSnap?.exists &&
           sellerTeamRef.path !== buyerTeamRef.path
@@ -700,7 +796,11 @@ export const marketPurchaseListing = functions
         return { soldAt: new Date().toISOString() };
       });
 
-      return { ok: true, listingId, soldAt };
+      if (purchaseResult.expired) {
+        throw new functions.https.HttpsError('failed-precondition', 'LISTING_EXPIRED');
+      }
+
+      return { ok: true, listingId, soldAt: purchaseResult.soldAt };
     } catch (error) {
       console.error('marketPurchaseListing error:', error);
       if (error instanceof functions.https.HttpsError) {
@@ -710,10 +810,61 @@ export const marketPurchaseListing = functions
     }
   });
 
-const LISTING_TTL_MS = 3 * 24 * 60 * 60 * 1000;
 const AUTO_RELIST_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;
 const MAX_STALE_CLEANUP = 150;
 const MAX_AUTO_LISTINGS_PER_RUN = 120;
+const SYSTEM_MARKET_POSITIONS = [
+  'GK',
+  'CB',
+  'CB',
+  'LB',
+  'RB',
+  'CM',
+  'CM',
+  'LM',
+  'RM',
+  'CAM',
+  'LW',
+  'RW',
+  'ST',
+  'ST',
+];
+const SYSTEM_MARKET_FIRST_NAMES = [
+  'Arda',
+  'Baran',
+  'Cem',
+  'Deniz',
+  'Eren',
+  'Kaan',
+  'Levent',
+  'Mert',
+  'Onur',
+  'Ruzgar',
+  'Sarp',
+  'Tuna',
+  'Yigit',
+  'Emir',
+  'Kerem',
+  'Ozan',
+];
+const SYSTEM_MARKET_LAST_NAMES = [
+  'Acar',
+  'Aksoy',
+  'Boran',
+  'Demir',
+  'Kaya',
+  'Koc',
+  'Ozkan',
+  'Sahin',
+  'Tas',
+  'Yalcin',
+  'Yildiz',
+  'Arslan',
+  'Kaplan',
+  'Polat',
+  'Uslu',
+  'Yaman',
+];
 
 const normalizeRatingTo100Value = (value?: number | null): number => {
   if (typeof value !== 'number' || Number.isNaN(value)) return 0;
@@ -740,6 +891,150 @@ const computeAutoListingPrice = (player: PlayerSnapshot): number => {
   return Math.max(5_000, Math.round(price));
 };
 
+const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
+
+const hashSeed = (value: string) => {
+  let hash = 2166136261 >>> 0;
+  for (let i = 0; i < value.length; i++) {
+    hash ^= value.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+};
+
+const mulberry32 = (seed: number) => {
+  return () => {
+    let t = (seed += 0x6d2b79f5);
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+};
+
+const getSystemMarketRoles = (position: string): string[] => {
+  switch (position) {
+    case 'GK':
+      return ['GK'];
+    case 'CB':
+      return ['CB'];
+    case 'LB':
+      return ['LB', 'CB', 'LM'];
+    case 'RB':
+      return ['RB', 'CB', 'RM'];
+    case 'CM':
+      return ['CM', 'CAM', 'LM', 'RM'];
+    case 'LM':
+      return ['LM', 'LW', 'CM'];
+    case 'RM':
+      return ['RM', 'RW', 'CM'];
+    case 'CAM':
+      return ['CAM', 'CM', 'ST'];
+    case 'LW':
+      return ['LW', 'LM', 'ST'];
+    case 'RW':
+      return ['RW', 'RM', 'ST'];
+    case 'ST':
+      return ['ST', 'CAM', 'LW', 'RW'];
+    default:
+      return [position || 'CM'];
+  }
+};
+
+const getSystemMarketSalary = (overall: number): number => {
+  const rating = normalizeRatingTo100Value(overall);
+  if (rating <= 45) return 4_000;
+  if (rating <= 55) return 6_500;
+  if (rating <= 65) return 9_500;
+  if (rating <= 75) return 14_500;
+  return 22_000;
+};
+
+const pickSystemOverall = (rand: () => number): number => {
+  const bucket = rand();
+  if (bucket < 0.72) {
+    return Number(((45 + rand() * 20) / 100).toFixed(3));
+  }
+  if (bucket < 0.94) {
+    return Number(((66 + rand() * 9) / 100).toFixed(3));
+  }
+  return Number(((76 + rand() * 6) / 100).toFixed(3));
+};
+
+const buildSystemMarketAttributes = (overall: number, rand: () => number) => {
+  const next = () => Number(clamp(overall + (rand() - 0.5) * 0.16, 0.25, 0.92).toFixed(3));
+  return {
+    strength: next(),
+    acceleration: next(),
+    topSpeed: next(),
+    dribbleSpeed: next(),
+    jump: next(),
+    tackling: next(),
+    ballKeeping: next(),
+    passing: next(),
+    longBall: next(),
+    agility: next(),
+    shooting: next(),
+    shootPower: next(),
+    positioning: next(),
+    reaction: next(),
+    ballControl: next(),
+  };
+};
+
+export const buildSystemMarketPlayer = (seed: string, index: number): PlayerSnapshot => {
+  const rand = mulberry32(hashSeed(`${seed}:${index}`));
+  const position = SYSTEM_MARKET_POSITIONS[index % SYSTEM_MARKET_POSITIONS.length] ?? 'CM';
+  const overall = pickSystemOverall(rand);
+  const potential = Number(clamp(overall + 0.03 + rand() * 0.13, overall, 0.9).toFixed(3));
+  const firstName = SYSTEM_MARKET_FIRST_NAMES[Math.floor(rand() * SYSTEM_MARKET_FIRST_NAMES.length)] ?? 'Pazar';
+  const lastName = SYSTEM_MARKET_LAST_NAMES[Math.floor(rand() * SYSTEM_MARKET_LAST_NAMES.length)] ?? 'Oyuncusu';
+  const playerId = `market-${seed}-${index}`;
+
+  return {
+    id: playerId,
+    uniqueId: playerId,
+    name: `${firstName} ${lastName}`,
+    position,
+    roles: getSystemMarketRoles(position),
+    overall,
+    potential,
+    attributes: buildSystemMarketAttributes(overall, rand),
+    age: Math.floor(18 + rand() * 17),
+    ageUpdatedAt: new Date().toISOString(),
+    height: Math.round(170 + rand() * 25),
+    weight: Math.round(65 + rand() * 22),
+    health: 1,
+    condition: Number((0.85 + rand() * 0.15).toFixed(3)),
+    motivation: Number((0.85 + rand() * 0.15).toFixed(3)),
+    injuryStatus: 'healthy',
+    squadRole: 'reserve',
+    ownerUid: SYSTEM_MARKET_SELLER_ID,
+    teamId: SYSTEM_MARKET_SELLER_ID,
+    market: {
+      active: true,
+      listingId: null,
+      autoListReason: 'market_top_up',
+    },
+    contract: {
+      expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
+      status: 'active',
+      salary: getSystemMarketSalary(overall),
+      extensions: 0,
+    },
+  };
+};
+
+export const resolveTransferMarketTopUpAmount = (
+  activeCount: number,
+  targetCount = TRANSFER_MARKET_TARGET_ACTIVE_LISTINGS,
+  limit = MAX_SYSTEM_MARKET_TOP_UP_PER_RUN,
+): number => {
+  const safeActive = Math.max(0, Math.floor(Number.isFinite(activeCount) ? activeCount : 0));
+  const safeTarget = Math.max(1, Math.floor(Number.isFinite(targetCount) ? targetCount : TRANSFER_MARKET_TARGET_ACTIVE_LISTINGS));
+  const safeLimit = Math.max(1, Math.floor(Number.isFinite(limit) ? limit : MAX_SYSTEM_MARKET_TOP_UP_PER_RUN));
+  return Math.min(Math.max(0, safeTarget - safeActive), safeLimit);
+};
+
 const parseMillis = (value: unknown): number | null => {
   if (value instanceof Timestamp) {
     return value.toMillis();
@@ -752,6 +1047,23 @@ const parseMillis = (value: unknown): number | null => {
     return value;
   }
   return null;
+};
+
+export const resolveTransferListingExpiresAtMs = (
+  listing: Pick<ListingDoc, 'expiresAt'> & { createdAt?: unknown },
+): number | null => {
+  const explicitExpiresAt = parseMillis(listing.expiresAt ?? null);
+  if (explicitExpiresAt !== null) return explicitExpiresAt;
+  const createdAtMs = parseMillis(listing.createdAt ?? null);
+  return createdAtMs === null ? null : createdAtMs + TRANSFER_LISTING_TTL_MS;
+};
+
+export const isTransferListingExpired = (
+  listing: Pick<ListingDoc, 'expiresAt'> & { createdAt?: unknown },
+  nowMs: number,
+): boolean => {
+  const expiresAtMs = resolveTransferListingExpiresAtMs(listing);
+  return expiresAtMs !== null && expiresAtMs <= nowMs;
 };
 
 const hasExpiredContract = (player: PlayerSnapshot, nowMs: number): boolean => {
@@ -864,6 +1176,7 @@ const createAutoListingForPlayer = async (
       const listingRef = listingsCollection.doc();
       const playerPath = `teams/${teamRef.id}/players/${playerId}`;
       const nowIso = new Date(nowMs).toISOString();
+      const expiresAt = getTransferListingExpiresAtIso(nowMs);
       const relistAfter = new Date(nowMs + AUTO_RELIST_COOLDOWN_MS).toISOString();
       const sanitizedPlayer = sanitizePlayerForListing(player, playerId);
 
@@ -887,6 +1200,7 @@ const createAutoListingForPlayer = async (
         overall: sanitizedPlayer.overall,
         sellerTeamName: team.name ?? 'Takımım',
         status: 'active',
+        expiresAt,
         autoListed: true,
         autoListReason: 'contract_expired',
         autoListedAt: nowIso,
@@ -945,7 +1259,8 @@ export const expireStaleTransferListings = functions
   .pubsub.schedule('every 6 hours')
   .timeZone('Europe/Istanbul')
   .onRun(async () => {
-    const cutoffMs = Date.now() - LISTING_TTL_MS;
+    const nowMs = Date.now();
+    const cutoffMs = nowMs - TRANSFER_LISTING_TTL_MS;
     const cutoff = Timestamp.fromMillis(cutoffMs);
 
     const snap = await listingsCollection
@@ -960,16 +1275,15 @@ export const expireStaleTransferListings = functions
         await db.runTransaction(async tx => {
           const listingSnap = await tx.get(doc.ref);
           if (!listingSnap.exists) return;
-          const listing = listingSnap.data() as ListingDoc & { createdAt?: Timestamp };
+          const listing = listingSnap.data() as ListingDoc & { createdAt?: unknown };
           if (listing.status !== 'active') return;
-          const createdAtMs = parseMillis(listing.createdAt ?? null);
-          if (createdAtMs === null || createdAtMs > cutoffMs) return;
+          if (!isTransferListingExpired(listing, nowMs)) return;
 
           await resetPlayerMarketState(tx, listing);
           tx.update(doc.ref, {
             status: 'expired',
             expiredAt: FieldValue.serverTimestamp(),
-            expiryReason: 'stale_3d',
+            expiryReason: `stale_${TRANSFER_LISTING_TTL_DAYS}d`,
           });
           expired++;
         });
@@ -985,6 +1299,7 @@ export const expireStaleTransferListings = functions
       scanned: snap.size,
       expired,
       cutoff: new Date(cutoffMs).toISOString(),
+      ttlDays: TRANSFER_LISTING_TTL_DAYS,
     });
 
     return undefined;
@@ -1037,4 +1352,189 @@ export const autoListExpiredContracts = functions
     });
 
     return { created, scannedTeams: teamsSnap.size };
+  });
+
+type TopUpTransferMarketOptions = {
+  dryRun?: boolean;
+  targetCount?: number;
+  limit?: number;
+};
+
+type TopUpTransferMarketResult = {
+  dryRun: boolean;
+  activeCount: number;
+  targetCount: number;
+  requested: number;
+  created: number;
+  sample: Array<{
+    playerId: string;
+    playerName?: string;
+    pos?: string;
+    overall?: number;
+    price: number;
+  }>;
+};
+
+const buildSystemListingPayload = (
+  listingId: string,
+  player: PlayerSnapshot,
+  nowIso: string,
+): ListingDoc & {
+  systemGenerated: true;
+  autoListed: true;
+  autoListReason: 'market_top_up';
+  autoListedAt: string;
+} => {
+  const playerId = String(player.id ?? `market-${listingId}`);
+  const createdAtMs = Date.parse(nowIso);
+  const expiresAt = getTransferListingExpiresAtIso(Number.isFinite(createdAtMs) ? createdAtMs : Date.now());
+  const sanitizedPlayer: PlayerSnapshot = {
+    ...sanitizePlayerForListing(player, playerId),
+    id: playerId,
+    ownerUid: SYSTEM_MARKET_SELLER_ID,
+    teamId: SYSTEM_MARKET_SELLER_ID,
+    market: {
+      ...(player.market ?? { active: true, listingId }),
+      active: true,
+      listingId,
+      autoListedAt: nowIso,
+      autoListReason: 'market_top_up',
+    },
+  };
+
+  return {
+    sellerUid: SYSTEM_MARKET_SELLER_ID,
+    sellerId: SYSTEM_MARKET_SELLER_ID,
+    teamId: SYSTEM_MARKET_SELLER_ID,
+    sellerTeamId: SYSTEM_MARKET_SELLER_ID,
+    playerId,
+    playerPath: '',
+    price: computeAutoListingPrice(sanitizedPlayer),
+    player: sanitizedPlayer,
+    playerName: sanitizedPlayer.name,
+    position: sanitizedPlayer.position,
+    pos: sanitizedPlayer.position,
+    overall: sanitizedPlayer.overall,
+    sellerTeamName: SYSTEM_MARKET_SELLER_NAME,
+    status: 'active',
+    expiresAt,
+    systemGenerated: true,
+    autoListed: true,
+    autoListReason: 'market_top_up',
+    autoListedAt: nowIso,
+  };
+};
+
+export async function topUpTransferMarketInternal(
+  options: TopUpTransferMarketOptions = {},
+): Promise<TopUpTransferMarketResult> {
+  const targetCount = Math.min(
+    parsePositiveInt(options.targetCount, TRANSFER_MARKET_TARGET_ACTIVE_LISTINGS, 500),
+    500,
+  );
+  const limit = parsePositiveInt(options.limit, MAX_SYSTEM_MARKET_TOP_UP_PER_RUN, MAX_SYSTEM_MARKET_TOP_UP_PER_RUN);
+  const dryRun = options.dryRun === true;
+
+  const activeSnap = await listingsCollection
+    .where('status', '==', 'active')
+    .select()
+    .limit(targetCount)
+    .get();
+  const activeCount = activeSnap.size;
+  const requested = resolveTransferMarketTopUpAmount(activeCount, targetCount, limit);
+  const now = new Date();
+  const nowIso = now.toISOString();
+  const seed = `${now.toISOString().slice(0, 10)}-${Date.now()}`;
+
+  const sample: TopUpTransferMarketResult['sample'] = [];
+  if (requested <= 0) {
+    return {
+      dryRun,
+      activeCount,
+      targetCount,
+      requested: 0,
+      created: 0,
+      sample,
+    };
+  }
+
+  const batch = db.batch();
+  for (let i = 0; i < requested; i++) {
+    const listingRef = listingsCollection.doc();
+    const player = buildSystemMarketPlayer(listingRef.id || seed, i);
+    const payload = buildSystemListingPayload(listingRef.id, player, nowIso);
+    sample.push({
+      playerId: payload.playerId,
+      playerName: payload.playerName,
+      pos: payload.pos,
+      overall: payload.overall,
+      price: payload.price,
+    });
+
+    if (!dryRun) {
+      batch.set(listingRef, {
+        ...payload,
+        createdAt: FieldValue.serverTimestamp(),
+      });
+    }
+  }
+
+  if (!dryRun) {
+    await batch.commit();
+  }
+
+  return {
+    dryRun,
+    activeCount,
+    targetCount,
+    requested,
+    created: dryRun ? 0 : requested,
+    sample,
+  };
+}
+
+export const topUpTransferMarketDaily = functions
+  .runWith({ timeoutSeconds: 300, memory: '512MB' })
+  .region(region)
+  .pubsub.schedule(TOP_UP_TRANSFER_MARKET_CRON)
+  .timeZone(TZ)
+  .onRun(async () => {
+    const result = await topUpTransferMarketInternal();
+    functions.logger.info('[market] topUpTransferMarketDaily complete', result);
+    return result;
+  });
+
+export const topUpTransferMarketHttp = functions
+  .runWith({ timeoutSeconds: 300, memory: '512MB' })
+  .region(region)
+  .https.onRequest(async (req, res) => {
+    if (applyCors(req, res)) return;
+    if (req.method !== 'POST') {
+      res.status(405).json({ ok: false, error: 'method_not_allowed' });
+      return;
+    }
+    if (!requireAdminSecret(req, res)) return;
+
+    try {
+      const body = readRequestBody(req);
+      const result = await topUpTransferMarketInternal({
+        dryRun: parseBoolean(body.dryRun ?? req.query?.dryRun, false),
+        targetCount: parsePositiveInt(
+          body.targetCount ?? req.query?.targetCount,
+          TRANSFER_MARKET_TARGET_ACTIVE_LISTINGS,
+          500,
+        ),
+        limit: parsePositiveInt(
+          body.limit ?? req.query?.limit,
+          MAX_SYSTEM_MARKET_TOP_UP_PER_RUN,
+          MAX_SYSTEM_MARKET_TOP_UP_PER_RUN,
+        ),
+      });
+      res.json({ ok: true, ...result });
+    } catch (error: any) {
+      functions.logger.error('[market] topUpTransferMarketHttp failed', {
+        error: error?.message || String(error),
+      });
+      res.status(500).json({ ok: false, error: error?.message || 'internal' });
+    }
   });

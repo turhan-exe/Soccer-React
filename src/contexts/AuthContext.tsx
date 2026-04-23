@@ -394,12 +394,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
               console.error('[AuthContext] createInitialTeam failed after login', creationError);
             }
           } else if (!(team as any)?.leagueId) {
-            await triggerConditionRecoveryToast('login');
-            try {
-              await requestAssign(firebaseUser.uid);
-            } catch {}
+            void triggerConditionRecoveryToast('login');
+            void requestAssign(firebaseUser.uid).catch(() => undefined);
           } else {
-            await triggerConditionRecoveryToast('login');
+            void triggerConditionRecoveryToast('login');
           }
         } else if (isActive) {
           conditionRecoveryStateRef.current = {

@@ -10,11 +10,13 @@ export default defineConfig(({ mode }) => {
 
   return {
     plugins: [
-      viteSourceLocator({
-        prefix: "mgx",
-      }),
+      mode !== "production"
+        ? viteSourceLocator({
+            prefix: "mgx",
+          })
+        : null,
       react(),
-    ],
+    ].filter(Boolean),
     resolve: {
       alias: {
         "@": path.resolve(__dirname, "./src"),

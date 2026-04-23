@@ -22,6 +22,7 @@ const reconciledTeamIds = new Set<string>();
 
 type UseClubFinanceOptions = {
   includeDetails?: boolean;
+  enabled?: boolean;
 };
 
 type UseClubFinanceResult = ClubFinanceSnapshot & {
@@ -38,7 +39,7 @@ type UseClubFinanceResult = ClubFinanceSnapshot & {
 export function useClubFinance(
   options: UseClubFinanceOptions = {},
 ): UseClubFinanceResult {
-  const { includeDetails = false } = options;
+  const { includeDetails = false, enabled = true } = options;
   const { user } = useAuth();
   const { balance: diamondBalance } = useDiamonds();
 
@@ -54,7 +55,7 @@ export function useClubFinance(
   const [sponsors, setSponsors] = useState<UserSponsorDoc[]>([]);
 
   useEffect(() => {
-    if (!user) {
+    if (!enabled || !user) {
       setLoading(false);
       setTeamBudget(null);
       setLegacyBudget(null);
@@ -151,7 +152,7 @@ export function useClubFinance(
     return () => {
       unsubscribers.forEach((unsubscribe) => unsubscribe());
     };
-  }, [includeDetails, user]);
+  }, [enabled, includeDetails, user]);
 
   const cashBalance = useMemo(
     () =>

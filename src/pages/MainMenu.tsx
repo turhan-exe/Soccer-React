@@ -110,8 +110,10 @@ import {
   getMatchEntryAccessOutcomeMessage,
 } from '@/services/matchEntryAccess';
 import '@/styles/nostalgia-theme.css';
+import { markStartupTiming } from '@/services/startupTiming';
 
 const VIP_RENDER_STABILIZATION_MS = 1000;
+const MAIN_MENU_DATA_DEFER_MS = 700;
 
 const KIT_ICONS: Record<KitType, { icon: any; color: string }> = {
   energy: { icon: BatteryCharging, color: 'text-emerald-500' },
@@ -239,7 +241,13 @@ const MenuButton = ({
   >
     <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100 pointer-events-none" />
     <div className={`relative z-10 transition-transform duration-300 group-hover:scale-110 drop-shadow-2xl ${layout === 'horizontal' ? 'w-12 h-12' : 'flex-1 w-full max-h-[75%] flex items-center justify-center'}`}>
-      <img src={icon} alt={label} className="w-auto h-full max-h-full object-contain filter drop-shadow-md" />
+      <img
+        src={icon}
+        alt={label}
+        loading="lazy"
+        decoding="async"
+        className="w-auto h-full max-h-full object-contain filter drop-shadow-md"
+      />
     </div>
     {!hideLabel && (
       <span className={`relative z-10 font-bold text-white tracking-wide uppercase drop-shadow-md group-hover:text-cyan-200 
@@ -266,7 +274,10 @@ export default function MainMenu() {
     isHydrated,
     isVipReady,
   } = useInventory();
-  const { cashBalance, loading: financeLoading } = useClubFinance();
+  const [mainMenuDataEnabled, setMainMenuDataEnabled] = useState(false);
+  const { cashBalance, loading: financeLoading } = useClubFinance({
+    enabled: mainMenuDataEnabled,
+  });
 
   const [matchHighlight, setMatchHighlight] = useState<MatchHighlight | null>(null);
   const [matchHighlightLoading, setMatchHighlightLoading] = useState(true);
@@ -275,6 +286,7 @@ export default function MainMenu() {
   const [actionableMatchLoading, setActionableMatchLoading] = useState(false);
   const launchFailureToastAttemptIdRef = useRef<string | null>(null);
   const bootVisualReadyRef = useRef(false);
+  const mainMenuDataReadyMarkedRef = useRef(false);
   const matchControlReady = useMemo(() => isMatchControlConfigured(), []);
   const canLaunchNativeMatch = useMemo(
     () => Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'android',
@@ -325,6 +337,41 @@ export default function MainMenu() {
     [formatNumber],
   );
   const clubBalanceAdsSupported = isRewardedAdsSupported();
+
+  useEffect(() => {
+    if (
+      !mainMenuDataEnabled ||
+      mainMenuDataReadyMarkedRef.current ||
+      matchHighlightLoading ||
+      actionableMatchLoading
+    ) {
+      return;
+    }
+
+    mainMenuDataReadyMarkedRef.current = true;
+    markStartupTiming('main_menu_data_ready');
+  }, [actionableMatchLoading, mainMenuDataEnabled, matchHighlightLoading]);
+
+  useEffect(() => {
+    let rafA = 0;
+    let rafB = 0;
+    const timeoutId = window.setTimeout(() => {
+      setMainMenuDataEnabled(true);
+      markStartupTiming('main_menu_deferred_data_enabled');
+    }, MAIN_MENU_DATA_DEFER_MS);
+
+    rafA = window.requestAnimationFrame(() => {
+      rafB = window.requestAnimationFrame(() => {
+        markStartupTiming('main_menu_shell_painted');
+      });
+    });
+
+    return () => {
+      window.clearTimeout(timeoutId);
+      window.cancelAnimationFrame(rafA);
+      window.cancelAnimationFrame(rafB);
+    };
+  }, []);
 
   // Auto-cycle kits every 5 seconds
   useEffect(() => {
@@ -478,7 +525,7 @@ export default function MainMenu() {
 
   // --- Rank Fetching ---
   useEffect(() => {
-    if (!user) return;
+    if (!mainMenuDataEnabled || !user) return;
     const fetchRank = async () => {
       try {
         const leagueId = await getMyLeagueId(user.id);
@@ -492,11 +539,11 @@ export default function MainMenu() {
       }
     };
     fetchRank();
-  }, [user]);
+  }, [mainMenuDataEnabled, user]);
 
   // --- Notifications Logic (Ported from TopBar) ---
   useEffect(() => {
-    if (!user) return;
+    if (!mainMenuDataEnabled || !user) return;
     let cancelled = false;
 
     const loadStatus = async () => {
@@ -519,7 +566,7 @@ export default function MainMenu() {
     };
     loadStatus();
     return () => { cancelled = true; };
-  }, [user]);
+  }, [mainMenuDataEnabled, user]);
 
   const notifications = useMemo(() => {
     const items: { id: string; message: string; icon: any; path: string; accent: string }[] = [];
@@ -835,11 +882,15 @@ export default function MainMenu() {
   ]);
 
   useEffect(() => {
+    if (!mainMenuDataEnabled) {
+      return;
+    }
+
     void loadActionableMatchTile();
-  }, [loadActionableMatchTile]);
+  }, [loadActionableMatchTile, mainMenuDataEnabled]);
 
   useEffect(() => {
-    if (!user?.id || !matchControlReady || !canLaunchNativeMatch) {
+    if (!mainMenuDataEnabled || !user?.id || !matchControlReady || !canLaunchNativeMatch) {
       return;
     }
 
@@ -863,10 +914,10 @@ export default function MainMenu() {
     });
 
     return unsubscribe;
-  }, [canLaunchNativeMatch, logFriendlyToast, matchControlReady, user?.id]);
+  }, [canLaunchNativeMatch, logFriendlyToast, mainMenuDataEnabled, matchControlReady, user?.id]);
 
   useEffect(() => {
-    if (!user?.id) return;
+    if (!mainMenuDataEnabled || !user?.id) return;
 
     let timerId: number | undefined;
     let disposed = false;
@@ -925,7 +976,14 @@ export default function MainMenu() {
       window.removeEventListener('focus', handleFocus);
       document.removeEventListener('visibilitychange', handleFocus);
     };
-  }, [canLaunchNativeMatch, loadActionableMatchTile, matchControlReady, user?.id, user?.teamName]);
+  }, [
+    canLaunchNativeMatch,
+    loadActionableMatchTile,
+    mainMenuDataEnabled,
+    matchControlReady,
+    user?.id,
+    user?.teamName,
+  ]);
 
   // --- Existing Logic (Quick Stats / Match Highlight) ---
   useEffect(() => {
@@ -976,7 +1034,7 @@ export default function MainMenu() {
         let teamOverall: number | null = null;
         if (leagueId) {
           const [fixtures, leagueTeams, myTeam] = await Promise.all([
-            getFixturesForTeam(leagueId, user.id),
+            getFixturesForTeamSlotAware(leagueId, user.id),
             getLeagueTeams(leagueId).catch(() => []),
             getTeam(user.id).catch(() => null),
           ]);
@@ -997,7 +1055,7 @@ export default function MainMenu() {
             try {
               const [oppTeam, oppFix] = await Promise.all([
                 getTeam(opponentId).catch(() => null),
-                getFixturesForTeam(leagueId, opponentId).catch(() => [])
+                getFixturesForTeamSlotAware(leagueId, opponentId).catch(() => [])
               ]);
               opponentLogo = oppTeam?.logo;
               opponentForm = computeForm(oppFix, opponentId);
@@ -1037,12 +1095,19 @@ export default function MainMenu() {
         }
       }
     };
+
+    if (!mainMenuDataEnabled) {
+      return () => {
+        cancelled = true;
+      };
+    }
+
     loadQuickStats();
 
     return () => {
       cancelled = true;
     };
-  }, [formatDate, t, user]);
+  }, [formatDate, mainMenuDataEnabled, t, user]);
 
   const renderLogo = (logo?: string | null, alt?: string, size = 'w-16 h-16') => {
     const src = getValidLogo(logo);

@@ -107,12 +107,12 @@ describe('claimTeamConditionRecoveryToast', () => {
               createPlayer({ id: 'p2', condition: 0.5 }),
             ],
             conditionRecoveryPendingToast: {
-              conditionGain: 0.04,
-              motivationGain: 0.03,
-              healthGain: 0.02,
+              conditionGain: 0.1,
+              motivationGain: 0.06,
+              healthGain: 0.04,
               totalPlayers: 2,
               affectedPlayers: 2,
-              appliedTicks: 2,
+              appliedTicks: 1,
               updatedAt: '2026-04-18T16:00:00.000Z',
             },
           }),
@@ -124,9 +124,9 @@ describe('claimTeamConditionRecoveryToast', () => {
     const result = await claimTeamConditionRecoveryToast('user-1');
 
     expect(result.status).toBe('ok');
-    expect(result.averageConditionGainPct).toBe(2);
-    expect(result.averageMotivationGainPct).toBe(1.5);
-    expect(result.averageHealthGainPct).toBe(1);
+    expect(result.averageConditionGainPct).toBe(5);
+    expect(result.averageMotivationGainPct).toBe(3);
+    expect(result.averageHealthGainPct).toBe(2);
     expect(setMock).toHaveBeenCalledOnce();
     expect(setMock.mock.calls[0]?.[1]).toMatchObject({
       conditionRecoveryPendingToast: null,
