@@ -33,7 +33,8 @@ type RewardPlacement =
   | 'training_finish'
   | 'player_rename'
   | 'youth_cooldown'
-  | 'match_entry';
+  | 'match_entry'
+  | 'halftime_energy';
 type RewardSessionStatus = 'created' | 'verified' | 'claimed';
 type KitType = 'energy' | 'morale' | 'health';
 type RewardedAdDiagnosticStage = 'init' | 'load' | 'show' | 'ssv' | 'unknown';
@@ -172,6 +173,7 @@ const sanitizePlacement = (value: unknown): RewardPlacement => {
     && placement !== 'player_rename'
     && placement !== 'youth_cooldown'
     && placement !== 'match_entry'
+    && placement !== 'halftime_energy'
   ) {
     throw new functions.https.HttpsError('invalid-argument', 'Gecersiz reklam placement gonderildi.');
   }
@@ -333,6 +335,17 @@ const sanitizeSessionContext = (
       matchId: sanitized.matchId == null ? null : sanitizeFirestoreDocSegment(sanitized.matchId, 'matchId'),
       competitionType: normalizeString(sanitized.competitionType) || null,
       surface: normalizeString(sanitized.surface),
+    };
+  }
+
+  if (placement === 'halftime_energy') {
+    return {
+      ...sanitized,
+      matchId: sanitized.matchId == null ? null : sanitizeFirestoreDocSegment(sanitized.matchId, 'matchId'),
+      side: normalizeString(sanitized.side),
+      lineupSessionId: normalizeOptionalNumber(sanitized.lineupSessionId),
+      requestId: normalizeString(sanitized.requestId),
+      surface: normalizeString(sanitized.surface) || 'unity_halftime',
     };
   }
 
@@ -1074,6 +1087,8 @@ export const claimRewardedAdReward = functions
       reward = await claimYouthCooldownReward(uid, sessionRef);
     } else if (session.placement === 'match_entry') {
       reward = await claimMatchEntryReward(uid, sessionRef, session);
+    } else if (session.placement === 'halftime_energy') {
+      throw new functions.https.HttpsError('failed-precondition', 'Devre arasi enerji odulu mac runtime tarafindan uygulanir.');
     } else {
       reward = await claimPlayerRenameReward(uid, sessionRef, session);
     }

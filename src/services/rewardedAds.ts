@@ -9,7 +9,8 @@ export type RewardPlacement =
   | 'training_finish'
   | 'player_rename'
   | 'youth_cooldown'
-  | 'match_entry';
+  | 'match_entry'
+  | 'halftime_energy';
 
 export type MatchEntryKind = 'friendly' | 'league' | 'champions';
 

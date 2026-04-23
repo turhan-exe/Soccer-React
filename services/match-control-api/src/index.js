@@ -8,7 +8,7 @@ import Redis from "ioredis";
 import pg from "pg";
 import { applicationDefault, cert, getApps, initializeApp as initializeFirebaseAdminApp } from "firebase-admin/app";
 import { getAuth as getFirebaseAuth } from "firebase-admin/auth";
-import { getFirestore as getFirebaseFirestore } from "firebase-admin/firestore";
+import { FieldValue, Timestamp, getFirestore as getFirebaseFirestore } from "firebase-admin/firestore";
 import {
   buildRewardedMatchEntryAccessDocId,
   isRewardedMatchEntryAccessActive,
@@ -4432,6 +4432,159 @@ fastify.post("/v1/league/kickoff-slot", async (request, reply) => {
     serverIp: match.serverIp,
     serverPort: match.serverPort,
   });
+});
+
+function normalizeHalftimeEnergySide(value) {
+  const side = String(value || "").trim().toLowerCase();
+  return side === "home" || side === "away" ? side : "";
+}
+
+function assertHalftimeEnergyAccess(match, side, userId) {
+  const expectedUserId =
+    side === "home"
+      ? String(match?.homeUserId || "").trim()
+      : String(match?.awayUserId || "").trim();
+  return expectedUserId && expectedUserId === String(userId || "").trim();
+}
+
+function rewardedSessionExpiryTimestamp() {
+  return Timestamp.fromMillis(Date.now() + 15 * 60 * 1000);
+}
+
+fastify.post("/v1/internal/matches/:matchId/halftime-energy/session", async (request, reply) => {
+  if (!requireCallbackAuth(request, reply)) return;
+
+  const { matchId } = request.params;
+  const body = request.body || {};
+  const side = normalizeHalftimeEnergySide(body.side);
+  const userId = String(body.userId || "").trim();
+  const requestId = String(body.requestId || "").trim();
+  const lineupSessionId = Number(body.lineupSessionId || 0);
+  if (!side || !userId || !requestId || !Number.isFinite(lineupSessionId) || lineupSessionId <= 0) {
+    return reply.code(400).send({ error: "invalid_halftime_energy_request" });
+  }
+
+  const match = await getMatchById(matchId);
+  if (!match) {
+    return reply.code(404).send({ error: "match_not_found" });
+  }
+  if (!assertHalftimeEnergyAccess(match, side, userId)) {
+    return reply.code(403).send({ error: "halftime_energy_user_mismatch" });
+  }
+
+  const firestore = getFirebaseAdminFirestore();
+  const sessionRef = firestore.collection("rewardedAdSessions").doc();
+  await sessionRef.set({
+    uid: userId,
+    placement: "halftime_energy",
+    context: {
+      matchId,
+      side,
+      mode: match.mode || null,
+      lineupSessionId,
+      requestId,
+      source: "match_control_halftime",
+    },
+    status: "created",
+    createdAt: FieldValue.serverTimestamp(),
+    expiresAt: rewardedSessionExpiryTimestamp(),
+    verifiedAt: null,
+    claimedAt: null,
+    transactionId: null,
+    adUnitId: null,
+    adNetwork: null,
+    rewardItem: null,
+    rewardAmount: null,
+    userId,
+    claimResult: null,
+  });
+
+  fastify.log.info(
+    { matchId, side, userId, sessionId: sessionRef.id, lineupSessionId },
+    "halftime_energy_session_created",
+  );
+  return reply.send({ sessionId: sessionRef.id });
+});
+
+fastify.post("/v1/internal/matches/:matchId/halftime-energy/claim", async (request, reply) => {
+  if (!requireCallbackAuth(request, reply)) return;
+
+  const { matchId } = request.params;
+  const body = request.body || {};
+  const side = normalizeHalftimeEnergySide(body.side);
+  const userId = String(body.userId || "").trim();
+  const sessionId = String(body.sessionId || "").trim();
+  const requestId = String(body.requestId || "").trim();
+  const lineupSessionId = Number(body.lineupSessionId || 0);
+  if (!side || !userId || !sessionId || !requestId || !Number.isFinite(lineupSessionId) || lineupSessionId <= 0) {
+    return reply.code(400).send({ status: "failed", error: "invalid_halftime_energy_claim" });
+  }
+
+  const match = await getMatchById(matchId);
+  if (!match) {
+    return reply.code(404).send({ status: "failed", error: "match_not_found" });
+  }
+  if (!assertHalftimeEnergyAccess(match, side, userId)) {
+    return reply.code(403).send({ status: "failed", error: "halftime_energy_user_mismatch" });
+  }
+
+  const firestore = getFirebaseAdminFirestore();
+  const sessionRef = firestore.collection("rewardedAdSessions").doc(sessionId);
+  const result = await firestore.runTransaction(async (tx) => {
+    const snap = await tx.get(sessionRef);
+    if (!snap.exists) {
+      return { status: "failed", error: "session_not_found" };
+    }
+
+    const session = snap.data() || {};
+    const context = session.context || {};
+    if (
+      session.uid !== userId ||
+      session.placement !== "halftime_energy" ||
+      context.matchId !== matchId ||
+      context.side !== side ||
+      Number(context.lineupSessionId || 0) !== lineupSessionId ||
+      String(context.requestId || "") !== requestId
+    ) {
+      return { status: "failed", error: "session_mismatch" };
+    }
+
+    if (session.status === "claimed") {
+      return { status: "already_claimed" };
+    }
+
+    if (session.expiresAt?.toMillis && session.expiresAt.toMillis() < Date.now()) {
+      return { status: "failed", error: "session_expired" };
+    }
+
+    if (session.status !== "verified") {
+      return { status: "pending_verification" };
+    }
+
+    tx.set(
+      sessionRef,
+      {
+        status: "claimed",
+        claimedAt: FieldValue.serverTimestamp(),
+        claimResult: {
+          type: "halftime_energy",
+          matchId,
+          side,
+          lineupSessionId,
+          requestId,
+          conditionDelta: 0.2,
+        },
+      },
+      { merge: true },
+    );
+    return { status: "claimed" };
+  });
+
+  fastify.log.info(
+    { matchId, side, userId, sessionId, status: result.status },
+    "halftime_energy_claim_result",
+  );
+  return reply.send(result);
 });
 
 fastify.post("/v1/internal/matches/:matchId/lifecycle", async (request, reply) => {
