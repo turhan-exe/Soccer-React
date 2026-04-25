@@ -63,7 +63,7 @@ type UnityMatchPluginOpenPayload = {
 
 type UnityMatchPlugin = {
   openMatch(payload: UnityMatchPluginOpenPayload): Promise<UnityLaunchResult>;
-  closeMatch(payload?: { reason?: string }): Promise<{ ok: boolean }>;
+  closeMatch(payload?: { reason?: string }): Promise<{ ok: boolean; requested?: boolean }>;
   getLaunchStatus(): Promise<UnityLaunchStatus>;
   addListener(
     eventName: 'unityEvent',
@@ -195,13 +195,13 @@ export const unityBridge = {
     return launchWebMock(ip, port, matchRequest);
   },
 
-  async closeMatchActivity(reason?: string): Promise<void> {
+  async closeMatchActivity(reason?: string): Promise<{ ok: boolean; requested?: boolean }> {
     if (!isAndroidNativePlatform()) {
       console.log('[UnityBridge] closeMatchActivity() ignored on non-Android platform.');
-      return;
+      return { ok: true, requested: false };
     }
 
-    await UnityMatch.closeMatch(
+    return UnityMatch.closeMatch(
       reason && reason.trim().length > 0
         ? { reason: reason.trim() }
         : undefined,

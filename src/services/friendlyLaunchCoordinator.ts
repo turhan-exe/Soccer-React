@@ -491,7 +491,23 @@ async function prepareManualNativeLaunch(
   logFriendlyLaunch('native_launch_already_active_different_match', activeContext, launchMetadata);
   logFriendlyLaunch('manual_launch_force_close_stale_host', activeContext, launchMetadata);
 
-  await unityBridge.closeMatchActivity('manual_launch_force_close_stale_host');
+  const closeResult = await unityBridge.closeMatchActivity('manual_launch_force_close_stale_host');
+  if (closeResult?.requested === false) {
+    await pause(NATIVE_LAUNCH_CLOSE_POLL_MS);
+    const statusAfterCloseAttempt = await unityBridge.getLaunchStatus().catch(() => null);
+    if (!statusAfterCloseAttempt?.active && !statusAfterCloseAttempt?.inFlight) {
+      clearFriendlyLaunchClaim({
+        requestId: args.requestId || activeContext.requestId,
+        matchId: activeMatchId || resolvedMatchId || args.matchId,
+      });
+      logFriendlyLaunch('manual_launch_close_not_requested_but_inactive', activeContext, {
+        ...launchMetadata,
+        closeRequested: false,
+      });
+      return;
+    }
+  }
+
   await waitForNativeLaunchInactive();
 
   clearFriendlyLaunchClaim({

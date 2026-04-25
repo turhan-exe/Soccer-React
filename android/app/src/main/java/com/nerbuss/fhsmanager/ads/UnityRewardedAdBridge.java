@@ -13,6 +13,8 @@ import com.google.android.gms.ads.MobileAds;
 import com.google.android.gms.ads.rewarded.RewardedAd;
 import com.google.android.gms.ads.rewarded.RewardedAdLoadCallback;
 import com.google.android.gms.ads.rewarded.ServerSideVerificationOptions;
+import com.google.android.gms.ads.rewardedinterstitial.RewardedInterstitialAd;
+import com.google.android.gms.ads.rewardedinterstitial.RewardedInterstitialAdLoadCallback;
 import com.nerbuss.fhsmanager.BuildConfig;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
@@ -52,65 +54,136 @@ public final class UnityRewardedAdBridge {
 
           showing = true;
           tryInitialize(activity);
-          RewardedAd.load(
+          loadRewarded(
               activity,
-              BuildConfig.ADMOB_REWARDED_AD_UNIT_ID,
-              new AdRequest.Builder().build(),
-              new RewardedAdLoadCallback() {
-                @Override
-                public void onAdFailedToLoad(LoadAdError error) {
-                  showing = false;
-                  String message =
-                      error != null
-                          ? "load_failed:" + error.getCode() + ":" + error.getMessage()
-                          : "load_failed";
-                  Log.w(TAG, message);
-                  send(unityObjectName, unityCallbackMethod, "failed", message);
-                }
-
-                @Override
-                public void onAdLoaded(RewardedAd ad) {
-                  if (ad == null) {
-                    showing = false;
-                    send(unityObjectName, unityCallbackMethod, "failed", "ad_loaded_null");
-                    return;
-                  }
-
-                  ad.setServerSideVerificationOptions(
-                      new ServerSideVerificationOptions.Builder()
-                          .setUserId(safeUserId)
-                          .setCustomData(safeCustomData)
-                          .build());
-
-                  final boolean[] earned = new boolean[] {false};
-                  ad.setFullScreenContentCallback(
-                      new FullScreenContentCallback() {
-                        @Override
-                        public void onAdDismissedFullScreenContent() {
-                          showing = false;
-                          send(
-                              unityObjectName,
-                              unityCallbackMethod,
-                              earned[0] ? "earned" : "dismissed",
-                              earned[0] ? "earned" : "dismissed");
-                        }
-
-                        @Override
-                        public void onAdFailedToShowFullScreenContent(AdError adError) {
-                          showing = false;
-                          String message =
-                              adError != null
-                                  ? "show_failed:" + adError.getCode() + ":" + adError.getMessage()
-                                  : "show_failed";
-                          Log.w(TAG, message);
-                          send(unityObjectName, unityCallbackMethod, "failed", message);
-                        }
-                      });
-
-                  ad.show(activity, rewardItem -> earned[0] = true);
-                }
-              });
+              unityObjectName,
+              unityCallbackMethod,
+              safeUserId,
+              safeCustomData,
+              true);
         });
+  }
+
+  private static void loadRewarded(
+      Activity activity,
+      String unityObjectName,
+      String unityCallbackMethod,
+      String safeUserId,
+      String safeCustomData,
+      boolean allowFormatFallback) {
+    RewardedAd.load(
+        activity,
+        BuildConfig.ADMOB_REWARDED_AD_UNIT_ID,
+        new AdRequest.Builder().build(),
+        new RewardedAdLoadCallback() {
+          @Override
+          public void onAdFailedToLoad(LoadAdError error) {
+            String message =
+                error != null
+                    ? "load_failed:" + error.getCode() + ":" + error.getMessage()
+                    : "load_failed";
+            if (allowFormatFallback && isFormatMismatch(error)) {
+              Log.w(TAG, "Rewarded load format mismatch, retrying as rewarded interstitial.");
+              loadRewardedInterstitial(
+                  activity, unityObjectName, unityCallbackMethod, safeUserId, safeCustomData);
+              return;
+            }
+
+            showing = false;
+            Log.w(TAG, message);
+            send(unityObjectName, unityCallbackMethod, "failed", message);
+          }
+
+          @Override
+          public void onAdLoaded(RewardedAd ad) {
+            if (ad == null) {
+              showing = false;
+              send(unityObjectName, unityCallbackMethod, "failed", "ad_loaded_null");
+              return;
+            }
+
+            ServerSideVerificationOptions options =
+                new ServerSideVerificationOptions.Builder()
+                    .setUserId(safeUserId)
+                    .setCustomData(safeCustomData)
+                    .build();
+            ad.setServerSideVerificationOptions(options);
+            final boolean[] earned = new boolean[] {false};
+            ad.setFullScreenContentCallback(createFullScreenCallback(unityObjectName, unityCallbackMethod, earned));
+            ad.show(activity, rewardItem -> earned[0] = true);
+          }
+        });
+  }
+
+  private static void loadRewardedInterstitial(
+      Activity activity,
+      String unityObjectName,
+      String unityCallbackMethod,
+      String safeUserId,
+      String safeCustomData) {
+    RewardedInterstitialAd.load(
+        activity,
+        BuildConfig.ADMOB_REWARDED_AD_UNIT_ID,
+        new AdRequest.Builder().build(),
+        new RewardedInterstitialAdLoadCallback() {
+          @Override
+          public void onAdFailedToLoad(LoadAdError error) {
+            showing = false;
+            String message =
+                error != null
+                    ? "load_failed:" + error.getCode() + ":" + error.getMessage()
+                    : "load_failed";
+            Log.w(TAG, message);
+            send(unityObjectName, unityCallbackMethod, "failed", message);
+          }
+
+          @Override
+          public void onAdLoaded(RewardedInterstitialAd ad) {
+            if (ad == null) {
+              showing = false;
+              send(unityObjectName, unityCallbackMethod, "failed", "ad_loaded_null");
+              return;
+            }
+
+            ServerSideVerificationOptions options =
+                new ServerSideVerificationOptions.Builder()
+                    .setUserId(safeUserId)
+                    .setCustomData(safeCustomData)
+                    .build();
+            ad.setServerSideVerificationOptions(options);
+            final boolean[] earned = new boolean[] {false};
+            ad.setFullScreenContentCallback(createFullScreenCallback(unityObjectName, unityCallbackMethod, earned));
+            ad.show(activity, rewardItem -> earned[0] = true);
+          }
+        });
+  }
+
+  private static FullScreenContentCallback createFullScreenCallback(
+      String unityObjectName,
+      String unityCallbackMethod,
+      boolean[] earned) {
+    return new FullScreenContentCallback() {
+      @Override
+      public void onAdDismissedFullScreenContent() {
+        showing = false;
+        send(
+            unityObjectName,
+            unityCallbackMethod,
+            earned[0] ? "earned" : "dismissed",
+            earned[0] ? "earned" : "dismissed");
+      }
+
+      @Override
+      public void onAdFailedToShowFullScreenContent(AdError adError) {
+        showing = false;
+        String message =
+            adError != null
+                ? "show_failed:" + adError.getCode() + ":" + adError.getMessage()
+                : "show_failed";
+        Log.w(TAG, message);
+        send(unityObjectName, unityCallbackMethod, "failed", message);
+      }
+    };
   }
 
   private static void tryInitialize(Activity activity) {
@@ -162,6 +235,11 @@ public final class UnityRewardedAdBridge {
 
   private static String trim(String value) {
     return value == null ? "" : value.trim();
+  }
+
+  private static boolean isFormatMismatch(LoadAdError error) {
+    String message = trim(error == null ? null : error.getMessage()).toLowerCase();
+    return message.contains("match format");
   }
 
   private static String escape(String value) {

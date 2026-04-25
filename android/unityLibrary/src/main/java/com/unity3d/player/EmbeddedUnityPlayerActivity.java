@@ -1,6 +1,8 @@
 package com.unity3d.player;
 
 import android.app.Activity;
+import android.os.Handler;
+import android.os.Looper;
 import android.util.Log;
 
 /**
@@ -9,6 +11,22 @@ import android.util.Log;
  */
 public class EmbeddedUnityPlayerActivity extends UnityPlayerActivity {
     private static final String TAG = "EmbeddedUnityPlayer";
+    private static final long SHELL_RETURN_FALLBACK_MS = 1800L;
+
+    private final Handler mainHandler = new Handler(Looper.getMainLooper());
+    private final Runnable shellReturnFallback =
+            new Runnable() {
+                @Override
+                public void run() {
+                    if (!shellReturnRequested || finishRequested || isFinishing()) {
+                        return;
+                    }
+
+                    Log.w(TAG, "requestReturnToShell: unload callback timeout, forcing finish.");
+                    finishForShellReturn();
+                }
+            };
+
     private boolean shellReturnRequested;
     private boolean skipDestroyOnDestroy;
     private boolean finishRequested;
@@ -30,54 +48,10 @@ public class EmbeddedUnityPlayerActivity extends UnityPlayerActivity {
             skipDestroyOnDestroy = true;
             skipDestroyOnDestroy = true;
             skipDestroyOnDestroy = true;
-            skipDestroyOnDestroy = true;
-            skipDestroyOnDestroy = true;
-            skipDestroyOnDestroy = true;
-            skipDestroyOnDestroy = true;
-            skipDestroyOnDestroy = true;
-            skipDestroyOnDestroy = true;
-            skipDestroyOnDestroy = true;
-            skipDestroyOnDestroy = true;
-            skipDestroyOnDestroy = true;
-            skipDestroyOnDestroy = true;
-            skipDestroyOnDestroy = true;
-            skipDestroyOnDestroy = true;
-            skipDestroyOnDestroy = true;
-            skipDestroyOnDestroy = true;
-            skipDestroyOnDestroy = true;
-            skipDestroyOnDestroy = true;
-            skipDestroyOnDestroy = true;
-            skipDestroyOnDestroy = true;
-            skipDestroyOnDestroy = true;
-            skipDestroyOnDestroy = true;
-            skipDestroyOnDestroy = true;
-            skipDestroyOnDestroy = true;
-            skipDestroyOnDestroy = true;
-            skipDestroyOnDestroy = true;
-            skipDestroyOnDestroy = true;
-            skipDestroyOnDestroy = true;
-            skipDestroyOnDestroy = true;
-            skipDestroyOnDestroy = true;
-            skipDestroyOnDestroy = true;
-            skipDestroyOnDestroy = true;
-            skipDestroyOnDestroy = true;
-            skipDestroyOnDestroy = true;
-            skipDestroyOnDestroy = true;
-            skipDestroyOnDestroy = true;
-            skipDestroyOnDestroy = true;
-            skipDestroyOnDestroy = true;
-            skipDestroyOnDestroy = true;
-            skipDestroyOnDestroy = true;
-            skipDestroyOnDestroy = true;
-            skipDestroyOnDestroy = true;
-            skipDestroyOnDestroy = true;
-            skipDestroyOnDestroy = true;
-            skipDestroyOnDestroy = true;
-            skipDestroyOnDestroy = true;
-            skipDestroyOnDestroy = true;
-            skipDestroyOnDestroy = true;
-            skipDestroyOnDestroy = true;
-            skipDestroyOnDestroy = true;
+
+
+            scheduleShellReturnFallback();
+
             try {
                 if (mUnityPlayer != null) {
                     Log.d(TAG, "requestReturnToShell: unloading Unity player for shell return.");
@@ -96,6 +70,7 @@ public class EmbeddedUnityPlayerActivity extends UnityPlayerActivity {
     public void onUnityPlayerUnloaded() {
         Log.d(TAG, "onUnityPlayerUnloaded: finishing embedded activity for shell return.");
         skipDestroyOnDestroy = true;
+        cancelShellReturnFallback();
         finishForShellReturn();
     }
 
@@ -103,11 +78,13 @@ public class EmbeddedUnityPlayerActivity extends UnityPlayerActivity {
     public void onUnityPlayerQuitted() {
         Log.d(TAG, "onUnityPlayerQuitted: finishing embedded activity for shell return.");
         skipDestroyOnDestroy = shellReturnRequested || skipDestroyOnDestroy;
+        cancelShellReturnFallback();
         finishForShellReturn();
     }
 
     @Override
     protected void onDestroy() {
+        cancelShellReturnFallback();
         if (shellReturnRequested) {
             skipDestroyOnDestroy = true;
         }
@@ -120,6 +97,7 @@ public class EmbeddedUnityPlayerActivity extends UnityPlayerActivity {
             return;
         }
 
+        cancelShellReturnFallback();
         finishRequested = true;
         try {
             setResult(Activity.RESULT_OK);
@@ -128,5 +106,14 @@ public class EmbeddedUnityPlayerActivity extends UnityPlayerActivity {
         }
 
         finish();
+    }
+
+    private void scheduleShellReturnFallback() {
+        cancelShellReturnFallback();
+        mainHandler.postDelayed(shellReturnFallback, SHELL_RETURN_FALLBACK_MS);
+    }
+
+    private void cancelShellReturnFallback() {
+        mainHandler.removeCallbacks(shellReturnFallback);
     }
 }
