@@ -177,4 +177,10 @@ export const trShared: TranslationDictionary = {
     checkingTitle: 'Surum kontrol ediliyor',
     checkingMessage: 'Uygulama guncelleme gereksinimleri dogrulaniyor.',
   },
+  chatWidget: {
+    moderatorActionTitle: 'Yönetici İşlemi Seçiniz',
+    moderatorActionMessage: 'Lütfen yapmak istediğiniz işlemi seçiniz. Seçiminiz doğrultusunda ilgili ekrana yönlendirileceksiniz.',
+    actionChat: 'Sohbet Et',
+    actionModerate: 'Moderatörlük Yap',
+  },
 };

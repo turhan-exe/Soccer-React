@@ -177,4 +177,10 @@ export const enShared: TranslationDictionary = {
     checkingTitle: 'Checking version',
     checkingMessage: 'Verifying app update requirements.',
   },
+  chatWidget: {
+    moderatorActionTitle: 'Select Admin Action',
+    moderatorActionMessage: 'Please select the action you wish to perform. You will be redirected accordingly.',
+    actionChat: 'Chat',
+    actionModerate: 'Moderate',
+  },
 };

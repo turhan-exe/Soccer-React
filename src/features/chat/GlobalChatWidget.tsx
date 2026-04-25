@@ -5,6 +5,9 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useInventory } from '@/contexts/InventoryContext';
 import { sendGlobalChatMessage, subscribeToGlobalChat } from '@/services/chat';
 import type { GlobalChatMessage } from '@/types';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { useTranslation } from '@/contexts/LanguageContext';
 
 const MAX_MESSAGE_LENGTH = 320;
 const CHAT_ADMIN_REDIRECT_EMAIL = 'ops.lead@mgx.gg';
@@ -28,6 +31,8 @@ const GlobalChatWidget: React.FC = () => {
   const scrollAreaRef = useRef<HTMLDivElement | null>(null);
   const [gradientStart, setGradientStart] = useState('#0ea5e9');
   const [gradientEnd, setGradientEnd] = useState('#9333ea');
+  const [showAdminDialog, setShowAdminDialog] = useState(false);
+  const { t } = useTranslation();
   const shouldRedirectToAdmin =
     user?.email?.toLowerCase().trim() === CHAT_ADMIN_REDIRECT_EMAIL;
 
@@ -120,12 +125,12 @@ const GlobalChatWidget: React.FC = () => {
 
   const handleToggle = useCallback(() => {
     if (shouldRedirectToAdmin) {
-      navigate('/admin/chat-moderation');
+      setShowAdminDialog(true);
       return;
     }
 
     setIsOpen(prev => !prev);
-  }, [navigate, shouldRedirectToAdmin]);
+  }, [shouldRedirectToAdmin]);
 
   const renderedMessages = useMemo(() => {
     if (!messages.length) {
@@ -267,6 +272,40 @@ const GlobalChatWidget: React.FC = () => {
           {errorMessage ? <p className="nostalgia-chat-panel__error">{errorMessage}</p> : null}
         </div>
       ) : null}
+
+      <Dialog open={showAdminDialog} onOpenChange={setShowAdminDialog}>
+        <DialogContent className="sm:max-w-md bg-[#0a0f16]/95 border border-emerald-900/50 shadow-[0_0_40px_rgba(16,185,129,0.15)] backdrop-blur-xl rounded-2xl text-slate-100 p-6">
+          <DialogHeader className="mb-2">
+            <DialogTitle className="text-2xl font-bold text-emerald-400 drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]">
+              {t('chatWidget.moderatorActionTitle')}
+            </DialogTitle>
+            <DialogDescription className="text-slate-300 text-md leading-relaxed mt-3">
+              {t('chatWidget.moderatorActionMessage')}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="mt-8 flex flex-col gap-4 sm:flex-row sm:justify-end">
+            <Button
+              variant="secondary"
+              className="w-full sm:w-auto bg-slate-800/80 hover:bg-slate-700 text-slate-200 border border-slate-700/50 rounded-xl px-6 py-3 h-auto font-semibold transition-all"
+              onClick={() => {
+                setShowAdminDialog(false);
+                setIsOpen(true);
+              }}
+            >
+              {t('chatWidget.actionChat')}
+            </Button>
+            <Button
+              className="w-full sm:w-auto bg-emerald-600/90 hover:bg-emerald-500 text-white border border-emerald-400/50 rounded-xl px-6 py-3 h-auto font-semibold shadow-[0_0_15px_rgba(16,185,129,0.3)] transition-all"
+              onClick={() => {
+                setShowAdminDialog(false);
+                navigate('/admin/chat-moderation');
+              }}
+            >
+              {t('chatWidget.actionModerate')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
