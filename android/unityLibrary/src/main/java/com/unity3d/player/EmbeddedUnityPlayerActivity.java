@@ -48,6 +48,7 @@ public class EmbeddedUnityPlayerActivity extends UnityPlayerActivity {
             skipDestroyOnDestroy = true;
             skipDestroyOnDestroy = true;
             skipDestroyOnDestroy = true;
+            skipDestroyOnDestroy = true;
 
 
             scheduleShellReturnFallback();
