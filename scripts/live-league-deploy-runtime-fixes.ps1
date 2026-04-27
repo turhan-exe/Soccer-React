@@ -128,6 +128,7 @@ $unityRuntimeArchive = [System.IO.Path]::GetFullPath((Join-Path $RepoRoot ".tmp/
 $unityBinary = Join-Path $RepoRoot "$UnityBuildRoot/FHS.x86_64"
 $unityGameAssembly = Join-Path $RepoRoot "$UnityBuildRoot/GameAssembly.so"
 $unityPlayer = Join-Path $RepoRoot "$UnityBuildRoot/UnityPlayer.so"
+$unityRuntimeManifest = Join-Path $RepoRoot "$UnityBuildRoot/runtime-manifest.json"
 $unityRuntimeInit = Join-Path $RepoRoot "$UnityBuildRoot/FHS_Data/RuntimeInitializeOnLoads.json"
 $unityMetadata = Join-Path $RepoRoot "$UnityBuildRoot/FHS_Data/il2cpp_data/Metadata/global-metadata.dat"
 $unityManagedAssembly = Join-Path $RepoRoot "$UnityBuildRoot/FHS_BackUpThisFolder_ButDontShipItWithYourGame/Managed/Assembly-CSharp.dll"
@@ -196,6 +197,7 @@ if (-not $SkipUnityRuntimeSync) {
     $unityBinary,
     $unityGameAssembly,
     $unityPlayer,
+    $unityRuntimeManifest,
     $unityRuntimeInit,
     $unityMetadata,
     $unityManagedAssembly,
@@ -225,6 +227,7 @@ if (-not $SkipUnityRuntimeSync) {
   Copy-Item -Force $unityBinary (Join-Path $unityRuntimeStagingDir "FHS.x86_64")
   Copy-Item -Force $unityGameAssembly (Join-Path $unityRuntimeStagingDir "GameAssembly.so")
   Copy-Item -Force $unityPlayer (Join-Path $unityRuntimeStagingDir "UnityPlayer.so")
+  Copy-Item -Force $unityRuntimeManifest (Join-Path $unityRuntimeStagingDir "runtime-manifest.json")
   Copy-Item -Recurse -Force (Join-Path $unityBuildDir "FHS_Data") (Join-Path $unityRuntimeStagingDir "FHS_Data")
   $stagedManagedDir = Join-Path $unityRuntimeStagingDir "FHS_BackUpThisFolder_ButDontShipItWithYourGame/Managed"
   New-Item -ItemType Directory -Force -Path $stagedManagedDir | Out-Null
@@ -302,6 +305,7 @@ if [ -f /tmp/unity-linux-runtime.tar ]; then
   mkdir -p /tmp/fhs-runtime-sync
   tar -xf /tmp/unity-linux-runtime.tar -C /tmp/fhs-runtime-sync
   test -f /tmp/fhs-runtime-sync/FHS.x86_64
+  test -f /tmp/fhs-runtime-sync/runtime-manifest.json
   test -f /tmp/fhs-runtime-sync/FHS_Data/level0
   test -f /tmp/fhs-runtime-sync/FHS_Data/globalgamemanagers
   test -f /tmp/fhs-runtime-sync/FHS_BackUpThisFolder_ButDontShipItWithYourGame/Managed/Assembly-CSharp.dll

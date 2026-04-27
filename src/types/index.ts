@@ -79,6 +79,7 @@ export interface Player {
   condition: number;
   motivation: number;
   injuryStatus?: InjuryStatus;
+  lastTrainedAt?: string | null;
   motivationState?: PlayerMotivationState | null;
   squadRole: SquadRole | 'youth';
   avatar?: string;

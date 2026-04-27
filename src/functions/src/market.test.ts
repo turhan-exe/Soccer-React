@@ -31,7 +31,7 @@ describe('transfer market top-up helpers', () => {
     expect(player.name).toBeTruthy();
     expect(player.position).toBeTruthy();
     expect(Array.isArray(player.roles)).toBe(true);
-    expect(player.roles?.length).toBeGreaterThan(0);
+    expect(Array.isArray(player.roles) ? player.roles.length : 0).toBeGreaterThan(0);
     expect(typeof player.overall).toBe('number');
     expect(player.overall).toBeGreaterThanOrEqual(0.45);
     expect(player.overall).toBeLessThanOrEqual(0.82);

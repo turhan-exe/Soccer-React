@@ -1,6 +1,14 @@
-import { collection, getDocs } from 'firebase/firestore';
+import { collection, getDocs, type Timestamp } from 'firebase/firestore';
 
-import type { ChampionsLeagueEntrantDoc, KnockoutMatchDoc, League } from '@/types';
+import type {
+  ChampionsLeagueEntrantDoc,
+  CompetitionFormat,
+  CompetitionType,
+  KnockoutDecision,
+  KnockoutMatchDoc,
+  KnockoutMatchStatus,
+  League,
+} from '@/types';
 import { isChampionsLeagueCompetition } from '@/lib/competition';
 import { normalizeFixtureScore } from '@/lib/fixtureScore';
 import { db } from './firebase';
@@ -20,56 +28,121 @@ function compareMonthKey(left: string | undefined, right: string | undefined) {
   return String(left || '').localeCompare(String(right || ''));
 }
 
+function stringOrNull(value: unknown): string | null {
+  return typeof value === 'string' && value.trim() ? value : null;
+}
+
+function stringOr(value: unknown, fallback: string): string {
+  return stringOrNull(value) ?? fallback;
+}
+
+function numberOr(value: unknown, fallback = 0): number {
+  const numeric = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(numeric) ? numeric : fallback;
+}
+
+function booleanOr(value: unknown, fallback = false): boolean {
+  return typeof value === 'boolean' ? value : fallback;
+}
+
+function timestampOrUndefined(value: unknown): Timestamp | undefined {
+  return value && typeof (value as { toDate?: () => Date }).toDate === 'function'
+    ? value as Timestamp
+    : undefined;
+}
+
+function competitionTypeOrUndefined(value: unknown): CompetitionType | undefined {
+  return value === 'domestic' || value === 'champions_league' ? value : undefined;
+}
+
+function competitionFormatOrUndefined(value: unknown): CompetitionFormat | undefined {
+  return value === 'round_robin' || value === 'knockout' ? value : undefined;
+}
+
+function leagueStateOr(value: unknown): League['state'] {
+  return value === 'forming' || value === 'scheduled' || value === 'active' || value === 'completed'
+    ? value
+    : 'scheduled';
+}
+
+function knockoutStatusOr(value: unknown): KnockoutMatchStatus {
+  return value === 'pending'
+    || value === 'scheduled'
+    || value === 'running'
+    || value === 'completed'
+    || value === 'failed'
+    ? value
+    : 'pending';
+}
+
+function knockoutDecisionOrNull(value: unknown): KnockoutDecision {
+  return value === 'bye' || value === 'normal' || value === 'penalties' ? value : null;
+}
+
+function seedOrNull(value: unknown): number | null {
+  if (value === null || value === undefined) return null;
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : null;
+}
+
+function scoreOrNull(value: unknown): { home: number; away: number } | null {
+  if (!value || typeof value !== 'object') return null;
+  const record = value as Record<string, unknown>;
+  const home = numberOr(record.home, Number.NaN);
+  const away = numberOr(record.away, Number.NaN);
+  return Number.isFinite(home) && Number.isFinite(away) ? { home, away } : null;
+}
+
 function mapLeague(id: string, raw: Record<string, unknown>): League {
   return {
     id,
     name: raw.name || 'Şampiyonlar Ligi',
-    season: Number(raw.season || 1),
-    capacity: Number(raw.capacity || 0),
-    timezone: raw.timezone || 'Europe/Istanbul',
-    state: raw.state || 'scheduled',
-    startDate: raw.startDate,
-    rounds: Number(raw.rounds || 0),
-    teamCount: Number(raw.teamCount || 0),
+    season: numberOr(raw.season, 1),
+    capacity: numberOr(raw.capacity),
+    timezone: stringOr(raw.timezone, 'Europe/Istanbul'),
+    state: leagueStateOr(raw.state),
+    startDate: timestampOrUndefined(raw.startDate),
+    rounds: numberOr(raw.rounds),
+    teamCount: numberOr(raw.teamCount),
     teams: Array.isArray(raw.teams) ? raw.teams : [],
-    competitionType: raw.competitionType,
-    competitionFormat: raw.competitionFormat,
-    hiddenFromLeagueList: raw.hiddenFromLeagueList,
-    sourceMonth: raw.sourceMonth,
-    snapshotAt: raw.snapshotAt,
-    roundSpacingDays: raw.roundSpacingDays,
-    championTeamId: raw.championTeamId ?? null,
-  };
+    competitionType: competitionTypeOrUndefined(raw.competitionType),
+    competitionFormat: competitionFormatOrUndefined(raw.competitionFormat),
+    hiddenFromLeagueList: booleanOr(raw.hiddenFromLeagueList),
+    sourceMonth: stringOrNull(raw.sourceMonth) ?? undefined,
+    snapshotAt: timestampOrUndefined(raw.snapshotAt),
+    roundSpacingDays: numberOr(raw.roundSpacingDays),
+    championTeamId: stringOrNull(raw.championTeamId),
+  } as League;
 }
 
 function mapKnockoutMatch(id: string, raw: Record<string, unknown>): KnockoutMatchDoc {
   return {
     id,
-    round: Number(raw.round || 0),
-    slot: Number(raw.slot || 0),
-    roundName: raw.roundName || `Tur ${raw.round || 0}`,
+    round: numberOr(raw.round),
+    slot: numberOr(raw.slot),
+    roundName: stringOr(raw.roundName, `Tur ${numberOr(raw.round)}`),
     scheduledAt: toDate(raw.scheduledAt) || new Date(),
-    homeSeed: raw.homeSeed ?? null,
-    awaySeed: raw.awaySeed ?? null,
-    homeTeamId: raw.homeTeamId ?? null,
-    awayTeamId: raw.awayTeamId ?? null,
-    homeTeamName: raw.homeTeamName ?? null,
-    awayTeamName: raw.awayTeamName ?? null,
-    homeLeagueId: raw.homeLeagueId ?? null,
-    awayLeagueId: raw.awayLeagueId ?? null,
-    homeLeagueName: raw.homeLeagueName ?? null,
-    awayLeagueName: raw.awayLeagueName ?? null,
-    homeSourceMatchId: raw.homeSourceMatchId ?? null,
-    awaySourceMatchId: raw.awaySourceMatchId ?? null,
-    fixtureId: raw.fixtureId ?? null,
-    status: raw.status || 'pending',
-    winnerTeamId: raw.winnerTeamId ?? null,
-    winnerTeamName: raw.winnerTeamName ?? null,
-    loserTeamId: raw.loserTeamId ?? null,
-    decidedBy: raw.decidedBy ?? null,
-    penalties: raw.penalties ?? null,
+    homeSeed: seedOrNull(raw.homeSeed),
+    awaySeed: seedOrNull(raw.awaySeed),
+    homeTeamId: stringOrNull(raw.homeTeamId),
+    awayTeamId: stringOrNull(raw.awayTeamId),
+    homeTeamName: stringOrNull(raw.homeTeamName),
+    awayTeamName: stringOrNull(raw.awayTeamName),
+    homeLeagueId: stringOrNull(raw.homeLeagueId),
+    awayLeagueId: stringOrNull(raw.awayLeagueId),
+    homeLeagueName: stringOrNull(raw.homeLeagueName),
+    awayLeagueName: stringOrNull(raw.awayLeagueName),
+    homeSourceMatchId: stringOrNull(raw.homeSourceMatchId),
+    awaySourceMatchId: stringOrNull(raw.awaySourceMatchId),
+    fixtureId: stringOrNull(raw.fixtureId),
+    status: knockoutStatusOr(raw.status),
+    winnerTeamId: stringOrNull(raw.winnerTeamId),
+    winnerTeamName: stringOrNull(raw.winnerTeamName),
+    loserTeamId: stringOrNull(raw.loserTeamId),
+    decidedBy: knockoutDecisionOrNull(raw.decidedBy),
+    penalties: scoreOrNull(raw.penalties),
     score: normalizeFixtureScore(raw.score),
-    isBye: raw.isBye ?? false,
+    isBye: booleanOr(raw.isBye),
     resolvedAt: toDate(raw.resolvedAt),
   };
 }
@@ -106,7 +179,10 @@ export async function getLatestChampionsLeagueOverview(): Promise<{
     .map((docSnap) => ({ id: docSnap.id, raw: docSnap.data() as Record<string, unknown> }))
     .filter((entry) => isChampionsLeagueCompetition(entry.raw))
     .sort((left, right) => {
-      const monthCompare = compareMonthKey(right.raw.sourceMonth, left.raw.sourceMonth);
+      const monthCompare = compareMonthKey(
+        stringOrNull(right.raw.sourceMonth) ?? undefined,
+        stringOrNull(left.raw.sourceMonth) ?? undefined,
+      );
       if (monthCompare !== 0) return monthCompare;
       const leftStart = toDate(left.raw.startDate)?.getTime() || 0;
       const rightStart = toDate(right.raw.startDate)?.getTime() || 0;

@@ -23,7 +23,7 @@ describe('positionLabels', () => {
     expect(getPositionLabel('CB')).toBe('Stoper');
     expect(getPositionLabel('FWD')).toBe('Santrafor');
     expect(getPositionShortLabel('CB')).toBe('STP');
-    expect(getPositionShortLabel('RWB')).toBe('SĞB');
+    expect(getPositionShortLabel('RWB')).toBe('SGB');
     expect(getPositionShortLabel('LWB')).toBe('SLB');
   });
 

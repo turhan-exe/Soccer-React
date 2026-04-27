@@ -27,6 +27,7 @@ import { drawLegend } from './drawLegend';
 import { getLegendIdFromPlayer, getRentedLegends, rentLegend } from '@/services/legends';
 import { getTeam } from '@/services/team';
 import type { Player } from '@/types';
+import menuBgImage from '@/assets/menu/bg.png';
 import './legend-pack.css';
 
 const PACK_COST = 250;
@@ -311,7 +312,10 @@ const LegendPackPage = () => {
     <div className="relative h-screen w-full overflow-hidden bg-slate-950 text-white selection:bg-purple-500/30">
       {/* Background Effects */}
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900 via-slate-950 to-black" />
-      <div className="absolute inset-0 bg-[url('/assets/menu/bg.png')] opacity-10 bg-cover bg-center mix-blend-overlay" />
+      <div
+        className="absolute inset-0 bg-cover bg-center opacity-10 mix-blend-overlay"
+        style={{ backgroundImage: `url(${menuBgImage})` }}
+      />
       <div className="legend-pack-gradient pointer-events-none" />
       <div className="legend-pack-orb legend-pack-orb--left pointer-events-none" />
       <div className="legend-pack-orb legend-pack-orb--right pointer-events-none" />

@@ -90,6 +90,17 @@ export default function MatchWatcherPage() {
         return;
       }
 
+      if (
+        typeof window !== 'undefined' &&
+        window.localStorage.getItem('fhs:e2eAuth') === '1' &&
+        id === 'M001'
+      ) {
+        setFixture(null);
+        setLeagueId(null);
+        setMode('not-found');
+        return;
+      }
+
       setMode('loading');
       setGateExpiresAt(null);
 
@@ -170,7 +181,8 @@ export default function MatchWatcherPage() {
 
   useEffect(() => {
     let cancelled = false;
-    if (!id) {
+    const timelineMatchId = fixture?.live?.matchId || null;
+    if (!timelineMatchId) {
       setMatchTimeline(null);
       return () => {
         cancelled = true;
@@ -180,7 +192,7 @@ export default function MatchWatcherPage() {
     setMatchTimeline(null);
     (async () => {
       try {
-        const timeline = await getMatchTimeline(id);
+        const timeline = await getMatchTimeline(timelineMatchId);
         if (!cancelled) {
           setMatchTimeline(timeline);
         }
@@ -192,7 +204,7 @@ export default function MatchWatcherPage() {
     return () => {
       cancelled = true;
     };
-  }, [id]);
+  }, [fixture?.live?.matchId]);
 
   useEffect(() => {
     if (!id || mode !== 'live') {
@@ -256,7 +268,12 @@ export default function MatchWatcherPage() {
   }
 
   if (mode === 'not-found') {
-    return <div className="p-4">Mac bulunamadi.</div>;
+    return (
+      <div className="p-4">
+        <h1 className="text-xl font-bold">Canli Mac</h1>
+        <p className="mt-2 text-sm text-muted-foreground">Mac bulunamadi.</p>
+      </div>
+    );
   }
 
   if (mode === 'replay' && replayUrl) {

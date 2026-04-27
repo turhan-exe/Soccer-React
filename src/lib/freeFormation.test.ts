@@ -52,8 +52,8 @@ describe("freeFormation", () => {
   it("flags overlapping players as invalid", () => {
     expect(
       hasFreeFormationOverlap([
-        { playerId: "a", slotIndex: 0, x: 45, y: 20, position: "ST" as any, zoneId: "santrafor" },
-        { playerId: "b", slotIndex: 1, x: 46, y: 21, position: "ST" as any, zoneId: "santrafor" },
+        { playerId: "a", x: 45, y: 20 },
+        { playerId: "b", x: 46, y: 21 },
       ]),
     ).toBe(true);
   });
@@ -65,11 +65,8 @@ describe("freeFormation", () => {
         [
           {
             playerId: "b",
-            slotIndex: 1,
             x: 51.5,
             y: 25.5,
-            position: "ST" as any,
-            zoneId: "santrafor",
           },
         ],
       ),
@@ -79,8 +76,8 @@ describe("freeFormation", () => {
   it("allows clearly separated markers to coexist", () => {
     expect(
       hasFreeFormationOverlap([
-        { playerId: "a", slotIndex: 0, x: 45, y: 20, position: "ST" as any, zoneId: "santrafor" },
-        { playerId: "b", slotIndex: 1, x: 54, y: 28, position: "ST" as any, zoneId: "santrafor" },
+        { playerId: "a", x: 45, y: 20 },
+        { playerId: "b", x: 54, y: 28 },
       ]),
     ).toBe(false);
   });

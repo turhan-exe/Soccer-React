@@ -609,7 +609,7 @@ function TeamPlanningContent() {
           toast.success(t("teamPlanning.toasts.movedToEmptySlot"), {
             description: movedPlayerPosition
               ? t("teamPlanning.toasts.movedToEmptySlotDescription", {
-                  position: getPositionLabel(movedPlayerPosition, language),
+                  position: getPositionLabel(movedPlayerPosition),
                 })
               : t("teamPlanning.toasts.movedToEmptySlotDescriptionGeneric"),
           });
@@ -706,10 +706,6 @@ function TeamPlanningContent() {
       diamondsSpent = true;
 
       const now = new Date();
-      const adCooldown = new Date(
-        now.getTime() + PLAYER_RENAME_AD_COOLDOWN_HOURS * HOURS_IN_MS
-      );
-
       const updatedPlayers = normalizePlayers(
         players.map((player) => {
           if (player.id !== renamePlayer.id) {
@@ -724,11 +720,8 @@ function TeamPlanningContent() {
             rename: {
               ...currentRename,
               lastUpdatedAt: now.toISOString(),
-              lastMethod: method === "purchase" ? "purchase" : "ad",
-              adAvailableAt:
-                method === "ad"
-                  ? adCooldown.toISOString()
-                  : currentRename.adAvailableAt ?? now.toISOString(),
+              lastMethod: "purchase",
+              adAvailableAt: currentRename.adAvailableAt ?? now.toISOString(),
             },
           };
         })

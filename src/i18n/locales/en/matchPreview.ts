@@ -22,6 +22,7 @@ export const enMatchPreview: TranslationDictionary = {
     leagueFinishedTitle: 'League finished',
     leagueFinishedDescription: 'There are no new matches left in this league. You can review final results from fixtures.',
     viewFixtures: 'Open Fixtures',
+    kickoff: 'Kickoff',
     overall: 'OVR:{value}',
     rating: 'Rating:{value}',
   },

@@ -2,6 +2,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 
 import type { Player, TransferListing } from '@/types';
+import { LanguageProvider } from '@/contexts/LanguageContext';
 
 import { MarketList } from './MarketList';
 
@@ -54,15 +55,17 @@ const listing: TransferListing = {
 describe('MarketList', () => {
   it('renders short Turkish position labels in the desktop list', () => {
     const html = renderToStaticMarkup(
-      <MarketList
-        listings={[listing]}
-        isLoading={false}
-        teamBudget={200000}
-        purchasingId=""
-        onPurchase={() => {}}
-        currentSort="overall-desc"
-        onSortChange={() => {}}
-      />,
+      <LanguageProvider>
+        <MarketList
+          listings={[listing]}
+          isLoading={false}
+          teamBudget={200000}
+          purchasingId=""
+          onPurchase={() => {}}
+          currentSort="overall-desc"
+          onSortChange={() => {}}
+        />
+      </LanguageProvider>,
     );
 
     expect(html).toContain('STP');

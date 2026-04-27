@@ -14,7 +14,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import BackButton from '@/components/ui/back-button';
-import { AlertTriangle, Ban, BellOff, CheckCircle2, MessageSquare, ShieldAlert, ShieldCheck } from 'lucide-react';
+import { AlertTriangle, Ban, BellOff, CheckCircle2, Loader2, MessageSquare, ShieldAlert, ShieldCheck } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
   CHAT_RETENTION_DAYS,

@@ -12,7 +12,7 @@ vi.mock('./firebase', () => ({
 
 vi.mock('firebase/firestore', () => ({
   addDoc: vi.fn(),
-  collection: (...args: unknown[]) => collectionMock(...args),
+  collection: (...args: [unknown, ...unknown[]]) => collectionMock.apply(null, args),
   limit: vi.fn(),
   onSnapshot: vi.fn(),
   orderBy: vi.fn(),
@@ -30,7 +30,7 @@ vi.mock('firebase/firestore', () => ({
 }));
 
 vi.mock('firebase/functions', () => ({
-  httpsCallable: (...args: unknown[]) => httpsCallableMock(...args),
+  httpsCallable: (...args: [unknown, ...unknown[]]) => httpsCallableMock.apply(null, args),
 }));
 
 import {

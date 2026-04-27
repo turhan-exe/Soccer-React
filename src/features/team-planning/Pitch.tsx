@@ -147,7 +147,7 @@ const PitchPlayerMarker: React.FC<PitchPlayerMarkerProps> = ({
     [handleDragStart],
   );
 
-  const handleTouchStart = (e: React.TouchEvent) => {
+  const handleTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
     const touch = e.touches[0];
     suppressClickRef.current = false;
     touchDragStateRef.current = {
@@ -157,7 +157,7 @@ const PitchPlayerMarker: React.FC<PitchPlayerMarkerProps> = ({
     };
   };
 
-  const handleTouchMove = (e: React.TouchEvent) => {
+  const handleTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
     const dragState = touchDragStateRef.current;
     if (!dragState) {
       return;

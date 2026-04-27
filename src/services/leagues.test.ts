@@ -29,16 +29,16 @@ const {
 }));
 
 vi.mock('firebase/firestore', () => ({
-  collection: (...args: unknown[]) => collectionMock(...args),
-  getDocs: (...args: unknown[]) => getDocsMock(...args),
-  addDoc: (...args: unknown[]) => addDocMock(...args),
-  query: (...args: unknown[]) => queryMock(...args),
-  limit: (...args: unknown[]) => limitMock(...args),
+  collection: (...args: unknown[]) => collectionMock.apply(null, args),
+  getDocs: (...args: unknown[]) => getDocsMock.apply(null, args),
+  addDoc: (...args: unknown[]) => addDocMock.apply(null, args),
+  query: (...args: unknown[]) => queryMock.apply(null, args),
+  limit: (...args: unknown[]) => limitMock.apply(null, args),
   serverTimestamp: serverTimestampMock,
 }));
 
 vi.mock('firebase/functions', () => ({
-  httpsCallable: (...args: unknown[]) => httpsCallableMock(...args),
+  httpsCallable: (...args: [unknown, ...unknown[]]) => httpsCallableMock.apply(null, args),
 }));
 
 describe('listLeagues', () => {

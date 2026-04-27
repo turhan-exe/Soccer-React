@@ -72,12 +72,7 @@
 
         <activity
             android:name="com.unity3d.player.UnityPlayerActivity"
-            tools:node="merge">
-            <intent-filter tools:node="remove">
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-        </activity>
+            tools:node="remove" />
 
         <provider
             android:name="androidx.core.content.FileProvider"

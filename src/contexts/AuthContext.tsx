@@ -5,6 +5,7 @@ import React, {
   ReactNode,
   useEffect,
   useCallback,
+  useMemo,
   useRef,
 } from 'react';
 import { onAuthStateChanged, updateProfile, User as FirebaseUser } from 'firebase/auth';
@@ -67,10 +68,36 @@ const normalizeTeamName = (raw?: string | null): string => {
   return value.includes('@') ? value.split('@')[0]?.trim() ?? '' : value;
 };
 
+const E2E_AUTH_BYPASS_KEY = 'fhs:e2eAuth';
+
+const getE2EAuthBypassUser = (): User | null => {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+
+  if (window.localStorage.getItem(E2E_AUTH_BYPASS_KEY) !== '1') {
+    return null;
+  }
+
+  return {
+    id: 'e2e-user',
+    username: 'E2E User',
+    email: 'e2e@example.test',
+    teamName: 'E2E FC',
+    teamLogo: null,
+    role: 'user',
+    notificationPrefs: { pushEnabled: false },
+    connectedAccounts: {},
+    contactPhone: null,
+    contactCrypto: null,
+  };
+};
+
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(null);
+  const e2eBypassUser = useMemo(getE2EAuthBypassUser, []);
+  const [user, setUser] = useState<User | null>(e2eBypassUser);
   const [isLoading, setIsLoading] = useState(false);
-  const [isAuthReady, setIsAuthReady] = useState(false);
+  const [isAuthReady, setIsAuthReady] = useState(Boolean(e2eBypassUser));
   const conditionRecoveryStateRef = useRef<{
     inFlight: boolean;
     lastRunAtMs: number | null;
@@ -319,9 +346,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('focus', handleWindowFocus);
     };
-  }, [triggerConditionRecoveryToast]);
+  }, [e2eBypassUser, triggerConditionRecoveryToast]);
 
   useEffect(() => {
+    if (e2eBypassUser) {
+      return undefined;
+    }
+
     let isActive = true;
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       try {

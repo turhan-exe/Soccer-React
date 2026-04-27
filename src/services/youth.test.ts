@@ -4,18 +4,26 @@ import {
   resetCooldownWithDiamonds,
   reduceCooldownWithAd,
   YOUTH_COOLDOWN_MS,
-  YOUTH_AD_REDUCTION_MS,
+  YOUTH_AD_REDUCTION_PERCENT,
   YOUTH_RESET_DIAMOND_COST,
 } from './youth';
 import type { Player } from '@/types';
 
-vi.mock('./firebase', () => ({ db: {} }));
+vi.mock('./firebase', () => ({ db: {}, functions: {} }));
 
-const docMock = vi.fn(() => ({ id: 'id' }));
-const collectionMock = vi.fn(() => ({}));
-const runTransactionMock = vi.fn();
-const fromDateMock = vi.fn();
-const addDocMock = vi.fn(() => ({ id: 'id' }));
+const {
+  docMock,
+  collectionMock,
+  runTransactionMock,
+  fromDateMock,
+  addDocMock,
+} = vi.hoisted(() => ({
+  docMock: vi.fn(() => ({ id: 'id' })),
+  collectionMock: vi.fn(() => ({})),
+  runTransactionMock: vi.fn(),
+  fromDateMock: vi.fn(),
+  addDocMock: vi.fn(() => ({ id: 'id' })),
+}));
 
 vi.mock('firebase/firestore', () => ({
   doc: docMock,
@@ -138,8 +146,10 @@ describe('reduceCooldownWithAd', () => {
     await reduceCooldownWithAd('uid');
     expect(setMock).toHaveBeenCalled();
     const updatedDate = fromDateMock.mock.calls.at(-1)?.[0] as Date;
+    const remainingMs = new Date('2020-01-02T00:00:00Z').getTime() - Date.now();
     const expected = new Date(
-      new Date('2020-01-02T00:00:00Z').getTime() - YOUTH_AD_REDUCTION_MS,
+      new Date('2020-01-02T00:00:00Z').getTime()
+        - Math.max(60 * 1000, Math.floor(remainingMs * YOUTH_AD_REDUCTION_PERCENT)),
     );
     expect(updatedDate.toISOString()).toBe(expected.toISOString());
 
@@ -158,7 +168,12 @@ describe('reduceCooldownWithAd', () => {
     });
     await reduceCooldownWithAd('uid');
     const updatedDate2 = fromDateMock.mock.calls.at(-1)?.[0] as Date;
-    expect(updatedDate2.getTime()).toBe(Date.now());
+    const secondRemainingMs = new Date('2020-01-01T06:00:00Z').getTime() - Date.now();
+    const secondExpected = new Date(
+      new Date('2020-01-01T06:00:00Z').getTime()
+        - Math.max(60 * 1000, Math.floor(secondRemainingMs * YOUTH_AD_REDUCTION_PERCENT)),
+    );
+    expect(updatedDate2.getTime()).toBe(secondExpected.getTime());
     vi.useRealTimers();
   });
 });

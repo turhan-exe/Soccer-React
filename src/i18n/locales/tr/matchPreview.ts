@@ -22,6 +22,7 @@ export const trMatchPreview: TranslationDictionary = {
     leagueFinishedTitle: 'Lig bitti',
     leagueFinishedDescription: 'Bu ligde oynanacak yeni mac kalmadi. Fiksturden sezon sonu sonuclarini inceleyebilirsin.',
     viewFixtures: 'Fiksture Git',
+    kickoff: 'Baslama',
     overall: 'OVR:{value}',
     rating: 'Reyting:{value}',
   },

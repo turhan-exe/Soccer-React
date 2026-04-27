@@ -2,6 +2,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 
 import type { Player } from '@/types';
+import { LanguageProvider } from '@/contexts/LanguageContext';
 
 import { PlayerStatusCard } from './player-status-card';
 import { TooltipProvider } from './tooltip';
@@ -43,14 +44,16 @@ const player: Player = {
 describe('PlayerStatusCard', () => {
   it('renders full Turkish label in summary and short Turkish labels in role badges', () => {
     const html = renderToStaticMarkup(
-      <TooltipProvider>
-        <PlayerStatusCard player={player} />
-      </TooltipProvider>,
+      <LanguageProvider>
+        <TooltipProvider>
+          <PlayerStatusCard player={player} />
+        </TooltipProvider>
+      </LanguageProvider>,
     );
 
     expect(html).toContain('Stoper');
     expect(html).toContain('STP');
-    expect(html).toContain('SĞB');
+    expect(html).toContain('SGB');
     expect(html).not.toContain('>CB<');
     expect(html).not.toContain('>RB<');
   });

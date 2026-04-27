@@ -498,10 +498,27 @@ export async function getMyLeagueId(teamId: string): Promise<string | null> {
 export async function getFixtureByIdAcrossLeagues(
   matchId: string
 ): Promise<{ fixture: Fixture; leagueId: string } | null> {
-  const q = query(collectionGroup(db, 'fixtures'), where(documentId(), '==', matchId), limit(1));
-  const snap = await getDocs(q);
-  if (snap.empty) return null;
-  const d = snap.docs[0];
+  let d: Awaited<ReturnType<typeof getDoc>> | null = null;
+  try {
+    const q = query(collectionGroup(db, 'fixtures'), where(documentId(), '==', matchId), limit(1));
+    const snap = await getDocs(q);
+    d = snap.docs[0] ?? null;
+  } catch (error) {
+    console.warn('[leagues.getFixtureByIdAcrossLeagues] collectionGroup documentId lookup failed, falling back to per-league lookup', error);
+  }
+
+  if (!d) {
+    const leaguesSnap = await getDocs(collection(db, 'leagues'));
+    for (const leagueDoc of leaguesSnap.docs) {
+      const fixtureSnap = await getDoc(doc(db, 'leagues', leagueDoc.id, 'fixtures', matchId));
+      if (fixtureSnap.exists()) {
+        d = fixtureSnap;
+        break;
+      }
+    }
+  }
+
+  if (!d) return null;
   const raw: any = d.data();
   const ts = raw.date as { toDate: () => Date };
   const seasonId = raw.seasonId ?? raw.season;

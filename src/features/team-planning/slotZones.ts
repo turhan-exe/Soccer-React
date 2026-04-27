@@ -394,7 +394,7 @@ const getZonePositions = (zone: ZoneDefinition): Player["position"][] => {
 };
 
 export const positionAffinity = (
-  player: DisplayPlayer,
+  player: Pick<Player, "position" | "roles">,
   zone: ZoneDefinition
 ): number => {
   const canonicalAssigned = canonicalPosition(player.position);

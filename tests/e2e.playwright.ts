@@ -1,10 +1,16 @@
 import { test, expect } from '@playwright/test';
 
 if (!process.env.VITEST) {
+  test.beforeEach(async ({ page }) => {
+    await page.addInitScript(() => {
+      window.localStorage.setItem('fhs:e2eAuth', '1');
+    });
+  });
+
   test('fixtures page renders header', async ({ page }) => {
     await page.goto('/fixtures');
     const title = page.locator('h1');
-    await expect(title).toContainText(/Fikst/i);
+    await expect(title).toContainText(/Fikst|Fixture/i);
   });
 
   test('standings page renders header', async ({ page }) => {

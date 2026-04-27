@@ -52,6 +52,8 @@ export interface KnockoutMatch {
 
 export type KnockoutDecision = 'bye' | 'normal' | 'penalties' | null;
 export type KnockoutMatchStatus = 'pending' | 'scheduled' | 'running' | 'completed' | 'failed';
+export type CompetitionType = 'domestic' | 'champions_league';
+export type CompetitionFormat = 'round_robin' | 'knockout';
 
 export interface ChampionsLeagueEntrantDoc extends TournamentParticipant {
   sourceMonth?: string;
