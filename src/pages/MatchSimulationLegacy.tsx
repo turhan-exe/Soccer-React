@@ -77,7 +77,7 @@ export default function MatchSimulation() {
         setTeams(teamsList);
         const teamMap = new Map(teamsList.map((t) => [t.id, t.name]));
         const upcoming = fixtures
-          .filter((f) => f.status !== 'played')
+          .filter((f) => f.status !== 'played' && f.homeTeamId !== f.awayTeamId)
           .sort((a, b) => (a.date as Date).getTime() - (b.date as Date).getTime())[0];
         if (!upcoming) {
           setNextFixture(null);

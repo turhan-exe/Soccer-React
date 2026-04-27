@@ -72,7 +72,7 @@ export default function MatchSimulation() {
         const fixtures = await getFixturesForTeam(leagueId, user.id);
         if (!mounted) return;
         const upcoming = fixtures
-          .filter((f) => f.status !== 'played')
+          .filter((f) => f.status !== 'played' && f.homeTeamId !== f.awayTeamId)
           .sort((a, b) => (a.date as Date).getTime() - (b.date as Date).getTime())[0];
         if (!upcoming) {
           throw new Error('Yaklaşan maç bulunamadı.');

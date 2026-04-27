@@ -7,6 +7,7 @@ import {
   resolveTransferListingExpiresAtMs,
   TRANSFER_MARKET_TARGET_ACTIVE_LISTINGS,
   buildSystemMarketPlayer,
+  resolvePurchasedPlayerId,
   resolveTransferMarketTopUpAmount,
 } from './market';
 
@@ -68,5 +69,26 @@ describe('transfer listing expiry helpers', () => {
 
     expect(isTransferListingExpired(listing, Date.parse('2026-05-06T23:59:59.000Z'))).toBe(false);
     expect(isTransferListingExpired(listing, Date.parse('2026-05-07T00:00:00.000Z'))).toBe(true);
+  });
+});
+
+describe('transfer purchase player id resolution', () => {
+  it('keeps the seller player id when the buyer does not have that id', () => {
+    expect(resolvePurchasedPlayerId('17', 'listing-abc', [{ id: '1' }, { id: '2' }])).toBe('17');
+  });
+
+  it('creates a non-colliding id when both teams have the same local player id', () => {
+    expect(resolvePurchasedPlayerId('7', 'listing-abc123', [{ id: '7' }])).toBe(
+      '7-market-listing-abc1',
+    );
+  });
+
+  it('increments the generated id if a previous transfer already used it', () => {
+    expect(
+      resolvePurchasedPlayerId('7', 'listing-abc123', [
+        { id: '7' },
+        { id: '7-market-listing-abc1' },
+      ]),
+    ).toBe('7-market-listing-abc1-2');
   });
 });

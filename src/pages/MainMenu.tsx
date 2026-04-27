@@ -1000,27 +1000,7 @@ export default function MainMenu() {
       }
 
       if (!user) {
-        // Fallback for no user
-        const fallbackMatch = upcomingMatches[0];
-        if (fallbackMatch) {
-          const fallbackDate = new Date(`${fallbackMatch.date}T${fallbackMatch.time ?? '00:00'}`);
-          const hasValidDate = !Number.isNaN(fallbackDate.getTime());
-          applyMatchHighlight({
-            competition: fallbackMatch.competition ?? t('mainMenu.matchTile.leagueMatch'),
-            dateText: hasValidDate ? formatDate(fallbackDate) : fallbackMatch.date,
-            timeText: fallbackMatch.time || '',
-            venue: fallbackMatch.venue ?? 'home',
-            venueName: fallbackMatch.venueName,
-            team: { name: t('common.teamFallback'), form: [] },
-            opponent: {
-              name: fallbackMatch.opponent,
-              logo: fallbackMatch.opponentLogo,
-              logoUrl: fallbackMatch.opponentLogoUrl,
-              form: [],
-              overall: normalizeRatingTo100OrNull(fallbackMatch.opponentStats?.overall),
-            }
-          });
-        }
+        applyMatchHighlight(null);
         if (!cancelled) {
           setMatchHighlightLoading(false);
         }
@@ -1042,7 +1022,9 @@ export default function MainMenu() {
           teamLogo = myTeam?.logo ?? teamLogo;
           teamOverall = calculateTeamOverall(myTeam?.players ?? null);
           teamForm = computeForm(fixtures, user.id);
-          const upcoming = fixtures.filter(f => f.status !== 'played').sort((a, b) => a.date.getTime() - b.date.getTime());
+          const upcoming = fixtures
+            .filter(f => f.status !== 'played' && f.homeTeamId !== f.awayTeamId)
+            .sort((a, b) => a.date.getTime() - b.date.getTime());
           const next = upcoming[0];
           if (next) {
             const isHome = next.homeTeamId === user.id;
@@ -1076,17 +1058,7 @@ export default function MainMenu() {
             return;
           }
         }
-        const fallbackMatch = upcomingMatches[0];
-        if (fallbackMatch) {
-          applyMatchHighlight({
-            competition: fallbackMatch.competition ?? t('mainMenu.matchTile.friendlyMatch'),
-            dateText: t('common.today'),
-            timeText: fallbackMatch.time || '',
-            venue: 'home',
-            team: { name: teamName, logo: teamLogo, form: teamForm, overall: teamOverall },
-            opponent: { name: fallbackMatch.opponent, logo: fallbackMatch.opponentLogo, form: [], overall: 85 }
-          });
-        }
+        applyMatchHighlight(null);
       } catch (e) {
         console.error("Menu stats error", e);
       } finally {
@@ -1124,11 +1096,12 @@ export default function MainMenu() {
   const cardHomeName =
     actionableMatchTile?.homeId
     || matchHighlight?.team?.name
-    || user?.teamName
+    || (!matchHighlightLoading ? user?.teamName : null)
     || t('common.teamFallbackUpper');
   const cardAwayName =
     actionableMatchTile?.awayId
     || matchHighlight?.opponent?.name
+    || (!matchHighlightLoading ? t('mainMenu.matchCard.leagueFinished') : null)
     || t('common.rivalFallbackUpper');
   const matchTimeText = matchHighlight?.timeText?.trim() || '';
   const actionableButtonLabel =
@@ -1478,14 +1451,18 @@ export default function MainMenu() {
               ) : (
                 <div className="bg-slate-800/90 backdrop-blur-md border border-white/20 px-4 py-1 rounded-lg shadow-xl text-center min-w-[100px]">
                   <div className="text-gray-300 text-[9px] uppercase font-bold tracking-widest leading-none mb-0.5">
-                    {matchHighlight?.dateText || (matchHighlightLoading ? t('common.loadingUpper') : t('mainMenu.matchCard.fixture'))}
+                    {matchHighlight?.dateText || (matchHighlightLoading ? t('common.loadingUpper') : t('mainMenu.matchCard.leagueFinished'))}
                   </div>
                   {matchTimeText ? (
                     <div className="text-white text-lg font-black tracking-wider leading-none">{matchTimeText}</div>
-                  ) : (
+                  ) : matchHighlightLoading ? (
                     <div className="flex items-center justify-center gap-1.5 text-[9px] font-bold uppercase tracking-[0.16em] text-slate-200">
                       <Loader2 className="h-3.5 w-3.5 animate-spin" />
                       <span>{t('mainMenu.matchCard.timeLoading')}</span>
+                    </div>
+                  ) : (
+                    <div className="text-white text-base font-black tracking-wider leading-none">
+                      {t('mainMenu.matchCard.noUpcomingMatch')}
                     </div>
                   )}
                 </div>

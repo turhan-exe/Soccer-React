@@ -60,7 +60,8 @@ public final class UnityRewardedAdBridge {
               unityCallbackMethod,
               safeUserId,
               safeCustomData,
-              true);
+              true,
+              0);
         });
   }
 
@@ -70,7 +71,8 @@ public final class UnityRewardedAdBridge {
       String unityCallbackMethod,
       String safeUserId,
       String safeCustomData,
-      boolean allowFormatFallback) {
+      boolean allowFormatFallback,
+      int attempt) {
     RewardedAd.load(
         activity,
         BuildConfig.ADMOB_REWARDED_AD_UNIT_ID,
@@ -78,14 +80,27 @@ public final class UnityRewardedAdBridge {
         new RewardedAdLoadCallback() {
           @Override
           public void onAdFailedToLoad(LoadAdError error) {
-            String message =
-                error != null
-                    ? "load_failed:" + error.getCode() + ":" + error.getMessage()
-                    : "load_failed";
+            String message = formatLoadError(error);
             if (allowFormatFallback && isFormatMismatch(error)) {
               Log.w(TAG, "Rewarded load format mismatch, retrying as rewarded interstitial.");
               loadRewardedInterstitial(
-                  activity, unityObjectName, unityCallbackMethod, safeUserId, safeCustomData);
+                  activity, unityObjectName, unityCallbackMethod, safeUserId, safeCustomData, attempt);
+              return;
+            }
+
+            if (isRetryableLoadError(error) && attempt == 0) {
+              Log.w(TAG, "Retrying Unity rewarded load after retryable error: " + message);
+              MAIN.postDelayed(
+                  () ->
+                      loadRewarded(
+                          activity,
+                          unityObjectName,
+                          unityCallbackMethod,
+                          safeUserId,
+                          safeCustomData,
+                          allowFormatFallback,
+                          attempt + 1),
+                  1500L);
               return;
             }
 
@@ -120,7 +135,8 @@ public final class UnityRewardedAdBridge {
       String unityObjectName,
       String unityCallbackMethod,
       String safeUserId,
-      String safeCustomData) {
+      String safeCustomData,
+      int attempt) {
     RewardedInterstitialAd.load(
         activity,
         BuildConfig.ADMOB_REWARDED_AD_UNIT_ID,
@@ -129,10 +145,21 @@ public final class UnityRewardedAdBridge {
           @Override
           public void onAdFailedToLoad(LoadAdError error) {
             showing = false;
-            String message =
-                error != null
-                    ? "load_failed:" + error.getCode() + ":" + error.getMessage()
-                    : "load_failed";
+            String message = formatLoadError(error);
+            if (isRetryableLoadError(error) && attempt == 0) {
+              Log.w(TAG, "Retrying Unity rewarded interstitial load after retryable error: " + message);
+              MAIN.postDelayed(
+                  () ->
+                      loadRewardedInterstitial(
+                          activity,
+                          unityObjectName,
+                          unityCallbackMethod,
+                          safeUserId,
+                          safeCustomData,
+                          attempt + 1),
+                  1500L);
+              return;
+            }
             Log.w(TAG, message);
             send(unityObjectName, unityCallbackMethod, "failed", message);
           }
@@ -176,10 +203,10 @@ public final class UnityRewardedAdBridge {
       @Override
       public void onAdFailedToShowFullScreenContent(AdError adError) {
         showing = false;
-        String message =
-            adError != null
-                ? "show_failed:" + adError.getCode() + ":" + adError.getMessage()
-                : "show_failed";
+    String message =
+        adError != null
+            ? "show_failed:" + adError.getCode() + ":" + trim(adError.getDomain()) + ":" + adError.getMessage()
+            : "show_failed";
         Log.w(TAG, message);
         send(unityObjectName, unityCallbackMethod, "failed", message);
       }
@@ -240,6 +267,26 @@ public final class UnityRewardedAdBridge {
   private static boolean isFormatMismatch(LoadAdError error) {
     String message = trim(error == null ? null : error.getMessage()).toLowerCase();
     return message.contains("match format");
+  }
+
+  private static boolean isRetryableLoadError(LoadAdError error) {
+    if (error == null) {
+      return false;
+    }
+    int code = error.getCode();
+    return code == 0 || code == 2;
+  }
+
+  private static String formatLoadError(LoadAdError error) {
+    if (error == null) {
+      return "load_failed";
+    }
+    return "load_failed:"
+        + error.getCode()
+        + ":"
+        + trim(error.getDomain())
+        + ":"
+        + trim(error.getMessage());
   }
 
   private static String escape(String value) {

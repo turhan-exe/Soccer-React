@@ -11,6 +11,8 @@ export const trFixtures: TranslationDictionary = {
       back: 'Geri',
       loading: 'Yukleniyor...',
       empty: 'Henuz fikstur olusturulmamis.',
+      leagueFinishedTitle: 'Lig bitti',
+      leagueFinishedDescription: 'Bu ligde oynanacak yeni mac kalmadi. Asagida sezon sonu sonuclarini gorebilirsin.',
     },
     labels: {
       competitionName: 'Super Lig',

@@ -465,9 +465,16 @@ export async function getFixturesForTeam(
   });
 
   // İstemci tarafı tarih sıralaması: her zaman artan
-  (list as { date: Date }[]).sort((a, b) => a.date.getTime() - b.date.getTime());
+  const validList = list.filter((fixture) => fixture.homeTeamId !== fixture.awayTeamId);
+  if (validList.length !== list.length) {
+    console.warn('[getFixturesForTeam] skipped self-match fixtures', {
+      skipped: list.length - validList.length,
+    });
+  }
 
-  return list;
+  (validList as { date: Date }[]).sort((a, b) => a.date.getTime() - b.date.getTime());
+
+  return validList;
 }
 
 /** Takımın bağlı olduğu ligin id'sini tek seferlik getir */
@@ -595,6 +602,7 @@ export async function getFixturesForTeamSlotAware(
         live: raw.live ?? null,
       } as Fixture;
     })
+    .filter((m) => m.homeTeamId !== m.awayTeamId)
     .filter((m) => m.homeTeamId === teamId || m.awayTeamId === teamId)
     .sort((a, b) => a.date.getTime() - b.date.getTime());
   return list;

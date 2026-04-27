@@ -387,6 +387,7 @@ export interface TransferListing {
   pos?: Position;
   overall?: number;
   createdAt?: FirestoreTimestamp;
+  expiresAt?: string | FirestoreTimestamp;
   soldAt?: FirestoreTimestamp;
   cancelledAt?: FirestoreTimestamp;
 }

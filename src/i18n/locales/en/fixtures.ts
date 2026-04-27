@@ -11,6 +11,8 @@ export const enFixtures: TranslationDictionary = {
       back: 'Back',
       loading: 'Loading...',
       empty: 'No fixtures have been created yet.',
+      leagueFinishedTitle: 'League finished',
+      leagueFinishedDescription: 'There are no new matches left in this league. Final season results are shown below.',
     },
     labels: {
       competitionName: 'Super League',

@@ -21,6 +21,8 @@ type TransferListingDoc = Omit<TransferListing, 'id'> & {
   overall?: number;
 };
 
+const TRANSFER_LISTING_TTL_MS = 14 * 24 * 60 * 60 * 1000;
+
 const sanitizePrice = (price: unknown) => {
   const numeric = Number(price);
   if (!Number.isFinite(numeric)) {
@@ -129,6 +131,45 @@ const toTransferListing = (
   };
 };
 
+const resolveTimestampMs = (value: unknown): number | null => {
+  if (!value) {
+    return null;
+  }
+  if (typeof value === 'string') {
+    const parsed = Date.parse(value.trim());
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value;
+  }
+  if (typeof value === 'object') {
+    const timestamp = value as {
+      toDate?: () => Date;
+      seconds?: number;
+      nanoseconds?: number;
+    };
+    if (typeof timestamp.toDate === 'function') {
+      const date = timestamp.toDate();
+      const ms = date.getTime();
+      return Number.isFinite(ms) ? ms : null;
+    }
+    if (typeof timestamp.seconds === 'number' && Number.isFinite(timestamp.seconds)) {
+      return timestamp.seconds * 1000 + Math.floor((timestamp.nanoseconds ?? 0) / 1_000_000);
+    }
+  }
+  return null;
+};
+
+const isListingExpiredClientSide = (listing: TransferListing, nowMs = Date.now()): boolean => {
+  const explicitExpiresAtMs = resolveTimestampMs(listing.expiresAt);
+  if (explicitExpiresAtMs !== null) {
+    return explicitExpiresAtMs <= nowMs;
+  }
+
+  const createdAtMs = resolveTimestampMs(listing.createdAt);
+  return createdAtMs !== null && createdAtMs + TRANSFER_LISTING_TTL_MS <= nowMs;
+};
+
 export interface ListenListingsOptions {
   pos?: TransferListing['pos'] | 'ALL';
   maxPrice?: number;
@@ -149,7 +190,10 @@ export function listenAvailableTransferListings(
   });
   return onSnapshot(q, {
     next: snapshot => {
-      const list = snapshot.docs.map(toTransferListing);
+      const nowMs = Date.now();
+      const list = snapshot.docs
+        .map(toTransferListing)
+        .filter(listing => !isListingExpiredClientSide(listing, nowMs));
       cb(list);
     },
     error: err => {
@@ -210,7 +254,11 @@ export async function purchaseTransferListing(listingId: string, buyerTeamId: st
     return data;
   } catch (error) {
     const err = error as { code?: string; message?: string; details?: string } | undefined;
-    const code = err?.code || err?.details || 'internal';
+    const code = (err?.code || err?.details || 'internal').replace(/^functions\//, '');
+    const rawMessage = `${err?.message ?? ''} ${err?.details ?? ''}`;
+    if (/LISTING_EXPIRED/i.test(rawMessage)) {
+      throw new Error('Ilanin suresi dolmus. Liste yenileniyor, baska bir oyuncu sec.');
+    }
     const map: Record<string, string> = {
       'resource-exhausted': 'Bütçe yetersiz.',
       'failed-precondition': 'İlan artık satın alınamaz (satıldı veya kullanım dışı).',

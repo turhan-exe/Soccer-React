@@ -435,60 +435,72 @@ export function getRewardedAdFailureMessage(input: unknown): string {
     ?? (isRecord(input) ? parseRewardedAdErrorLike(input.message, 'unknown') : null);
   const normalizedMessage = (error?.message ?? '').trim().toLowerCase();
   const normalizedCause = (error?.cause ?? '').trim().toLowerCase();
+  const withErrorCode = (message: string): string => {
+    if (!error) {
+      return message;
+    }
+    const stage = error.stage && error.stage !== 'unknown' ? error.stage : null;
+    const code = error.code !== null && error.code !== undefined ? String(error.code) : null;
+    const parts = [stage, code].filter(Boolean);
+    if (parts.length === 0) {
+      return message;
+    }
+    return `${message} (Kod: ${parts.join('/')})`;
+  };
 
   if (!error) {
     return 'Reklam simdilik baslatilamadi. Biraz sonra tekrar dene.';
   }
 
   if (normalizedMessage.includes('gecersiz reklam placement')) {
-    return 'Sunucu bu reklam odulunu henuz tanimiyor. Biraz sonra tekrar dene.';
+    return withErrorCode('Sunucu bu reklam odulunu henuz tanimiyor. Biraz sonra tekrar dene.');
   }
 
   if (normalizedMessage.includes('match format') || normalizedCause.includes('match format')) {
-    return 'Reklam birimi yanlis formatta ayarlanmis. Biraz sonra tekrar dene.';
+    return withErrorCode('Reklam birimi yanlis formatta ayarlanmis. Biraz sonra tekrar dene.');
   }
 
   if (error.timedOut || error.message === 'rewarded_load_timeout') {
-    return 'Reklam yaniti gecikti. Internet baglantisini kontrol edip tekrar dene.';
+    return withErrorCode('Reklam yaniti gecikti. Internet baglantisini kontrol edip tekrar dene.');
   }
 
   if (error.stage === 'load' && error.code === 2) {
-    return 'Reklam yuklenemedi. Internet baglantisini kontrol edip tekrar dene.';
+    return withErrorCode('Reklam yuklenemedi. Internet baglantisini kontrol edip tekrar dene.');
   }
 
   if (error.stage === 'load' && error.code === 3) {
-    return 'Su anda uygun reklam bulunamadi. Biraz sonra tekrar dene.';
+    return withErrorCode('Su anda uygun reklam bulunamadi. Biraz sonra tekrar dene.');
   }
 
   if (error.stage === 'load' && error.code === 0) {
-    return 'Reklam yuklenemedi. VPN, Private DNS veya reklam engelleyici varsa kapatip tekrar dene.';
+    return withErrorCode('Reklam yuklenemedi. VPN, Private DNS veya reklam engelleyici varsa kapatip tekrar dene.');
   }
 
   if (error.stage === 'ssv') {
-    return 'Reklam odulu dogrulanamadi. Biraz sonra yeniden dene.';
+    return withErrorCode('Reklam odulu dogrulanamadi. Biraz sonra yeniden dene.');
   }
 
   if (error.message === 'rewarded_ad_already_showing') {
-    return 'Baska bir reklam istegi zaten devam ediyor.';
+    return withErrorCode('Baska bir reklam istegi zaten devam ediyor.');
   }
 
   if (error.message === 'activity_unavailable') {
-    return 'Reklam ekrani hazir degil. Uygulamaya donup tekrar dene.';
+    return withErrorCode('Reklam ekrani hazir degil. Uygulamaya donup tekrar dene.');
   }
 
   if (error.message === 'rewarded_ad_not_ready') {
-    return 'Reklam henuz hazir degil. Biraz sonra tekrar dene.';
+    return withErrorCode('Reklam henuz hazir degil. Biraz sonra tekrar dene.');
   }
 
   if (error.stage === 'show') {
-    return 'Reklam acilamadi. Uygulamayi tekrar acip yeniden dene.';
+    return withErrorCode('Reklam acilamadi. Uygulamayi tekrar acip yeniden dene.');
   }
 
   if (error.stage === 'init') {
-    return 'Reklam servisi henuz hazir degil. Biraz sonra tekrar dene.';
+    return withErrorCode('Reklam servisi henuz hazir degil. Biraz sonra tekrar dene.');
   }
 
-  return 'Reklam simdilik gosterilemiyor. Biraz sonra tekrar dene.';
+  return withErrorCode('Reklam simdilik gosterilemiyor. Biraz sonra tekrar dene.');
 }
 
 export function isRewardedAdsSupported(): boolean {

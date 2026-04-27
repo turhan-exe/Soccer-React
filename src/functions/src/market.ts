@@ -167,6 +167,48 @@ const resolvePlayerTransferTarget = (
   return null;
 };
 
+export const resolvePurchasedPlayerId = (
+  sourcePlayerId: string,
+  listingId: string,
+  buyerPlayers: PlayerSnapshot[],
+  sourceUniqueId?: string,
+): string => {
+  const normalizedSourceId = String(sourcePlayerId || '').trim();
+  const fallbackId = `market-${String(listingId || 'listing').slice(0, 12)}`;
+  const preferredId = normalizedSourceId || fallbackId;
+  const existingIds = new Set(
+    buyerPlayers
+      .map(player => String(player.id ?? '').trim())
+      .filter(Boolean),
+  );
+
+  if (!existingIds.has(preferredId)) {
+    return preferredId;
+  }
+
+  if (sourceUniqueId) {
+    const existingSamePlayer = buyerPlayers.find(player => {
+      const sameId = String(player.id ?? '').trim() === preferredId;
+      const sameUnique = String(player.uniqueId ?? '').trim() === sourceUniqueId;
+      return sameId && sameUnique;
+    });
+    if (existingSamePlayer) {
+      return preferredId;
+    }
+  }
+
+  const listingSuffix =
+    String(listingId || 'listing').replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 12) || 'listing';
+  const base = preferredId.replace(/[^a-zA-Z0-9_-]/g, '-').slice(0, 48) || 'player';
+  let candidate = `${base}-market-${listingSuffix}`;
+  let counter = 2;
+  while (existingIds.has(candidate)) {
+    candidate = `${base}-market-${listingSuffix}-${counter}`;
+    counter += 1;
+  }
+  return candidate;
+};
+
 type ListingDoc = {
   sellerUid: string;
   sellerId: string;
@@ -680,14 +722,22 @@ export const marketPurchaseListing = functions
           throw new functions.https.HttpsError('failed-precondition', 'PLAYER_NOT_AVAILABLE');
         }
 
-        const playerId = String(listing.playerId ?? playerData.id ?? '');
-        if (!playerId) {
+        const sourcePlayerId = String(listing.playerId ?? playerData.id ?? '');
+        if (!sourcePlayerId) {
           throw new functions.https.HttpsError('failed-precondition', 'PLAYER_NOT_AVAILABLE');
         }
 
+        const buyerPlayers = Array.isArray(buyerTeam.players) ? [...buyerTeam.players] : [];
+        const buyerPlayerId = resolvePurchasedPlayerId(
+          sourcePlayerId,
+          listingId,
+          buyerPlayers,
+          typeof playerData.uniqueId === 'string' ? playerData.uniqueId : undefined,
+        );
+
         const updatedPlayer: PlayerSnapshot = {
           ...playerData,
-          id: playerId,
+          id: buyerPlayerId,
           ownerUid: uid,
           teamId: buyerTeamId,
           squadRole: typeof playerData.squadRole === 'string' ? playerData.squadRole : 'reserve',
@@ -698,8 +748,7 @@ export const marketPurchaseListing = functions
           sellerPlayers.splice(sellerPlayerIndex, 1);
         }
 
-        const buyerPlayers = Array.isArray(buyerTeam.players) ? [...buyerTeam.players] : [];
-        const buyerPlayerIndex = buyerPlayers.findIndex(p => String(p.id ?? '') === playerId);
+        const buyerPlayerIndex = buyerPlayers.findIndex(p => String(p.id ?? '') === buyerPlayerId);
         if (buyerPlayerIndex > -1) {
           buyerPlayers[buyerPlayerIndex] = { ...buyerPlayers[buyerPlayerIndex], ...updatedPlayer };
         } else {
@@ -718,7 +767,7 @@ export const marketPurchaseListing = functions
           category: 'transfer',
           amount: price,
           source: listingId,
-          note: `${updatedPlayer.name ?? playerId} transfer ucreti`,
+          note: `${updatedPlayer.name ?? buyerPlayerId} transfer ucreti`,
         });
 
         if (
@@ -742,13 +791,13 @@ export const marketPurchaseListing = functions
             category: 'transfer',
             amount: price,
             source: listingId,
-            note: `${updatedPlayer.name ?? playerId} transfer geliri`,
+            note: `${updatedPlayer.name ?? sourcePlayerId} transfer geliri`,
           });
         }
 
         let targetPlayerRef: DocumentReference<DocumentData> | null = null;
         if (playerRef && playerSnap?.exists) {
-          const resolved = resolvePlayerTransferTarget(playerPath, buyerTeamId, uid, playerId);
+          const resolved = resolvePlayerTransferTarget(playerPath, buyerTeamId, uid, buyerPlayerId);
           if (resolved && resolved.path !== playerRef.path) {
             targetPlayerRef = resolved;
             tx.set(resolved, updatedPlayer, { merge: true });
@@ -758,7 +807,7 @@ export const marketPurchaseListing = functions
             tx.set(playerRef, updatedPlayer, { merge: true });
           }
         } else if (playerPath) {
-          const resolved = resolvePlayerTransferTarget(playerPath, buyerTeamId, uid, playerId);
+          const resolved = resolvePlayerTransferTarget(playerPath, buyerTeamId, uid, buyerPlayerId);
           if (resolved) {
             targetPlayerRef = resolved;
             tx.set(resolved, updatedPlayer, { merge: true });
@@ -770,6 +819,7 @@ export const marketPurchaseListing = functions
           buyerUid: uid,
           buyerId: uid,
           buyerTeamId,
+          transferredPlayerId: buyerPlayerId,
           buyerTeamName: buyerTeam.name ?? 'Takımım',
           soldAt: FieldValue.serverTimestamp(),
           player: {

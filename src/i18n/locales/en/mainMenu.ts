@@ -57,6 +57,8 @@ export const enMainMenu: TranslationDictionary = {
     matchCard: {
       defaultCompetition: 'LEAGUE MATCH',
       fixture: 'FIXTURE',
+      leagueFinished: 'LEAGUE FINISHED',
+      noUpcomingMatch: 'NO NEW MATCH',
       requestSuffix: 'REQUEST',
       matchSuffix: 'MATCH',
       timeLoading: 'MATCH TIME LOADING',

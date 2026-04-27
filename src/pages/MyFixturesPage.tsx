@@ -99,6 +99,7 @@ export default function MyFixturesPage() {
   const [fixtures, setFixtures] = useState<DisplayFixture[]>([]);
   const [loading, setLoading] = useState(true);
   const [joiningFixtureId, setJoiningFixtureId] = useState<string | null>(null);
+  const [leagueFinished, setLeagueFinished] = useState(false);
   const leagueUnitySessionActiveRef = useRef(false);
 
   const matchControlReady = useMemo(() => isMatchControlConfigured(), []);
@@ -156,6 +157,7 @@ export default function MyFixturesPage() {
         if (!leagueId) {
           if (alive) {
             setFixtures([]);
+            setLeagueFinished(false);
             setLoading(false);
           }
           return;
@@ -170,7 +172,14 @@ export default function MyFixturesPage() {
 
         const teamMap = new Map(teams.map((team) => [team.id, team]));
 
-        const mapped: DisplayFixture[] = list.map((fixture) => {
+        const validFixtures = list.filter((fixture) => fixture.homeTeamId !== fixture.awayTeamId);
+        if (validFixtures.length !== list.length) {
+          console.warn('[MyFixturesPage] skipped self-match fixtures', {
+            skipped: list.length - validFixtures.length,
+          });
+        }
+
+        const mapped: DisplayFixture[] = validFixtures.map((fixture) => {
           const home = fixture.homeTeamId === user.id;
           const opponentId = home ? fixture.awayTeamId : fixture.homeTeamId;
           const opponentTeam = teamMap.get(opponentId);
@@ -187,6 +196,9 @@ export default function MyFixturesPage() {
         mapped.sort((left, right) => left.date.getTime() - right.date.getTime());
         if (alive) {
           setFixtures(mapped);
+          setLeagueFinished(
+            mapped.length > 0 && mapped.every((fixture) => fixture.status === 'played'),
+          );
         }
       } catch (error) {
         console.error('[MyFixturesPage] fixtures load failed', error);
@@ -385,6 +397,15 @@ export default function MyFixturesPage() {
         </div>
 
         <div className="space-y-3">
+          {leagueFinished ? (
+            <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 px-5 py-4 text-center">
+              <div className="text-lg font-black text-emerald-100">{t('fixtures.page.leagueFinishedTitle')}</div>
+              <div className="mt-1 text-sm font-medium text-emerald-100/70">
+                {t('fixtures.page.leagueFinishedDescription')}
+              </div>
+            </div>
+          ) : null}
+
           {loading ? (
             <div className="py-10 text-center text-slate-500">{t('fixtures.page.loading')}</div>
           ) : fixtures.length === 0 ? (

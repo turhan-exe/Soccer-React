@@ -141,7 +141,17 @@ export default function MatchPreview() {
   const { user } = useAuth();
   const { cashBalance } = useClubFinance();
   const { t, formatDate } = useTranslation();
-  const fallbackMatch = upcomingMatches[0];
+  const fallbackMatch = useMemo<Match>(() => ({
+    id: 'no-fixture',
+    opponent: t('common.rivalFallback'),
+    opponentLogo: 'FC',
+    opponentLogoUrl: undefined,
+    date: new Date().toISOString(),
+    time: '--:--',
+    venue: 'home',
+    status: 'scheduled',
+    competition: t('matchPreview.defaultCompetition'),
+  }), [t]);
   const [matchInfo, setMatchInfo] = useState<Match>(fallbackMatch);
   const [teamOverall, setTeamOverall] = useState<number | null>(null);
   const [teamForm, setTeamForm] = useState<Array<'W' | 'D' | 'L'>>([]);
@@ -158,6 +168,7 @@ export default function MatchPreview() {
   const [opponentForm, setOpponentForm] = useState<Array<'W' | 'D' | 'L'>>([]);
   const [showAllMyPlayers, setShowAllMyPlayers] = useState(false);
   const [showAllOpponentPlayers, setShowAllOpponentPlayers] = useState(false);
+  const [leagueFinished, setLeagueFinished] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -174,6 +185,7 @@ export default function MatchPreview() {
       setOpponentStartingEleven([]);
       setOpponentOverall(null);
       setOpponentForm([]);
+      setLeagueFinished(false);
       setShowAllMyPlayers(false);
       setShowAllOpponentPlayers(false);
       return () => { };
@@ -212,6 +224,7 @@ export default function MatchPreview() {
       if (!leagueId) {
         setTeamForm([]);
         setNextFixture(null);
+        setLeagueFinished(false);
         return;
       }
 
@@ -224,11 +237,12 @@ export default function MatchPreview() {
       setTeamForm(computeForm(fixtures, user.id));
 
       const upcoming = fixtures
-        .filter(f => f.status !== 'played')
+        .filter(f => f.status !== 'played' && f.homeTeamId !== f.awayTeamId)
         .sort((a, b) => a.date.getTime() - b.date.getTime())[0];
 
       if (!upcoming) {
         setNextFixture(null);
+        setLeagueFinished(fixtures.length > 0 && fixtures.every(fixture => fixture.status === 'played'));
         return;
       }
 
@@ -244,6 +258,7 @@ export default function MatchPreview() {
         opponentName,
         home,
       });
+      setLeagueFinished(false);
     })();
     return () => {
       cancelled = true;
@@ -369,7 +384,7 @@ export default function MatchPreview() {
       const formValue =
         derivedForm.length ? derivedForm : baseMatch?.opponentStats?.form ?? [];
 
-      const opponentLogoEmoji = opponent?.logo && opponent.logo.trim() ? opponent.logo : baseMatch?.opponentLogo ?? '⚽';
+      const opponentLogoEmoji = opponent?.logo && opponent.logo.trim() ? opponent.logo : baseMatch?.opponentLogo ?? 'FC';
       const opponentStadiumName = opponent?.stadium?.name?.trim();
       const fallbackVenueName = baseMatch?.venueName;
       const resolvedVenueName = nextFixture.home
@@ -518,6 +533,25 @@ export default function MatchPreview() {
       </div>
 
       <div className="mx-auto max-w-5xl space-y-6">
+        {leagueFinished ? (
+          <div className="rounded-[2rem] border border-emerald-500/20 bg-[#1e202b] p-10 text-center shadow-2xl">
+            <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-300">
+              <Calendar className="h-8 w-8" />
+            </div>
+            <h2 className="text-3xl font-black text-white">{t('matchPreview.leagueFinishedTitle')}</h2>
+            <p className="mx-auto mt-3 max-w-xl text-sm font-medium text-slate-400">
+              {t('matchPreview.leagueFinishedDescription')}
+            </p>
+            <Button
+              type="button"
+              onClick={() => navigate('/fixtures')}
+              className="mt-8 bg-emerald-500 font-bold text-slate-950 hover:bg-emerald-400"
+            >
+              {t('matchPreview.viewFixtures')}
+            </Button>
+          </div>
+        ) : (
+          <>
         {/* Match Info Card */}
         <div className="relative overflow-hidden rounded-[2rem] bg-[#1e202b] border border-white/5 shadow-2xl p-6 md:p-10">
           {/* Background Effects */}
@@ -686,6 +720,8 @@ export default function MatchPreview() {
             </CardContent>
           </Card>
         </div>
+          </>
+        )}
       </div>
     </div>
   );

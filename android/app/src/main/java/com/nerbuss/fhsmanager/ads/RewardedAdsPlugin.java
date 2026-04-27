@@ -479,6 +479,7 @@ public class RewardedAdsPlugin extends Plugin {
 
   private void flushAdError(RewardedAdErrorSnapshot error) {
     adLoadInFlight = false;
+    Log.w(TAG, "Rewarded ad load/show error: " + formatErrorForLog(error));
     List<PendingReadyRequest> requests = new ArrayList<>(pendingAdRequests);
     pendingAdRequests.clear();
     for (PendingReadyRequest request : requests) {
@@ -568,6 +569,7 @@ public class RewardedAdsPlugin extends Plugin {
 
   private void resolvePendingShowFailed(RewardedAdErrorSnapshot error) {
     lastShowError = error;
+    Log.w(TAG, "Rewarded ad show failed: " + formatErrorForLog(error));
     resolvePendingShow(buildFailedResultPayload(error));
     rewardEarnedForCurrentAd = false;
   }
@@ -735,6 +737,22 @@ public class RewardedAdsPlugin extends Plugin {
         trim(responseInfo),
         trim(cause),
         timedOut);
+  }
+
+  private String formatErrorForLog(RewardedAdErrorSnapshot error) {
+    if (error == null) {
+      return "unknown";
+    }
+    return "stage="
+        + trim(error.stage)
+        + " code="
+        + (error.code == null ? "null" : error.code)
+        + " domain="
+        + trim(error.domain)
+        + " message="
+        + trim(error.message)
+        + " cause="
+        + trim(error.cause);
   }
 
   private String buildCauseString(AdError cause) {

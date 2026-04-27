@@ -54,6 +54,8 @@ export const trMainMenu: TranslationDictionary = {
     matchCard: {
       defaultCompetition: 'LIG MACI',
       fixture: 'FIKSTUR',
+      leagueFinished: 'LIG BITTI',
+      noUpcomingMatch: 'YENI MAC YOK',
       requestSuffix: 'ISTEGI',
       matchSuffix: 'MACI',
       timeLoading: 'MAC SAATI YUKLENIYOR',
