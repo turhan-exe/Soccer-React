@@ -1,20 +1,18 @@
-import { useEffect, useMemo, useState } from 'react';
+import { type ReactNode, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   ArrowRight,
   CalendarClock,
-  Clock3,
-  Medal,
-  Shield,
-  ShieldCheck,
+  ChevronDown,
+  ChevronUp,
+  Radio,
   Sparkles,
-  Swords,
   Trophy,
-  Tv,
+  Users,
 } from 'lucide-react';
 
-import { PagesHeader } from '@/components/layout/PagesHeader';
 import { Button } from '@/components/ui/button';
+import { BackButton } from '@/components/ui/back-button';
 import { Card } from '@/components/ui/card';
 import { useTranslation } from '@/contexts/LanguageContext';
 import { formatDateValue, translate } from '@/i18n/runtime';
@@ -35,17 +33,12 @@ type OverviewState =
       myTeamId: string | null;
     };
 
-type ColumnSide = 'left' | 'right';
-
-function asDate(value: unknown): Date | null {
-  if (value && typeof (value as { toDate?: () => Date }).toDate === 'function') {
-    return (value as { toDate: () => Date }).toDate();
-  }
-  if (value instanceof Date) {
-    return value;
-  }
-  return null;
-}
+type BracketColumn = {
+  round: number;
+  title: string;
+  subtitle: string;
+  matches: KnockoutMatchDoc[];
+};
 
 function getBracketSize(teamCount: number) {
   let size = 1;
@@ -53,37 +46,6 @@ function getBracketSize(teamCount: number) {
     size *= 2;
   }
   return size;
-}
-
-function formatKickoff(date: Date, withWeekday = false) {
-  return formatDateValue(date, {
-    weekday: withWeekday ? 'short' : undefined,
-    day: '2-digit',
-    month: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    timeZone: 'Europe/Istanbul',
-  });
-}
-
-function formatStageDay(date: Date) {
-  return formatDateValue(date, {
-    day: '2-digit',
-    month: 'long',
-    timeZone: 'Europe/Istanbul',
-  });
-}
-
-function scoreLabel(match: KnockoutMatchDoc) {
-  if (!match.score) return null;
-  const base = `${match.score.home} - ${match.score.away}`;
-  if (match.decidedBy === 'penalties' && match.penalties) {
-    return `${base} | P ${match.penalties.home}-${match.penalties.away}`;
-  }
-  if (match.decidedBy === 'bye') {
-    return translate('championsLeague.byePassed');
-  }
-  return base;
 }
 
 function getMatchStatusMeta(match: KnockoutMatchDoc) {
@@ -139,194 +101,282 @@ function getStageTitle(matches: KnockoutMatchDoc[], round: number) {
   return firstNamed || translate('championsLeague.roundLabel', { round });
 }
 
-function TeamSlot(props: {
-  seed: number | null;
-  name: string | null | undefined;
-  leagueName: string | null | undefined;
-  highlighted: boolean;
-  winner: boolean;
+function shortKickoff(date: Date | null | undefined) {
+  if (!date) return translate('championsLeague.ready');
+  return formatDateValue(date, {
+    day: '2-digit',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone: 'Europe/Istanbul',
+  });
+}
+
+function scoreSide(match: KnockoutMatchDoc, side: 'home' | 'away') {
+  if (!match.score) return '-';
+  return String(side === 'home' ? match.score.home : match.score.away);
+}
+
+function teamInitials(name: string | null | undefined) {
+  const normalized = (name || '?').trim();
+  if (!normalized || normalized === '?') return '?';
+  return normalized
+    .split(/\s+/)
+    .map((part) => part[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase();
+}
+
+function compactStatusClass(match: KnockoutMatchDoc) {
+  if (match.status === 'running') return 'border-emerald-400/25 bg-emerald-400/12 text-emerald-200';
+  if (match.status === 'completed' || match.decidedBy === 'bye') {
+    return 'border-emerald-400/20 bg-emerald-400/10 text-emerald-200';
+  }
+  return 'border-amber-300/20 bg-amber-300/10 text-amber-200';
+}
+
+function compactStatusLabel(match: KnockoutMatchDoc) {
+  if (match.decidedBy === 'bye') return translate('championsLeague.byeShort');
+  if (match.status === 'running') return translate('championsLeague.live');
+  if (match.status === 'completed') {
+    return match.decidedBy === 'penalties'
+      ? translate('championsLeague.penaltiesShort')
+      : translate('championsLeague.completedShort');
+  }
+  if (match.homeTeamId && match.awayTeamId) return translate('championsLeague.scheduledShort');
+  return translate('championsLeague.waitingShort');
+}
+
+function StatTile(props: {
+  icon: ReactNode;
+  eyebrow: string;
+  value: string;
+  detail: string;
+  accent?: 'teal' | 'amber' | 'emerald';
 }) {
-  const { seed, name, leagueName, highlighted, winner } = props;
+  const { icon, eyebrow, value, detail, accent = 'teal' } = props;
+  const accentClass =
+    accent === 'amber'
+      ? 'text-amber-300'
+      : accent === 'emerald'
+        ? 'text-emerald-300'
+        : 'text-cyan-300';
 
   return (
-    <div
-      className={`flex items-center gap-3 rounded-[22px] border px-3 py-3 transition ${
-        highlighted
-          ? 'border-amber-300/45 bg-amber-300/14 text-amber-50 shadow-[0_0_30px_rgba(252,211,77,0.12)]'
-          : winner
-            ? 'border-emerald-300/30 bg-emerald-300/10 text-white'
-            : 'border-white/10 bg-white/6 text-white'
-      }`}
-    >
-      <div
-        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border text-[11px] font-black tracking-[0.18em] ${
-          highlighted
-            ? 'border-amber-200/55 bg-amber-100/10 text-amber-100'
-            : winner
-              ? 'border-emerald-200/35 bg-emerald-100/10 text-emerald-50'
-              : 'border-white/10 bg-slate-950/70 text-white/70'
-        }`}
-      >
-        {seed ? `#${seed}` : '?'}
+    <div className="flex min-h-[38px] items-center gap-1.5 rounded-md border border-white/10 bg-[#0b1420]/92 px-2 py-1 shadow-[0_12px_32px_rgba(0,0,0,0.28)]">
+      <div className={`flex h-5 w-5 shrink-0 items-center justify-center ${accentClass}`}>{icon}</div>
+      <div className="min-w-0">
+        <div className="text-[8px] font-semibold leading-3 text-slate-100">{eyebrow}</div>
+        <div className={`truncate text-xs font-black leading-4 ${accentClass}`}>{value}</div>
+        <div className="truncate text-[8px] leading-3 text-slate-400">{detail}</div>
       </div>
-      <div className="min-w-0 flex-1">
-        <div className="truncate text-sm font-semibold">{name || translate('championsLeague.waiting')}</div>
-        <div className="truncate text-[11px] uppercase tracking-[0.22em] text-white/50">
-          {leagueName || translate('championsLeague.waitingSourceMatch')}
-        </div>
-      </div>
-      {winner && <Medal className="h-4 w-4 shrink-0 text-emerald-300" />}
     </div>
   );
 }
 
-function BracketMatchCard(props: {
+function CrestMark(props: { name?: string | null; active?: boolean; muted?: boolean }) {
+  const { name, active = false, muted = false } = props;
+
+  return (
+    <div
+      className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md border text-[8px] font-black ${
+        active
+          ? 'border-cyan-300/55 bg-cyan-300/14 text-cyan-100 shadow-[0_0_18px_rgba(34,211,238,0.18)]'
+          : muted
+            ? 'border-white/10 bg-white/5 text-slate-500'
+            : 'border-emerald-300/28 bg-emerald-300/10 text-emerald-100'
+      }`}
+    >
+      {teamInitials(name)}
+    </div>
+  );
+}
+
+function CompactTeamRow(props: {
+  seed: number | null;
+  name: string | null | undefined;
+  score: string;
+  highlighted: boolean;
+  winner: boolean;
+}) {
+  const { seed, name, score, highlighted, winner } = props;
+
+  return (
+    <div className="grid h-6 grid-cols-[22px_minmax(0,1fr)_24px] items-center gap-1 text-[12px] leading-6">
+      <CrestMark name={name} active={highlighted || winner} muted={!name} />
+      <div className="min-w-0">
+        <div className={`truncate font-bold ${highlighted || winner ? 'text-cyan-200' : 'text-slate-100'}`}>
+          <span className="mr-0.5 text-[11px] font-black text-slate-500">{seed || '-'}</span>
+          {name || translate('championsLeague.waiting')}
+        </div>
+      </div>
+      <div className="rounded bg-black/34 px-0.5 text-center text-[11px] font-black text-white">{score}</div>
+    </div>
+  );
+}
+
+function CompactMatchCard(props: {
   match: KnockoutMatchDoc;
   myTeamId: string | null;
-  side?: ColumnSide | 'center';
-  compact?: boolean;
   onOpenMatch: (fixtureId: string) => void;
 }) {
-  const { match, myTeamId, side = 'left', compact = false, onOpenMatch } = props;
-  const homeHighlighted = Boolean(myTeamId && match.homeTeamId === myTeamId);
-  const awayHighlighted = Boolean(myTeamId && match.awayTeamId === myTeamId);
+  const { match, myTeamId, onOpenMatch } = props;
   const canOpenMatch = Boolean(
     match.fixtureId &&
       (match.status === 'running' || match.status === 'completed' || match.status === 'scheduled'),
   );
-  const statusMeta = getMatchStatusMeta(match);
-  const isCenter = side === 'center';
-  const winnerName = match.winnerTeamName || null;
-  const openLabel =
-    match.status === 'running'
-      ? translate('championsLeague.openLive')
-      : match.status === 'completed'
-        ? translate('championsLeague.openReplay')
-        : translate('championsLeague.openCard');
 
   return (
-    <div
-      className={`relative w-full ${isCenter ? 'max-w-[360px]' : 'max-w-[300px]'} ${
-        side === 'left' ? 'self-end' : side === 'right' ? 'self-start' : 'mx-auto'
-      }`}
+    <button
+      type="button"
+      disabled={!canOpenMatch || !match.fixtureId}
+      onClick={() => match.fixtureId && onOpenMatch(match.fixtureId)}
+      className="group relative flex h-[86px] w-full flex-col justify-between overflow-hidden rounded-md border border-white/10 bg-[#0d1825]/88 p-2 text-left shadow-[0_10px_26px_rgba(0,0,0,0.24)] transition enabled:hover:border-cyan-300/35 enabled:hover:bg-cyan-300/10 disabled:cursor-default"
     >
-      {!isCenter && (
-        <div
-          className={`pointer-events-none absolute top-1/2 hidden h-px w-7 -translate-y-1/2 lg:block ${
-            side === 'left'
-              ? '-right-7 bg-gradient-to-r from-white/35 to-transparent'
-              : '-left-7 bg-gradient-to-l from-white/35 to-transparent'
-          }`}
+      <div className="min-w-0">
+        <CompactTeamRow
+          seed={match.homeSeed}
+          name={match.homeTeamName || match.homeTeamId}
+          score={scoreSide(match, 'home')}
+          highlighted={Boolean(myTeamId && match.homeTeamId === myTeamId)}
+          winner={Boolean(match.winnerTeamId && match.winnerTeamId === match.homeTeamId)}
         />
-      )}
-
-      <div
-        className={`relative overflow-hidden rounded-[30px] border ${
-          isCenter
-            ? 'border-amber-300/30 bg-[radial-gradient(circle_at_top,rgba(250,204,21,0.16),transparent_38%),linear-gradient(180deg,rgba(35,23,49,0.96),rgba(9,14,28,0.98))] shadow-[0_28px_80px_rgba(250,204,21,0.12)]'
-            : 'border-white/10 bg-[linear-gradient(180deg,rgba(10,17,33,0.96),rgba(4,9,18,0.98))] shadow-[0_18px_60px_rgba(2,6,23,0.48)]'
-        } px-4 ${compact ? 'py-4' : 'py-5'} backdrop-blur-2xl`}
-      >
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/30 to-transparent" />
-        <div
-          className={`mb-4 flex items-start justify-between gap-3 ${
-            compact ? 'text-[10px]' : 'text-[11px]'
-          } uppercase tracking-[0.28em] text-white/48`}
+        <CompactTeamRow
+          seed={match.awaySeed}
+          name={match.awayTeamName || match.awayTeamId}
+          score={scoreSide(match, 'away')}
+          highlighted={Boolean(myTeamId && match.awayTeamId === myTeamId)}
+          winner={Boolean(match.winnerTeamId && match.winnerTeamId === match.awayTeamId)}
+        />
+      </div>
+      <div className="min-w-0 border-t border-white/8 pt-1">
+        <span
+          className={`block truncate whitespace-nowrap rounded border px-1.5 py-0.5 text-center text-[11px] font-black leading-4 ${compactStatusClass(match)}`}
         >
-          <div className="flex items-center gap-2">
-            {isCenter ? <Trophy className="h-4 w-4 text-amber-300" /> : <Swords className="h-4 w-4 text-sky-300" />}
-            <span>{match.roundName}</span>
+          {compactStatusLabel(match)}
+        </span>
+      </div>
+    </button>
+  );
+}
+
+function CompactBracketColumn(props: {
+  column: BracketColumn;
+  active: boolean;
+  myTeamId: string | null;
+  onOpenMatch: (fixtureId: string) => void;
+  onSelectRound: (round: number) => void;
+}) {
+  const { column, active, myTeamId, onOpenMatch, onSelectRound } = props;
+
+  return (
+    <div className="relative flex min-w-0 flex-col">
+      <div className="mb-1 text-center">
+        <button
+          type="button"
+          onClick={() => onSelectRound(column.round)}
+          className={`relative w-full truncate rounded-md border px-1.5 py-0.5 text-[10px] font-black transition ${
+            active
+              ? 'border-cyan-300/40 bg-cyan-300/12 text-cyan-100 shadow-[0_0_18px_rgba(34,211,238,0.14)]'
+              : 'border-transparent text-slate-300 hover:border-cyan-300/25 hover:bg-cyan-300/8 hover:text-cyan-100'
+          }`}
+        >
+          {column.round > 1 && (
+            <span className="absolute left-0 top-1/2 hidden h-px w-[30%] -translate-y-1/2 bg-gradient-to-r from-transparent to-cyan-300/45 sm:block" />
+          )}
+          {column.title}
+        </button>
+      </div>
+      <div className="relative flex min-h-[510px] flex-1 flex-col justify-around gap-2 overflow-visible">
+        {column.matches.map((match) => (
+          <div key={match.id} className="relative">
+            {column.round > 1 && (
+              <span className="pointer-events-none absolute -left-2 top-1/2 hidden h-px w-2 -translate-y-1/2 bg-cyan-300/45 shadow-[0_0_10px_rgba(34,211,238,0.18)] sm:block" />
+            )}
+            {column.round < 4 && (
+              <span className="pointer-events-none absolute -right-2 top-1/2 hidden h-px w-2 -translate-y-1/2 bg-cyan-300/28 sm:block" />
+            )}
+            <CompactMatchCard match={match} myTeamId={myTeamId} onOpenMatch={onOpenMatch} />
           </div>
-          <span>{formatKickoff(match.scheduledAt)}</span>
-        </div>
-
-        <div className="space-y-2.5">
-          <TeamSlot
-            seed={match.homeSeed}
-            name={match.homeTeamName || match.homeTeamId}
-            leagueName={match.homeLeagueName}
-            highlighted={homeHighlighted}
-            winner={Boolean(winnerName && match.homeTeamName === winnerName)}
-          />
-          <TeamSlot
-            seed={match.awaySeed}
-            name={match.awayTeamName || match.awayTeamId}
-            leagueName={match.awayLeagueName}
-            highlighted={awayHighlighted}
-            winner={Boolean(winnerName && match.awayTeamName === winnerName)}
-          />
-        </div>
-
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <div className="text-lg font-black tracking-tight text-white">{scoreLabel(match) || statusMeta.label}</div>
-            <div className="mt-1 text-xs text-white/55">{statusMeta.detail}</div>
-          </div>
-          <span
-            className={`rounded-full border px-3 py-1 text-[10px] font-bold uppercase tracking-[0.24em] ${statusMeta.pillClass}`}
-          >
-            {statusMeta.label}
-          </span>
-        </div>
-
-        {match.winnerTeamName && (
-          <div className="mt-4 rounded-2xl border border-white/8 bg-black/15 px-3 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-amber-100/80">
-            {translate('championsLeague.winnerPrefix', { name: match.winnerTeamName })}
-          </div>
-        )}
-
-        {canOpenMatch && match.fixtureId && (
-          <button
-            type="button"
-            onClick={() => onOpenMatch(match.fixtureId!)}
-            className="mt-4 flex w-full items-center justify-between rounded-[20px] border border-white/10 bg-white/6 px-3 py-3 text-sm font-semibold text-white transition hover:border-sky-300/35 hover:bg-sky-300/10"
-          >
-            <span>{openLabel}</span>
-            <ArrowRight className="h-4 w-4" />
-          </button>
-        )}
+        ))}
       </div>
     </div>
   );
 }
 
-function StageColumn(props: {
-  title: string;
-  subtitle: string;
-  matches: KnockoutMatchDoc[];
+function StageMatchListPanel(props: {
+  column: BracketColumn;
   myTeamId: string | null;
-  side: ColumnSide;
+  onClose: () => void;
   onOpenMatch: (fixtureId: string) => void;
 }) {
-  const { title, subtitle, matches, myTeamId, side, onOpenMatch } = props;
+  const { column, myTeamId, onClose, onOpenMatch } = props;
 
   return (
-    <div className={`relative flex min-w-[300px] flex-col ${side === 'left' ? 'items-end' : 'items-start'}`}>
-      <div className={`mb-4 w-full max-w-[300px] ${side === 'left' ? 'text-right' : 'text-left'}`}>
-        <div className="inline-flex items-center rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.26em] text-white/60">
-          {title}
+    <div className="absolute inset-x-2 bottom-2 top-14 z-30 flex min-h-0 flex-col overflow-hidden rounded-md border border-cyan-300/22 bg-[#07111d]/96 shadow-[0_24px_80px_rgba(0,0,0,0.46)] backdrop-blur-xl">
+      <div className="flex items-center justify-between gap-2 border-b border-white/10 px-2 py-1.5">
+        <div className="min-w-0">
+          <div className="truncate text-xs font-black text-cyan-100">{column.title}</div>
+          <div className="truncate text-[9px] font-semibold text-slate-400">{column.subtitle}</div>
         </div>
-        <div className="mt-3 text-sm font-medium text-white/50">{subtitle}</div>
+        <button
+          type="button"
+          onClick={onClose}
+          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-white/10 bg-white/[0.04] text-[12px] font-black text-slate-300 transition hover:border-cyan-300/30 hover:bg-cyan-300/10 hover:text-cyan-100"
+          title={translate('championsLeague.closePanel')}
+        >
+          X
+        </button>
       </div>
 
-      <div className="relative flex min-h-[640px] w-full flex-1 flex-col justify-around gap-8">
-        <div
-          className={`pointer-events-none absolute inset-y-4 hidden w-px lg:block ${
-            side === 'left'
-              ? 'right-[-14px] bg-gradient-to-b from-transparent via-sky-300/28 to-transparent'
-              : 'left-[-14px] bg-gradient-to-b from-transparent via-sky-300/28 to-transparent'
-          }`}
-        />
-        {matches.map((match) => (
-          <BracketMatchCard
-            key={match.id}
-            match={match}
-            myTeamId={myTeamId}
-            side={side}
-            compact={matches.length > 2}
-            onOpenMatch={onOpenMatch}
-          />
-        ))}
+      <div
+        className="grid min-h-0 flex-1 touch-pan-y grid-cols-2 content-start gap-1.5 overflow-y-auto overscroll-contain p-2 [-webkit-overflow-scrolling:touch]"
+        onTouchMove={(event) => event.stopPropagation()}
+        onWheel={(event) => event.stopPropagation()}
+      >
+        {column.matches.map((match, index) => {
+          const canOpenMatch = Boolean(
+            match.fixtureId &&
+              (match.status === 'running' || match.status === 'completed' || match.status === 'scheduled'),
+          );
+
+          return (
+            <button
+              type="button"
+              key={match.id}
+              disabled={!canOpenMatch || !match.fixtureId}
+              onClick={() => match.fixtureId && onOpenMatch(match.fixtureId)}
+              className="min-w-0 rounded-md border border-white/10 bg-[#0d1825]/92 p-2 text-left transition enabled:hover:border-cyan-300/35 enabled:hover:bg-cyan-300/10 disabled:cursor-default"
+            >
+              <div className="mb-1 flex items-center justify-between gap-2">
+                <div className="text-[9px] font-black uppercase tracking-[0.16em] text-slate-500">
+                  #{index + 1}
+                </div>
+                <span className={`rounded border px-1.5 py-0.5 text-[9px] font-black ${compactStatusClass(match)}`}>
+                  {compactStatusLabel(match)}
+                </span>
+              </div>
+              <CompactTeamRow
+                seed={match.homeSeed}
+                name={match.homeTeamName || match.homeTeamId}
+                score={scoreSide(match, 'home')}
+                highlighted={Boolean(myTeamId && match.homeTeamId === myTeamId)}
+                winner={Boolean(match.winnerTeamId && match.winnerTeamId === match.homeTeamId)}
+              />
+              <CompactTeamRow
+                seed={match.awaySeed}
+                name={match.awayTeamName || match.awayTeamId}
+                score={scoreSide(match, 'away')}
+                highlighted={Boolean(myTeamId && match.awayTeamId === myTeamId)}
+                winner={Boolean(match.winnerTeamId && match.winnerTeamId === match.awayTeamId)}
+              />
+              <div className="mt-1 truncate border-t border-white/8 pt-1 text-[9px] font-semibold text-slate-400">
+                {shortKickoff(match.scheduledAt)}
+              </div>
+            </button>
+          );
+        })}
       </div>
     </div>
   );
@@ -336,6 +386,11 @@ export default function ChampionsLeaguePage() {
   const navigate = useNavigate();
   const { t } = useTranslation();
   const [state, setState] = useState<OverviewState>({ status: 'loading' });
+  const [sidePanelOpen, setSidePanelOpen] = useState(false);
+  const [sidePanelView, setSidePanelView] = useState<'path' | 'champions'>('path');
+  const [finalPanelOpen, setFinalPanelOpen] = useState(false);
+  const [selectedRound, setSelectedRound] = useState<number | null>(null);
+  const [stageListOpen, setStageListOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -381,32 +436,17 @@ export default function ChampionsLeaguePage() {
       return null;
     }
 
-    const competitionStart = asDate(state.league.startDate);
     const bracketSize = getBracketSize(state.entrants.length);
-    const byeCount = Math.max(0, bracketSize - state.entrants.length);
     const totalRounds = Math.max(...state.matches.map((match) => match.round));
     const finalMatch = state.matches.find((match) => match.round === totalRounds) || null;
-    const roundsBeforeFinal = Array.from({ length: Math.max(0, totalRounds - 1) }, (_, index) => index + 1);
-    const leftColumns = roundsBeforeFinal.map((round) => {
+    const allRounds = Array.from({ length: Math.max(0, totalRounds) }, (_, index) => index + 1);
+    const bracketColumns = allRounds.map((round) => {
       const roundMatches = state.matches.filter((match) => match.round === round);
-      const half = Math.ceil(roundMatches.length / 2);
-      const matches = roundMatches.filter((match) => match.slot <= half);
       return {
         round,
-        title: getStageTitle(matches, round),
-        subtitle: t('championsLeague.matchesCount', { count: matches.length }),
-        matches,
-      };
-    });
-    const rightColumns = [...roundsBeforeFinal].reverse().map((round) => {
-      const roundMatches = state.matches.filter((match) => match.round === round);
-      const half = Math.ceil(roundMatches.length / 2);
-      const matches = roundMatches.filter((match) => match.slot > half);
-      return {
-        round,
-        title: getStageTitle(matches, round),
-        subtitle: t('championsLeague.matchesCount', { count: matches.length }),
-        matches,
+        title: getStageTitle(roundMatches, round),
+        subtitle: t('championsLeague.matchesCount', { count: roundMatches.length }),
+        matches: roundMatches,
       };
     });
 
@@ -415,45 +455,33 @@ export default function ChampionsLeaguePage() {
       .sort((left, right) => left.scheduledAt.getTime() - right.scheduledAt.getTime());
 
     const nextKickoff = orderedUpcoming[0] || null;
-    const completedMatches = state.matches.filter((match) => match.status === 'completed').length;
     const liveMatches = state.matches.filter((match) => match.status === 'running').length;
     const myEntrant = state.entrants.find((entrant) => entrant.teamId === state.myTeamId) || null;
     const myActiveMatch =
       orderedUpcoming.find(
         (match) => match.homeTeamId === state.myTeamId || match.awayTeamId === state.myTeamId,
       ) || null;
-    const myLastCompleted =
-      [...state.matches]
-        .reverse()
-        .find(
-          (match) =>
-            (match.homeTeamId === state.myTeamId || match.awayTeamId === state.myTeamId) &&
-            match.status === 'completed',
-        ) || null;
 
     return {
       bracketSize,
-      byeCount,
-      competitionStart,
-      completedMatches,
       finalMatch,
-      leftColumns,
       liveMatches,
       myActiveMatch,
       myEntrant,
-      myLastCompleted,
       nextKickoff,
-      rightColumns,
+      bracketColumns,
       totalRounds,
-      topSeeds: state.entrants.slice(0, 6),
     };
   }, [state, t]);
 
-  return (
-    <div className="min-h-screen overflow-hidden bg-[radial-gradient(circle_at_top_left,rgba(56,189,248,0.2),transparent_28%),radial-gradient(circle_at_top_right,rgba(245,158,11,0.12),transparent_22%),radial-gradient(circle_at_bottom_right,rgba(16,185,129,0.14),transparent_24%),linear-gradient(180deg,#081120_0%,#050912_48%,#02050b_100%)] px-4 py-6 text-slate-100 md:px-6 lg:px-8">
-      <div className="mx-auto flex w-full max-w-[1760px] flex-col gap-6">
-        <PagesHeader title={t('championsLeague.title')} description={t('championsLeague.description')} />
+  const selectedRoundColumn =
+    content && selectedRound
+      ? content.bracketColumns.find((column) => column.round === selectedRound) || null
+      : null;
 
+  return (
+    <div className="min-h-screen overflow-hidden bg-[radial-gradient(circle_at_top_left,rgba(56,189,248,0.12),transparent_26%),linear-gradient(180deg,#07111d_0%,#040812_56%,#02040a_100%)] p-1.5 text-slate-100">
+      <div className="mx-auto flex h-[calc(100vh-12px)] w-full max-w-none flex-col gap-1.5">
         {state.status === 'loading' && (
           <Card className="overflow-hidden border-white/10 bg-[linear-gradient(180deg,rgba(8,15,28,0.92),rgba(4,8,18,0.98))] p-7 text-slate-200">
             <div className="flex items-center gap-3">
@@ -489,280 +517,270 @@ export default function ChampionsLeaguePage() {
 
         {state.status === 'ready' && content && (
           <>
-            <div className="grid gap-4 xl:grid-cols-[minmax(0,1.45fr)_380px]">
-              <Card className="relative overflow-hidden border-white/10 bg-[radial-gradient(circle_at_top_left,rgba(59,130,246,0.22),transparent_34%),radial-gradient(circle_at_bottom_right,rgba(16,185,129,0.14),transparent_24%),linear-gradient(135deg,rgba(12,20,38,0.98),rgba(7,11,22,0.98))] p-6 shadow-[0_30px_90px_rgba(2,6,23,0.36)]">
-                <div className="pointer-events-none absolute inset-y-0 right-[-80px] w-[280px] rounded-full bg-[radial-gradient(circle,rgba(250,204,21,0.16),transparent_62%)] blur-3xl" />
-                <div className="pointer-events-none absolute left-0 top-0 h-px w-full bg-gradient-to-r from-transparent via-white/30 to-transparent" />
+            <div className="grid grid-cols-[28px_repeat(4,minmax(0,1fr))] gap-1.5">
+              <BackButton
+                fallbackPath="/"
+                className="h-full min-h-[38px] rounded-md border border-white/10 bg-[#0b1420]/92 px-0 text-cyan-200 shadow-[0_12px_32px_rgba(0,0,0,0.28)] hover:border-cyan-300/35 hover:bg-cyan-300/10 hover:text-cyan-100"
+              />
+              <StatTile
+                icon={<CalendarClock className="h-5 w-5" />}
+                eyebrow={t('championsLeague.nextMatchLabel')}
+                value={content.nextKickoff ? shortKickoff(content.nextKickoff.scheduledAt) : t('championsLeague.ready')}
+                detail={content.nextKickoff ? content.nextKickoff.roundName : t('championsLeague.waiting')}
+              />
+              <StatTile
+                icon={<Users className="h-5 w-5" />}
+                eyebrow={String(content.bracketSize)}
+                value={t('championsLeague.teamsLabel')}
+                detail={t('championsLeague.inTournamentLabel')}
+              />
+              <StatTile
+                icon={<Trophy className="h-5 w-5" />}
+                eyebrow={content.nextKickoff?.roundName || t('championsLeague.finalLabel')}
+                value={t('championsLeague.stageLabel')}
+                detail={t('championsLeague.roundCount', { count: content.totalRounds })}
+                accent="amber"
+              />
+              <StatTile
+                icon={<Radio className="h-5 w-5" />}
+                eyebrow={t('championsLeague.live')}
+                value={String(content.liveMatches)}
+                detail={content.liveMatches > 0 ? t('championsLeague.liveDetail') : t('championsLeague.calmFlow')}
+                accent="emerald"
+              />
+            </div>
 
-                <div className="relative z-10">
-                  <div className="flex flex-wrap items-center gap-3">
-                    <span className="rounded-full border border-sky-400/30 bg-sky-400/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.24em] text-sky-100">
-                      {state.league.sourceMonth || t('championsLeague.monthlyTournament')}
-                    </span>
-                    <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.24em] text-white/65">
-                      {t('championsLeague.championsCount', { count: state.entrants.length })}
-                    </span>
-                    <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.24em] text-white/65">
-                      {t('championsLeague.roundCount', { count: content.totalRounds })}
-                    </span>
-                    <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.24em] text-white/65">
-                      {t('championsLeague.morningSlot')}
-                    </span>
+            <div
+              className={`grid min-h-0 flex-1 gap-1.5 transition-[grid-template-columns] duration-200 ${
+                sidePanelOpen ? 'grid-cols-[minmax(0,1fr)_270px]' : 'grid-cols-[minmax(0,1fr)_54px]'
+              }`}
+            >
+              <div className="flex min-h-0 flex-col gap-1.5">
+                <Card className="relative min-h-0 flex-1 overflow-hidden rounded-md border-white/10 bg-[linear-gradient(180deg,rgba(9,17,29,0.96),rgba(5,11,20,0.98))] p-0 shadow-[0_24px_80px_rgba(0,0,0,0.34)]">
+                  <div className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-[linear-gradient(180deg,transparent,rgba(21,78,53,0.28))]" />
+                  <div className="relative z-10 px-2 py-1.5">
+                    <div className="text-xs font-black text-white">{t('championsLeague.eliminationTable')}</div>
                   </div>
-
-                  <div className="mt-5 max-w-3xl">
-                    <div className="text-4xl font-black tracking-tight text-white md:text-[2.8rem]">
-                      {t('championsLeague.heroTitle')}
-                    </div>
-                    <div className="mt-3 max-w-2xl text-sm leading-7 text-slate-300">
-                      {t('championsLeague.heroDescription')}
-                    </div>
-                  </div>
-
-                  <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                    <div className="rounded-[26px] border border-white/10 bg-black/15 p-4">
-                      <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-white/48">
-                        <CalendarClock className="h-4 w-4 text-sky-300" />
-                        {t('matchPreview.kickoff')}
-                      </div>
-                      <div className="mt-3 text-2xl font-black text-white">
-                        {content.nextKickoff ? formatKickoff(content.nextKickoff.scheduledAt) : t('championsLeague.ready')}
-                      </div>
-                      <div className="mt-1 text-sm text-slate-400">
-                        {content.nextKickoff ? content.nextKickoff.roundName : t('championsLeague.waiting')}
-                      </div>
-                    </div>
-
-                    <div className="rounded-[26px] border border-white/10 bg-black/15 p-4">
-                      <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-white/48">
-                        <Shield className="h-4 w-4 text-emerald-300" />
-                        {t('championsLeague.bracketLabel')}
-                      </div>
-                      <div className="mt-3 text-2xl font-black text-white">{content.bracketSize}</div>
-                      <div className="mt-1 text-sm text-slate-400">
-                        {content.byeCount > 0
-                          ? t('championsLeague.byeSlots', { count: content.byeCount })
-                          : t('championsLeague.fullBracket')}
-                      </div>
-                    </div>
-
-                    <div className="rounded-[26px] border border-white/10 bg-black/15 p-4">
-                      <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-white/48">
-                        <Clock3 className="h-4 w-4 text-amber-300" />
-                        {t('championsLeague.paceLabel')}
-                      </div>
-                      <div className="mt-3 text-2xl font-black text-white">
-                        {t('championsLeague.roundEvery', {
-                          days: state.league.roundSpacingDays || 2,
-                        })}
-                      </div>
-                      <div className="mt-1 text-sm text-slate-400">
-                        {content.competitionStart
-                          ? t('championsLeague.startLabel', {
-                              day: formatStageDay(content.competitionStart),
-                            })
-                          : t('championsLeague.ready')}
-                      </div>
-                    </div>
-
-                    <div className="rounded-[26px] border border-white/10 bg-black/15 p-4">
-                      <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-white/48">
-                        <ShieldCheck className="h-4 w-4 text-violet-300" />
-                        {t('championsLeague.statusLabel')}
-                      </div>
-                      <div className="mt-3 text-2xl font-black text-white">
-                        {content.completedMatches}/{state.matches.length}
-                      </div>
-                      <div className="mt-1 text-sm text-slate-400">
-                        {content.liveMatches > 0
-                          ? t('championsLeague.liveCount', { count: content.liveMatches })
-                          : t('championsLeague.calmFlow')}
-                      </div>
+                  {stageListOpen && selectedRoundColumn && (
+                    <StageMatchListPanel
+                      column={selectedRoundColumn}
+                      myTeamId={state.myTeamId}
+                      onClose={() => setStageListOpen(false)}
+                      onOpenMatch={(fixtureId) => navigate(`/match/${fixtureId}`)}
+                    />
+                  )}
+                  <div className="relative z-10 h-[calc(100%-26px)] overflow-y-auto overflow-x-hidden px-1.5 pb-1.5 pr-2">
+                    <div className="grid h-full grid-cols-4 gap-2">
+                      {content.bracketColumns.map((column) => (
+                        <CompactBracketColumn
+                          key={column.round}
+                          column={column}
+                          active={stageListOpen && selectedRound === column.round}
+                          myTeamId={state.myTeamId}
+                          onSelectRound={(round) => {
+                            setSelectedRound(round);
+                            setStageListOpen(true);
+                          }}
+                          onOpenMatch={(fixtureId) => navigate(`/match/${fixtureId}`)}
+                        />
+                      ))}
                     </div>
                   </div>
+                </Card>
 
-                  <div className="mt-6 flex flex-wrap gap-2">
-                    {content.topSeeds.map((entrant) => (
-                      <div
-                        key={entrant.teamId}
-                        className={`rounded-2xl border px-3 py-2 ${
-                          entrant.teamId === state.myTeamId
-                            ? 'border-amber-300/35 bg-amber-300/12 text-amber-50'
-                            : 'border-white/10 bg-white/5 text-white'
-                        }`}
-                      >
-                        <div className="text-xs font-black uppercase tracking-[0.18em]">
-                          {t('championsLeague.seedLabel', { seed: entrant.seed })}
+                <Card className="mx-auto w-full max-w-[420px] rounded-md border-white/10 bg-[#111d2e]/95 p-0.5 shadow-[0_18px_50px_rgba(0,0,0,0.28)]">
+                  <button
+                    type="button"
+                    onClick={() => setFinalPanelOpen((open) => !open)}
+                    className="flex w-full items-center justify-between rounded-md px-2 py-0.5 text-left transition hover:bg-white/[0.04]"
+                  >
+                    <div className="flex min-w-0 items-center gap-2">
+                      <Trophy className="h-5 w-5 shrink-0 text-amber-300" />
+                      <div className="min-w-0">
+                        <div className="truncate text-[10px] font-black text-white">{t('championsLeague.finalSummaryLabel')}</div>
+                        <div className="truncate text-[9px] text-slate-300">
+                          {content.finalMatch ? shortKickoff(content.finalMatch.scheduledAt) : t('championsLeague.finalPendingShort')}
                         </div>
-                        <div className="mt-1 text-sm font-semibold">{entrant.teamName}</div>
-                        <div className="text-[11px] uppercase tracking-[0.22em] text-white/48">{entrant.leagueName}</div>
                       </div>
-                    ))}
-                  </div>
-                </div>
-              </Card>
-
-              <Card className="relative overflow-hidden border-white/10 bg-[radial-gradient(circle_at_top,rgba(250,204,21,0.14),transparent_30%),linear-gradient(180deg,rgba(11,18,34,0.98),rgba(5,9,18,0.98))] p-6 shadow-[0_24px_70px_rgba(2,6,23,0.32)]">
-                <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/35 to-transparent" />
-                <div className="text-[11px] font-semibold uppercase tracking-[0.28em] text-white/48">
-                  {t('championsLeague.myPathTitle')}
-                </div>
-
-                {!content.myEntrant && (
-                  <div className="mt-5 rounded-[28px] border border-white/10 bg-white/5 p-5">
-                    <div className="text-xl font-black text-white">{t('championsLeague.notInTournamentTitle')}</div>
-                    <div className="mt-3 text-sm leading-6 text-slate-300">
-                      {t('championsLeague.myPathDescription')}
                     </div>
-                  </div>
+                    {finalPanelOpen ? (
+                      <ChevronUp className="h-4 w-4 shrink-0 text-cyan-200" />
+                    ) : (
+                      <ChevronDown className="h-4 w-4 shrink-0 text-cyan-200" />
+                    )}
+                  </button>
+
+                  {finalPanelOpen && (
+                    <div className="mt-0.5 grid items-center gap-2 border-t border-white/10 pt-1 grid-cols-[32px_1fr_1fr]">
+                      <div className="flex justify-center">
+                        <Trophy className="h-6 w-6 text-amber-300" />
+                      </div>
+                      <div className="border-r border-white/10">
+                        <div className="text-[10px] font-black text-white">{t('championsLeague.championLabel')}</div>
+                        <div className="mt-0.5 text-[9px] text-slate-300">
+                          {content.finalMatch?.winnerTeamName || '-'}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-[10px] font-black text-white">{t('championsLeague.finalLabel')}</div>
+                        <div className="mt-0.5 text-[9px] text-slate-300">
+                          {content.finalMatch ? shortKickoff(content.finalMatch.scheduledAt) : '-'}
+                        </div>
+                        <div className="mt-1 text-[9px] text-slate-400">Fikretle Arena</div>
+                      </div>
+                    </div>
+                  )}
+                </Card>
+              </div>
+
+              <aside className="min-h-0">
+                {!sidePanelOpen && (
+                  <Card className="flex h-full flex-col items-center gap-2 rounded-md border-white/10 bg-[#0b1420]/95 p-1.5 shadow-[0_18px_55px_rgba(0,0,0,0.32)]">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSidePanelView('path');
+                        setSidePanelOpen(true);
+                      }}
+                      className={`flex h-10 w-10 items-center justify-center rounded-md border transition ${
+                        sidePanelView === 'path'
+                          ? 'border-cyan-300/35 bg-cyan-300/12 text-cyan-200'
+                          : 'border-white/10 bg-white/[0.04] text-slate-300'
+                      }`}
+                      title={t('championsLeague.myPathTitle')}
+                    >
+                      <ArrowRight className="h-4 w-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSidePanelView('champions');
+                        setSidePanelOpen(true);
+                      }}
+                      className={`flex h-10 w-10 items-center justify-center rounded-md border transition ${
+                        sidePanelView === 'champions'
+                          ? 'border-cyan-300/35 bg-cyan-300/12 text-cyan-200'
+                          : 'border-white/10 bg-white/[0.04] text-slate-300'
+                      }`}
+                      title={t('championsLeague.leagueChampionsLabel')}
+                    >
+                      <Trophy className="h-4 w-4" />
+                    </button>
+                  </Card>
                 )}
 
-                {content.myEntrant && (
-                  <>
-                    <div className="mt-4 flex items-start justify-between gap-3">
-                      <div>
-                        <div className="text-3xl font-black tracking-tight text-white">{content.myEntrant.teamName}</div>
-                        <div className="mt-2 text-sm text-slate-300">
-                          {t('championsLeague.seedLeagueLabel', {
-                            seed: content.myEntrant.seed,
-                            league: content.myEntrant.leagueName,
-                          })}
-                        </div>
-                      </div>
-                      <div className="rounded-2xl border border-amber-300/25 bg-amber-300/10 px-3 py-2 text-xs font-bold uppercase tracking-[0.2em] text-amber-100">
-                        {t('championsLeague.joined')}
-                      </div>
+                {sidePanelOpen && (
+                  <Card className="flex h-full min-h-0 flex-col rounded-md border-white/10 bg-[#0b1420]/95 p-2 shadow-[0_18px_55px_rgba(0,0,0,0.32)]">
+                    <div className="mb-2 grid grid-cols-[1fr_1fr_26px] gap-1">
+                      <button
+                        type="button"
+                        onClick={() => setSidePanelView('path')}
+                        className={`truncate rounded-md border px-2 py-1 text-[10px] font-black transition ${
+                          sidePanelView === 'path'
+                            ? 'border-cyan-300/35 bg-cyan-300/12 text-cyan-200'
+                            : 'border-white/10 bg-white/[0.04] text-slate-300'
+                        }`}
+                      >
+                        {t('championsLeague.myPathTitle')}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSidePanelView('champions')}
+                        className={`truncate rounded-md border px-2 py-1 text-[10px] font-black transition ${
+                          sidePanelView === 'champions'
+                            ? 'border-cyan-300/35 bg-cyan-300/12 text-cyan-200'
+                            : 'border-white/10 bg-white/[0.04] text-slate-300'
+                        }`}
+                      >
+                        {t('championsLeague.leagueChampionsLabel')}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSidePanelOpen(false)}
+                        className="rounded-md border border-white/10 bg-white/[0.04] text-[12px] font-black text-slate-300"
+                        title={t('championsLeague.closePanel')}
+                      >
+                        X
+                      </button>
                     </div>
 
-                    {content.myActiveMatch && (
-                      <div className="mt-5 rounded-[30px] border border-amber-300/22 bg-amber-300/10 p-5 shadow-[0_18px_50px_rgba(250,204,21,0.08)]">
-                        <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-amber-100/78">
-                          {t('championsLeague.nextMyMatch')}
-                        </div>
-                        <div className="mt-2 text-xl font-black text-white">{content.myActiveMatch.roundName}</div>
-                        <div className="mt-2 text-sm text-amber-50/85">{formatKickoff(content.myActiveMatch.scheduledAt, true)}</div>
-                        <div className="mt-4 text-sm text-amber-50/70">
-                          {(content.myActiveMatch.homeTeamName || t('championsLeague.waiting'))} vs{' '}
-                          {(content.myActiveMatch.awayTeamName || t('championsLeague.waiting'))}
-                        </div>
-                        {content.myActiveMatch.fixtureId && (
-                          <button
-                            type="button"
-                            onClick={() => navigate(`/match/${content.myActiveMatch!.fixtureId}`)}
-                            className="mt-5 flex w-full items-center justify-between rounded-[20px] border border-white/12 bg-white/10 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/15"
-                          >
-                            <span>
-                              {content.myActiveMatch.status === 'running'
-                                ? t('championsLeague.openLive')
-                                : t('championsLeague.openCard')}
-                            </span>
-                            <Tv className="h-4 w-4" />
-                          </button>
+                    {sidePanelView === 'path' && (
+                      <div className="min-h-0">
+                        <div className="text-xs font-black text-cyan-300">{t('championsLeague.myPathTitle')}</div>
+
+                        {!content.myEntrant && (
+                          <div className="mt-1.5 rounded-md border border-white/10 bg-white/[0.04] p-2">
+                            <div className="text-[10px] font-black text-white">{t('championsLeague.notInTournamentTitle')}</div>
+                            <div className="mt-1 line-clamp-2 text-[9px] leading-3 text-slate-300">{t('championsLeague.myPathDescription')}</div>
+                          </div>
+                        )}
+
+                        {content.myEntrant && (
+                          <div className="mt-2 rounded-md border border-white/10 bg-[#0f1a28] p-2 text-center">
+                            <div className="text-xs font-black text-white">
+                              {content.myActiveMatch?.roundName || t('championsLeague.waiting')}
+                            </div>
+                            <div className="mt-0.5 text-[10px] text-slate-300">
+                              {content.myActiveMatch ? shortKickoff(content.myActiveMatch.scheduledAt) : t('championsLeague.ready')}
+                            </div>
+
+                            <div className="mt-3 grid grid-cols-[1fr_30px_1fr] items-center gap-1.5">
+                              <div className="min-w-0">
+                                <CrestMark name={content.myActiveMatch?.homeTeamName || content.myEntrant.teamName} active />
+                                <div className="mt-1 truncate text-[10px] font-bold text-slate-100">
+                                  {content.myActiveMatch?.homeTeamName || content.myEntrant.teamName}
+                                </div>
+                              </div>
+                              <div className="text-xs font-black text-white">VS</div>
+                              <div className="min-w-0">
+                                <CrestMark name={content.myActiveMatch?.awayTeamName || t('championsLeague.waiting')} active />
+                                <div className="mt-1 truncate text-[10px] font-bold text-slate-100">
+                                  {content.myActiveMatch?.awayTeamName || t('championsLeague.waiting')}
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="mt-2 text-[10px] font-semibold text-emerald-300">
+                              {content.myActiveMatch?.status === 'running' ? t('championsLeague.live') : t('championsLeague.joined')}
+                            </div>
+
+                            {content.myActiveMatch?.fixtureId && (
+                              <button
+                                type="button"
+                                onClick={() => navigate(`/match/${content.myActiveMatch!.fixtureId}`)}
+                                className="mt-2 flex w-full items-center justify-center gap-2 rounded-md bg-gradient-to-r from-cyan-400 to-emerald-400 px-3 py-1.5 text-xs font-black text-slate-950 shadow-[0_14px_34px_rgba(20,184,166,0.24)] transition hover:brightness-110"
+                              >
+                                <span>{content.myActiveMatch.status === 'running' ? t('championsLeague.openLive') : t('championsLeague.openCard')}</span>
+                                <ArrowRight className="h-4 w-4" />
+                              </button>
+                            )}
+                          </div>
                         )}
                       </div>
                     )}
 
-                    {!content.myActiveMatch && content.myLastCompleted && (
-                      <div className="mt-5 rounded-[26px] border border-white/10 bg-white/5 p-4 text-sm text-slate-200">
-                        {t('championsLeague.latestPrefix')}{' '}
-                        {content.myLastCompleted.winnerTeamId === state.myTeamId
-                          ? t('championsLeague.advancedWaiting')
-                          : t('championsLeague.journeyEnded')}
-                      </div>
-                    )}
-
-                    {state.league.championTeamId === state.myTeamId && (
-                      <div className="mt-5 rounded-[26px] border border-emerald-300/28 bg-emerald-300/12 p-4 text-sm font-semibold text-emerald-50">
-                        {t('championsLeague.championLine')}
-                      </div>
-                    )}
-                  </>
-                )}
-              </Card>
-            </div>
-
-            <Card className="relative overflow-hidden border-white/10 bg-[radial-gradient(circle_at_center,rgba(59,130,246,0.06),transparent_34%),linear-gradient(180deg,rgba(7,12,23,0.98),rgba(2,6,13,0.98))] p-5 shadow-[0_30px_90px_rgba(2,6,23,0.38)]">
-              <div className="pointer-events-none absolute left-1/2 top-12 h-[520px] w-[520px] -translate-x-1/2 rounded-full bg-[radial-gradient(circle,rgba(250,204,21,0.09),transparent_64%)] blur-3xl" />
-              <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/28 to-transparent" />
-
-              <div className="relative z-10 mb-6 flex flex-wrap items-end justify-between gap-4">
-                <div>
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.28em] text-white/48">
-                    {t('championsLeague.flowEyebrow')}
-                  </div>
-                  <div className="mt-2 text-3xl font-black tracking-tight text-white">
-                    {t('championsLeague.flowTitle')}
-                  </div>
-                  <div className="mt-2 max-w-3xl text-sm leading-6 text-slate-300">
-                    {t('championsLeague.flowDescription')}
-                  </div>
-                </div>
-
-                {content.finalMatch?.winnerTeamName ? (
-                  <div className="rounded-[28px] border border-amber-300/30 bg-amber-300/10 px-4 py-3 text-right">
-                    <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-amber-100/75">
-                      {t('championsLeague.lastChampion')}
-                    </div>
-                    <div className="mt-1 text-lg font-black text-white">{content.finalMatch.winnerTeamName}</div>
-                  </div>
-                ) : null}
-              </div>
-
-              <div className="overflow-x-auto pb-3">
-                <div className="relative flex min-w-[1540px] items-stretch gap-8 px-2 py-4">
-                  <div className="pointer-events-none absolute inset-y-10 left-1/2 hidden w-px -translate-x-1/2 bg-gradient-to-b from-transparent via-amber-300/25 to-transparent xl:block" />
-
-                  <div className="flex gap-8">
-                    {content.leftColumns.map((column) => (
-                      <StageColumn
-                        key={`left-${column.round}`}
-                        title={column.title}
-                        subtitle={column.subtitle}
-                        matches={column.matches}
-                        myTeamId={state.myTeamId}
-                        side="left"
-                        onOpenMatch={(fixtureId) => navigate(`/match/${fixtureId}`)}
-                      />
-                    ))}
-                  </div>
-
-                  <div className="relative flex min-w-[380px] items-center justify-center px-2">
-                    <div className="absolute inset-x-0 top-1/2 hidden h-px -translate-y-1/2 bg-gradient-to-r from-white/0 via-amber-300/18 to-white/0 xl:block" />
-                    {content.finalMatch ? (
-                      <div className="relative w-full">
-                        <div className="mb-4 text-center text-[11px] font-semibold uppercase tracking-[0.3em] text-amber-100/70">
-                          {t('championsLeague.finalLabel')}
+                    {sidePanelView === 'champions' && (
+                      <div className="min-h-0 flex-1 overflow-hidden">
+                        <div className="mb-1 flex items-center justify-between">
+                          <div className="text-xs font-black text-cyan-300">{t('championsLeague.leagueChampionsLabel')}</div>
+                          <div className="text-[10px] font-semibold uppercase text-slate-400">Seed</div>
                         </div>
-                        <BracketMatchCard
-                          match={content.finalMatch}
-                          myTeamId={state.myTeamId}
-                          side="center"
-                          onOpenMatch={(fixtureId) => navigate(`/match/${fixtureId}`)}
-                        />
-                      </div>
-                    ) : (
-                      <div className="w-full rounded-[34px] border border-white/10 bg-white/5 p-6 text-center text-sm text-slate-300">
-                        {t('championsLeague.finalPending')}
+                        <div className="max-h-full overflow-y-auto divide-y divide-white/8 pr-1">
+                          {state.entrants.map((entrant, index) => (
+                            <div key={entrant.teamId} className="grid grid-cols-[16px_20px_minmax(0,1fr)_24px] items-center gap-1.5 py-0.5 text-[9px]">
+                              <div className="text-slate-500">{index + 1}</div>
+                              <CrestMark name={entrant.teamName} active={entrant.teamId === state.myTeamId} />
+                              <div className="truncate font-semibold text-slate-100">{entrant.teamName}</div>
+                              <div className="text-right font-semibold text-slate-300">{entrant.seed}</div>
+                            </div>
+                          ))}
+                        </div>
                       </div>
                     )}
-                  </div>
-
-                  <div className="flex gap-8">
-                    {content.rightColumns.map((column) => (
-                      <StageColumn
-                        key={`right-${column.round}`}
-                        title={column.title}
-                        subtitle={column.subtitle}
-                        matches={column.matches}
-                        myTeamId={state.myTeamId}
-                        side="right"
-                        onOpenMatch={(fixtureId) => navigate(`/match/${fixtureId}`)}
-                      />
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </Card>
+                  </Card>
+                )}
+              </aside>
+            </div>
           </>
         )}
       </div>
