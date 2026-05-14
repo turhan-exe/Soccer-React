@@ -18,6 +18,14 @@ import { monthKeyTR, monthStartAt19TR } from './utils/time.js';
 const db = getFirestore();
 const REGION = 'europe-west1';
 const TZ = 'Europe/Istanbul';
+const CHAMPIONS_LEAGUE_SCHEDULED_RUNTIME = {
+  timeoutSeconds: 540,
+  memory: '512MB',
+} as const;
+const CHAMPIONS_LEAGUE_HTTP_RUNTIME = {
+  timeoutSeconds: 540,
+  memory: '1GB',
+} as const;
 const CHAMPIONS_LEAGUE_KICKOFF_HOUR = 11;
 const CHAMPIONS_LEAGUE_ROUND_SPACING_DAYS = 2;
 const ADMIN_SECRET =
@@ -750,7 +758,7 @@ export async function syncChampionsLeagueProgressInternal(input: SyncChampionsLe
 }
 
 export const bootstrapChampionsLeagueMonthly = functions
-  .runWith({ timeoutSeconds: 540, memory: '1GB' })
+  .runWith(CHAMPIONS_LEAGUE_SCHEDULED_RUNTIME)
   .region(REGION)
   .pubsub.schedule('50 23 * * *')
   .timeZone(TZ)
@@ -759,7 +767,7 @@ export const bootstrapChampionsLeagueMonthly = functions
   });
 
 export const bootstrapChampionsLeagueMonthlyHttp = functions
-  .runWith({ timeoutSeconds: 540, memory: '1GB' })
+  .runWith(CHAMPIONS_LEAGUE_HTTP_RUNTIME)
   .region(REGION)
   .https.onRequest(async (req, res) => {
     if (applyCors(req, res)) return;
@@ -784,7 +792,7 @@ export const bootstrapChampionsLeagueMonthlyHttp = functions
   });
 
 export const syncChampionsLeagueProgressHttp = functions
-  .runWith({ timeoutSeconds: 540, memory: '1GB' })
+  .runWith(CHAMPIONS_LEAGUE_HTTP_RUNTIME)
   .region(REGION)
   .https.onRequest(async (req, res) => {
     if (applyCors(req, res)) return;
@@ -808,7 +816,7 @@ export const syncChampionsLeagueProgressHttp = functions
   });
 
 export const syncChampionsLeagueProgressOnFixtureWrite = functions
-  .runWith({ timeoutSeconds: 540, memory: '1GB' })
+  .runWith(CHAMPIONS_LEAGUE_SCHEDULED_RUNTIME)
   .region(REGION)
   .firestore.document('leagues/{leagueId}/fixtures/{fixtureId}')
   .onWrite(async (change, context) => {
@@ -817,9 +825,6 @@ export const syncChampionsLeagueProgressOnFixtureWrite = functions
     const after = change.after.exists ? (change.after.data() as Record<string, unknown>) : null;
     if (!after) return;
 
-    const competition = await loadCompetitionLeague(leagueId);
-    if (!competition) return;
-
     const matchId = normalizeString(after.competitionMatchId) || undefined;
     const beforeStatus = String(change.before.exists ? change.before.data()?.status || '' : '').trim().toLowerCase();
     const afterStatus = String(after.status || '').trim().toLowerCase();
@@ -827,6 +832,9 @@ export const syncChampionsLeagueProgressOnFixtureWrite = functions
     if (beforeStatus === afterStatus && afterStatus !== 'played' && !matchId) {
       return;
     }
+
+    const competition = await loadCompetitionLeague(leagueId);
+    if (!competition) return;
 
     await syncChampionsLeagueProgressInternal({
       leagueId,

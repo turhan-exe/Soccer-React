@@ -8,6 +8,12 @@ import { createConditionRecoveryDueAt } from './utils/teamConditionRecovery.js';
 
 const db = getFirestore();
 
+const resolveTeamDisplayName = (data: Record<string, unknown> | undefined, teamId: string): string => {
+  const rawName = typeof data?.name === 'string' && data.name.trim() ? data.name : null;
+  const rawClubName = typeof data?.clubName === 'string' && data.clubName.trim() ? data.clubName : null;
+  return rawName || rawClubName || `Team ${teamId.slice(0, 6)}`;
+};
+
 // When a user signs up, assign their team to the first available league.
 export const assignTeamOnUserCreate = functions
   .region('europe-west1')
@@ -49,32 +55,51 @@ export const syncTeamName = functions
     const teamId = ctx.params.teamId as string;
     if (!change.after.exists) return;
     const after = change.after.data() as any;
-    const newName: string = after?.name || after?.clubName || `Team ${teamId.slice(0, 6)}`;
+    const newName = resolveTeamDisplayName(after, teamId);
 
-    // Find league memberships via collectionGroup('teams') where teamId == teamId
-    const memberships = await db
-      .collectionGroup('teams')
-      .where('teamId', '==', teamId)
-      .get();
+    if (change.before.exists) {
+      const before = change.before.data() as Record<string, unknown> | undefined;
+      if (resolveTeamDisplayName(before, teamId) === newName) {
+        return;
+      }
+    }
+
+    const leagueId = typeof after?.leagueId === 'string' && after.leagueId.trim() ? after.leagueId : null;
 
     const leagueRefs = new Map<string, DocumentReference>();
 
-    let batch = db.batch();
-    let ops = 0;
-    for (const d of memberships.docs) {
-      // Update mirrored team name under league
-      batch.set(d.ref, { name: newName, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
-      const leagueRef = d.ref.parent.parent!;
-      leagueRefs.set(leagueRef.id, leagueRef);
-      ops++;
-      if (ops >= 450) {
-        await batch.commit();
-        batch = db.batch();
-        ops = 0;
+    if (leagueId) {
+      const leagueRef = db.collection('leagues').doc(leagueId);
+      await leagueRef
+        .collection('teams')
+        .doc(teamId)
+        .set({ teamId, name: newName, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+      leagueRefs.set(leagueId, leagueRef);
+    } else {
+      // Legacy fallback for older team documents that do not carry leagueId.
+      const memberships = await db
+        .collectionGroup('teams')
+        .where('teamId', '==', teamId)
+        .get();
+
+      let batch = db.batch();
+      let ops = 0;
+      for (const d of memberships.docs) {
+        batch.set(d.ref, { name: newName, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+        const leagueRef = d.ref.parent.parent;
+        if (leagueRef) {
+          leagueRefs.set(leagueRef.id, leagueRef);
+        }
+        ops++;
+        if (ops >= 450) {
+          await batch.commit();
+          batch = db.batch();
+          ops = 0;
+        }
       }
-    }
-    if (ops > 0) {
-      await batch.commit();
+      if (ops > 0) {
+        await batch.commit();
+      }
     }
 
     if (leagueRefs.size === 0) return;

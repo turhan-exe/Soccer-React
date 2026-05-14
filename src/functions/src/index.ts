@@ -108,6 +108,7 @@ export {
 } from './economy/rewardedAds.js';
 export { notifyDueSignals } from './notify/dueSignals.js';
 export { finalizeDueTrainingSessions } from './notify/training.js';
+export { applyPendingMobileUpdatePolicies } from './security/mobileUpdateScheduler.js';
 export {
   recoverTeamConditionCron,
   recoverTeamConditionNow,

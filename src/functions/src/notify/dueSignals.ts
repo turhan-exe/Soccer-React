@@ -11,7 +11,7 @@ const toMillis = (value: any) =>
 
 export const notifyDueSignals = functions
   .region(REGION)
-  .pubsub.schedule('* * * * *')
+  .pubsub.schedule('every 5 minutes')
   .timeZone(TZ)
   .onRun(async () => {
     const now = Timestamp.now();

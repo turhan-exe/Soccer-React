@@ -49,6 +49,18 @@ import { queueHistoricalRecoveryAlert } from './notify/recoveryAlerts.js';
 
 const REGION = 'europe-west1';
 const TZ = 'Europe/Istanbul';
+const LIVE_LEAGUE_SCHEDULED_RUNTIME = {
+  timeoutSeconds: 540,
+  memory: '512MB',
+} as const;
+const LIVE_LEAGUE_HTTP_RUNTIME = {
+  timeoutSeconds: 540,
+  memory: '1GB',
+} as const;
+const PREPARE_KICKOFF_SCHEDULE = '45,50,55 10,11,14,15,16,17,18 * * *';
+const KICKOFF_SLOT_SCHEDULE = '0,5,10 11,12,15,16,17,18,19 * * *';
+const LEAGUE_MONITOR_SCHEDULE = 'every 15 minutes';
+const LIVE_MEDIA_BACKFILL_SCHEDULE = 'every 30 minutes';
 const db = getFirestore();
 const bucket = getStorage().bucket();
 
@@ -3222,7 +3234,7 @@ function parseOptionalFromDate(raw: unknown) {
 }
 
 export const recoverHistoricalFixturesNightly = functions
-  .runWith({ timeoutSeconds: 540, memory: '1GB' })
+  .runWith(LIVE_LEAGUE_SCHEDULED_RUNTIME)
   .region(REGION)
   .pubsub.schedule('0,30 0-9 * * *')
   .timeZone(TZ)
@@ -3247,9 +3259,9 @@ export const recoverHistoricalFixturesNightly = functions
   });
 
 export const prepareLeagueKickoffWindow = functions
-  .runWith({ timeoutSeconds: 540, memory: '1GB' })
+  .runWith(LIVE_LEAGUE_SCHEDULED_RUNTIME)
   .region(REGION)
-  .pubsub.schedule('every 5 minutes')
+  .pubsub.schedule(PREPARE_KICKOFF_SCHEDULE)
   .timeZone(TZ)
   .onRun(async () => {
     const result = await prepareLeagueKickoffWindowInternal();
@@ -3258,9 +3270,9 @@ export const prepareLeagueKickoffWindow = functions
   });
 
 export const kickoffPreparedLeagueMatches = functions
-  .runWith({ timeoutSeconds: 540, memory: '1GB' })
+  .runWith(LIVE_LEAGUE_SCHEDULED_RUNTIME)
   .region(REGION)
-  .pubsub.schedule('every 5 minutes')
+  .pubsub.schedule(KICKOFF_SLOT_SCHEDULE)
   .timeZone(TZ)
   .onRun(async () => {
     const result = await kickoffPreparedLeagueMatchesInternal();
@@ -3269,9 +3281,9 @@ export const kickoffPreparedLeagueMatches = functions
   });
 
 export const reconcileLeagueLiveMatches = functions
-  .runWith({ timeoutSeconds: 540, memory: '1GB' })
+  .runWith(LIVE_LEAGUE_SCHEDULED_RUNTIME)
   .region(REGION)
-  .pubsub.schedule('every 5 minutes')
+  .pubsub.schedule(LEAGUE_MONITOR_SCHEDULE)
   .timeZone(TZ)
   .onRun(async () => {
     const result = await reconcileLeagueLiveMatchesInternal();
@@ -3280,9 +3292,9 @@ export const reconcileLeagueLiveMatches = functions
   });
 
 export const recoverLeagueKickoffSlots = functions
-  .runWith({ timeoutSeconds: 540, memory: '1GB' })
+  .runWith(LIVE_LEAGUE_SCHEDULED_RUNTIME)
   .region(REGION)
-  .pubsub.schedule('every 5 minutes')
+  .pubsub.schedule(LEAGUE_MONITOR_SCHEDULE)
   .timeZone(TZ)
   .onRun(async () => {
     const result = await recoverLeagueKickoffSlotsInternal();
@@ -3291,9 +3303,9 @@ export const recoverLeagueKickoffSlots = functions
   });
 
 export const backfillLiveLeagueMedia = functions
-  .runWith({ timeoutSeconds: 540, memory: '1GB' })
+  .runWith(LIVE_LEAGUE_SCHEDULED_RUNTIME)
   .region(REGION)
-  .pubsub.schedule('every 15 minutes')
+  .pubsub.schedule(LIVE_MEDIA_BACKFILL_SCHEDULE)
   .timeZone(TZ)
   .onRun(async () => {
     const result = await backfillLiveLeagueMediaInternal();
@@ -3302,7 +3314,7 @@ export const backfillLiveLeagueMedia = functions
   });
 
 export const prepareLeagueKickoffWindowHttp = functions
-  .runWith({ timeoutSeconds: 540, memory: '1GB' })
+  .runWith(LIVE_LEAGUE_HTTP_RUNTIME)
   .region(REGION)
   .https.onRequest(async (req, res) => {
     if (applyCors(req, res)) return;
@@ -3330,7 +3342,7 @@ export const prepareLeagueKickoffWindowHttp = functions
   });
 
 export const kickoffPreparedLeagueMatchesHttp = functions
-  .runWith({ timeoutSeconds: 540, memory: '1GB' })
+  .runWith(LIVE_LEAGUE_HTTP_RUNTIME)
   .region(REGION)
   .https.onRequest(async (req, res) => {
     if (applyCors(req, res)) return;
@@ -3358,7 +3370,7 @@ export const kickoffPreparedLeagueMatchesHttp = functions
   });
 
 export const runLeagueCatchupForDateHttp = functions
-  .runWith({ timeoutSeconds: 540, memory: '1GB' })
+  .runWith(LIVE_LEAGUE_HTTP_RUNTIME)
   .region(REGION)
   .https.onRequest(async (req, res) => {
     if (applyCors(req, res)) return;
@@ -3382,7 +3394,7 @@ export const runLeagueCatchupForDateHttp = functions
   });
 
 export const recoverHistoricalFixturesHttp = functions
-  .runWith({ timeoutSeconds: 540, memory: '1GB' })
+  .runWith(LIVE_LEAGUE_HTTP_RUNTIME)
   .region(REGION)
   .https.onRequest(async (req, res) => {
     if (applyCors(req, res)) return;
