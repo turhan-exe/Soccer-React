@@ -1,4 +1,4 @@
-import { doc, setDoc, getDoc, runTransaction } from 'firebase/firestore';
+import { doc, setDoc, getDoc, getDocFromServer, runTransaction } from 'firebase/firestore';
 import { FirebaseError } from 'firebase/app';
 import type { User as FirebaseAuthUser } from 'firebase/auth';
 import { httpsCallable } from 'firebase/functions';
@@ -205,9 +205,19 @@ export const createInitialTeam = async (
   return team;
 };
 
-export const getTeam = async (userId: string): Promise<ClubTeam | null> => {
+type GetTeamOptions = {
+  source?: 'default' | 'server';
+  persistNormalization?: boolean;
+};
+
+export const getTeam = async (
+  userId: string,
+  options: GetTeamOptions = {},
+): Promise<ClubTeam | null> => {
   const ref = doc(db, 'teams', userId);
-  const snap = await getDoc(ref);
+  const snap = options.source === 'server'
+    ? await getDocFromServer(ref)
+    : await getDoc(ref);
   if (!snap.exists()) {
     return null;
   }
@@ -236,7 +246,9 @@ export const getTeam = async (userId: string): Promise<ClubTeam | null> => {
   const normalizationChanged =
     JSON.stringify(normalizedPlayers) !== JSON.stringify(agedPlayers);
 
-  if ((changed || normalizationChanged) && canPersist) {
+  const shouldPersistNormalization = options.persistNormalization !== false;
+
+  if (shouldPersistNormalization && (changed || normalizationChanged) && canPersist) {
     try {
       await saveTeamPlayers(userId, normalizedPlayers);
     } catch (error) {

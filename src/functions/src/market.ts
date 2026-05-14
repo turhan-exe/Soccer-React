@@ -603,6 +603,7 @@ export const marketPurchaseListing = functions
       const buyerTeamRef = db.collection('teams').doc(buyerTeamId);
       const buyerFinanceRef = financeDoc(buyerTeamId);
       const purchaseRef = purchaseId ? db.collection('purchases').doc(purchaseId) : null;
+      const nowMs = Date.now();
 
       const purchaseResult = await db.runTransaction(async tx => {
         if (purchaseRef) {
@@ -611,6 +612,8 @@ export const marketPurchaseListing = functions
             const purchaseData = purchaseSnap.data() as {
               listingId?: string;
               soldAt?: unknown;
+              transferredPlayerId?: string;
+              playerName?: string;
             };
             if (purchaseData.listingId === listingId) {
               const soldAtValue = purchaseData.soldAt;
@@ -620,7 +623,11 @@ export const marketPurchaseListing = functions
                   : typeof soldAtValue === 'string'
                     ? soldAtValue
                     : new Date().toISOString();
-              return { soldAt: iso };
+              return {
+                soldAt: iso,
+                transferredPlayerId: purchaseData.transferredPlayerId ?? '',
+                playerName: purchaseData.playerName ?? '',
+              };
             }
             throw new functions.https.HttpsError('failed-precondition', 'PURCHASE_CONFLICT');
           }
@@ -635,7 +642,7 @@ export const marketPurchaseListing = functions
         if (listing.status !== 'active') {
           throw new functions.https.HttpsError('failed-precondition', 'ALREADY_SOLD');
         }
-        if (isTransferListingExpired(listing, Date.now())) {
+        if (isTransferListingExpired(listing, nowMs)) {
           await resetPlayerMarketState(tx, listing);
           tx.update(listingRef, {
             status: 'expired',
@@ -735,14 +742,13 @@ export const marketPurchaseListing = functions
           typeof playerData.uniqueId === 'string' ? playerData.uniqueId : undefined,
         );
 
-        const updatedPlayer: PlayerSnapshot = {
-          ...playerData,
-          id: buyerPlayerId,
-          ownerUid: uid,
-          teamId: buyerTeamId,
-          squadRole: typeof playerData.squadRole === 'string' ? playerData.squadRole : 'reserve',
-          market: { active: false, listingId: null },
-        };
+        const updatedPlayer = buildPurchasedPlayerForBuyer({
+          playerData,
+          buyerPlayerId,
+          uid,
+          buyerTeamId,
+          nowMs,
+        });
 
         if (sellerPlayers && sellerPlayerIndex > -1) {
           sellerPlayers.splice(sellerPlayerIndex, 1);
@@ -813,6 +819,10 @@ export const marketPurchaseListing = functions
             tx.set(resolved, updatedPlayer, { merge: true });
           }
         }
+        if (!targetPlayerRef) {
+          targetPlayerRef = db.doc(`teams/${buyerTeamId}/players/${buyerPlayerId}`);
+          tx.set(targetPlayerRef, updatedPlayer, { merge: true });
+        }
 
         const listingUpdates: DocumentData = {
           status: 'sold',
@@ -838,21 +848,154 @@ export const marketPurchaseListing = functions
             listingId,
             buyerUid: uid,
             buyerTeamId,
+            transferredPlayerId: buyerPlayerId,
+            playerName: updatedPlayer.name ?? '',
             soldAt: FieldValue.serverTimestamp(),
             createdAt: FieldValue.serverTimestamp(),
           });
         }
 
-        return { soldAt: new Date().toISOString() };
+        return {
+          soldAt: new Date(nowMs).toISOString(),
+          transferredPlayerId: buyerPlayerId,
+          playerName: typeof updatedPlayer.name === 'string' ? updatedPlayer.name : '',
+        };
       });
 
       if (purchaseResult.expired) {
         throw new functions.https.HttpsError('failed-precondition', 'LISTING_EXPIRED');
       }
 
-      return { ok: true, listingId, soldAt: purchaseResult.soldAt };
+      return {
+        ok: true,
+        listingId,
+        soldAt: purchaseResult.soldAt,
+        transferredPlayerId: purchaseResult.transferredPlayerId,
+        playerName: purchaseResult.playerName,
+      };
     } catch (error) {
       console.error('marketPurchaseListing error:', error);
+      if (error instanceof functions.https.HttpsError) {
+        throw error;
+      }
+      throw new functions.https.HttpsError('internal', (error as Error)?.message ?? 'INTERNAL');
+    }
+  });
+
+export const marketEnsurePurchasedPlayerInRoster = functions
+  .region(region)
+  .https.onCall(async (rawData, context) => {
+    try {
+      const uid = context.auth?.uid;
+      assertAuth(uid);
+
+      const data = rawData ?? {};
+      const listingId = isString(data.listingId) ? data.listingId.trim() : '';
+      const buyerTeamId = isString(data.buyerTeamId) ? data.buyerTeamId.trim() : '';
+      const requestedPlayerId = isString(data.transferredPlayerId)
+        ? data.transferredPlayerId.trim()
+        : '';
+
+      if (!listingId || !buyerTeamId) {
+        throw new functions.https.HttpsError('invalid-argument', 'MISSING_PARAMS');
+      }
+
+      const listingRef = listingsCollection.doc(listingId);
+      const teamRef = db.collection('teams').doc(buyerTeamId);
+
+      const result = await db.runTransaction(async tx => {
+        const [listingSnap, teamSnap] = await Promise.all([
+          tx.get(listingRef),
+          tx.get(teamRef),
+        ]);
+
+        if (!listingSnap.exists) {
+          throw new functions.https.HttpsError('not-found', 'LISTING_NOT_FOUND');
+        }
+        if (!teamSnap.exists) {
+          throw new functions.https.HttpsError('permission-denied', 'TEAM_NOT_FOUND');
+        }
+
+        const listing = listingSnap.data() as ListingDoc & {
+          buyerUid?: string;
+          buyerId?: string;
+          transferredPlayerId?: string;
+        };
+        const team = teamSnap.data() as TeamDoc;
+        const authorizedUids = collectAuthorizedUids(team, buyerTeamId);
+
+        if (!authorizedUids.has(uid)) {
+          throw new functions.https.HttpsError('permission-denied', 'NOT_TEAM_OWNER');
+        }
+        if (listing.status !== 'sold') {
+          throw new functions.https.HttpsError('failed-precondition', 'LISTING_NOT_SOLD');
+        }
+        if (String(listing.buyerTeamId ?? '') !== buyerTeamId) {
+          throw new functions.https.HttpsError('permission-denied', 'BUYER_TEAM_MISMATCH');
+        }
+        if (listing.buyerUid && String(listing.buyerUid) !== uid && !authorizedUids.has(String(listing.buyerUid))) {
+          throw new functions.https.HttpsError('permission-denied', 'BUYER_UID_MISMATCH');
+        }
+
+        const transferredPlayerId = String(
+          listing.transferredPlayerId ?? requestedPlayerId ?? '',
+        ).trim();
+        if (!transferredPlayerId) {
+          throw new functions.https.HttpsError('failed-precondition', 'MISSING_TRANSFERRED_PLAYER');
+        }
+        if (requestedPlayerId && requestedPlayerId !== transferredPlayerId) {
+          throw new functions.https.HttpsError('failed-precondition', 'TRANSFERRED_PLAYER_MISMATCH');
+        }
+
+        const playerRef = db.doc(`teams/${buyerTeamId}/players/${transferredPlayerId}`);
+        const playerSnap = await tx.get(playerRef);
+        const listingPlayer =
+          listing.player && typeof listing.player === 'object'
+            ? (listing.player as PlayerSnapshot)
+            : null;
+        const playerSource = playerSnap.exists
+          ? (playerSnap.data() as PlayerSnapshot)
+          : listingPlayer;
+
+        if (!playerSource) {
+          throw new functions.https.HttpsError('failed-precondition', 'PLAYER_NOT_AVAILABLE');
+        }
+
+        const player = {
+          ...playerSource,
+          id: transferredPlayerId,
+          ownerUid: uid,
+          teamId: buyerTeamId,
+          market: {
+            ...(playerSource.market ?? { active: false, listingId: null }),
+            active: false,
+            listingId: null,
+          },
+        } as PlayerSnapshot;
+
+        const { players, repaired } = upsertPurchasedPlayerIntoRoster(
+          Array.isArray(team.players) ? team.players : [],
+          player,
+          transferredPlayerId,
+        );
+
+        tx.set(playerRef, player, { merge: true });
+        tx.update(teamRef, { players });
+
+        return {
+          repaired,
+          transferredPlayerId,
+          playerName: typeof player.name === 'string' ? player.name : '',
+          rosterCount: players.length,
+        };
+      });
+
+      return {
+        ok: true,
+        ...result,
+      };
+    } catch (error) {
+      console.error('marketEnsurePurchasedPlayerInRoster error:', error);
       if (error instanceof functions.https.HttpsError) {
         throw error;
       }
@@ -997,6 +1140,77 @@ const getSystemMarketSalary = (overall: number): number => {
   if (rating <= 65) return 9_500;
   if (rating <= 75) return 14_500;
   return 22_000;
+};
+
+const addContractYears = (date: Date, years: number): Date => {
+  const result = new Date(date);
+  result.setFullYear(result.getFullYear() + years);
+  return result;
+};
+
+export const buildPurchasedPlayerContract = (
+  player: PlayerSnapshot,
+  nowMs: number,
+): NonNullable<PlayerSnapshot['contract']> => {
+  const currentSalary = player.contract?.salary;
+  const salary =
+    typeof currentSalary === 'number' && Number.isFinite(currentSalary) && currentSalary > 0
+      ? Math.round(currentSalary)
+      : getSystemMarketSalary(typeof player.overall === 'number' ? player.overall : 0);
+
+  return {
+    status: 'active',
+    expiresAt: addContractYears(new Date(nowMs), 1).toISOString(),
+    salary,
+    extensions: 0,
+  };
+};
+
+export const buildPurchasedPlayerForBuyer = ({
+  playerData,
+  buyerPlayerId,
+  uid,
+  buyerTeamId,
+  nowMs,
+}: {
+  playerData: PlayerSnapshot;
+  buyerPlayerId: string;
+  uid: string;
+  buyerTeamId: string;
+  nowMs: number;
+}): PlayerSnapshot => ({
+  ...playerData,
+  id: buyerPlayerId,
+  ownerUid: uid,
+  teamId: buyerTeamId,
+  squadRole: typeof playerData.squadRole === 'string' ? playerData.squadRole : 'reserve',
+  market: { active: false, listingId: null },
+  contract: buildPurchasedPlayerContract(playerData, nowMs),
+});
+
+export const upsertPurchasedPlayerIntoRoster = (
+  players: PlayerSnapshot[],
+  player: PlayerSnapshot,
+  playerId: string,
+): { players: PlayerSnapshot[]; repaired: boolean } => {
+  const normalizedId = String(playerId || player.id || '').trim();
+  const normalizedPlayer: PlayerSnapshot = {
+    ...player,
+    id: normalizedId || player.id,
+  };
+  const nextPlayers = [...players];
+  const index = nextPlayers.findIndex(item => String(item.id ?? '') === normalizedId);
+
+  if (index > -1) {
+    nextPlayers[index] = {
+      ...nextPlayers[index],
+      ...normalizedPlayer,
+    };
+    return { players: nextPlayers, repaired: false };
+  }
+
+  nextPlayers.push(normalizedPlayer);
+  return { players: nextPlayers, repaired: true };
 };
 
 const pickSystemOverall = (rand: () => number): number => {

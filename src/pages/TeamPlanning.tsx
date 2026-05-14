@@ -255,11 +255,21 @@ function TeamPlanningContent() {
     setIsRightHeaderCollapsed(container.scrollTop >= 24);
   }, []);
 
-  const filteredPlayers = displayPlayers.filter(
-    (player) =>
-      player.name.toLowerCase().includes(searchTerm.toLowerCase()) &&
-      player.squadRole === activeTab
-  );
+  const trimmedSearchTerm = searchTerm.trim().toLowerCase();
+  const shouldSearchBenchAndReserve =
+    trimmedSearchTerm.length > 0 &&
+    (activeTab === "bench" || activeTab === "reserve");
+
+  const filteredPlayers = displayPlayers.filter((player) => {
+    const matchesSearch =
+      trimmedSearchTerm.length === 0 ||
+      player.name.toLowerCase().includes(trimmedSearchTerm);
+    const matchesRole = shouldSearchBenchAndReserve
+      ? player.squadRole === "bench" || player.squadRole === "reserve"
+      : player.squadRole === activeTab;
+
+    return matchesSearch && matchesRole;
+  });
 
   const getRatingAnnotation = useCallback(
     (player: DisplayPlayer) =>

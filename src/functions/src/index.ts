@@ -34,6 +34,7 @@ export {
   marketCreateListing,
   marketCancelListing,
   marketPurchaseListing,
+  marketEnsurePurchasedPlayerInRoster,
   expireStaleTransferListings,
   autoListExpiredContracts,
   topUpTransferMarketDaily,
@@ -93,6 +94,10 @@ export {
   finalizeAndroidSponsorPurchase,
 } from './economy/playBilling.js';
 export { activateUserSponsor, collectUserSponsorEarnings } from './economy/sponsors.js';
+export {
+  ensureMonthlySalaryCharge,
+  chargeMonthlyTeamSalariesDaily,
+} from './economy/salaries.js';
 export { claimVipDailyCredits } from './economy/vipDailyCredit.js';
 export {
   createRewardedAdSession,
@@ -103,7 +108,10 @@ export {
 } from './economy/rewardedAds.js';
 export { notifyDueSignals } from './notify/dueSignals.js';
 export { finalizeDueTrainingSessions } from './notify/training.js';
-export { recoverTeamConditionCron } from './notify/conditionRecovery.js';
+export {
+  recoverTeamConditionCron,
+  recoverTeamConditionNow,
+} from './notify/conditionRecovery.js';
 export {
   repairIncompleteSquadsDaily,
   repairIncompleteSquadsHttp,

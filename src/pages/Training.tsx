@@ -545,42 +545,58 @@ export default function TrainingPage() {
     hasRestoredLastSelectionRef.current = false;
   }, [user?.id]);
 
+  const fetchTrainingTeam = useCallback(async () => {
+    if (!user) {
+      return;
+    }
+
+    const team = await getTeam(user.id);
+    setPlayers(team?.players ?? []);
+
+    if (!team) {
+      return;
+    }
+
+    const plan = (team.plan ?? team.lineup) as {
+      starters?: string[];
+      bench?: string[];
+      subs?: string[];
+      reserves?: string[];
+    } | undefined;
+
+    setSquadAssignments({
+      starters:
+        (plan?.starters && plan.starters.filter(Boolean)) ||
+        team.players.filter(player => player.squadRole === 'starting').map(player => player.id),
+      bench:
+        (plan?.bench && plan.bench.filter(Boolean)) ||
+        (plan?.subs && plan.subs.filter(Boolean)) ||
+        team.players.filter(player => player.squadRole === 'bench').map(player => player.id),
+      reserves:
+        (plan?.reserves && plan.reserves.filter(Boolean)) ||
+        team.players.filter(player => player.squadRole === 'reserve').map(player => player.id),
+    });
+  }, [user]);
+
   useEffect(() => {
-    const fetchPlayers = async () => {
-      if (!user) {
+    void fetchTrainingTeam();
+  }, [fetchTrainingTeam]);
+
+  useEffect(() => {
+    const handleRecovered = (event: Event) => {
+      const detail = (event as CustomEvent<{ userId?: string }>).detail;
+      if (!user || detail?.userId !== user.id) {
         return;
       }
 
-      const team = await getTeam(user.id);
-      setPlayers(team?.players ?? []);
-
-      if (!team) {
-        return;
-      }
-
-      const plan = (team.plan ?? team.lineup) as {
-        starters?: string[];
-        bench?: string[];
-        subs?: string[];
-        reserves?: string[];
-      } | undefined;
-
-      setSquadAssignments({
-        starters:
-          (plan?.starters && plan.starters.filter(Boolean)) ||
-          team.players.filter(player => player.squadRole === 'starting').map(player => player.id),
-        bench:
-          (plan?.bench && plan.bench.filter(Boolean)) ||
-          (plan?.subs && plan.subs.filter(Boolean)) ||
-          team.players.filter(player => player.squadRole === 'bench').map(player => player.id),
-        reserves:
-          (plan?.reserves && plan.reserves.filter(Boolean)) ||
-          team.players.filter(player => player.squadRole === 'reserve').map(player => player.id),
-      });
+      void fetchTrainingTeam();
     };
 
-    void fetchPlayers();
-  }, [user]);
+    window.addEventListener('fhs:teamConditionRecovered', handleRecovered);
+    return () => {
+      window.removeEventListener('fhs:teamConditionRecovered', handleRecovered);
+    };
+  }, [fetchTrainingTeam, user]);
 
   useEffect(() => {
     if (!user || isTraining || pendingActiveSession || hasRestoredLastSelectionRef.current) {

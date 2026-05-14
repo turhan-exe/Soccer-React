@@ -628,109 +628,26 @@ export async function syncTeamSalaries(teamId: string): Promise<TeamSalariesDoc>
 }
 
 export async function ensureMonthlySalaryCharge(teamId: string): Promise<number | null> {
-  await ensureFinanceProfile(teamId);
-  let chargedAmount: number | null = null;
-  const monthKey = new Date().toISOString().slice(0, 7);
-
-  await runTransaction(db, async (tx) => {
-    const financeRef = financeDoc(teamId);
-    const salariesRef = teamSalariesDoc(teamId);
-    const scheduleRef = teamSalariesScheduleDoc(teamId);
-    const teamRef = teamDoc(teamId);
-
-    const [financeSnap, salariesSnap, scheduleSnap, teamSnap] = await Promise.all([
-      tx.get(financeRef),
-      tx.get(salariesRef),
-      tx.get(scheduleRef),
-      tx.get(teamRef),
-    ]);
-
-    const schedule = scheduleSnap.exists() ? (scheduleSnap.data() as { lastChargedMonth?: string }) : {};
-    if (schedule.lastChargedMonth === monthKey) {
-      chargedAmount = null;
-      return;
-    }
-
-    const teamData = teamSnap.data() as { players?: Player[]; budget?: number; transferBudget?: number } | undefined;
-    const computedSalaryState = buildSalaryState(teamData?.players ?? []);
-    const salaryMotivationState = applyUnderpaidSalaryPenaltyForMonth(
-      computedSalaryState.normalizedPlayers,
-      monthKey,
-    );
-    const salaryRecords = computedSalaryState.records.length
-      ? computedSalaryState.records
-      : (salariesSnap.exists()
-          ? ((salariesSnap.data() as TeamSalariesDoc).players ?? [])
-          : []);
-    const total = salaryRecords.reduce((sum, record) => sum + record.salary, 0);
-    if (total <= 0) {
-      chargedAmount = null;
-      return;
-    }
-
-    const balanceSource = Number.isFinite(teamData?.transferBudget)
-      ? Number(teamData?.transferBudget)
-      : Number.isFinite(teamData?.budget)
-        ? Number(teamData?.budget)
-        : (financeSnap.data()?.balance ?? INITIAL_CLUB_BALANCE);
-    const balance = normalizeClubBalance(balanceSource);
-    if (balance < total) {
-      throw new Error('Yetersiz bakiye.');
-    }
-
-    tx.set(
-      teamSalariesDoc(teamId),
-      {
-        players: salaryRecords,
-        total,
-        updatedAt: serverTimestamp(),
-      },
-      { merge: true },
-    );
-    if (computedSalaryState.changed || salaryMotivationState.changed) {
-      tx.set(
-        teamRef,
-        {
-          players: salaryMotivationState.players,
-        },
-        { merge: true },
-      );
-    }
-    const nextBalance = balance - total;
-    tx.update(financeRef, {
-      balance: nextBalance,
-      updatedAt: serverTimestamp(),
-    });
-    tx.set(
-      teamRef,
-      {
-        budget: nextBalance,
-        transferBudget: nextBalance,
-      },
-      { merge: true },
-    );
-    tx.set(
-      scheduleRef,
-      {
-        lastChargedMonth: monthKey,
-        lastChargedAt: serverTimestamp(),
-        lastAmount: total,
-      },
-      { merge: true },
-    );
-    chargedAmount = total;
-  });
-
-  if (chargedAmount && chargedAmount > 0) {
-    await addFinanceHistoryEntry(teamId, {
-      type: 'expense',
-      category: 'salary',
-      amount: chargedAmount,
-      note: `${monthKey} maas odemesi`,
-    });
+  if (!teamId) {
+    return null;
   }
-
-  return chargedAmount;
+  const [{ httpsCallable }, { functions }] = await Promise.all([
+    import('firebase/functions'),
+    import('./firebase'),
+  ]);
+  const ensureMonthlySalaryChargeCallable = httpsCallable<
+    { teamId: string },
+    {
+      chargedAmount?: number | null;
+      skippedReason?: string;
+      monthKey?: string;
+    }
+  >(functions, 'ensureMonthlySalaryCharge');
+  const response = await ensureMonthlySalaryChargeCallable({ teamId });
+  const chargedAmount = response.data?.chargedAmount;
+  return typeof chargedAmount === 'number' && Number.isFinite(chargedAmount)
+    ? chargedAmount
+    : null;
 }
 
 export async function upgradeStadiumLevel(teamId: string): Promise<StadiumState> {

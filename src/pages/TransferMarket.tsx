@@ -7,15 +7,26 @@ import React, {
 } from 'react';
 import { toast } from 'sonner';
 
+import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTranslation } from '@/contexts/LanguageContext';
 import { useClubFinance } from '@/hooks/useClubFinance';
+import { getSalaryForOverall } from '@/lib/salary';
 import { getLegendIdFromPlayer } from '@/services/legends';
 import { syncTeamSalaries } from '@/services/finance';
 import { getTeam } from '@/services/team';
 import {
   cancelTransferListing,
   createTransferListing,
+  ensurePurchasedPlayerInRoster,
   listenAvailableTransferListings,
   listenUserTransferListings,
   purchaseTransferListing,
@@ -65,8 +76,15 @@ const extractIndexLink = (message: string): string | null => {
   return match[0].replace(/[).,]$/, '');
 };
 
+const wait = (ms: number) => new Promise(resolve => window.setTimeout(resolve, ms));
+
+type LoadTeamOptions = {
+  source?: 'default' | 'server';
+  persistNormalization?: boolean;
+};
+
 export default function TransferMarket() {
-  const { t } = useTranslation();
+  const { t, formatCurrency } = useTranslation();
   const { user } = useAuth();
   const [teamPlayers, setTeamPlayers] = useState<Player[]>([]);
   const [teamName, setTeamName] = useState<string>('');
@@ -80,6 +98,7 @@ export default function TransferMarket() {
   const [isListingsLoading, setIsListingsLoading] = useState(true);
   const [isMyListingsLoading, setIsMyListingsLoading] = useState(false);
   const [cancellingId, setCancellingId] = useState<string>('');
+  const [pendingPurchaseListing, setPendingPurchaseListing] = useState<TransferListing | null>(null);
 
   const [filters, setFilters] = useState<FilterState>({
     position: 'all',
@@ -110,15 +129,18 @@ export default function TransferMarket() {
     return { title: t('transfer.marketDataError'), description: message };
   }, [t]);
 
-  const loadTeam = useCallback(async () => {
-    if (!user) return;
+  const loadTeam = useCallback(async (options: LoadTeamOptions = {}): Promise<Player[]> => {
+    if (!user) return [];
     try {
-      const team = await getTeam(user.id);
-      setTeamPlayers(team?.players ?? []);
+      const team = await getTeam(user.id, options);
+      const nextPlayers = team?.players ?? [];
+      setTeamPlayers(nextPlayers);
       setTeamName(team?.name ?? user.teamName ?? t('transfer.myTeamFallback'));
+      return nextPlayers;
     } catch (error) {
       console.error('[TransferMarket] team load failed', error);
       toast.error(t('transfer.teamLoadError'));
+      return [];
     }
   }, [t, user]);
 
@@ -257,8 +279,33 @@ export default function TransferMarket() {
     }
   };
 
-  const handlePurchase = async (listing: TransferListing) => {
+  const pendingPurchasePlayer = pendingPurchaseListing?.player;
+  const pendingPurchaseName =
+    pendingPurchasePlayer?.name ??
+    pendingPurchaseListing?.playerName ??
+    t('transfer.unknownPlayer');
+  const pendingPurchaseSalary = pendingPurchasePlayer
+    ? pendingPurchasePlayer.contract?.salary ?? getSalaryForOverall(pendingPurchasePlayer.overall)
+    : 0;
+
+  const handlePurchase = (listing: TransferListing) => {
     if (!user) return;
+    if (teamBudget < listing.price) {
+      toast.error(t('transfer.insufficientBudget'));
+      return;
+    }
+
+    setPendingPurchaseListing(listing);
+  };
+
+  const handleCancelPendingPurchase = () => {
+    if (purchasingId) return;
+    setPendingPurchaseListing(null);
+  };
+
+  const handleConfirmPurchase = async () => {
+    if (!user || !pendingPurchaseListing) return;
+    const listing = pendingPurchaseListing;
     if (teamBudget < listing.price) {
       toast.error(t('transfer.insufficientBudget'));
       return;
@@ -266,8 +313,64 @@ export default function TransferMarket() {
 
     setPurchasingId(listing.id);
     try {
-      await purchaseTransferListing(listing.id, user.id);
-      await loadTeam();
+      const result = await purchaseTransferListing(listing.id, user.id);
+      const transferredPlayerId = result.transferredPlayerId ?? '';
+      const reloadAfterPurchase = () => loadTeam({
+        source: 'server',
+        persistNormalization: false,
+      });
+      let latestPlayers = await reloadAfterPurchase();
+
+      if (
+        transferredPlayerId &&
+        !latestPlayers.some(player => String(player.id) === String(transferredPlayerId))
+      ) {
+        await wait(750);
+        latestPlayers = await reloadAfterPurchase();
+      }
+
+      if (
+        transferredPlayerId &&
+        !latestPlayers.some(player => String(player.id) === String(transferredPlayerId))
+      ) {
+        try {
+          const repairResult = await ensurePurchasedPlayerInRoster(
+            user.id,
+            listing.id,
+            transferredPlayerId,
+          );
+          console.warn('[TransferMarket] backend roster repair completed', {
+            listingId: listing.id,
+            transferredPlayerId,
+            repairResult,
+          });
+          latestPlayers = await reloadAfterPurchase();
+        } catch (repairError) {
+          console.error('[TransferMarket] backend roster repair failed', {
+            listingId: listing.id,
+            transferredPlayerId,
+            repairError,
+          });
+          toast.error(t('transfer.purchaseVerifyError'), {
+            description: repairError instanceof Error ? repairError.message : String(repairError),
+          });
+          return;
+        }
+      }
+
+      if (
+        transferredPlayerId &&
+        !latestPlayers.some(player => String(player.id) === String(transferredPlayerId))
+      ) {
+        console.error('[TransferMarket] purchased player missing after refresh', {
+          listingId: listing.id,
+          transferredPlayerId,
+          playerName: result.playerName,
+          repairAttempted: true,
+        });
+        toast.error(t('transfer.purchaseVerifyError'));
+        return;
+      }
 
       if (listing.player) {
         await syncTeamSalaries(user.id);
@@ -276,6 +379,7 @@ export default function TransferMarket() {
       toast.success(t('transfer.purchaseSuccess', {
         name: listing.player?.name ?? t('transfer.unknownPlayer'),
       }));
+      setPendingPurchaseListing(null);
     } catch (error) {
       toast.error(t('transfer.purchaseError'), { description: (error as Error).message });
     } finally {
@@ -324,6 +428,57 @@ export default function TransferMarket() {
           </div>
         </div>
       </div>
+
+      <Dialog open={Boolean(pendingPurchaseListing)} onOpenChange={(open) => {
+        if (!open) handleCancelPendingPurchase();
+      }}>
+        <DialogContent className="border-white/10 bg-[#171925] text-slate-100 sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{t('transfer.contractDialog.title')}</DialogTitle>
+            <DialogDescription className="text-slate-400">
+              {t('transfer.contractDialog.description', { name: pendingPurchaseName })}
+            </DialogDescription>
+          </DialogHeader>
+
+          {pendingPurchaseListing ? (
+            <div className="space-y-3 rounded-xl border border-white/10 bg-white/5 p-4">
+              <div className="flex items-center justify-between gap-4">
+                <span className="text-sm text-slate-400">{t('transfer.contractDialog.transferFee')}</span>
+                <span className="font-semibold text-emerald-300">{formatCurrency(pendingPurchaseListing.price)}</span>
+              </div>
+              <div className="flex items-center justify-between gap-4">
+                <span className="text-sm text-slate-400">{t('transfer.contractDialog.salary')}</span>
+                <span className="font-semibold text-slate-100">{formatCurrency(pendingPurchaseSalary)}</span>
+              </div>
+              <div className="flex items-center justify-between gap-4">
+                <span className="text-sm text-slate-400">{t('transfer.contractDialog.duration')}</span>
+                <span className="font-semibold text-slate-100">{t('transfer.contractDialog.oneYear')}</span>
+              </div>
+            </div>
+          ) : null}
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={handleCancelPendingPurchase}
+              disabled={Boolean(purchasingId)}
+            >
+              {t('transfer.contractDialog.cancel')}
+            </Button>
+            <Button
+              type="button"
+              className="bg-emerald-600 text-white hover:bg-emerald-500"
+              onClick={handleConfirmPurchase}
+              disabled={Boolean(purchasingId)}
+            >
+              {purchasingId
+                ? t('transfer.processing')
+                : t('transfer.contractDialog.confirm')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

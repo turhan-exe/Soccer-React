@@ -223,7 +223,64 @@ export function listenUserTransferListings(
   });
 }
 
-export async function purchaseTransferListing(listingId: string, buyerTeamId: string) {
+export type PurchaseTransferListingResult = {
+  ok?: boolean;
+  listingId?: string;
+  soldAt?: string;
+  transferredPlayerId?: string;
+  playerName?: string;
+};
+
+export type EnsurePurchasedPlayerInRosterResult = {
+  ok?: boolean;
+  repaired?: boolean;
+  transferredPlayerId?: string;
+  playerName?: string;
+  rosterCount?: number;
+};
+
+export async function ensurePurchasedPlayerInRoster(
+  buyerTeamId: string,
+  listingId: string,
+  playerId: string,
+): Promise<EnsurePurchasedPlayerInRosterResult> {
+  if (!buyerTeamId || !listingId) {
+    throw new Error('Satın alma doğrulaması için takım ve ilan bilgisi gerekli.');
+  }
+
+  const fn = httpsCallable<
+    { buyerTeamId: string; listingId: string; transferredPlayerId?: string },
+    EnsurePurchasedPlayerInRosterResult
+  >(functions, 'marketEnsurePurchasedPlayerInRoster');
+
+  try {
+    const { data } = await fn({
+      buyerTeamId,
+      listingId,
+      transferredPlayerId: playerId || undefined,
+    });
+    if (!data || data.ok !== true) {
+      throw new Error('Satın alınan oyuncu kadroya eklenemedi.');
+    }
+    return data;
+  } catch (error) {
+    const err = error as { code?: string; message?: string; details?: string } | undefined;
+    const code = (err?.code || err?.details || 'internal').replace(/^functions\//, '');
+    const map: Record<string, string> = {
+      'failed-precondition': 'Satın alınan oyuncu doğrulanamadı.',
+      'permission-denied': 'Bu takımla işlem yapma yetkin yok.',
+      'not-found': 'Satın alma kaydı veya oyuncu bulunamadı.',
+      'unauthenticated': 'Giriş yapmalısın.',
+      internal: 'Sunucu hatası. Lütfen tekrar deneyin.',
+    };
+    throw new Error(map[code] || err?.message || 'Satın alınan oyuncu kadroya eklenemedi.');
+  }
+}
+
+export async function purchaseTransferListing(
+  listingId: string,
+  buyerTeamId: string,
+): Promise<PurchaseTransferListingResult> {
   const currentUser = auth.currentUser;
   if (!currentUser?.uid) {
     throw new Error('Giriş bilgisi bulunamadı.');
@@ -235,7 +292,7 @@ export async function purchaseTransferListing(listingId: string, buyerTeamId: st
 
   const fn = httpsCallable<
     { listingId: string; buyerTeamId: string; purchaseId: string },
-    { ok?: boolean; listingId?: string; soldAt?: string }
+    PurchaseTransferListingResult
   >(functions, 'marketPurchaseListing');
 
   try {

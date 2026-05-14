@@ -1,8 +1,9 @@
 import { doc, runTransaction } from 'firebase/firestore';
+import { httpsCallable } from 'firebase/functions';
 import {
   readConditionRecoveryToastAverageGainPercents,
 } from '@/lib/playerConditionRecovery';
-import { db } from '@/services/firebase';
+import { db, functions } from '@/services/firebase';
 import type { ConditionRecoveryPendingToast } from '@/types';
 
 type TeamConditionRecoveryDoc = {
@@ -39,6 +40,31 @@ export type ClaimTeamConditionRecoveryToastResult =
       appliedTicks: number;
       updatedAt: string;
     };
+
+export type ApplyDueTeamConditionRecoveryResult =
+  | {
+      status: 'missing' | 'skipped_not_due' | 'seeded_only';
+      source: 'due' | 'legacy' | 'seeded';
+    }
+  | {
+      status: 'applied';
+      source: 'due' | 'legacy' | 'seeded';
+      conditionGain: number;
+      motivationGain: number;
+      healthGain: number;
+      totalPlayers: number;
+      affectedPlayers: number;
+      appliedTicks: number;
+    };
+
+export const applyDueTeamConditionRecovery = async (): Promise<ApplyDueTeamConditionRecoveryResult> => {
+  const callable = httpsCallable<undefined, ApplyDueTeamConditionRecoveryResult>(
+    functions,
+    'recoverTeamConditionNow',
+  );
+  const result = await callable(undefined);
+  return result.data;
+};
 
 const emptyResult = (
   status: 'missing_team' | 'no_pending',

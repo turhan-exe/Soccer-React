@@ -12,7 +12,7 @@ export { renderMatchHttp } from './replay/renderJob.js';
 export { scheduleDailyMatches } from './replay/scheduleDailyMatches.js';
 export { recoverHistoricalFixturesNightly, recoverHistoricalFixturesHttp, prepareLeagueKickoffWindow, prepareLeagueKickoffWindowHttp, kickoffPreparedLeagueMatches, kickoffPreparedLeagueMatchesHttp, runLeagueCatchupForDateHttp, reconcileLeagueLiveMatches, recoverLeagueKickoffSlots, backfillLiveLeagueMedia, ingestLeagueMatchLifecycleHttp, } from './liveLeague.js';
 export { bootstrapChampionsLeagueMonthly, bootstrapChampionsLeagueMonthlyHttp, syncChampionsLeagueProgressHttp, syncChampionsLeagueProgressOnFixtureWrite, } from './championsLeague.js';
-export { marketCreateListing, marketCancelListing, marketPurchaseListing, expireStaleTransferListings, autoListExpiredContracts, topUpTransferMarketDaily, topUpTransferMarketHttp, } from './market.js';
+export { marketCreateListing, marketCancelListing, marketPurchaseListing, marketEnsurePurchasedPlayerInRoster, expireStaleTransferListings, autoListExpiredContracts, topUpTransferMarketDaily, topUpTransferMarketHttp, } from './market.js';
 // Plan 4: Sözleşmeler (React ⇄ Functions ⇄ Unity)
 // League onboarding & fixtures management
 export { assignTeamToLeague, assignTeamToLeagueHttp, requestJoinLeague, finalizeIfFull, generateRoundRobinFixturesFn, } from './league.js';
@@ -40,11 +40,12 @@ export { finalizeWatchdogHttp } from './orchestrate/retry.js';
 export { renameClub, renameStadium } from './economy/rename.js';
 export { finalizeAndroidDiamondPurchase, finalizeAndroidCreditPurchase, finalizeAndroidSponsorPurchase, } from './economy/playBilling.js';
 export { activateUserSponsor, collectUserSponsorEarnings } from './economy/sponsors.js';
+export { ensureMonthlySalaryCharge, chargeMonthlyTeamSalariesDaily, } from './economy/salaries.js';
 export { claimVipDailyCredits } from './economy/vipDailyCredit.js';
 export { createRewardedAdSession, claimRewardedAdReward, getMatchEntryAccessStatus, logRewardedAdDiagnostic, admobRewardedSsv, } from './economy/rewardedAds.js';
 export { notifyDueSignals } from './notify/dueSignals.js';
 export { finalizeDueTrainingSessions } from './notify/training.js';
-export { recoverTeamConditionCron } from './notify/conditionRecovery.js';
+export { recoverTeamConditionCron, recoverTeamConditionNow, } from './notify/conditionRecovery.js';
 export { repairIncompleteSquadsDaily, repairIncompleteSquadsHttp, } from './notify/squadRepair.js';
 export { leagueMatchReminderHttp } from './notify/matchReminder.js';
 export { sendPendingRecoveryAlertEmails } from './notify/recoveryAlerts.js';

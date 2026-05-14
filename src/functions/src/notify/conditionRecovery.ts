@@ -247,3 +247,26 @@ export const recoverTeamConditionCron = functions
 
     return null;
   });
+
+export const recoverTeamConditionNow = functions
+  .region(REGION)
+  .https.onCall(async (_data, context) => {
+    const uid = context.auth?.uid;
+    if (!uid) {
+      throw new functions.https.HttpsError(
+        'unauthenticated',
+        'Condition recovery requires an authenticated user.',
+      );
+    }
+
+    const result = await processTeamConditionRecovery(teamCollection.doc(uid), Date.now());
+
+    functions.logger.info('[conditionRecovery] on-demand complete', {
+      uid,
+      status: result.status,
+      source: result.source,
+      appliedTicks: result.status === 'applied' ? result.appliedTicks : 0,
+    });
+
+    return result;
+  });

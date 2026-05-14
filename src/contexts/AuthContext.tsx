@@ -31,7 +31,11 @@ import {
   formatConditionRecoveryGainPercent,
   shouldSkipConditionRecoveryTrigger,
 } from '@/lib/playerConditionRecovery';
-import { claimTeamConditionRecoveryToast } from '@/services/teamConditionRecovery';
+import {
+  applyDueTeamConditionRecovery,
+  claimTeamConditionRecoveryToast,
+} from '@/services/teamConditionRecovery';
+import { ensureMonthlySalaryCharge } from '@/services/finance';
 
 interface AuthContextType {
   user: User | null;
@@ -131,6 +135,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       runtimeState.lastUserId = firebaseUser.uid;
 
       try {
+        try {
+          await applyDueTeamConditionRecovery();
+        } catch (applyError) {
+          console.warn(`[AuthContext] ${reason} condition recovery apply failed`, applyError);
+        }
+
         const result = await claimTeamConditionRecoveryToast(firebaseUser.uid);
         if (result.status === 'ok') {
           const gainParts = [
@@ -146,9 +156,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           ].filter((value): value is string => Boolean(value));
 
           if (gainParts.length > 0) {
-          toast.success(
+            window.dispatchEvent(
+              new CustomEvent('fhs:teamConditionRecovered', {
+                detail: { userId: firebaseUser.uid, reason },
+              }),
+            );
+            toast.success(
               `Oyuncular dinlendi: ortalama ${gainParts.join(', ')} kazandi.`,
-          );
+            );
           }
         }
       } catch (error) {
@@ -454,6 +469,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       unsubscribe();
     };
   }, [triggerConditionRecoveryToast]);
+
+  useEffect(() => {
+    if (!user?.id || e2eBypassUser) {
+      return;
+    }
+
+    void ensureMonthlySalaryCharge(user.id).catch((error) => {
+      console.warn('[AuthContext] monthly salary charge check failed', error);
+    });
+  }, [e2eBypassUser, user?.id]);
 
   const login = async (email: string, password: string) => {
     setIsLoading(true);

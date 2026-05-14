@@ -1,0 +1,28 @@
+{
+  "android": {
+    "latestVersionName": "1.0.27",
+    "lastAutoActivatedVersionCode": 2026042601,
+    "pendingActivation": {
+      "gateMode": "enforce",
+      "latestVersionName": "1.0.27",
+      "latestVersionCode": 2026042701,
+      "forceImmediateUpdate": true,
+      "minSupportedVersionCode": 2026042701,
+      "activateAtMs": 1777319890075
+    },
+    "storeUrl": "https://play.google.com/store/apps/details?id=com.nerbuss.fhsmanager",
+    "latestVersionCode": 2026042701,
+    "minSupportedVersionCode": 2026042301,
+    "sessionTtlSeconds": 600,
+    "blockTitle": "Guncelleme gerekli",
+    "allowPrereleaseTesterEmails": [
+      "fikretleto@gmail.com"
+    ],
+    "blockMessage": "Devam etmek icin uygulamanin en son surumunu yukleyin.",
+    "lastAutoActivatedAtMs": 1777160406066,
+    "requireLicensedPlayInstall": true,
+    "forceImmediateUpdate": true,
+    "gateMode": "enforce",
+    "requireDeviceIntegrity": true
+  }
+}
